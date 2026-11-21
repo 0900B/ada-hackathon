@@ -3,6 +3,8 @@ import type { Place, Trip, Vehicle, WorldSnapshot } from "./api";
 import { Crosshair, ExternalLink, IdCard, Smartphone, Tablet, Timer, TriangleAlert, Wrench, X } from "lucide-react";
 import { fmtTime, humanize } from "./format";
 import { VehicleTypeIcon } from "./icons";
+import { conditionText, LEVEL_LABEL, levelOf } from "./severity";
+import { ResponseLine, SeverityBadge } from "./SeverityBadge";
 
 type Send = (event: Record<string, unknown>) => Promise<void>;
 
@@ -28,6 +30,7 @@ interface Summary {
   status: string; // one short word: pickup, patient, cargo, loading, return, idle, down, fog, held
   text: string; // where and why, short
   warnings: string[];
+  job?: Trip; // the call it is serving (or goes to next): its severity shows in the chip
 }
 
 /** One vehicle in a few words: what it is doing, where, and why. */
@@ -38,7 +41,6 @@ function summarize(v: Vehicle, state: WorldSnapshot, places: Map<string, Place>,
   const warnings: string[] = [];
   if (late.length) warnings.push(`${late.length} late trip${late.length > 1 ? "s" : ""} (up to +${Math.round(Math.max(...late.map((t) => t.delay_min ?? 0)))} min)`);
   if (state.alerts.some((a) => a.kind === "low_fuel" && a.vehicle_id === v.id)) warnings.push(`low fuel (${Math.round(v.fuel_pct)}%)`);
-  const prio = (t: Trip) => (t.priority === "scheduled" ? "" : `${t.priority} `);
 
   if (v.status === "out_of_service") {
     // A load left inside: the trip now starts at this vehicle's breakdown site
@@ -62,15 +64,16 @@ function summarize(v: Vehicle, state: WorldSnapshot, places: Map<string, Place>,
 
   let s: Summary;
   if (v.status === "to_pickup" && trip) {
-    s = { tone: "moving", status: "pickup", text: `→ ${shortPlace(places.get(trip.pickup_id))} · ${prio(trip)}${trip.id} ${what(trip)}`, warnings };
+    s = { tone: "moving", status: "pickup", text: `→ ${shortPlace(places.get(trip.pickup_id))} · ${trip.id} ${what(trip)}`, warnings, job: trip };
   } else if (v.status === "loading" && trip) {
-    s = { tone: "loaded", status: "loading", text: `${what(trip)} at ${shortPlace(places.get(trip.pickup_id))} · ${trip.id}`, warnings };
+    s = { tone: "loaded", status: "loading", text: `${what(trip)} at ${shortPlace(places.get(trip.pickup_id))} · ${trip.id}`, warnings, job: trip };
   } else if (v.status === "with_patient" && trip) {
     s = {
       tone: "loaded",
       status: trip.kind === "equipment" ? "cargo" : "patient",
-      text: `→ ${shortPlace(places.get(trip.dropoff_id))} · ${prio(trip)}${trip.id} ${what(trip)}`,
+      text: `→ ${shortPlace(places.get(trip.dropoff_id))} · ${trip.id} ${what(trip)}`,
       warnings,
+      job: trip,
     };
   } else if (v.status === "to_pickup" && v.queue.length) {
     // just re-planned (e.g. diverted): the simulator picks the next trip on its next tick
@@ -81,8 +84,9 @@ function summarize(v: Vehicle, state: WorldSnapshot, places: Map<string, Place>,
     s = {
       tone: v.busy_until ? "loaded" : "moving",
       status: v.busy_until ? "unloading" : "pickup",
-      text: next ? `next → ${shortPlace(places.get(next.pickup_id))} · ${prio(next)}${next.id}` : `next ${v.queue[0]}`,
+      text: next ? `next → ${shortPlace(places.get(next.pickup_id))} · ${next.id}` : `next ${v.queue[0]}`,
       warnings,
+      job: next,
     };
   } else if (v.status === "returning") {
     s = { tone: "returning", status: "return", text: `→ ${shortPlace(base)}`, warnings };
@@ -150,7 +154,11 @@ export function VehicleStrip({
       <div className="vstrip" ref={strip} onScroll={() => setOpen(null)} role="toolbar" aria-label="Vehicles">
         {state.vehicles.map((veh) => {
           const s = summarize(veh, state, places, trips);
-          const title = `${veh.name} · ${s.status} · ${s.text}${s.warnings.length ? ` · warning: ${s.warnings.join(", ")}` : ""}`;
+          const level = s.job ? levelOf(s.job) : null;
+          const cond = s.job ? conditionText(s.job) : null;
+          const title = `${veh.name} · ${s.status} · ${s.text}${level ? ` · ${LEVEL_LABEL[level]}${cond ? `: ${cond}` : ""}` : ""}${
+            s.warnings.length ? ` · warning: ${s.warnings.join(", ")}` : ""
+          }`;
           return (
             <button
               key={veh.id}
@@ -171,7 +179,10 @@ export function VehicleStrip({
                   </span>
                 )}
               </span>
-              <span className="vchip-text">{s.text}</span>
+              <span className="vchip-text">
+                {s.job && level !== "routine" && <SeverityBadge trip={s.job} compact />}
+                {s.text}
+              </span>
             </button>
           );
         })}
@@ -248,7 +259,10 @@ function VehiclePopover({
       {trip ? (
         <div className="vpop-trip">
           <div>
-            <strong>{trip.id}</strong> {trip.label} <span className={`prio prio-${trip.priority}`}>{trip.priority}</span>
+            <strong>{trip.id}</strong> {trip.label}
+          </div>
+          <div>
+            <SeverityBadge trip={trip} />
           </div>
           <div className="muted">
             {name(trip.pickup_id)} → {name(trip.dropoff_id)}
@@ -256,6 +270,9 @@ function VehiclePopover({
           <div className="muted">
             {trip.status === "onboard" ? "on board" : `pickup ${fmtTime(trip.eta_pickup)}`} · drop-off {fmtTime(trip.eta_dropoff)}
             {(trip.delay_min ?? 0) >= 5 && <span className="late"> · +{Math.round(trip.delay_min ?? 0)} min late</span>}
+          </div>
+          <div className="small">
+            <ResponseLine trip={trip} now={state.sim_time} />
           </div>
         </div>
       ) : (

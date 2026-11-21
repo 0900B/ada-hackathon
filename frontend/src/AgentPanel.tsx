@@ -40,6 +40,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { fmtTime } from "./format";
+import { SeverityBadge } from "./SeverityBadge";
 
 type Notify = (kind: "ok" | "error", text: string) => void;
 
@@ -166,7 +167,13 @@ function StepLine({ step, state, detail }: { step: PlanStep; state: WorldSnapsho
     const late = (detail.delay_min ?? 0) > 0;
     return (
       <li className={late ? "step-late" : undefined}>
-        <span className="step-trip">{step.trip_id}</span> {detail.text}
+        <span className="step-trip">{step.trip_id}</span>{" "}
+        {trip && (
+          <>
+            <SeverityBadge trip={trip} weight={false} modifiers={false} /> <span className="muted">·</span>{" "}
+          </>
+        )}
+        {detail.text}
         {step.dropoff_id && !detail.text.includes(place(step.dropoff_id)) && (
           <span className="step-redirect"> · to {place(step.dropoff_id)}</span>
         )}
@@ -182,7 +189,7 @@ function StepLine({ step, state, detail }: { step: PlanStep; state: WorldSnapsho
         : `#${step.position + 1} in queue`;
   return (
     <li>
-      <span className="step-trip">{step.trip_id}</span>
+      <span className="step-trip">{step.trip_id}</span> {trip && <SeverityBadge trip={trip} weight={false} modifiers={false} />}
       {trip && <span className="muted"> {trip.label}</span>} → <span className="step-veh">{step.vehicle_id}</span>{" "}
       <span className="muted">({where})</span>
       {step.dropoff_id && <span className="step-redirect"> · to {place(step.dropoff_id)}</span>}

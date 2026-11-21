@@ -6,8 +6,8 @@ import {
   useWorldState,
   type EventRecord,
   type Kpis,
-  type Priority,
   fetchVehicle,
+  type Trip,
   type VehicleDetail,
   type World,
   type WorldSnapshot,
@@ -35,10 +35,13 @@ import { useHotkeys } from "./hotkeys";
 import { ShortcutsHelp } from "./ShortcutsHelp";
 import { CrewPage } from "./pages/CrewPage";
 import { ScenariosPanel } from "./ScenariosPanel";
+import { EmergencyPicker } from "./EmergencyPicker";
 import { VehicleCard } from "./VehicleCard";
 import { VehicleStrip } from "./VehicleStrip";
 import { OpsControls } from "./OpsControls";
 import { fmtTime } from "./format";
+import { compareTrips, LEVEL_RANK, levelOf, targetMisses, type ResponseInfo } from "./severity";
+import { ResponseLine, SeverityBadge } from "./SeverityBadge";
 import { MapView, type ClickMode } from "./MapView";
 import { AuditPage } from "./pages/AuditPage";
 import { FleetPage } from "./pages/FleetPage";
@@ -50,8 +53,6 @@ type Send = (event: Record<string, unknown>) => Promise<void>;
 type Toast = { kind: "ok" | "error"; text: string; sticky: boolean; n: number };
 type Notify = (kind: "ok" | "error", text: string, sticky?: boolean) => void;
 type Tab = "dispatch" | "scenarios" | "events" | "book" | "alerts";
-
-const PRIORITY_ORDER: Record<Priority, number> = { emergency: 0, urgent: 1, scheduled: 2 };
 
 const unassignedTotal = (k: Kpis) => k.unassigned.emergency + k.unassigned.urgent + k.unassigned.scheduled;
 
@@ -166,6 +167,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
   const world = state.world;
   const sim = state.hypothetical;
   const [mode, setMode] = useState<ClickMode>(null);
+  const [pendingCall, setPendingCall] = useState<{ lat: number; lon: number } | null>(null); // where the next emergency goes
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -285,13 +287,14 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
     if (mode === "closure") {
       void send({ type: "road_closure", lat, lon, radius_m: 400, description: "Road closed (operator report)" });
     } else if (mode === "emergency") {
-      void send({ type: "urgent_request", lat, lon, priority: "emergency", needs: "stretcher", dropoff_id: "ukc" });
+      setPendingCall({ lat, lon }); // what kind of emergency: the picker sends it
     }
     setMode(null);
   };
 
-  const alertCount = state.alerts.length + state.incidents.filter((i) => i.active).length;
-  const critical = state.alerts.some((a) => a.severity === "critical");
+  const misses = responseAlerts(state);
+  const alertCount = misses.length + state.alerts.length + state.incidents.filter((i) => i.active).length;
+  const critical = misses.length > 0 || state.alerts.some((a) => a.severity === "critical");
   const tabs: { id: Tab; label: string; badge?: string; hot?: boolean }[] = [
     { id: "dispatch", label: "Dispatch", badge: unseenRun ? "New" : undefined, hot: unseenRun },
     ...(sim ? [{ id: "scenarios" as Tab, label: "Scenarios" }] : []),
@@ -323,9 +326,20 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
             </button>
           </div>
         )}
+        {pendingCall && (
+          <EmergencyPicker
+            at={pendingCall}
+            onCancel={() => setPendingCall(null)}
+            onSend={(event) => {
+              setPendingCall(null);
+              void send(event);
+            }}
+          />
+        )}
         <MapView
           state={state}
           mode={mode}
+          pin={pendingCall}
           onMapClick={onMapClick}
           selectedId={selectedId}
           onSelect={(id) => select(id)}
@@ -405,7 +419,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
             <Alerts state={state} send={send} />
           </Panel>
           <Panel title="Event log">
-            <EventLog events={state.events} />
+            <EventLog events={state.events} trips={state.trips} />
           </Panel>
         </div>
       </aside>
@@ -442,6 +456,12 @@ function CallsChip({ state }: { state: WorldSnapshot }) {
 function MapLegend() {
   return (
     <div className="map-legend" aria-label="Map legend">
+      <span title="Open critical call (life-threatening now), until a unit reaches the patient">
+        <i className="lg lg-crit" /> Critical call
+      </span>
+      <span title="Open serious call (may become life-threatening soon), until a unit reaches the patient">
+        <i className="lg lg-ser" /> Serious call
+      </span>
       <span>
         <i className="lg lg-idle" /> Available
       </span>
@@ -598,11 +618,31 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+/** Critical and serious calls that will miss their response target (unless the backend already alerts on them). */
+function responseAlerts(state: WorldSnapshot): { trip: Trip; r: ResponseInfo }[] {
+  const covered = new Set(state.alerts.filter((a) => a.trip_id && /target|response/i.test(a.kind)).map((a) => a.trip_id));
+  return targetMisses(state.trips, state.sim_time).filter((m) => !covered.has(m.trip.id));
+}
+
 function Alerts({ state, send }: { state: WorldSnapshot; send: Send }) {
   const incidents = state.incidents.filter((i) => i.active);
-  if (state.alerts.length === 0 && incidents.length === 0) return <p className="muted">All clear.</p>;
+  const misses = responseAlerts(state);
+  if (misses.length === 0 && state.alerts.length === 0 && incidents.length === 0) return <p className="muted">All clear.</p>;
   return (
     <ul className="alerts">
+      {misses.map(({ trip: t, r }) => (
+        <li key={`target:${t.id}`} className={`alert target-miss lvl-${levelOf(t)}`}>
+          <div className="target-miss-head">
+            <SeverityBadge trip={t} modifiers={false} />
+            <strong className="id">{t.id}</strong>
+          </div>
+          <div>
+            {r.minutes == null
+              ? `No unit yet: waiting ${Math.round(r.waited)} min, target ${r.target} min.`
+              : `${t.vehicle_id ?? "The unit"} reaches the patient ${r.minutes} min after the call: target ${r.target} min, ${r.minutes - r.target} min over.`}
+          </div>
+        </li>
+      ))}
       {incidents.map((inc) => (
         <li key={inc.id} className={`alert ${inc.kind === "congestion" ? "sev-medium" : "sev-high"}`}>
           <span>
@@ -624,15 +664,25 @@ function Alerts({ state, send }: { state: WorldSnapshot; send: Send }) {
   );
 }
 
-function EventLog({ events }: { events: EventRecord[] }) {
+function EventLog({ events, trips }: { events: EventRecord[]; trips: Trip[] }) {
   if (events.length === 0) return <p className="muted">No events yet.</p>;
+  const byId = new Map(trips.map((t) => [t.id, t]));
+  // The most severe call an event touches (a new call, a priority change, a breakdown's patients…)
+  const worst = (e: EventRecord) =>
+    e.affected_trip_ids
+      .map((id) => byId.get(id))
+      .filter((t): t is Trip => Boolean(t))
+      .sort((a, b) => LEVEL_RANK[levelOf(a)] - LEVEL_RANK[levelOf(b)])[0];
   return (
     <ul className="events">
-      {[...events].reverse().map((e) => (
-        <li key={e.id}>
-          <span className="muted">{fmtTime(e.sim_time)}</span> {describe(e)}
-        </li>
-      ))}
+      {[...events].reverse().map((e) => {
+        const t = worst(e);
+        return (
+          <li key={e.id}>
+            <span className="muted">{fmtTime(e.sim_time)}</span> {t && <SeverityBadge trip={t} compact />} {describe(e)}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -647,14 +697,8 @@ function TripTable({
   onSelect: (vehicleId: string | null) => void;
 }) {
   const place = new Map(state.places.map((p) => [p.id, p.name]));
-  const open = state.trips
-    .filter((t) => t.status !== "completed" && t.status !== "cancelled")
-    .sort(
-      (a, b) =>
-        Number(b.status === "unassigned") - Number(a.status === "unassigned") ||
-        PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority] ||
-        a.due_by.localeCompare(b.due_by),
-    );
+  // Most severe first, then the most time-critical condition, then the earliest due
+  const open = state.trips.filter((t) => t.status !== "completed" && t.status !== "cancelled").sort(compareTrips);
   const done = state.trips.length - open.length;
 
   return (
@@ -663,8 +707,8 @@ function TripTable({
         <tr>
           <th>Trip</th>
           <th>Patient / load</th>
-          <th>Priority</th>
-          <th>Needs</th>
+          <th>Severity</th>
+          <th title="Minutes from the call to reaching the patient / response target">Resp.</th>
           <th>Route</th>
           <th>Vehicle</th>
           <th>Status</th>
@@ -687,13 +731,16 @@ function TripTable({
               title={t.vehicle_id ? `Show ${t.vehicle_id} on the map` : undefined}
             >
               <td className="id">{t.id}</td>
-              <td className="cell-clip" title={t.label ?? t.patient ?? ""}>
+              <td className="cell-clip" title={`${t.label ?? t.patient ?? ""}${t.kind === "patient" ? ` · ${t.needs}` : ""}`}>
                 {t.label ?? t.patient}
+                {t.kind === "patient" && <span className="muted"> · {t.needs}</span>}
+              </td>
+              <td className="cell-sev">
+                <SeverityBadge trip={t} />
               </td>
               <td>
-                <span className={`prio prio-${t.priority}`}>{t.priority}</span>
+                <ResponseLine trip={t} now={state.sim_time} compact />
               </td>
-              <td>{t.needs}</td>
               <td className="cell-clip cell-route" title={route}>
                 {route}
               </td>

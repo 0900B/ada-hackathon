@@ -63,6 +63,14 @@ export interface Trip {
   eta_dropoff: string | null;
   delay_min: number | null;
   dispatched_at?: string | null; // when the engine dispatched this call itself (sim time)
+  // Severity and per-case urgency (docs/DISPATCH_PRIORITIES.md); missing on older backends:
+  // severity.ts falls back to `priority` for all of them
+  severity?: "critical" | "serious" | "urgent" | "routine" | null;
+  condition?: string | null; // e.g. "cardiac_arrest", "stroke"
+  condition_label?: string | null; // e.g. "Cardiac arrest"
+  time_weight?: number | null; // 1-10: time sensitivity within the level
+  response_target_min?: number | null; // to reach the patient
+  modifiers?: string[]; // e.g. "child", "deteriorating", "multiple_patients"
 }
 
 export interface Incident {
