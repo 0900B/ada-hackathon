@@ -15,6 +15,16 @@ for pickup and a due-by time at the destination. Delay means minutes after due-b
 another vehicle.
 - Travel times come from the backend's model, which already accounts for traffic, weather and incidents.
 - All times are local (Europe/Ljubljana) on the same day, written HH:MM.
+- Equipment trips (needs "equipment", e.g. a ventilator or blood products) carry cargo, not a \
+patient: ambulances and vans can take them. Refer to them by their cargo, never as patients. \
+Equipment stranded in a broken-down vehicle must be collected at the breakdown site by another vehicle.
+- The operator may change a trip's priority. A trip raised to emergency on a van is released and \
+needs an ambulance.
+- Hospitals list how many more patients they can admit. When more patients are heading to a hospital \
+than it can admit, redirect the ones listed under over_capacity_redirect by setting dropoff_id in \
+their step to a general hospital (no specialty) that can still admit them. Keeping the trip's own \
+vehicle with position null keeps its place in the queue, even with the patient on board. A redirect \
+usually adds travel time: simulate it and state the cost.
 
 Rules:
 - Every number you state (arrival times, delays, response times, totals) must come from a tool \
@@ -69,8 +79,12 @@ _STEP = {
             "type": "boolean",
             "description": "True puts this trip before the vehicle's current trip (only if that trip is not onboard).",
         },
+        "dropoff_id": {
+            "anyOf": [{"type": "string"}, {"type": "null"}],
+            "description": "Redirect the patient to this hospital id; null keeps the destination.",
+        },
     },
-    "required": ["trip_id", "vehicle_id", "position", "interrupt_current"],
+    "required": ["trip_id", "vehicle_id", "position", "interrupt_current", "dropoff_id"],
     "additionalProperties": False,
 }
 
@@ -129,8 +143,14 @@ TOOLS = [
         "strict": True,
         "input_schema": {
             "type": "object",
-            "properties": {"trip_id": {"type": "string", "description": "e.g. TR-007"}},
-            "required": ["trip_id"],
+            "properties": {
+                "trip_id": {"type": "string", "description": "e.g. TR-007"},
+                "dropoff_id": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "description": "Evaluate as if redirected to this hospital id; null keeps the destination.",
+                },
+            },
+            "required": ["trip_id", "dropoff_id"],
             "additionalProperties": False,
         },
     },

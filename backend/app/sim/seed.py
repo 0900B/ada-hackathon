@@ -22,6 +22,9 @@ PLACES = [
     ("ukc", "UKC Ljubljana", "hospital", 46.0563, 14.5232),
     ("onko", "Oncology Institute Ljubljana", "hospital", 46.0538, 14.5222),
     ("dialysis", "Dialysis centre (simulated)", "hospital", 46.0610, 14.5290),
+    # Regional general hospitals: where patients go when UKC cannot admit them (approximate).
+    ("sb_trbovlje", "General Hospital Trbovlje (approx.)", "hospital", 46.1580, 15.0590),
+    ("sb_novo_mesto", "General Hospital Novo mesto (approx.)", "hospital", 45.8030, 15.1750),
     ("zd_center", "Health centre Ljubljana Center", "health_centre", 46.0573, 14.5155),
     ("zd_siska", "Health centre Šiška", "health_centre", 46.0705, 14.4930),
     ("zd_vic", "Health centre Vič", "health_centre", 46.0445, 14.4905),
@@ -54,6 +57,18 @@ FLEET = [
 
 DESTINATIONS = ["ukc", "onko", "zd_center", "zd_siska", "zd_vic"]
 NEEDS: list[Needs] = ["seated", "wheelchair", "stretcher"]
+# Specialised hospitals are never chosen as a redirect target for an over-capacity hospital.
+SPECIALTY = {"onko": "oncology", "dialysis": "dialysis"}
+
+# Equipment transfers (prevoz opreme), not patients:
+# (cargo, pickup, dropoff, priority, ready in min, slack min beyond the direct drive, note)
+# Times chosen so the pre-planned day still starts with no late trips (default seed).
+EQUIPMENT = [
+    ("blood products", "ukc", "onko", "urgent", 20, 15, "for a transfusion"),
+    ("defibrillator", "ukc", "zd_vic", "scheduled", 60, 45, "replacement unit"),
+    ("lab samples", "zd_siska", "ukc", "scheduled", 75, 30, "to the central lab"),
+    ("ventilator", "ukc", "sb_trbovlje", "scheduled", 180, 30, "ICU loan to a regional hospital"),
+]
 
 
 def seed_world(state: WorldState, seed: int, n_trips: int = 24) -> None:
@@ -61,7 +76,7 @@ def seed_world(state: WorldState, seed: int, n_trips: int = 24) -> None:
     state.reset_simulation()
 
     for pid, name, kind, lat, lon in PLACES:
-        state.places[pid] = Place(id=pid, name=name, kind=kind, lat=lat, lon=lon)  # type: ignore[arg-type]
+        state.places[pid] = Place(id=pid, name=name, kind=kind, lat=lat, lon=lon, specialty=SPECIALTY.get(pid))  # type: ignore[arg-type]
     for vid, name, vtype, base in FLEET:
         b = state.places[base]
         state.vehicles[vid] = Vehicle(id=vid, name=name, type=vtype, base_id=base, lat=b.lat, lon=b.lon)  # type: ignore[arg-type]
@@ -94,6 +109,24 @@ def seed_world(state: WorldState, seed: int, n_trips: int = 24) -> None:
                 pickup_after=pickup_after,
                 due_by=pickup_after + timedelta(minutes=direct + LOAD_MIN + rng.randint(15, 35)),
                 note=kind,
+            )
+        )
+    for cargo, pickup, dropoff, priority, ready_min, slack_min, note in EQUIPMENT:  # fixed, no rng draws
+        pickup_after = state.sim_time + timedelta(minutes=ready_min)
+        a, b = state.places[pickup], state.places[dropoff]
+        direct = travel_minutes(state, a.lat, a.lon, b.lat, b.lon, "transport")
+        trips.append(
+            Trip(
+                id=f"TR-{len(trips) + 1:03d}",
+                kind="equipment",
+                cargo=cargo,
+                priority=priority,  # type: ignore[arg-type]
+                needs="equipment",
+                pickup_id=pickup,
+                dropoff_id=dropoff,
+                pickup_after=pickup_after,
+                due_by=pickup_after + timedelta(minutes=direct + LOAD_MIN + slack_min),
+                note=note,
             )
         )
 

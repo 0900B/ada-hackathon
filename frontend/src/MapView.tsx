@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { WorldSnapshot } from "./api";
+import { vehicleStatusText } from "./format";
 
 export type ClickMode = "closure" | "emergency" | null;
 
@@ -123,7 +124,7 @@ export function MapView({ state, mode, onMapClick }: Props) {
         iconAnchor: [16, 10],
       });
       L.marker([v.lat, v.lon], { icon })
-        .bindTooltip(`${v.name} · ${v.status.replace(/_/g, " ")}${trip ? ` · ${trip.id}` : ""}`)
+        .bindTooltip(`${v.name} · ${vehicleStatusText(v, state.trips)}${trip ? ` · ${trip.id} (${trip.label})` : ""}`)
         .addTo(ls.vehicles);
     }
   }, [state]);

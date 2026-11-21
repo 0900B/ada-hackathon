@@ -79,12 +79,32 @@ Example events:
 {"type": "urgent_request", "lat": 46.05, "lon": 14.50, "priority": "emergency"}
 {"type": "weather_override", "snowfall_cm": 2}
 {"type": "weather_override", "clear": true}
+{"type": "priority_change", "trip_id": "TR-007", "priority": "emergency"}
+{"type": "hospital_capacity", "place_id": "ukc", "capacity": 2}
+{"type": "hospital_capacity", "place_id": "ukc", "capacity": null}
 ```
+
+- **Equipment transport** (`kind: "equipment"`, `needs: "equipment"`, `cargo`): no patient; vans and
+  ambulances carry it. If the vehicle breaks down with it on board, another vehicle must collect it
+  at the breakdown site first.
+- **Priority change**: raised to emergency = collect now, due-by at most direct ambulance time + 5 + 20 min
+  (urgent: + 60 min from the ready time); deadlines are never loosened. A vehicle that can no longer
+  serve the trip (a van for an emergency) loses it to replanning; trips on board keep their vehicle.
+- **Hospital capacity**: admissions the hospital can still take (each delivered patient uses one;
+  `null` = unlimited). Over capacity, the most urgent incoming patients keep their place and the
+  rest raise a `hospital_over_capacity` alert and the `over_capacity` KPI until redirected.
 
 Example plan:
 
 ```json
 {"steps": [{"trip_id": "TR-003", "vehicle_id": "T4", "position": 0}], "rationale": "T4 is closest"}
+```
+
+Redirect a patient to another general hospital with free capacity (same vehicle, `position: null`
+keeps its place in the queue, also with the patient on board):
+
+```json
+{"steps": [{"trip_id": "TR-011", "vehicle_id": "A1", "position": null, "dropoff_id": "sb_trbovlje"}]}
 ```
 
 ## Deploy on Railway

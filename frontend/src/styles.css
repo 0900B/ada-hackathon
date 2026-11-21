@@ -612,3 +612,13 @@ button.primary {
 .roads li.slow {
   color: var(--warn);
 }
+
+/* Priority change / hospital capacity controls (OpsControls.tsx) */
+.ops-controls select {
+  min-width: 0;
+}
+.ops-warn {
+  margin: 0;
+  font-size: 12px;
+  color: var(--warn);
+}

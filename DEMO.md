@@ -53,3 +53,5 @@ real road routing and hospital capacity. Measure minutes saved per disruption.
 | 🚐 Stranded patient | A van breaks down **with a patient on board**; its other trips have no vehicle | The stranded patient is handled first, and ambulances are kept free |
 | 🧠 Stroke + closure | Suspected stroke in Polje plus a closure on Zaloška near UKC | Fastest ambulance, route around the closure, hospital pre-alert |
 | ❄️ Snow cascade | Snowstorm, a van stuck 25 min and a fall on ice, all at once | Many late trips at once: the agent prioritises and reshuffles |
+| 🧰 Stranded equipment | A vehicle breaks down with equipment (blood products) on board | Another vehicle must first collect it at the breakdown site, then deliver it |
+| 🏥 UKC full | A van patient becomes an emergency, then UKC can admit only one more patient | The emergency gets an ambulance and the last UKC slot; the others are redirected to a regional hospital |
