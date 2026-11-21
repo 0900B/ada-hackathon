@@ -620,12 +620,27 @@ export function AgentPanel({
                 rec.situation !== state.events.find((e) => e.id === run.event_id)?.summary && (
                   <p className="muted small">{rec.situation}</p>
                 )}
-              {approvedOption && approvedOption.steps.length > 0 && (
+              {run.decision?.executed && run.decision.executed.length > 0 ? (
+                // what each step did as it was applied (the engine's own wording)
                 <ul className="plan-steps">
-                  {approvedOption.steps.map((s, i) => (
-                    <StepLine key={i} step={s} state={state} />
+                  {run.decision.executed.map((text, i) => (
+                    <li key={i}>{text}</li>
                   ))}
                 </ul>
+              ) : (
+                approvedOption &&
+                approvedOption.steps.length > 0 && (
+                  <ul className="plan-steps">
+                    {approvedOption.steps.map((s, i) => (
+                      <StepLine
+                        key={i}
+                        step={s}
+                        state={state}
+                        detail={approvedOption.step_details?.find((d) => d.trip_id === s.trip_id && d.vehicle_id === s.vehicle_id)}
+                      />
+                    ))}
+                  </ul>
+                )
               )}
               {run.status === "approved" && rec && <Notifications rec={rec} open />}
               <div className="muted small">
