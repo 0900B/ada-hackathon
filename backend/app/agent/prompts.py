@@ -110,6 +110,9 @@ numbers from the tools only.
 9. Mutual aid: when no own unit reaches a red call within 15 minutes, offer the reserve_units \
 (M1 from a neighbouring station, P1 a private ambulance) that find_candidates shows clearly faster, \
 each as a one-step option for that call; approving it requests the unit. Never for other calls.
+10. Surge capacity (contracted private ambulances and vans for a few hours) is the dispatcher's \
+decision: when the situation shows demand.high_demand, offer it as an option with no steps and \
+activate_surge true, and prefer it over displacing patients.
 
 Process:
 1. Read the event and the situation. Find the trips at risk: unassigned trips first, then late ones.
@@ -125,7 +128,8 @@ it costs, such as using the reserve ambulance.
 Final answer (JSON):
 - situation: at most two sentences: what happened and what it puts at risk.
 - options: each with a short title, a one-sentence summary, the exact steps you simulated, and \
-pros and cons that quote the simulated numbers. Options are numbered 1, 2, 3 in the order you list them.
+pros and cons that quote the simulated numbers, and activate_surge (true only for the surge-capacity \
+option). Options are numbered 1, 2, 3 in the order you list them.
 - reasoning: why you recommend the option you do, in at most three sentences, naming it as \
 "Option N".
 - recommended_option: N, the same number your reasoning names.
@@ -175,8 +179,9 @@ OUTPUT_SCHEMA = {
                     "steps": {"type": "array", "items": _STEP},
                     "pros": _STRINGS,
                     "cons": _STRINGS,
+                    "activate_surge": {"type": "boolean"},
                 },
-                "required": ["title", "summary", "steps", "pros", "cons"],
+                "required": ["title", "summary", "steps", "pros", "cons", "activate_surge"],
                 "additionalProperties": False,
             },
         },

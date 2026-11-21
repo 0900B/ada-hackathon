@@ -999,6 +999,27 @@ button.primary kbd {
 .alert.sev-medium {
   border-left-color: var(--warn);
 }
+/* The demand trigger: what is wrong, and the one-click offer of contracted surge capacity */
+.alert.high-demand {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.alert.high-demand .surge-button {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.alert.high-demand .surge-button svg {
+  width: 14px;
+  height: 14px;
+}
+.surge-chip button.link {
+  font-size: 12px;
+  text-decoration: underline;
+}
 /* A critical or serious call that will miss its response target: first and loudest */
 .alert.target-miss {
   flex-direction: column;

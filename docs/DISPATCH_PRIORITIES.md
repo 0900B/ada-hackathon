@@ -131,6 +131,67 @@ which matches his rule.
 | 8. Clinical reason | `engine/severity.py: clinical_reason` | |
 | Doctor cars, mutual aid, private ambulances | `engine/doctors.py` | `DOCTOR_CONDITIONS`, `DOCTOR_TARGET_MIN` = 15 |
 | Turnout, on scene, handover, cleaning | `engine/service_times.py` | see [SERVICE_TIMES.md](SERVICE_TIMES.md) |
+| Demand trigger, surge capacity, use rules | `engine/surge.py` | see section 6 |
+
+## 6. Surge capacity: contracted units when demand rises
+
+Slovenian dispatch has an escalation ladder for more demand than the area can handle
+([AGENTIC_DISPATCH_DESIGN.md](AGENTIC_DISPATCH_DESIGN.md) 5.4,
+[SURGE_AND_MULTI_SERVICE_COORDINATION.md](SURGE_AND_MULTI_SERVICE_COORDINATION.md)). Plan B models its
+private-provider steps, proactively and always as the **dispatcher's decision**.
+
+**Demand trigger** (thresholds from the rules table in [DISPATCH_SCENARIOS.md](DISPATCH_SCENARIOS.md),
+live-calls mode only), on when any of these holds:
+
+| Condition | Constant |
+|---|---|
+| Free own ambulances are 25 % or less of those crewed (with three crewed: none free) | `DEMAND_FREE_SHARE` = 0.25 |
+| A red (critical or serious) call is predicted to wait more than 15 min | `DEMAND_RED_WAIT_MIN` = 15 |
+| At least two open calls are predicted past their response target | `DEMAND_PAST_TARGET` = 2 |
+
+It raises the alert `high_demand`, saying why and what would help, with a one-click offer. It never
+activates anything. With auto-analyse on, an analysis may start when it turns on and patients are
+affected (a red call over 15 min, or calls past target), at most once per 15 world-minutes; the AI then
+proposes the surge capacity (rule 10 of the prompt) rather than displacing patients.
+
+**Contracted surge capacity**, activated by the dispatcher (the alert's button, `POST
+/{world}/admin/surge`, or an approved option with `activate_surge`): ambulances **P1** (Brezovica) and
+**P2** (Vič) with qualified crews, private vans **PV1 to PV3** for non-urgent transports, for **2 hours**
+(`SURGE_HOURS`). At the end of the contract (or `POST /{world}/admin/surge/stand-down`) each unit takes
+no new jobs, its queued jobs are dispatched again, it finishes its current job, returns and leaves the
+fleet. M1 (mutual aid) and P1 can still be requested for a single red call as before.
+
+**Use rules while they are in the fleet** (the ladder's rules, mapped to our severities):
+
+| Calls | Rule | Constant |
+|---|---|---|
+| Transports (routine bookings, urgent transfers, equipment) | Private vans first; never a contracted ambulance | |
+| Urgent calls | A contracted ambulance when our own unit would reach the patient more than 45 min after the call, or the contracted one is 10 min sooner | `PRIVATE_URGENT_WAIT_MIN` = 45, `PRIVATE_URGENT_GAIN_MIN` = 10 |
+| Critical and serious calls | A private ambulance only if no public unit (own, helicopter, mutual aid) arrives within 15 min and it is faster | `PRIVATE_RED_GAIN_MIN` = 1 |
+
+Activating moves the waiting calls these rules give to the new units at once (never a patient on
+board, a unit on scene or within 2 min of its patient, or a transport already under way).
+
+**Slovenian context.** Non-urgent transports already go through the dispatch service to contracted
+providers (dispatch rulebook art. 15); since 2026 non-urgent public providers must answer the
+dispatcher's call in a sudden rise in demand [reported, SS]; a **2024 rule (Uradni list RS 2024-01-2739)
+requires non-urgent transport providers to reserve 20 % of their capacity for the emergency dispatch
+service**. We have not read that text ourselves (the official gazette site failed its certificate check
+for us, as it did for Metelko with the 2026 rulebook). Whether private crews may take red calls outside
+a declared large disaster is an open point in the research; Plan B keeps them as the last option.
+
+**Measured** (8 world-hours, seeds 42 and 7; "with surge": a stand-in dispatcher activates it for 2 h
+whenever the trigger is on and patients are affected):
+
+| Calls per hour | Red calls over 15 min | Worst red wait | Calls displaced | Late trips |
+|---|---|---|---|---|
+| 5 (default), without | 2 / 3 | 55 / 36 min | 0 / 0 | 2 / 1 |
+| 5, with surge capacity | 1 / 3 | 16 / 36 min | 0 / 0 | 1 / 1 |
+| 8, without | 16 / 7 | 200 / 45 min | 1 / 1 | 7 / 2 |
+| 8, with surge capacity | 5 / 5 | 50 / 47 min | 0 / 1 | 2 / 1 |
+
+With only three own ambulances the first condition ("none free") is on 22 to 53 % of the time even at
+5 calls per hour, so the alert shows often; the button is still only an offer.
 
 ## Sources
 
@@ -139,6 +200,10 @@ which matches his rule.
   helicopter 5.5, handover 5.8, statuses 5.10), [DISPATCH_SCENARIOS.md](DISPATCH_SCENARIOS.md),
   [LJUBLJANA_FLEET_AND_TEAMS.md](LJUBLJANA_FLEET_AND_TEAMS.md), [DATA_FRESHNESS.md](DATA_FRESHNESS.md).
 - Service times (turnout, on scene, handover, cleaning): [SERVICE_TIMES.md](SERVICE_TIMES.md).
+- Surge capacity (section 6): [AGENTIC_DISPATCH_DESIGN.md](AGENTIC_DISPATCH_DESIGN.md) 5.4,
+  [SURGE_AND_MULTI_SERVICE_COORDINATION.md](SURGE_AND_MULTI_SERVICE_COORDINATION.md) sections 2, 5 and 8,
+  [DISPATCH_SCENARIOS.md](DISPATCH_SCENARIOS.md) (rules table, D07 to D11); the 20 % capacity
+  reservation for non-urgent providers: Uradni list RS 2024-01-2739 (as reported to us, text not read).
 
 - Slovenia, severity levels (SloIn NMP, red and yellow priorities): [Pravilnik o službi nujne medicinske pomoči in prevozih pacientov (consolidated text, 3 June 2026)](https://www.tax-fin-lex.si/Dokument/Podrobnosti/b509dd37-3d66-492d-893f-61191c3dec52); [gov.si: Nujna medicinska pomoč](https://www.gov.si/teme/nujna-medicinska-pomoc/)
 - UK Ambulance Response Programme categories and standards: [NHS England ARP board paper](https://www.england.nhs.uk/wp-content/uploads/2019/07/02-CB-30-03-2017-ARP.pdf), [NEAS: Ambulance Response Programme](https://www.neas.nhs.uk/your-service/999/ambulance-response-programme), [GSS: summary of ambulance response time data](https://analysisfunction.civilservice.gov.uk/government-statistical-service-and-statistician-group/user-facing-pages/health-and-care-statistics/summary-of-ambulance-response-time-data-in-the-uk). The Category 1 mean (7 min) and Category 3 (120 min) figures are the published ARP standards and were not re-checked in this research.

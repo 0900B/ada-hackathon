@@ -19,6 +19,7 @@ from .. import config
 from ..audit import AUDIT
 from ..engine.candidates import HELICOPTER_MIN_GAIN_MIN, find_candidates, greedy_plan, is_free
 from ..engine.dispatch import swap_options
+from ..engine import surge
 from ..engine.doctors import reserve_options
 from ..engine.projection import red_wait_min
 from ..engine.severity import RED_REFERENCE_MIN, clinical_reason
@@ -275,6 +276,31 @@ def _faster_unit_option(state: WorldState, t, gain: float, c: dict) -> list[Reco
     ]
 
 
+def _surge_option(state: WorldState) -> RecommendationOption | None:
+    """The demand trigger is on: offer the contracted surge capacity, with its effect simulated on a copy."""
+    d = surge.demand(state)
+    if not d["high"] or surge.active(state) or not any(surge.available(state).values()):
+        return None
+    sim = state.clone_for_simulation()
+    record = surge.activate(sim)
+    after = surge.demand(sim)
+    moved = record.summary.split("; moved: ", 1)[1] if "; moved: " in record.summary else None
+    until = sim.surge_until.astimezone(surge.LJ).strftime("%H:%M") if sim.surge_until else "?"
+    return RecommendationOption(
+        title=surge.offer_text(state),
+        summary=("Contracted units join now and the engine uses them by the rules: "
+                 + (moved if moved else "new calls go to them when our own units are too far")) + ".",
+        steps=[],
+        pros=[
+            f"Red calls over 15 min: {len(d['red_over_15_min'])} → {len(after['red_over_15_min'])}",
+            f"Calls past their response target: {len(d['past_target'])} → {len(after['past_target'])}",
+            "No patient is displaced; private vans take the non-urgent transports",
+        ],
+        cons=[f"Contracted units cost money; they finish their current job and leave at {until}"],
+        activate_surge=True,
+    )
+
+
 def _engine_recommendation(
     state: WorldState, focus: EventRecord | None, reason: str, question: str | None = None
 ) -> Recommendation:
@@ -327,6 +353,8 @@ def _engine_recommendation(
                       f"{t.vehicle_id} is released for the next call"],
             )
         )
+    if surge_opt := _surge_option(state):  # high demand: surge capacity first, rather than displacing patients
+        options.insert(0, surge_opt)
     escalation = (
         f"No suitable vehicle for {', '.join(unresolved)}: request help from a neighbouring station."
         if unresolved

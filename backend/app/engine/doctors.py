@@ -161,6 +161,14 @@ def project_doctors(state: WorldState) -> None:
 
 # --- Reserve units: mutual aid and private ambulances ------------------------------------------
 
+# Reserve units a plan step may request for a single red call. The rest of the reserve (P2, the
+# private vans) is contracted surge capacity, activated together by the dispatcher (engine/surge.py).
+PER_CALL_RESERVE = ("M1", "P1")
+
+
+def per_call_reserve(state: WorldState) -> list[Vehicle]:
+    return [v for vid, v in state.reserve_vehicles.items() if vid in PER_CALL_RESERVE]
+
 
 def activate_reserve(state: WorldState, vehicle_id: str) -> Vehicle:
     """Bring a requested reserve unit into the world, free at its base."""
@@ -178,6 +186,7 @@ def stand_down_reserve(state: WorldState, v: Vehicle) -> None:
     """A reserve unit back at its base with nothing to do leaves the world again."""
     state.vehicles.pop(v.id, None)
     v.status, v.current_trip_id, v.queue = "idle", None, []
+    v.contract_until, v.contract_ended = None, False
     state.reserve_vehicles[v.id] = v
 
 
@@ -201,7 +210,7 @@ def reserve_options(state: WorldState) -> list[dict]:
     out = []
     slow = [(t, w) for t in state.trips.values() if (w := red_wait_min(t)) is not None and w > RED_REFERENCE_MIN]
     for trip, now_wait in sorted(slow, key=lambda x: -x[1])[:2]:
-        for r in state.reserve_vehicles.values():
+        for r in per_call_reserve(state):
             step = PlanStep(trip_id=trip.id, vehicle_id=r.id)
             result = simulate_plan(state, Plan(steps=[step]))
             if not result["feasible"] or not result["step_details"]:

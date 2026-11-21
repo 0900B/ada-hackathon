@@ -36,6 +36,8 @@ def can_serve(v: Vehicle, trip: Trip) -> tuple[bool, str | None]:
         return False, f"{v.name} is a doctor car: it joins the ambulance crew on scene and never transports patients"
     if v.status == "out_of_service":
         return False, f"{v.name} is out of service"
+    if v.contract_ended:
+        return False, f"{v.name}'s contract has ended: it finishes its current job and leaves"
     if v.grounded_until is not None:  # cleared by the simulator when the fog lifts
         until = v.grounded_until.astimezone(LJ).strftime("%H:%M")
         return False, f"{v.name} is grounded by fog until {until} and cannot take new flights"
@@ -156,7 +158,11 @@ def assign_trip(
     v = state.vehicles.get(vehicle_id)
     reserve = v is None and vehicle_id in state.reserve_vehicles  # mutual aid / private: activated below
     if reserve:
+        from .doctors import PER_CALL_RESERVE
+
         v = state.reserve_vehicles[vehicle_id]
+        if vehicle_id not in PER_CALL_RESERVE:
+            raise ActionError(f"{v.name} is contracted surge capacity: activate surge capacity first")
         if trip.priority != "emergency":
             raise ActionError(f"{v.name} is a reserve unit: requested only for red (critical or serious) calls")
     if v is None:

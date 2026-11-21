@@ -27,6 +27,8 @@ export interface Vehicle {
   name: string;
   type: "ambulance" | "transport" | "helicopter" | "doctor"; // doctor: a doctor car (VUZ), never carries patients
   origin?: "own" | "mutual_aid" | "private"; // mutual aid from a neighbouring station, or a private ambulance
+  contract_until?: string | null; // contracted surge capacity: in the fleet until then (then finishes its job and leaves)
+  contract_ended?: boolean;
   base_id: string;
   lat: number;
   lon: number;
@@ -237,12 +239,23 @@ export interface CallsStatus {
   generated: number;
 }
 
+/** Contracted surge capacity (backend engine/surge.py): activated only by the dispatcher. */
+export interface SurgeStatus {
+  active: boolean;
+  until: string | null;
+  units: string[];
+  available: { ambulances: string[]; vans: string[] };
+  offer: string; // "Activate surge capacity for 2 h: contracted ambulances P1 (Brezovica), ..."
+  default: { ambulances: number; vans: number; hours: number };
+}
+
 export interface WorldSnapshot {
   world: World;
   hypothetical: boolean;
   speedup: number;
   mode?: OperationsMode;
   calls?: CallsStatus;
+  surge?: SurgeStatus;
   version: number;
   sim_time: string;
   places: Place[];
@@ -305,6 +318,12 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
 }
 
 export const postEvent = (world: World, event: Record<string, unknown>) => post<EventRecord>(`/${world}/events`, event);
+/** The dispatcher activates contracted surge capacity (ambulances, private vans) for some hours. */
+export const activateSurge = (world: World, body?: { ambulances?: number; vans?: number; hours?: number }) =>
+  post<{ surge: SurgeStatus; event: EventRecord | null }>(`/${world}/admin/surge`, body ?? {});
+/** End the contract now: the contracted units finish their current job, return and leave. */
+export const standDownSurge = (world: World) =>
+  post<{ surge: SurgeStatus; event: EventRecord | null }>(`/${world}/admin/surge/stand-down`);
 /** Reset (re-seed) a world; scheduledDay switches the mode, undefined keeps the current one. */
 export const resetWorld = (world: World, scheduledDay?: boolean) =>
   post<{ ok: boolean; mode: OperationsMode }>(

@@ -152,6 +152,12 @@ Severity and dispatch doctrine (`engine/severity.py`, `engine/dispatch.py`, rule
   red call within 15 min, the summary says so, `find_candidates` (agent tool) and the engine fallback
   offer them ("Request mutual aid: M1 from Domžale, at the patient HH:MM", "Private ambulance P1
   (Brezovica), ..."); approving such a plan step activates the unit, and it leaves again once home.
+- **Surge capacity** (`engine/surge.py`, `docs/DISPATCH_PRIORITIES.md` section 6): the demand trigger
+  (no own ambulance free, a red call over 15 min, or two calls past target) raises alert `high_demand`;
+  the dispatcher activates contracted units with `POST /{world}/admin/surge {"ambulances": 2, "vans": 3,
+  "hours": 2}` (stand down: `{"stand_down": true}` or `POST /{world}/admin/surge/stand-down`), or approves
+  an option with `activate_surge: true`. Units P1, P2 (ambulances), PV1-PV3 (vans) get `origin: "private"`
+  and `contract_until`; snapshot `surge: {active, until, units, available, offer, default}`.
 - **Service times** (`engine/service_times.py`, values and sources in `docs/SERVICE_TIMES.md`): turnout
   from rest (ambulance 1 min, doctor car 5), on scene by severity (critical 20, cardiac arrest 25,
   serious 15, stroke 12, urgent 12; van pickup 8; equipment 5), handover 15 (van 5, equipment 5),

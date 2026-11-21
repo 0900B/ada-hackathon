@@ -138,9 +138,11 @@ def test_generated_calls_never_start_an_analysis():
     W.auto_analyze = True
     STARTED.clear()
     run_calls(4)
-    assert all(t.startswith("call:") for t in STARTED)
-    routine = W.calls.generated - len(STARTED)
-    assert routine >= 20 and len(STARTED) <= 2, (routine, STARTED)  # routine calls: never an analysis
+    # Call problems, or the demand trigger with patients affected (engine/surge.py), rate-limited.
+    assert all(t.startswith("call:") or t == "demand" for t in STARTED), STARTED
+    problem_runs = [t for t in STARTED if t.startswith("call:")]
+    routine = W.calls.generated - len(problem_runs)
+    assert routine >= 20 and len(problem_runs) <= 2 and len(STARTED) <= 4, (routine, STARTED)  # routine calls: never
 
     # A genuine problem (no unit can take the call) may start one, only with auto-analyse on.
     for auto in (False, True):
@@ -184,6 +186,9 @@ def test_every_scenario_builds_in_live_calls_mode_and_leaves_a_decision():
         else:  # something to decide: options, or an escalation the dispatcher must act on
             assert rec.options or rec.escalation, f"{name}: the engine fallback has nothing to propose"
         for opt in rec.options:
+            if not opt.steps:
+                assert opt.activate_surge, (name, opt.title)  # the only step-free option: surge capacity
+                continue
             assert client.post("/sim/plans/simulate", json={"steps": [s.model_dump() for s in opt.steps]}).json()["feasible"], (name, opt.title)
 
 

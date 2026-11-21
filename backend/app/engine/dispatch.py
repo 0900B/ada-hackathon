@@ -32,7 +32,8 @@ from ..geo import haversine_km
 from ..models import Plan, PlanStep, Trip
 from ..routing import flies, travel_minutes
 from .actions import EMERGENCY_UNITS, level, near_current_patient
-from .doctors import origin_label, send_doctor
+from .doctors import origin_label, per_call_reserve, send_doctor
+from .surge import is_contracted, is_transport, private_reason
 from .projection import LATE_ALERT_MIN, route_trip_ids
 from .severity import (
     BUSY_UNIT_MIN_GAIN_MIN,
@@ -93,6 +94,7 @@ class Decision:
     best_free: Option | None
     options: list[Option]
     best_road: Option | None = None  # the best eligible ambulance option (what the helicopter must beat)
+    private_reason: str | None = None  # set when a contracted ambulance was chosen (surge.private_reason)
 
 
 def _kind(state: WorldState, cand: dict[str, Any]) -> str:
@@ -192,8 +194,11 @@ def decide(state: WorldState, trip: Trip) -> Decision:
             _override(state, opt)
         options.append(opt)
 
-    road = [o for o in options if not flies(o.cand["vehicle_type"])]
-    air = [o for o in options if flies(o.cand["vehicle_type"])]
+    # Contracted (private) ambulances do not compete like our own units: see the surge use rules below.
+    contracted = [o for o in options if is_contracted(state.vehicles.get(o.vehicle_id))]
+    public = [o for o in options if o not in contracted]
+    road = [o for o in public if not flies(o.cand["vehicle_type"])]
+    air = [o for o in public if flies(o.cand["vehicle_type"])]
     # For a critical call the helicopter is a real alternative: a road override must beat it too.
     air_alt = min((o for o in air if o.kind in ("free", "soon")), key=lambda o: o.rank, default=None) if lvl == "critical" else None
     best_road = _best(trip, road, competitor=air_alt)
@@ -210,9 +215,15 @@ def decide(state: WorldState, trip: Trip) -> Decision:
             chosen = best_air
         else:
             best_air.why_not = f"not {gain_needed:.0f} min faster than {best_road.vehicle_id}" if lvl != "critical" else "not the closest"
-    free = [o for o in options if o.kind == "free"]
+    free = [o for o in public if o.kind == "free"]
     best_free = min(free, key=lambda o: o.rank) if free else None
-    return Decision(trip, chosen, best_free, options, best_road)
+    why_private = None
+    priv = _best(trip, contracted)
+    if priv is not None:
+        why_private = private_reason(trip, chosen.reach if chosen else None, chosen.vehicle_id if chosen else None, priv.reach)
+        if why_private:
+            chosen = priv
+    return Decision(trip, chosen, best_free, options, best_road, why_private)
 
 
 def _best(trip: Trip, options: list[Option], competitor: Option | None = None) -> Option | None:
@@ -269,6 +280,7 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
         and d.chosen is not None
         and d.chosen.kind == "free"
         and d.chosen.cand["vehicle_type"] == "ambulance"
+        and not is_contracted(state.vehicles[d.chosen.vehicle_id])  # cover is about our own areas
         and _cover_gap(state, state.vehicles[d.chosen.vehicle_id]) > RED_REFERENCE_MIN
     )
     if trip.priority == "urgent" and (d.chosen is None or d.chosen.kind != "free" or protect):
@@ -278,6 +290,7 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
             c for c in find_candidates(state, trip.id, limit=100)
             if c["vehicle_type"] == "transport" and not c["step"]["interrupt_current"] and c["trip_eta_pickup"]
             and len(route_trip_ids(state.vehicles[c["vehicle_id"]])) <= 1
+            and (not is_contracted(state.vehicles[c["vehicle_id"]]) or is_transport(trip))  # private vans: transports only
         ]
         if vans and (d.chosen is None or protect or vans[0]["trip_eta_pickup"] <= d.chosen.reach):
             best = vans[0]
@@ -353,10 +366,12 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
         )
     else:
         clause = f"; dispatched {v.id} (no unit free; {o.cand['insertion']}): {when}"
+    if d.private_reason:  # surge capacity: a contracted ambulance, by the use rules
+        clause = f"; dispatched {v.id} (contracted private ambulance: {d.private_reason}): {when}"
     clause += send_doctor(state, trip, v.id, o.reach)  # " + doctor D1 (ZD Center, at the patient 22:05, ...)"
     wait = _mins(max(o.reach, trip.pickup_after), trip.pickup_after)
-    if trip.severity in ("critical", "serious") and wait > RED_REFERENCE_MIN and state.reserve_vehicles:
-        names = ", ".join(f"{r.id} ({origin_label(state, r)})" for r in state.reserve_vehicles.values())
+    if trip.severity in ("critical", "serious") and wait > RED_REFERENCE_MIN and per_call_reserve(state):
+        names = ", ".join(f"{r.id} ({origin_label(state, r)})" for r in per_call_reserve(state))
         clause += f"; no own unit within {RED_REFERENCE_MIN:.0f} min: can request {names}"
 
     if o.kind == "override" and o.displaced is not None:

@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from ..models import Plan, PlanStep, Trip, Vehicle, VehicleType
 from ..routing import flies, haversine_km
 from .actions import ActionError, assign_trip, can_serve, check_redirect, level
-from .doctors import origin_label
+from .doctors import origin_label, per_call_reserve
 from .severity import HELICOPTER_GAIN_MIN
 from .plans import simulate_steps, step_details
 from .projection import DONE, PRIORITY_ORDER, kpis, over_capacity, project_all, route_trip_ids
@@ -91,7 +91,7 @@ def find_candidates(
     free_ambulances = sum(1 for v in state.vehicles.values() if v.type == "ambulance" and is_free(state, v))
     soon = state.sim_time + timedelta(minutes=AMBULANCE_ROUTINE_HORIZON_MIN)
     results = []
-    reserve = list(state.reserve_vehicles.values()) if include_reserve and trip.priority == "emergency" and not redirect else []
+    reserve = per_call_reserve(state) if include_reserve and trip.priority == "emergency" and not redirect else []
     for v in [*state.vehicles.values(), *reserve]:
         own = trip.vehicle_id == v.id
         if trip.status == "onboard" and not own:

@@ -5,6 +5,7 @@ import math
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
+from ..engine import surge
 from ..engine.doctors import stand_down_reserve
 from ..engine.service_times import HANDOVER_MIN, after_dropoff_min, on_scene_min, turnout_min
 from ..models import Vehicle
@@ -22,6 +23,7 @@ MERGE_M = 100.0  # a vehicle that snaps onto a road route mid-leg closes the gap
 
 def tick(state: WorldState, dt_s: float) -> None:
     state.sim_time += timedelta(seconds=dt_s)
+    surge.expire(state)  # contracted units whose contract ended: finish their job, return, leave
     for v in list(state.vehicles.values()):
         if v.grounded_until and state.sim_time >= v.grounded_until:
             v.grounded_until = None  # the fog has lifted: the helicopter can fly again
@@ -37,7 +39,8 @@ def tick(state: WorldState, dt_s: float) -> None:
         else:
             _advance(state, v, dt_s / 60)
         _account_distance(state, v, before)
-        if v.origin != "own" and v.status == "idle" and v.current_trip_id is None and not v.queue:
+        under_contract = v.contract_until is not None and not v.contract_ended and v.contract_until > state.sim_time
+        if v.origin != "own" and v.status == "idle" and v.current_trip_id is None and not v.queue and not under_contract:
             stand_down_reserve(state, v)  # a mutual-aid or private unit is home again: it leaves our fleet
 
 

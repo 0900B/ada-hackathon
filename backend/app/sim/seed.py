@@ -49,6 +49,8 @@ PLACES = [
     # Bases of the reserve units, outside our own fleet (approximate).
     ("base_domzale", "Ambulance station Domžale", "base", 46.1393, 14.5952),  # neighbouring region
     ("base_private", "Private ambulance base Brezovica", "base", 46.0236, 14.4128),
+    ("base_private_vic", "Private ambulance base Vič", "base", 46.0430, 14.4950),
+    ("base_private_vans", "Private patient transport base Moste", "base", 46.0590, 14.5480),
 ]
 
 FLEET = [
@@ -70,6 +72,12 @@ FLEET = [
 RESERVE = [
     ("M1", "Mutual aid ambulance (Domžale)", "ambulance", "base_domzale", "mutual_aid"),
     ("P1", "Private ambulance 1", "ambulance", "base_private", "private"),
+    # Contracted surge capacity (engine/surge.py): activated together by the dispatcher for a few hours.
+    # P1 belongs to it too (and can still be requested for a single red call).
+    ("P2", "Private ambulance 2", "ambulance", "base_private_vic", "private"),
+    ("PV1", "Private van 1", "transport", "base_private_vans", "private"),
+    ("PV2", "Private van 2", "transport", "base_private_vans", "private"),
+    ("PV3", "Private van 3", "transport", "base_private_vans", "private"),
 ]
 
 DESTINATIONS = ["ukc", "onko", "zd_center", "zd_siska", "zd_vic"]

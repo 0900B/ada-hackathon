@@ -8,6 +8,8 @@ from zoneinfo import ZoneInfo
 
 from ..engine.candidates import find_candidates, is_free, nearest_place_name
 from ..engine.dispatch import swap_options
+from ..engine.doctors import per_call_reserve
+from ..engine.surge import active as surge_active, available as surge_available, demand as surge_demand, offer_text as surge_offer
 from ..engine.severity import clinical_reason
 from ..engine.plans import simulate_plan
 from ..engine.projection import DONE, incoming_patients, kpis, over_capacity, project_route
@@ -110,6 +112,7 @@ def build_situation(state: WorldState) -> dict[str, Any]:
                 "fuel_pct": round(v.fuel_pct),
                 **({"grounded_by_fog_until": hhmm(v.grounded_until)} if v.grounded_until else {}),
                 **({"origin": v.origin} if v.origin != "own" else {}),
+                **({"contract_until": hhmm(v.contract_until)} if v.contract_until else {}),
             }
             for v in state.vehicles.values()
         ],
@@ -118,10 +121,25 @@ def build_situation(state: WorldState) -> dict[str, Any]:
             {
                 "reserve_units": [
                     {"id": r.id, "type": r.type, "origin": r.origin, "base": places[r.base_id].name}
-                    for r in state.reserve_vehicles.values()
+                    for r in per_call_reserve(state)
                 ]
             }
-            if state.reserve_vehicles
+            if per_call_reserve(state)
+            else {}
+        ),
+        # The demand trigger and contracted surge capacity (activated only by an approved option with
+        # activate_surge true, or by the dispatcher directly).
+        **(
+            {
+                "demand": {
+                    "high_demand": d["high"],
+                    "reasons": d["reasons"],
+                    "surge_capacity": {"active_until": hhmm(state.surge_until)}
+                    if surge_active(state)
+                    else {"offer": surge_offer(state), "available": surge_available(state)},
+                }
+            }
+            if (d := surge_demand(state))["high"] or surge_active(state)
             else {}
         ),
         "hospitals": build_hospitals(state),

@@ -339,9 +339,15 @@ def _snow_cascade(state: WorldState) -> list[EventRecord]:
 def _surge(state: WorldState) -> list[EventRecord]:
     """Seven calls within about three minutes, one of them a cardiac arrest, and only three ambulances:
     the engine sends the free ones, the closest unit (the helicopter if need be) to the arrest; the
-    next serious calls queue behind a patient, the urgent fall goes to a van. Decision: who waits
-    (by time sensitivity), the helicopter, help from a neighbouring station."""
+    next serious calls queue behind a patient, the urgent fall goes to a van. The demand trigger
+    fires (high_demand). Decision: activate the contracted surge capacity (the engine option): P1 and
+    P2 take the waiting red calls, the private vans the transports queued behind the vans' current
+    jobs; or who waits, mutual aid."""
     _job(state, "T4", "zd_vic", needs="wheelchair", note="referred to the UKC emergency department")
+    _job(state, "T2", "zd_siska", needs="wheelchair", note="referred to the UKC emergency department")
+    _job(state, "T2", "zd_center", needs="seated", note="referred to the UKC emergency department", ready_min=5)
+    _job(state, "T3", "ukc", "home_moste", needs="seated", note="urgent discharge: bed needed", ready_min=5)
+    _job(state, "T3", "zd_center", "ukc", cargo="lab samples", note="to the central lab", ready_min=10)
     _fast_forward(state, 1)
     calls = [
         (_near(state, "home_moste", 0.002, 0.004, "Moste (call)"), "serious", "stemi", [], "crushing chest pain"),

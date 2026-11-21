@@ -53,6 +53,10 @@ class Vehicle(BaseModel):
     # scene, loading = on scene with the crew, with_patient = escorting the ambulance to hospital).
     type: VehicleType
     origin: VehicleOrigin = "own"
+    # Contracted surge capacity (engine/surge.py): in the fleet until this time; then it finishes its
+    # current job, returns and leaves (contract_ended: takes no new jobs meanwhile).
+    contract_until: datetime | None = None
+    contract_ended: bool = False
     base_id: str
     lat: float
     lon: float
@@ -232,6 +236,7 @@ class Alert(BaseModel):
         "low_fuel",
         "red_response_over_15_min",  # a critical/serious call predicted to be reached after 15 min (Slovenian reference)
         "doctor_response_over_15_min",  # a call that needs a doctor: none on scene within its doctor_target_min
+        "high_demand",  # the demand trigger (engine/surge.py): offer contracted surge capacity
     ]
     severity: Severity
     message: str
@@ -465,6 +470,8 @@ class RecommendationOption(BaseModel):
     steps: list[PlanStep]
     pros: list[str]
     cons: list[str]
+    # Approving this option activates the contracted surge capacity (engine/surge.py) before its steps.
+    activate_surge: bool = False
     # Filled in by the engine after the run, never by the model:
     feasible: bool | None = None
     errors: list[str] = Field(default_factory=list)

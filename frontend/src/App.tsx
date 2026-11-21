@@ -2,8 +2,11 @@ import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "rea
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useMatch, useSearchParams } from "react-router";
 import {
   API_URL,
+  activateSurge,
   postEvent,
+  standDownSurge,
   useWorldState,
+  type Alert,
   type EventRecord,
   type Kpis,
   fetchVehicle,
@@ -26,6 +29,7 @@ import {
   PhoneIncoming,
   Sun,
   TrafficCone,
+  Users,
   X,
 } from "lucide-react";
 import { BRAND } from "./brand";
@@ -456,6 +460,68 @@ function CallsChip({ state }: { state: WorldSnapshot }) {
   );
 }
 
+/** Contracted surge capacity in the fleet: until when, and a stand-down action (the dispatcher's decision). */
+function SurgeChip({ state }: { state: WorldSnapshot }) {
+  const [busy, setBusy] = useState(false);
+  const s = state.surge;
+  if (!s?.active || !s.until) return null;
+  const standDown = async () => {
+    if (!window.confirm("Stand down the contracted units now?\n\nThey finish their current job, return to their bases and leave the fleet.")) return;
+    setBusy(true);
+    try {
+      await standDownSurge(state.world);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <span className="chip warn surge-chip" title={`Contracted units in the fleet: ${s.units.join(", ")}`}>
+      <Users /> Surge capacity active until {fmtTime(s.until)}
+      <button className="link" disabled={busy} onClick={() => void standDown()} title="End the contract now">
+        Stand down
+      </button>
+    </span>
+  );
+}
+
+/** The demand trigger's alert, with the one-click offer of contracted surge capacity. */
+function HighDemandAlert({ alert, state }: { alert: Alert; state: WorldSnapshot }) {
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const s = state.surge;
+  const amb = s?.available.ambulances.length ?? 0;
+  const vans = s?.available.vans.length ?? 0;
+  const hours = s?.default.hours ?? 2;
+  const canActivate = Boolean(s && !s.active && amb + vans > 0);
+  const label = `Activate contracted units (${amb} ambulance${amb === 1 ? "" : "s"}, ${vans} van${vans === 1 ? "" : "s"} · ${hours} h)`;
+  const activate = async () => {
+    const offer = s?.offer ?? label;
+    if (!window.confirm(`${offer}?\n\nThey join now; waiting calls that they reach sooner move to them at once.`)) return;
+    setBusy(true);
+    try {
+      const r = await activateSurge(state.world, { hours });
+      setNote(r.event?.summary ?? "Surge capacity active");
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <li className={`alert sev-${alert.severity} high-demand`}>
+      <div>{alert.message}</div>
+      {canActivate && (
+        <button className="primary surge-button" disabled={busy} onClick={() => void activate()}>
+          <Users /> {busy ? "Activating…" : label}
+        </button>
+      )}
+      {note && <div className="muted surge-note">{note}</div>}
+    </li>
+  );
+}
+
 function MapLegend() {
   return (
     <div className="map-legend" aria-label="Map legend">
@@ -525,6 +591,7 @@ function StatusBar({ state, connected }: { state: WorldSnapshot; connected: bool
           <Car /> Traffic ×{state.traffic.factor.toFixed(2)} · {state.traffic.source === "tomtom" ? "TomTom live" : "profile"}
         </span>
         <CallsChip state={state} />
+        <SurgeChip state={state} />
         <span
           className={`chip ${unhealthy.some((s) => s.health === "down") ? "bad" : unhealthy.length ? "warn" : "ok"}`}
           title={sourcesTitle}
@@ -683,11 +750,15 @@ function Alerts({ state, send }: { state: WorldSnapshot; send: Send }) {
           )}
         </li>
       ))}
-      {state.alerts.map((a) => (
-        <li key={a.id} className={`alert sev-${a.severity}`}>
-          {a.message}
-        </li>
-      ))}
+      {state.alerts.map((a) =>
+        a.kind === "high_demand" ? (
+          <HighDemandAlert key={a.id} alert={a} state={state} />
+        ) : (
+          <li key={a.id} className={`alert sev-${a.severity}`}>
+            {a.message}
+          </li>
+        ),
+      )}
     </ul>
   );
 }

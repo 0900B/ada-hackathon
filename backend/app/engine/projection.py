@@ -315,6 +315,10 @@ def compute_alerts(state: WorldState) -> list[Alert]:
                     message=f"Data source '{s.name}' is down; using fallback values",
                 )
             )
+    from .surge import high_demand_alert  # local import: surge imports this module lazily too
+
+    if not state.is_simulation and (demand_alert := high_demand_alert(state)):  # the real world only, not what-ifs
+        alerts.append(demand_alert)
     alerts.sort(key=lambda a: SEVERITY_ORDER[a.severity])
     return alerts
 

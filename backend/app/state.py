@@ -96,6 +96,8 @@ class WorldState:
         # Reserve units (a neighbouring station's ambulance, a private one): not part of the world (or
         # the snapshot) until a dispatcher's approved plan requests one; back here when it is home.
         self.reserve_vehicles: dict[str, Vehicle] = {}
+        self.surge_until: datetime | None = None  # contracted surge capacity active until (engine/surge.py)
+        self.demand_was_high = False  # the demand trigger's last state (an analysis may start when it turns on)
         self.trips: dict[str, Trip] = {}
         self.incidents: dict[str, Incident] = {}  # this world's operator-reported/injected incidents
         self.weather_override: WeatherNow | None = None
@@ -160,6 +162,7 @@ class WorldState:
 
     def snapshot(self) -> dict[str, Any]:
         from . import config  # local imports: these modules depend on this one's types
+        from .engine import surge
         from .engine.projection import kpis
         from .roads import ROADS
 
@@ -186,6 +189,8 @@ class WorldState:
             "real_time": utcnow().isoformat(),
             "mode": "scheduled_day" if self.scheduled_day else "live_calls",
             "calls": self.calls.status(self),
+            # Contracted surge capacity: active, until, units, what an activation would add (engine/surge.py)
+            "surge": surge.status(self),
             "places": dump(places),
             "vehicles": [{**v.model_dump(mode="json"), "path": self.vehicle_path(v)} for v in self.vehicles.values()],
             "trips": dump(trips),

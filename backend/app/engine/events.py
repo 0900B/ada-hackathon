@@ -341,6 +341,7 @@ def _book_task(state: WorldState, ev: TaskRequestEvent, created: list[str]) -> s
         if not c["step"]["interrupt_current"]
         and not flies(c["vehicle_type"])
         and (c["vehicle_type"] != "ambulance" or (c["vehicle_free"] and not c["takes_last_free_ambulance"]))
+        and not (c["vehicle_type"] == "ambulance" and c.get("vehicle_origin") == "private")  # contracted ambulances: calls
     ]
     fits = [
         c
@@ -349,7 +350,8 @@ def _book_task(state: WorldState, ev: TaskRequestEvent, created: list[str]) -> s
         and (c["trip_delay_min"] or 0) <= 0
         and c["pushes_others_min"] <= BOOKING_MAX_PUSH_MIN
     ]
-    vans = [c for c in fits if c["vehicle_type"] == "transport"]
+    # Surge capacity in the fleet: private vans first (stable sort keeps the simulated order otherwise).
+    vans = sorted((c for c in fits if c["vehicle_type"] == "transport"), key=lambda c: c.get("vehicle_origin") != "private")
     ambulances = [c for c in fits if c["vehicle_type"] == "ambulance"]
     best = (vans or ambulances or [None])[0]
     late = ""

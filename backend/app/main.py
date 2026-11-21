@@ -22,6 +22,7 @@ from . import config, demo
 from .agent import runner as agent
 from .agent.messages import FieldMessage, MessageError, parse_message, to_operator_events
 from .audit import AUDIT
+from .engine import surge
 from .engine.actions import ActionError
 from .engine.events import EventError, apply_event
 from .agent.context import hhmm
@@ -76,6 +77,17 @@ def take_calls(w: WorldState) -> None:
         AUDIT.record(w.name, "event", f"{record.summary} [needs attention: {problem}]", ref=record.id, payload=record)
         if calls.may_analyse(w):
             agent.start_run(w, trigger=f"call:{record.id}", focus=record, question=f"A live call needs attention: {problem}.")
+    # The demand trigger (engine/surge.py) turning on: logged, and with auto-analyse on (rate-limited
+    # like call problems) an analysis may propose surge capacity. Nothing is activated automatically.
+    d = surge.demand(w)
+    if d["high"] and not w.demand_was_high:
+        AUDIT.record(w.name, "event", "High demand: " + "; ".join(d["reasons"]), ref="high_demand", payload=d)
+        patients_affected = bool(d["red_over_15_min"]) or len(d["past_target"]) >= surge.DEMAND_PAST_TARGET
+        if patients_affected and not surge.active(w) and calls.may_analyse(w):  # not for "no ambulance free" alone
+            agent.start_run(w, trigger="demand", question=(
+                "High demand: " + "; ".join(d["reasons"]) + ". Consider activating the contracted surge capacity "
+                "(an option with activate_surge true) rather than displacing patients."))
+    w.demand_was_high = d["high"]
 
 
 async def sim_loop() -> None:
@@ -416,6 +428,40 @@ def set_calls(req: CallsRequest, state: WorldState = World) -> dict:
     return {"world": state.name, **state.calls.status(state)}
 
 
+class SurgeRequest(BaseModel):
+    ambulances: int = Field(default=len(surge.SURGE_AMBULANCES), ge=0, le=len(surge.SURGE_AMBULANCES))
+    vans: int = Field(default=len(surge.SURGE_VANS), ge=0, le=len(surge.SURGE_VANS))
+    hours: float = Field(default=surge.SURGE_HOURS, gt=0, le=surge.SURGE_MAX_HOURS)
+    stand_down: bool = False
+
+
+def _surge_result(state: WorldState, record: EventRecord | None) -> dict:
+    if record is not None:
+        AUDIT.record(state.name, "surge", record.summary, ref=record.id, payload=record)
+    state.bump()
+    return {"world": state.name, "surge": surge.status(state), "event": record}
+
+
+@router.post("/admin/surge")
+def set_surge(req: SurgeRequest | None = None, state: WorldState = World) -> dict:
+    """The dispatcher activates contracted surge capacity (engine/surge.py) for `hours`, or stands it
+    down (`stand_down: true`). Never done automatically: the high_demand alert only offers it."""
+    req = req or SurgeRequest()
+    if req.stand_down:
+        return _surge_result(state, surge.stand_down(state))
+    if req.ambulances + req.vans == 0:
+        raise HTTPException(status_code=400, detail="Ask for at least one ambulance or van")
+    if not any(surge.available(state).values()) and not surge.active(state):
+        raise HTTPException(status_code=409, detail="No contracted units are available")
+    return _surge_result(state, surge.activate(state, req.ambulances, req.vans, req.hours))
+
+
+@router.post("/admin/surge/stand-down")
+def stand_down_surge(state: WorldState = World) -> dict:
+    """End the contract now: the contracted units finish their current job, return and leave."""
+    return _surge_result(state, surge.stand_down(state))
+
+
 @router.get("/admin/scenarios")
 def list_scenarios(state: WorldState = World) -> list[dict]:
     if not state.hypothetical:
@@ -532,6 +578,12 @@ async def approve(run_id: str, req: ApproveRequest, state: WorldState = World) -
     option = options[req.option_index]
     applied_event = None
     executed: list[str] = []
+    if option.activate_surge and not surge.active(state):
+        # The dispatcher's decision: contracted surge capacity joins first, then the option's steps.
+        surge_event = surge.activate(state)
+        AUDIT.record(state.name, "surge", surge_event.summary, ref=surge_event.id, payload=surge_event)
+        executed.append(surge_event.summary)
+        applied_event = surge_event
     if option.steps:
         plan = Plan(steps=option.steps, rationale=f"Approved: {option.title}")
         project_all(state)
@@ -547,7 +599,7 @@ async def approve(run_id: str, req: ApproveRequest, state: WorldState = World) -
             applied_event = apply_plan(state, plan)
         except ActionError as e:
             raise _out_of_date(state, run, f"Plan no longer valid{since}: {e}.") from e
-        executed = [d["text"] for d in preview["step_details"]]
+        executed += [d["text"] for d in preview["step_details"]]
     run.status = "approved"
     run.decision = {
         "option_index": req.option_index,
