@@ -22,7 +22,7 @@ another vehicle.
 - Travel times come from the backend's model, which already accounts for traffic, weather and incidents.
 - All times are local (Europe/Ljubljana) on the same day, written HH:MM.
 - Equipment trips (needs "equipment", e.g. a ventilator or blood products) carry cargo, not a \
-patient: ambulances, vans and the helicopter (urgent cargo only) can take them. Refer to them by their cargo, never as patients. \
+patient: ambulances and vans can take them (not the helicopter). Refer to them by their cargo, never as patients. \
 Equipment stranded in a broken-down vehicle must be collected at the breakdown site by another vehicle.
 - The operator may change a trip's priority. A trip raised to emergency on a van is released and \
 needs an ambulance.

@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 from ..engine.projection import LOAD_MIN, UNLOAD_MIN
 from ..models import Vehicle
 from ..roads import ROADS, key, point_along
+from ..geo import haversine_km
+from .fleet_details import fuel_rate
 from ..routing import flies, travel_minutes
 
 if TYPE_CHECKING:
@@ -23,7 +25,20 @@ def tick(state: WorldState, dt_s: float) -> None:
         if v.busy_until and state.sim_time < v.busy_until:
             continue
         v.busy_until = None
+        before = (v.lat, v.lon)
         _advance(state, v, dt_s / 60)
+        _account_distance(state, v, before)
+
+
+def _account_distance(state: WorldState, v: Vehicle, before: tuple[float, float]) -> None:
+    """Odometer and fuel: burn fuel for the distance moved this tick; refuel when parked at base."""
+    km = haversine_km(before[0], before[1], v.lat, v.lon)
+    if km > 0:
+        v.km_today = round(v.km_today + km, 2)
+        v.fuel_pct = max(0.0, round(v.fuel_pct - km * fuel_rate(v.type), 2))
+    base = state.places.get(v.base_id)
+    if v.status == "idle" and base and haversine_km(v.lat, v.lon, base.lat, base.lon) < 0.05 and v.fuel_pct < 99:
+        v.fuel_pct = 100.0  # refuelled at the base
 
 
 def _move_towards(state: WorldState, v: Vehicle, lat: float, lon: float, dt_min: float, emergency: bool) -> bool:

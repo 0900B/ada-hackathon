@@ -48,7 +48,7 @@ def tomtom_key() -> str | None:
 
 # --- Daily request budget (protects the free plan's monthly quota) ---------------------
 
-_usage: dict[str, Any] = {"day": None, "flow": 0, "incidents": 0, "routing": 0}
+_usage: dict[str, Any] = {"day": None, "flow": 0, "incidents": 0, "routing": 0, "tiles": 0}
 
 
 def _caps() -> dict[str, int]:
@@ -58,6 +58,7 @@ def _caps() -> dict[str, int]:
         "flow": config.TOMTOM_DAILY_FLOW_CAP,
         "incidents": config.TOMTOM_DAILY_INCIDENT_CAP,
         "routing": config.TOMTOM_DAILY_ROUTING_CAP,
+        "tiles": config.TOMTOM_DAILY_TILE_CAP,
     }
 
 
@@ -70,7 +71,7 @@ def spend(kind: str, n: int) -> None:
     """Count n requests against today's cap, or refuse before making them."""
     today = utcnow().date().isoformat()
     if _usage["day"] != today:
-        _usage.update(day=today, flow=0, incidents=0, routing=0)
+        _usage.update(day=today, flow=0, incidents=0, routing=0, tiles=0)
     cap = _caps()[kind]
     if _usage[kind] + n > cap:
         raise RuntimeError(f"TomTom daily {kind} budget used ({_usage[kind]}/{cap}); using fallback until tomorrow")

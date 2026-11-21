@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..models import Alert, Severity, Trip, Vehicle
 from ..roads import ROADS, key
+from ..sim.fleet_details import CRITICAL_FUEL_PCT, LOW_FUEL_PCT
 from ..routing import flies, travel_minutes, vehicle_leg_minutes
 
 if TYPE_CHECKING:
@@ -217,6 +218,17 @@ def compute_alerts(state: WorldState) -> list[Alert]:
                 trip_id=overflow[0].id,
             )
         )
+    for v in state.vehicles.values():
+        if v.status != "out_of_service" and v.fuel_pct < LOW_FUEL_PCT:
+            alerts.append(
+                Alert(
+                    id=f"low_fuel:{v.id}",
+                    kind="low_fuel",
+                    severity="high" if v.fuel_pct < CRITICAL_FUEL_PCT else "medium",
+                    message=f"{v.name} fuel at {v.fuel_pct:.0f}%: refuel before long trips",
+                    vehicle_id=v.id,
+                )
+            )
     w = state.effective_weather
     snow_soon = any(h.snowfall_cm > 0 for h in state.weather_forecast[:3])
     if (w and (w.snowfall_cm > 0 or (w.precipitation_mm > 0 and w.temperature_c <= 0.5))) or snow_soon:

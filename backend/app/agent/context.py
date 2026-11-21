@@ -102,6 +102,7 @@ def build_situation(state: WorldState) -> dict[str, Any]:
                 "current_trip": v.current_trip_id,
                 "queue": v.queue,
                 "busy_until": hhmm(v.busy_until),
+                "fuel_pct": round(v.fuel_pct),
                 **({"grounded_by_fog_until": hhmm(v.grounded_until)} if v.grounded_until else {}),
             }
             for v in state.vehicles.values()

@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from ..state import WorldState
 
 LJ = ZoneInfo("Europe/Ljubljana")
-EQUIPMENT_CARRIERS = ("ambulance", "transport", "helicopter")  # helicopters also fly urgent blood/organs
+EQUIPMENT_CARRIERS = ("ambulance", "transport")  # equipment goes by road; the helicopter stays free for patients
 
 
 class ActionError(ValueError):

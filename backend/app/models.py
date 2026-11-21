@@ -57,6 +57,16 @@ class Vehicle(BaseModel):
     path_to: tuple[float, float] | None = Field(default=None, exclude=True)
     path_progress: float = 0.0
     on_road: bool = False  # True while following real road geometry (False = straight-line fallback)
+    # Operational details for the vehicle card (synthetic crew; fuel falls with distance driven).
+    crew: list[CrewMember] = Field(default_factory=list)
+    fuel_pct: float = 100.0
+    km_today: float = 0.0
+    shift_end: datetime | None = None
+
+
+class CrewMember(BaseModel):
+    name: str  # fictional
+    role: str  # e.g. "Driver / paramedic", "Emergency physician", "Pilot"
 
 
 class Trip(BaseModel):
@@ -157,7 +167,13 @@ class SourceStatus(BaseModel):
 class Alert(BaseModel):
     id: str  # stable, e.g. "trip_late:TR-004", so clients can diff
     kind: Literal[
-        "trip_unassigned", "trip_late", "vehicle_down", "weather_risk", "data_source_down", "hospital_over_capacity"
+        "trip_unassigned",
+        "trip_late",
+        "vehicle_down",
+        "weather_risk",
+        "data_source_down",
+        "hospital_over_capacity",
+        "low_fuel",
     ]
     severity: Severity
     message: str

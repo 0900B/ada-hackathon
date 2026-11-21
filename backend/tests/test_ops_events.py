@@ -120,7 +120,9 @@ def test_trip_kind_and_needs_stay_consistent():
 def test_can_serve_equipment():
     fresh()
     trip = next(t for t in W.trips.values() if t.kind == "equipment")
-    assert all(can_serve(v, trip)[0] for v in W.vehicles.values())  # vans, ambulances and the helicopter
+    assert all(can_serve(v, trip)[0] for v in W.vehicles.values() if v.type != "helicopter")  # every van and ambulance
+    ok, why = can_serve(W.vehicles["H1"], trip)
+    assert not ok and "cannot carry equipment" in why  # equipment goes by road
     trip.priority = "emergency"  # emergencies still need an ambulance (lights and sirens)
     van = W.vehicles["T1"]
     assert not can_serve(van, trip)[0] and can_serve(W.vehicles["A1"], trip)[0]

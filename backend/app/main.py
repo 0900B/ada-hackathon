@@ -14,7 +14,7 @@ from typing import Literal
 import httpx
 from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Path, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 
 from . import config, demo
 from .agent import runner as agent
@@ -39,6 +39,8 @@ from .models import (
     utcnow,
 )
 from .roads import ROADS
+from . import tiles
+from .vehicles import vehicle_detail
 from .sim.seed import seed_world
 from .sim.simulator import tick
 from .state import FeedState, WorldState
@@ -52,6 +54,7 @@ live = WorldState("live", feed, speedup=config.LIVE_SPEEDUP, hypothetical=False)
 sim = WorldState("sim", feed, speedup=config.SIM_SPEEDUP, hypothetical=True)
 WORLDS: dict[str, WorldState] = {"live": live, "sim": sim}
 state = sim  # backwards-compatible name used by older scripts and tests
+HTTP: httpx.AsyncClient | None = None  # shared client, set at startup (used by the tile proxy)
 
 
 def bump_all() -> None:
@@ -84,7 +87,9 @@ async def sim_loop() -> None:
 async def lifespan(app: FastAPI):
     for w in WORLDS.values():
         seed_world(w, config.RANDOM_SEED)
+    global HTTP
     client = httpx.AsyncClient(timeout=10.0, headers={"User-Agent": config.HTTP_USER_AGENT})
+    HTTP = client
     # Feeds write into the shared FeedState; passing the live world is just a handle to it.
     tasks = [
         asyncio.create_task(sim_loop(), name="sim"),
@@ -160,6 +165,7 @@ def health() -> dict:
         "tomtom_requests_today": tomtom.usage() if tomtom.tomtom_key() else None,
         "roads": ROADS.summary(),
         "audit": AUDIT.summary(),
+        "traffic_tiles": {"available": tiles.available(), **tiles.stats},
     }
 
 
@@ -218,6 +224,15 @@ DISRUPTIVE_EVENTS = {
     "priority_change",
     "hospital_capacity",
 }
+
+
+@router.get("/vehicles/{vehicle_id}")
+def get_vehicle(vehicle_id: str, state: WorldState = World) -> dict:
+    """Vehicle card: crew, fuel, capabilities, upcoming stops with ETAs, and road geometry of each leg."""
+    v = state.vehicles.get(vehicle_id)
+    if v is None:
+        raise HTTPException(status_code=404, detail=f"Unknown vehicle {vehicle_id}")
+    return vehicle_detail(state, v)
 
 
 @router.post("/events")
@@ -410,6 +425,13 @@ def reject(run_id: str, req: RejectRequest | None = None, state: WorldState = Wo
     AUDIT.record(state.name, "decision_rejected", "Operator rejected the recommendation", ref=run.id, payload=run.decision)
     state.bump()
     return run
+
+
+@app.get("/tiles/traffic/{layer}/{z}/{x}/{y}.png")
+async def traffic_tile(layer: str, z: int, x: int, y: int) -> Response:
+    """TomTom traffic tiles (layer: flow or incidents) via our cache; the API key stays on the server."""
+    content, real = await tiles.get_tile(HTTP, layer, z, x, y)
+    return Response(content, media_type="image/png", headers={"Cache-Control": f"public, max-age={60 if real else 30}"})
 
 
 @app.get("/audit")

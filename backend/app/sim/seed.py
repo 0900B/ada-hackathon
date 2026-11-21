@@ -14,6 +14,7 @@ from ..engine.candidates import spends_helicopter
 from ..engine.projection import LATE_ALERT_MIN, LOAD_MIN, project_all, project_route, route_trip_ids
 from ..models import Needs, Place, Trip, Vehicle
 from ..routing import travel_minutes
+from .fleet_details import equip_fleet
 
 if TYPE_CHECKING:
     from ..state import WorldState
@@ -82,6 +83,7 @@ def seed_world(state: WorldState, seed: int, n_trips: int = 24) -> None:
     for vid, name, vtype, base in FLEET:
         b = state.places[base]
         state.vehicles[vid] = Vehicle(id=vid, name=name, type=vtype, base_id=base, lat=b.lat, lon=b.lon)  # type: ignore[arg-type]
+    equip_fleet(state, seed)  # crew, fuel, shift (own RNG: trips stay identical)
 
     homes = [p for p in state.places.values() if p.kind == "residential"]
     trips: list[Trip] = []

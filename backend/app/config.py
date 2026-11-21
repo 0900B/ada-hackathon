@@ -20,6 +20,8 @@ TOMTOM_DAILY_FLOW_CAP = int(os.getenv("TOMTOM_DAILY_FLOW_CAP", "2000"))
 TOMTOM_DAILY_INCIDENT_CAP = int(os.getenv("TOMTOM_DAILY_INCIDENT_CAP", "150"))
 # TomTom routing is only the backup router (OSRM is primary); free plan 20,000/month.
 TOMTOM_DAILY_ROUTING_CAP = int(os.getenv("TOMTOM_DAILY_ROUTING_CAP", "500"))
+# Traffic map tiles (free plan: 200,000/month), served through our cached proxy.
+TOMTOM_DAILY_TILE_CAP = int(os.getenv("TOMTOM_DAILY_TILE_CAP", "3000"))
 # NAP / promet.si (when NAP_USERNAME + NAP_PASSWORD are set); NAP updates events about every minute.
 NAP_INTERVAL_S = _float("NAP_INTERVAL_S", 120)
 RANDOM_SEED = int(os.getenv("RANDOM_SEED", "42"))
