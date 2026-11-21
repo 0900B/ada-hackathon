@@ -1,0 +1,116 @@
+/* ── Reset ───────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  color: #111;
+  background: #fff;
+}
+
+/* ── Full-screen two-column layout ──────────────────────── */
+.layout {
+  display: flex;
+  height: 100%;
+}
+
+/* Map takes ~70% */
+.map-container {
+  flex: 7;
+  min-width: 0;
+}
+
+/* Panel takes ~30% */
+.side-panel {
+  flex: 3;
+  min-width: 240px;
+  max-width: 400px;
+  border-left: 1px solid #e5e5e5;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Panel header ────────────────────────────────────────── */
+.panel-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.panel-title {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #111;
+}
+
+.panel-city {
+  display: block;
+  font-size: 13px;
+  color: #666;
+  margin-top: 3px;
+}
+
+/* ── Panel body ──────────────────────────────────────────── */
+.panel-body {
+  padding: 16px 20px;
+  flex: 1;
+}
+
+.no-disruptions {
+  color: #aaa;
+  font-size: 13px;
+}
+
+/* ── Ambulance ID label (Leaflet permanent tooltip) ─────── */
+.amb-label {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  color: #333;
+  white-space: nowrap;
+}
+
+/* Hide the tooltip arrow */
+.amb-label::before {
+  display: none !important;
+}
+
+/* ── Leaflet popup overrides ─────────────────────────────── */
+.leaflet-popup-content-wrapper {
+  border-radius: 2px !important;
+  box-shadow: none !important;
+  border: 1px solid #e5e5e5 !important;
+  font-size: 12px !important;
+  font-family: 'Inter', system-ui, sans-serif !important;
+  padding: 8px 10px !important;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+  line-height: 1.6 !important;
+}
+
+/* Hide the popup tip triangle */
+.leaflet-popup-tip-container {
+  display: none !important;
+}
+
+.popup-id {
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 700;
+}
+
+.popup-warn {
+  color: #b3261e;
+}
