@@ -103,6 +103,26 @@ def point_along(route: Route, fraction: float) -> tuple[float, float]:
     return alat + (blat - alat) * f, alon + (blon - alon) * f
 
 
+def nearest_fraction(route: Route, lat: float, lon: float) -> float:
+    """Fraction (0..1, by distance) of the point on the route nearest to (lat, lon)."""
+    total = route.cum_m[-1]
+    if total <= 0:
+        return 0.0
+    kx = 111_320 * math.cos(math.radians(lat))  # metres per degree of longitude here
+    ky = 110_540  # metres per degree of latitude
+    best_d, best_m = float("inf"), 0.0
+    for i, ((alat, alon), (blat, blon)) in enumerate(zip(route.points, route.points[1:])):
+        ax, ay = (alon - lon) * kx, (alat - lat) * ky
+        bx, by = (blon - lon) * kx, (blat - lat) * ky
+        dx, dy = bx - ax, by - ay
+        seg2 = dx * dx + dy * dy
+        t = 0.0 if seg2 == 0 else max(0.0, min(1.0, -(ax * dx + ay * dy) / seg2))
+        d = math.hypot(ax + t * dx, ay + t * dy)
+        if d < best_d:
+            best_d, best_m = d, route.cum_m[i] + t * (route.cum_m[i + 1] - route.cum_m[i])
+    return best_m / total
+
+
 def remaining_points(route: Route, fraction: float) -> list[tuple[float, float]]:
     i = bisect.bisect_right(route.cum_m, max(0.0, min(1.0, fraction)) * route.cum_m[-1])
     return [point_along(route, fraction), *route.points[i:]]

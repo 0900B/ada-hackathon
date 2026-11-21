@@ -1,18 +1,22 @@
 """Moves vehicles along their routes each tick. Stands in for a live GPS/AVL feed."""
 from __future__ import annotations
 
+import math
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from ..engine.projection import LOAD_MIN, UNLOAD_MIN
 from ..models import Vehicle
-from ..roads import ROADS, key, point_along
+from ..roads import ROADS, key, nearest_fraction, point_along
 from ..geo import haversine_km
 from .fleet_details import fuel_rate
 from ..routing import flies, leg_route, reroute_if_blocked, travel_minutes
 
 if TYPE_CHECKING:
     from ..state import WorldState
+
+
+MERGE_M = 100.0  # a vehicle that snaps onto a road route mid-leg closes the gap by this much per tick
 
 
 def tick(state: WorldState, dt_s: float) -> None:
@@ -52,6 +56,7 @@ def _move_towards(state: WorldState, v: Vehicle, lat: float, lon: float, dt_min:
     flying = flies(v.type)  # helicopters fly straight and never use (or request) road routes
     if v.path_to is None or tuple(v.path_to) != target:  # a new leg starts here
         v.path_from, v.path_to, v.path_progress, v.path_avoid = (v.lat, v.lon), target, 0.0, None
+        v.snap_offset = None
         v.on_road = not flying and ROADS.route(v.lat, v.lon, lat, lon) is not None
         if not v.on_road and not flying:
             ROADS.want_route(v.lat, v.lon, lat, lon)  # later legs on this pair will follow the road
@@ -61,8 +66,15 @@ def _move_towards(state: WorldState, v: Vehicle, lat: float, lon: float, dt_min:
     if not flying:
         reroute_if_blocked(state, v)  # a closure ahead: re-plan the rest of the leg around it
         if not v.on_road:
-            if leg_route(state, v) is not None:
-                v.on_road = True  # the road route (or detour) arrived mid-leg: snap onto it
+            route = leg_route(state, v)
+            if route is not None:
+                # The road route (or detour) arrived mid-leg. Continue from the road point nearest to
+                # where the vehicle is (not the same fraction of a longer road, which can be far
+                # away) and merge the remaining gap over the next ticks, so the marker never jumps.
+                v.on_road = True
+                v.path_progress = nearest_fraction(route, v.lat, v.lon)
+                rlat, rlon = point_along(route, v.path_progress)
+                v.snap_offset = (v.lat - rlat, v.lon - rlon)
             elif v.path_avoid and not ROADS.detours_available():
                 ROADS.want_route(v.path_from[0], v.path_from[1], lat, lon)  # no detour possible: plain route
     total = travel_minutes(state, v.path_from[0], v.path_from[1], lat, lon, v.type, emergency)
@@ -71,10 +83,19 @@ def _move_towards(state: WorldState, v: Vehicle, lat: float, lon: float, dt_min:
         v.lat, v.lon = lat, lon
         v.on_road = False
         v.path_avoid = None
+        v.snap_offset = None
         return True
     route = leg_route(state, v) if v.on_road else None
     if route is not None:
         v.lat, v.lon = point_along(route, v.path_progress)
+        if v.snap_offset is not None:
+            # close the gap to the road by at most MERGE_M per tick (about a tick's worth of driving)
+            dlat, dlon = v.snap_offset
+            gap_m = math.hypot(dlat * 110_540, dlon * 111_320 * math.cos(math.radians(v.lat)))
+            left = max(0.0, gap_m - MERGE_M)
+            v.snap_offset = None if left < 5 else (dlat * left / gap_m, dlon * left / gap_m)
+            if v.snap_offset is not None:
+                v.lat, v.lon = v.lat + v.snap_offset[0], v.lon + v.snap_offset[1]
     else:
         v.lat = v.path_from[0] + (lat - v.path_from[0]) * v.path_progress
         v.lon = v.path_from[1] + (lon - v.path_from[1]) * v.path_progress

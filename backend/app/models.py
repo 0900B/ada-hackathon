@@ -65,6 +65,9 @@ class Vehicle(BaseModel):
     on_road: bool = False  # True while following real road geometry (False = straight-line fallback)
     # Road closures this leg is routed around: ((lat, lon, radius_m), ...); None = the normal route.
     path_avoid: tuple[tuple[float, float, int], ...] | None = Field(default=None, exclude=True)
+    # When the road route arrives mid-leg: how far (lat, lon) the vehicle still is from the road;
+    # it shrinks every tick, so the vehicle merges onto the road instead of jumping onto it.
+    snap_offset: tuple[float, float] | None = Field(default=None, exclude=True)
     # Operational details for the vehicle card (synthetic crew; fuel falls with distance driven).
     crew: list[CrewMember] = Field(default_factory=list)
     fuel_pct: float = 100.0
