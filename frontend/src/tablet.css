@@ -596,6 +596,32 @@
   background: #dee2e6;
   color: #212529;
 }
+.mdt-job-sev {
+  margin: 4px 0 2px;
+}
+.mdt-job-sev .sev {
+  flex-wrap: wrap;
+  white-space: normal;
+}
+.mdt-job-resp {
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+/* severity badges in day mode */
+.mdt.day {
+  --sev-ser-bg: #ffe8e8;
+  --sev-ser-fg: #a40e26;
+  --sev-ser-bd: #cf222e;
+  --prio-ur-bg: #fff1d6;
+  --prio-ur-fg: #6f4400;
+  --prio-ur-bd: #c08a1e;
+  --prio-sc-bg: #e9edf2;
+  --prio-sc-fg: #24292f;
+  --prio-sc-bd: #b8c2cd;
+  --text-2: #24292f;
+  --muted: #4a5568;
+  --border-strong: #9aa6b4;
+}
 .mdt-trip-id {
   font-size: 20px;
   font-weight: 700;

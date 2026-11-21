@@ -5,6 +5,7 @@ import { trafficTileUrl, type Vehicle, type VehicleDetail, type WorldSnapshot } 
 import { baseMaps, saveBase, savedBase, type BaseId } from "./basemaps";
 import { flightTarget, fmtTime, vehicleStatusText } from "./format";
 import { GLYPH, vehicleGlyph } from "./glyphs";
+import { conditionText, LEVEL_LABEL, levelOf, responseOf, responseText } from "./severity";
 
 export type ClickMode = "closure" | "emergency" | null;
 
@@ -15,7 +16,7 @@ const PLACE_STYLE: Record<string, { r: number; color: string; fill: string }> = 
   base: { r: 5, color: "#8cb6ff", fill: "#132443" },
   residential: { r: 2.5, color: "#6e7a88", fill: "#6e7a88" },
   incident_site: { r: 6, color: "#f0883e", fill: "#3a2312" },
-  call_location: { r: 7, color: "#f2555a", fill: "#f2555a" },
+  call_location: { r: 5, color: "#f2555a", fill: "#3a1417" }, // open critical/serious calls get a marker on top
 };
 
 const HIGHLIGHT = "#5b9bff"; // the selected vehicle's legs
@@ -30,6 +31,7 @@ interface Layers {
   incidents: L.LayerGroup;
   routes: L.LayerGroup;
   highlight: L.LayerGroup;
+  calls: L.LayerGroup;
   vehicles: L.LayerGroup;
 }
 
@@ -41,6 +43,7 @@ interface Props {
   onSelect: (id: string | null) => void;
   detail: VehicleDetail | null; // route of the selected vehicle, highlighted
   centerOn: { lat: number; lon: number; n: number } | null; // bump n to re-center
+  pin?: { lat: number; lon: number } | null; // where a new emergency call is being placed
 }
 
 /** Map marker: a dark plate with the type glyph and the callsign; the border colour is the status. */
@@ -54,7 +57,7 @@ function vehicleHtml(v: Vehicle, cls: string, flying: boolean, grounded: boolean
 
 const INCIDENT_LABEL: Record<string, string> = { road_closure: "Road closure", accident: "Accident", congestion: "Congestion" };
 
-export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail, centerOn }: Props) {
+export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail, centerOn, pin }: Props) {
   const el = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layers = useRef<Layers | null>(null);
@@ -62,6 +65,7 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
   // Vehicle markers live across snapshots (moved, not re-created), so a click never lands on a
   // marker that is being replaced, tooltips stay open, and CSS can animate the movement.
   const markers = useRef(new Map<string, { marker: L.Marker; key: string }>());
+  const callMarkers = useRef(new Map<string, { marker: L.Marker; key: string }>()); // open critical/serious calls
   const drawn = useRef({ places: "", incidents: "" });
   const clickRef = useRef(onMapClick);
   const selectRef = useRef(onSelect);
@@ -125,6 +129,7 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       incidents: L.layerGroup().addTo(map),
       routes: L.layerGroup().addTo(map),
       highlight: L.layerGroup().addTo(map),
+      calls: L.layerGroup().addTo(map),
       vehicles: L.layerGroup().addTo(map),
     };
     map.on("click", (e: L.LeafletMouseEvent) => {
@@ -150,6 +155,7 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
     resize.observe(box);
     mapRef.current = map;
     const vehicleMarkers = markers.current;
+    const callMarkersMap = callMarkers.current;
     const drawnLayers = drawn.current;
     return () => {
       clearTimeout(smoothTimer);
@@ -158,9 +164,25 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       mapRef.current = null;
       layers.current = null;
       vehicleMarkers.clear();
+      callMarkersMap.clear();
       drawnLayers.places = drawnLayers.incidents = "";
     };
   }, []);
+
+  // The spot of a new emergency call while its severity is being picked
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !pin) return;
+    const marker = L.marker([pin.lat, pin.lon], {
+      icon: L.divIcon({ className: "", html: `<div class="call-mk pending">${GLYPH.pulse}</div>`, iconSize: [30, 30], iconAnchor: [15, 15] }),
+      interactive: false,
+      keyboard: false,
+      zIndexOffset: 3000,
+    }).addTo(map);
+    return () => {
+      marker.remove();
+    };
+  }, [pin]);
 
   // Re-center when asked (vehicle card "Center" button)
   useEffect(() => {
@@ -365,6 +387,46 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       if (!seen.has(id)) {
         marker.remove();
         markers.current.delete(id);
+      }
+    }
+
+    // Open critical and serious calls not yet reached: a severity-coloured diamond on the call
+    // location (critical larger, with a pulse), under the vehicles; click selects the assigned unit
+    const calls = new Set<string>();
+    for (const t of state.trips) {
+      const level = levelOf(t);
+      if ((level !== "critical" && level !== "serious") || ["onboard", "completed", "cancelled"].includes(t.status)) continue;
+      const at = placeById.get(t.pickup_id);
+      if (!at) continue;
+      calls.add(t.id);
+      const r = responseOf(t, state.sim_time);
+      const cond = conditionText(t);
+      const html = `<div class="call-mk ${level}${r?.missed ? " missed" : ""}">${level === "critical" ? '<span class="call-ring"></span>' : ""}${GLYPH.pulse}</div>`;
+      const tip =
+        `${LEVEL_LABEL[level]}${cond ? ` · ${cond}` : ""} · ${t.id} · ${at.name}<br>` +
+        (t.vehicle_id ? `${t.vehicle_id} ${r ? responseText(r) : ""}` : r ? responseText(r) : "no unit yet");
+      const px = level === "critical" ? 30 : 22;
+      const existing = callMarkers.current.get(t.id);
+      if (existing && existing.key === html) {
+        existing.marker.setLatLng([at.lat, at.lon]);
+        existing.marker.setTooltipContent(tip);
+        continue;
+      }
+      existing?.marker.remove();
+      const marker = L.marker([at.lat, at.lon], {
+        icon: L.divIcon({ className: "", html, iconSize: [px, px], iconAnchor: [px / 2, px / 2] }),
+        zIndexOffset: level === "critical" ? -100 : -200,
+        keyboard: false,
+      })
+        .bindTooltip(tip, { direction: "top", offset: [0, -px / 2] })
+        .on("click", () => t.vehicle_id && selectRef.current(t.vehicle_id))
+        .addTo(ls.calls);
+      callMarkers.current.set(t.id, { marker, key: html });
+    }
+    for (const [id, { marker }] of callMarkers.current) {
+      if (!calls.has(id)) {
+        marker.remove();
+        callMarkers.current.delete(id);
       }
     }
   }, [state, selectedId, detail, zoomTick]);

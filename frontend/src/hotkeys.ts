@@ -29,7 +29,7 @@ export const HOTKEYS: HotkeyInfo[] = [
   { key: "b", label: "Breakdown of the selected vehicle (click its marker, chip or trip row first)", group: "Events" },
   { key: "d", label: "Delay the selected vehicle 10 min", group: "Events" },
   { key: "f", label: "Fog: ground helicopters 1 h", group: "Events" },
-  { key: "e", label: "Emergency call (then click the map)", group: "Events" },
+  { key: "e", label: "Emergency call: click the map, then pick what it is (1 sends Critical · Cardiac arrest; C / S / U level, 1-6 condition, K / W / P case)", group: "Events" },
   { key: "c", label: "Road closure (then click the map)", group: "Events" },
   { key: "Escape", label: "Cancel / deselect / close", group: "General" },
   { key: "?", label: "Show / hide this help", group: "General" },

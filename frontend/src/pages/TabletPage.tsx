@@ -44,6 +44,8 @@ import {
 import { fmtTime, humanize, vehicleStatusText } from "../format";
 import { VehicleTypeIcon } from "../icons";
 import { NavMap } from "../NavMap";
+import { conditionText, LEVEL_LABEL, LEVEL_PRIORITY, LEVEL_RANK, LEVELS, levelOf, severitySupported, type Level } from "../severity";
+import { ResponseLine, SeverityBadge } from "../SeverityBadge";
 import { SPEECH_LANGS, speechSecureContext, usePushToTalk, useSpeechInput } from "../voice";
 import "../voice.css";
 import "../tablet.css";
@@ -405,7 +407,8 @@ function useDispatchNotes(state: WorldSnapshot, vehicle: Vehicle, chime: () => v
     const lines = [
       ...added.map((id) => {
         const t = trip(id)!;
-        return `New job: ${t.id} ${t.priority} · ${t.label} · ${place(t.pickup_id)} → ${place(t.dropoff_id)}`;
+        const cond = conditionText(t);
+        return `New job: ${t.id} ${LEVEL_LABEL[levelOf(t)]}${cond ? ` · ${cond}` : ""} · ${t.label} · ${place(t.pickup_id)} → ${place(t.dropoff_id)}`;
       }),
       ...removed.map((id) => {
         const t = trip(id);
@@ -474,7 +477,14 @@ function QuickStatus({
   const [confirm, setConfirm] = useState<QuickId | null>(null);
   const [sending, setSending] = useState(false);
   const down = vehicle.status === "out_of_service";
-  const patientTrip = trip && trip.kind === "patient" && trip.priority !== "emergency" ? trip : undefined;
+  // "Patient worse" raises the level to any higher one. Without severity support the backend only
+  // knows urgent and emergency (sent as "serious"), so an emergency cannot go higher there.
+  const graded = severitySupported(state.trips);
+  const higher: Level[] =
+    trip && trip.kind === "patient"
+      ? (graded ? LEVELS : (["serious", "urgent"] as Level[])).filter((l) => LEVEL_RANK[l] < LEVEL_RANK[levelOf(trip)])
+      : [];
+  const patientTrip = higher.length ? trip : undefined;
 
   // An unanswered "are you sure?" goes away by itself
   useEffect(() => {
@@ -508,7 +518,7 @@ function QuickStatus({
       breakdown: `Report a breakdown of ${vehicle.id}? Your trips go back to dispatch.`,
       delay: `Tell dispatch ${vehicle.id} is delayed by 10 minutes?`,
       closure: "Report the road ahead as closed? Other vehicles will be routed around it.",
-      worse: `Patient of ${patientTrip?.id ?? "this trip"} is worse: raise the priority to…`,
+      worse: `Patient of ${patientTrip?.id ?? "this trip"} is worse: raise the severity to…`,
     };
     const [lat, lon] = pointAhead(vehicle, detail?.legs[0]);
     return (
@@ -517,14 +527,25 @@ function QuickStatus({
         <div className="mdt-confirm-actions">
           {confirm === "worse" && patientTrip ? (
             <>
-              {patientTrip.priority === "scheduled" && (
-                <button className="mdt-btn warn" disabled={sending} onClick={() => send({ type: "priority_change", trip_id: patientTrip.id, priority: "urgent", note: `crew of ${vehicle.id}: patient worse` })}>
-                  Urgent
+              {[...higher].reverse().map((l) => (
+                <button
+                  key={l}
+                  className={`mdt-btn ${l === "urgent" ? "warn" : "danger"}`}
+                  disabled={sending}
+                  onClick={() =>
+                    send({
+                      type: "priority_change",
+                      trip_id: patientTrip.id,
+                      priority: LEVEL_PRIORITY[l],
+                      severity: l,
+                      note: `crew of ${vehicle.id}: patient worse`,
+                    })
+                  }
+                >
+                  {/* without severity support the backend knows only "emergency" above urgent */}
+                  {graded || l !== "serious" ? LEVEL_LABEL[l] : "Emergency"}
                 </button>
-              )}
-              <button className="mdt-btn danger" disabled={sending} onClick={() => send({ type: "priority_change", trip_id: patientTrip.id, priority: "emergency", note: `crew of ${vehicle.id}: patient worse` })}>
-                Emergency
-              </button>
+              ))}
             </>
           ) : (
             <button
@@ -749,9 +770,16 @@ function TabletConsole({
               <div className="mdt-job">
                 <div className="mdt-job-head">
                   <span className="mdt-trip-id">{job.id}</span>
-                  <span className={`prio prio-${job.priority}`}>{job.priority}</span>
                   <span className="mdt-muted">{job.status === "onboard" ? (job.kind === "equipment" ? "load on board" : "patient on board") : humanize(job.status)}</span>
                 </div>
+                <div className="mdt-job-sev">
+                  <SeverityBadge trip={job} size="lg" />
+                </div>
+                {job.status !== "onboard" && (
+                  <div className="mdt-job-resp">
+                    <ResponseLine trip={job} now={state.sim_time} />
+                  </div>
+                )}
                 <div className="mdt-job-who">
                   {job.kind === "equipment" ? `Equipment: ${job.cargo ?? "equipment"}` : `Patient ${job.patient ?? job.label}`}
                   {job.kind === "patient" && <span className="mdt-needs">{job.needs}</span>}
@@ -794,6 +822,12 @@ function TabletConsole({
                     <span className="mdt-stop-place">
                       {s.kind === "pickup" ? "Pick up" : s.kind === "dropoff" ? "Drop off" : "Base"} · {s.place}
                       {s.trip_id && <span className="mdt-muted"> · {s.trip_id}</span>}
+                      {s.kind === "pickup" && trips.get(s.trip_id ?? "") && levelOf(trips.get(s.trip_id ?? "")!) !== "routine" && (
+                        <>
+                          {" "}
+                          <SeverityBadge trip={trips.get(s.trip_id ?? "")!} compact />
+                        </>
+                      )}
                       {s.kind === "pickup" && s.ready_at && <span className="mdt-muted"> · ready {fmtTime(s.ready_at)}</span>}
                     </span>
                     <span className="mdt-stop-eta">{s.eta ? fmtTime(s.eta) : "—"}</span>

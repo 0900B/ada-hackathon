@@ -248,6 +248,13 @@ kbd {
 .crew-eta.late {
   color: var(--prio-em-fg);
 }
+.crew-sev .sev {
+  flex-wrap: wrap;
+  white-space: normal;
+}
+.crew-resp {
+  font-size: 14px;
+}
 .crew-next {
   background: var(--surface-2);
   border: 1px solid var(--border);

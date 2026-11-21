@@ -9,7 +9,8 @@ export function BookingForm({ state }: { state: WorldSnapshot }) {
   const [pickup, setPickup] = useState(places.find((p) => p.kind === "residential")?.id ?? places[0]?.id ?? "");
   const [dropoff, setDropoff] = useState(hospitals[0]?.id ?? "");
   const [needs, setNeeds] = useState<"seated" | "wheelchair" | "stretcher">("seated");
-  const [priority, setPriority] = useState<"scheduled" | "urgent">("scheduled");
+  // Bookings are urgent or routine (critical and serious calls go through a new emergency, E)
+  const [severity, setSeverity] = useState<"routine" | "urgent">("routine");
   const [readyIn, setReadyIn] = useState(20);
   const [deadline, setDeadline] = useState<string>("");
   const [label, setLabel] = useState("");
@@ -26,7 +27,8 @@ export function BookingForm({ state }: { state: WorldSnapshot }) {
         pickup_id: pickup,
         dropoff_id: dropoff,
         needs: kind === "equipment" ? "equipment" : needs,
-        priority,
+        priority: severity === "urgent" ? "urgent" : "scheduled",
+        severity,
         ready_in_min: readyIn,
         due_in_min: deadline ? Number(deadline) : null,
         label: label.trim() || null,
@@ -55,9 +57,14 @@ export function BookingForm({ state }: { state: WorldSnapshot }) {
         ) : (
           <input placeholder="cargo, e.g. ventilator" value={label} onChange={(e) => setLabel(e.target.value)} />
         )}
-        <select value={priority} onChange={(e) => setPriority(e.target.value as typeof priority)}>
-          <option value="scheduled">scheduled</option>
-          <option value="urgent">urgent</option>
+        <select
+          aria-label="Severity"
+          value={severity}
+          onChange={(e) => setSeverity(e.target.value as typeof severity)}
+          title="Routine: planned transport by appointment. Urgent: possibly dangerous, reach the patient within 60 min."
+        >
+          <option value="routine">Routine</option>
+          <option value="urgent">Urgent</option>
         </select>
       </div>
       <div className="row">

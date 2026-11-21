@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { flightTarget, fmtTime, vehicleStatusText } from "./format";
 import { Callsign } from "./icons";
+import { levelOf } from "./severity";
+import { ResponseLine, SeverityBadge } from "./SeverityBadge";
 
 type Send = (event: Record<string, unknown>) => Promise<void>;
 
@@ -39,7 +41,9 @@ export function VehicleCard({
   busy: boolean;
 }) {
   const v = detail.vehicle;
-  const t = detail.current_trip;
+  // the snapshot's copy of the current trip is newer than the detail's (refreshed every 3 s)
+  const t = detail.current_trip ? (state.trips.find((x) => x.id === detail.current_trip!.id) ?? detail.current_trip) : null;
+  const tripOf = (id: string | null) => (id ? state.trips.find((x) => x.id === id) : undefined);
   const fuelClass = detail.fuel.pct < 10 ? "bad" : detail.fuel.low ? "warn" : "ok";
   const down = v.status === "out_of_service";
   const heli = v.type === "helicopter";
@@ -100,9 +104,19 @@ export function VehicleCard({
       <div className="vc-section">
         <div className="vc-title">Now</div>
         {t ? (
-          <div>
-            <strong className="id">{t.id}</strong> {t.label ?? t.patient} <span className={`prio prio-${t.priority}`}>{t.priority}</span>
-          </div>
+          <>
+            <div>
+              <strong className="id">{t.id}</strong> {t.label ?? t.patient}
+            </div>
+            <div>
+              <SeverityBadge trip={t} />
+            </div>
+            {t.status !== "onboard" && (
+              <div className="small">
+                <ResponseLine trip={t} now={state.sim_time} />
+              </div>
+            )}
+          </>
         ) : (
           <div className="muted">{down ? "Out of service" : "No active job"}</div>
         )}
@@ -123,6 +137,12 @@ export function VehicleCard({
               <li key={i} className={(s.delay_min ?? 0) >= 5 ? "late" : ""}>
                 <span className="vc-num">{i + 1}</span> <StopIcon aria-label={s.kind} /> {s.eta ? fmtTime(s.eta) : "—"} · {s.place}
                 {s.trip_id && <span className="muted"> · {s.trip_id}</span>}
+                {s.kind === "pickup" && tripOf(s.trip_id) && levelOf(tripOf(s.trip_id)!) !== "routine" && (
+                  <>
+                    {" "}
+                    <SeverityBadge trip={tripOf(s.trip_id)!} compact />
+                  </>
+                )}
                 {(s.delay_min ?? 0) >= 5 && <span> · +{Math.round(s.delay_min ?? 0)} min</span>}
               </li>
               );
