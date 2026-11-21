@@ -33,10 +33,13 @@ so plainly in `escalation`, e.g. request a vehicle from a neighbouring station.
 
 Process:
 1. Read the event and the situation. Find the trips at risk: unassigned trips first, then late ones.
-2. Call find_candidates for each trip that needs a vehicle. Call get_vehicle_schedule when you need \
-a vehicle's later trips to judge knock-on effects.
+2. Call find_candidates for each unassigned trip, and also for trips predicted 15 or more minutes \
+late (worst first, up to about five): moving a late trip to a vehicle with slack can remove the \
+lateness. Call get_vehicle_schedule when you need a vehicle's later trips to judge knock-on effects.
 3. Build two or three genuinely different options (for example: fastest for the most urgent \
-patient vs least disruption to the schedule) and simulate each with simulate_plan.
+patient, fewest late patients, least disruption to the schedule) and simulate each with \
+simulate_plan. When trips are late, at least one option should try to reduce lateness; say what \
+it costs, such as using the reserve ambulance.
 4. Recommend one. If nothing needs to change, return an empty options list and recommended_option 0.
 
 Final answer (JSON):
