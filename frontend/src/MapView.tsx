@@ -6,6 +6,7 @@ import { baseMaps, saveBase, savedBase, type BaseId } from "./basemaps";
 import { flightTarget, fmtTime, vehicleStatusText } from "./format";
 import { GLYPH, vehicleGlyph } from "./glyphs";
 import { conditionText, LEVEL_LABEL, levelOf, responseOf, responseText } from "./severity";
+import { doctorOf, doctorText, ORIGIN_LABEL } from "./doctor";
 
 export type ClickMode = "closure" | "emergency" | null;
 
@@ -24,6 +25,7 @@ const DETOUR = "#f0883e"; // legs that go around a road closure
 const EN_ROUTE = "#4f8ff7"; // to the pickup
 const LOADED = "#3fb950"; // patient or load on board
 const GROUNDED = "#8f9cab";
+const DOCTOR = "#a371f7"; // doctor cars on their way to the scene
 const VEH_W = 56; // vehicle marker width; markers parked on the same spot are fanned out by this much
 
 interface Layers {
@@ -48,7 +50,9 @@ interface Props {
 
 /** Map marker: a dark plate with the type glyph and the callsign; the border colour is the status. */
 function vehicleHtml(v: Vehicle, cls: string, flying: boolean, grounded: boolean, held: boolean): string {
-  const tag = grounded ? '<span class="vm-tag">Fog</span>' : flying ? '<span class="vm-tag air">Air</span>' : "";
+  const tag =
+    (grounded ? '<span class="vm-tag">Fog</span>' : flying ? '<span class="vm-tag air">Air</span>' : "") +
+    (v.origin && v.origin !== "own" ? `<span class="vm-origin">${v.origin === "mutual_aid" ? "Aid" : "Priv"}</span>` : "");
   return (
     `<div class="vm type-${v.type} st-${v.status}${grounded ? " grounded" : ""}${held ? " held" : ""}${cls}">` +
     `${vehicleGlyph(v.type)}<span class="vm-id">${v.id}</span>${tag}</div>`
@@ -289,7 +293,8 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       seen.add(v.id);
       const trip = v.current_trip_id ? tripById.get(v.current_trip_id) : undefined;
       const heli = v.type === "helicopter";
-      const color = v.status === "to_pickup" ? EN_ROUTE : LOADED;
+      const doctor = v.type === "doctor";
+      const color = doctor ? DOCTOR : v.status === "to_pickup" ? EN_ROUTE : LOADED;
       const grounded = v.grounded_until != null; // the backend clears it when the fog lifts
       const selected = v.id === selectedId;
       const faded = dim && !selected;
@@ -324,11 +329,12 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
         })
           .bindTooltip(`${v.id} ${target.kind === "base" ? "flying home to" : `${target.kind}:`} ${target.place.name}`)
           .addTo(ls.routes);
-      } else if (!heli && !(detail && selected)) {
-        const dash = v.status === "to_pickup" ? "6 6" : undefined;
+      } else if (!heli && !(detail && selected) && !(doctor && v.status !== "to_pickup")) {
+        // (a doctor car escorting the ambulance follows it: the ambulance's line is enough)
+        const dash = doctor ? "8 5" : v.status === "to_pickup" ? "6 6" : undefined;
         if (v.path && v.path.length > 1) {
           // Real road route still to drive
-          L.polyline(v.path, { color, weight: 3, opacity, dashArray: dash, interactive: false }).addTo(ls.routes);
+          L.polyline(v.path, { color, weight: doctor ? 3.5 : 3, opacity, dashArray: dash, interactive: false }).addTo(ls.routes);
         } else if (trip) {
           // No road route cached yet: thin straight line to the target
           const to = placeById.get(v.status === "to_pickup" ? trip.pickup_id : trip.dropoff_id);
@@ -347,14 +353,16 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       const cls = `${selected ? " selected" : ""}${faded ? " faded" : ""}`;
       const held = Boolean(v.busy_until) && v.status !== "loading" && !(v.status === "returning" && !v.current_trip_id);
       const html = vehicleHtml(v, cls, heli && flying && !grounded, grounded, held);
-      const size: [number, number] = [heli ? 72 : 60, 24];
+      const size: [number, number] = [(heli ? 72 : 60) + (v.origin && v.origin !== "own" ? 28 : 0), 24];
       const anchor: [number, number] = [size[0] / 2, size[1] / 2]; // constant: the element is never re-created
       // The fan-out is a pixel offset of the marker's position, so changes glide like normal movement
       const pos = fanned.get(v.id) ?? L.latLng(v.lat, v.lon);
       const key = html;
       const where = target ? ` · ${target.kind === "base" ? "flying home" : `flying to ${target.kind}`}: ${target.place.name}` : "";
       const groundedText = grounded ? ` · grounded by fog until ${fmtTime(v.grounded_until)}` : "";
-      const tip = `${v.name} · ${vehicleStatusText(v, state.trips)}${trip ? ` · ${trip.id} (${trip.label})` : ""}${
+      const role = doctor && trip ? ` · doctor for ${trip.id}${trip.vehicle_id ? ` with ${trip.vehicle_id}` : ""}` : "";
+      const origin = v.origin && v.origin !== "own" ? ` · ${ORIGIN_LABEL[v.origin] ?? v.origin}` : "";
+      const tip = `${v.name}${origin} · ${vehicleStatusText(v, state.trips)}${role || (trip ? ` · ${trip.id} (${trip.label})` : "")}${
         heli ? where : ""
       }${groundedText} · fuel ${Math.round(v.fuel_pct ?? 0)}% · click for details`;
       const z = selected ? 2000 : heli ? 1000 : 0;
@@ -395,16 +403,21 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
     const calls = new Set<string>();
     for (const t of state.trips) {
       const level = levelOf(t);
-      if ((level !== "critical" && level !== "serious") || ["onboard", "completed", "cancelled"].includes(t.status)) continue;
+      const dr = doctorOf(t, state.vehicles, state.sim_time);
+      const drComing = dr !== null && (dr.state === "en_route" || dr.state === "needed");
+      if (level !== "critical" && level !== "serious") continue;
+      if (["completed", "cancelled"].includes(t.status) || (t.status === "onboard" && !drComing)) continue;
       const at = placeById.get(t.pickup_id);
       if (!at) continue;
       calls.add(t.id);
       const r = responseOf(t, state.sim_time);
       const cond = conditionText(t);
-      const html = `<div class="call-mk ${level}${r?.missed ? " missed" : ""}">${level === "critical" ? '<span class="call-ring"></span>' : ""}${GLYPH.pulse}</div>`;
+      const pip = dr ? `<span class="call-dr ${dr.state}${dr.missed ? " missed" : ""}">${GLYPH.doctor}</span>` : "";
+      const html = `<div class="call-mk ${level}${r?.missed ? " missed" : ""}">${level === "critical" ? '<span class="call-ring"></span>' : ""}${GLYPH.pulse}${pip}</div>`;
       const tip =
         `${LEVEL_LABEL[level]}${cond ? ` · ${cond}` : ""} · ${t.id} · ${at.name}<br>` +
-        (t.vehicle_id ? `${t.vehicle_id} ${r ? responseText(r) : ""}` : r ? responseText(r) : "no unit yet");
+        (t.vehicle_id ? `${t.vehicle_id} ${t.status === "onboard" ? "on scene" : r ? responseText(r) : ""}` : r ? responseText(r) : "no unit yet") +
+        (dr ? `<br>${doctorText(dr)}${dr.state === "en_route" && t.doctor_eta ? ` · at the scene ${fmtTime(t.doctor_eta)}` : ""}` : "");
       const px = level === "critical" ? 30 : 22;
       const existing = callMarkers.current.get(t.id);
       if (existing && existing.key === html) {

@@ -46,6 +46,8 @@ import { VehicleTypeIcon } from "../icons";
 import { NavMap } from "../NavMap";
 import { conditionText, LEVEL_LABEL, LEVEL_PRIORITY, LEVEL_RANK, LEVELS, levelOf, severitySupported, type Level } from "../severity";
 import { ResponseLine, SeverityBadge } from "../SeverityBadge";
+import { doctorJobLine } from "../doctor";
+import { DoctorTag, OriginTag } from "../DoctorTag";
 import { SPEECH_LANGS, speechSecureContext, usePushToTalk, useSpeechInput } from "../voice";
 import "../voice.css";
 import "../tablet.css";
@@ -728,6 +730,7 @@ function TabletConsole({
           <VehicleTypeIcon type={vehicle.type} /> {vehicle.id}
         </span>
         <strong className="mdt-name">{vehicle.name}</strong>
+        <OriginTag v={vehicle} />
         <span className={`mdt-chip st-${vehicle.status}`}>{vehicleStatusText(vehicle, state.trips)}</span>
         {vehicle.grounded_until && <span className="mdt-chip warn">Grounded by fog until {fmtTime(vehicle.grounded_until)}</span>}
         <span className="mdt-spacer" />
@@ -770,12 +773,22 @@ function TabletConsole({
               <div className="mdt-job">
                 <div className="mdt-job-head">
                   <span className="mdt-trip-id">{job.id}</span>
-                  <span className="mdt-muted">{job.status === "onboard" ? (job.kind === "equipment" ? "load on board" : "patient on board") : humanize(job.status)}</span>
+                  <span className="mdt-muted">
+                    {vehicle.type === "doctor"
+                      ? `${job.vehicle_id ?? "no ambulance yet"}${job.vehicle_id ? (job.status === "onboard" ? ": patient on board" : `: ${humanize(job.status)}`) : ""}`
+                      : job.status === "onboard"
+                        ? job.kind === "equipment"
+                          ? "load on board"
+                          : "patient on board"
+                        : humanize(job.status)}
+                  </span>
                 </div>
+                {vehicle.type === "doctor" && <div className="mdt-job-doctor">{doctorJobLine(vehicle, job, place)}</div>}
                 <div className="mdt-job-sev">
                   <SeverityBadge trip={job} size="lg" />
+                  <DoctorTag trip={job} vehicles={state.vehicles} now={state.sim_time} size="lg" />
                 </div>
-                {job.status !== "onboard" && (
+                {job.status !== "onboard" && vehicle.type !== "doctor" && (
                   <div className="mdt-job-resp">
                     <ResponseLine trip={job} now={state.sim_time} />
                   </div>

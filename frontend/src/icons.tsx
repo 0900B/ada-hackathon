@@ -1,9 +1,9 @@
-import { Ambulance, Helicopter, Van, type LucideProps } from "lucide-react";
+import { Ambulance, Helicopter, Stethoscope, Van, type LucideProps } from "lucide-react";
 import type { Vehicle } from "./api";
 
 /** The glyph for a vehicle type (same shapes as the map markers in glyphs.ts). */
 export function VehicleTypeIcon({ type, ...props }: { type: Vehicle["type"] } & LucideProps) {
-  const Icon = type === "ambulance" ? Ambulance : type === "helicopter" ? Helicopter : Van;
+  const Icon = type === "ambulance" ? Ambulance : type === "helicopter" ? Helicopter : type === "doctor" ? Stethoscope : Van;
   return <Icon aria-hidden {...props} />;
 }
 

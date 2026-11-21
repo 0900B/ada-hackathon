@@ -19,6 +19,8 @@ import { flightTarget, fmtTime, vehicleStatusText } from "./format";
 import { Callsign } from "./icons";
 import { levelOf } from "./severity";
 import { ResponseLine, SeverityBadge } from "./SeverityBadge";
+import { doctorJobLine } from "./doctor";
+import { DoctorTag, OriginTag } from "./DoctorTag";
 
 type Send = (event: Record<string, unknown>) => Promise<void>;
 
@@ -61,6 +63,7 @@ export function VehicleCard({
       <div className="vc-head">
         <Callsign v={v} />
         <strong>{v.name}</strong>
+        <OriginTag v={v} />
         <span className="muted">· {vehicleStatusText(v, state.trips)}</span>
         <button className="link vc-close" onClick={onClose} title="Close (Esc)">
           <X />
@@ -105,13 +108,17 @@ export function VehicleCard({
         <div className="vc-title">Now</div>
         {t ? (
           <>
+            {v.type === "doctor" && (
+              <div className="vc-doctor">{doctorJobLine(v, t, (id) => state.places.find((p) => p.id === id)?.name ?? id)}</div>
+            )}
             <div>
               <strong className="id">{t.id}</strong> {t.label ?? t.patient}
             </div>
-            <div>
+            <div className="sev-row">
               <SeverityBadge trip={t} />
+              <DoctorTag trip={t} vehicles={state.vehicles} now={state.sim_time} />
             </div>
-            {t.status !== "onboard" && (
+            {t.status !== "onboard" && v.type !== "doctor" && (
               <div className="small">
                 <ResponseLine trip={t} now={state.sim_time} />
               </div>

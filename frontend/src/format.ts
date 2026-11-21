@@ -1,4 +1,5 @@
 /** Shared formatting helpers. */
+import { DOCTOR_STATUS } from "./doctor";
 import type { Place, Trip, Vehicle } from "./api";
 
 export const fmtTime = (iso: string | null | undefined) =>
@@ -10,6 +11,7 @@ export const humanize = (s: string) => s.replace(/_/g, " ");
 
 /** A vehicle's status for display: one loaded with equipment is "with equipment", not "with patient". */
 export function vehicleStatusText(v: Vehicle, trips: Trip[]): string {
+  if (v.type === "doctor") return DOCTOR_STATUS[v.status] ?? humanize(v.status);
   const current = v.current_trip_id ? trips.find((t) => t.id === v.current_trip_id) : undefined;
   if (v.status === "with_patient" && current?.kind === "equipment") return "with equipment";
   return humanize(v.status);

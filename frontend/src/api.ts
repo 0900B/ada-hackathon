@@ -25,7 +25,8 @@ export interface Place {
 export interface Vehicle {
   id: string;
   name: string;
-  type: "ambulance" | "transport" | "helicopter";
+  type: "ambulance" | "transport" | "helicopter" | "doctor"; // doctor: a doctor car (VUZ), never carries patients
+  origin?: "own" | "mutual_aid" | "private"; // mutual aid from a neighbouring station, or a private ambulance
   base_id: string;
   lat: number;
   lon: number;
@@ -71,6 +72,11 @@ export interface Trip {
   time_weight?: number | null; // 1-10: time sensitivity within the level
   response_target_min?: number | null; // to reach the patient
   modifiers?: string[]; // e.g. "child", "deteriorating", "multiple_patients"
+  // A doctor joins some red calls in a separate doctor car (or on the helicopter); missing on older backends
+  needs_doctor?: boolean;
+  doctor_vehicle_id?: string | null; // D1, D2, or H1 (the helicopter has a doctor on board)
+  doctor_eta?: string | null; // the doctor's arrival at the scene
+  doctor_target_min?: number | null; // minutes from the call (15)
 }
 
 export interface Incident {
@@ -420,6 +426,8 @@ export const SCENARIOS = [
   { name: "priority_override", label: "Priority override", title: "Cardiac arrest next to an ambulance on its way to a fall" },
   { name: "same_level", label: "Same level, different urgency", title: "Two serious calls, one close ambulance: heart attack before seizure" },
   { name: "surge", label: "Call surge", title: "Surge: seven calls at once, including a cardiac arrest" },
+  { name: "doctor_rendezvous", label: "Doctor rendezvous", title: "Chest pain in Bežigrad: ambulance and doctor start from different bases" },
+  { name: "nothing_free", label: "Nothing free", title: "Critical call with every unit busy: mutual aid, private ambulance or helicopter" },
   { name: "remote_emergency", label: "Remote emergency", title: "Remote emergency in the mountains: the helicopter turns around" },
   { name: "snow_cascade", label: "Snow cascade", title: "Snowstorm, a stuck van and an emergency at once" },
   { name: "stranded_equipment", label: "Stranded equipment", title: "Van breaks down with blood products on board" },

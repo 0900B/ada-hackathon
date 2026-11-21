@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Baby, TrendingDown, Users, X } from "lucide-react";
+import { Baby, Stethoscope, TrendingDown, Users, X } from "lucide-react";
+import { DOCTOR_CONDITIONS } from "./doctor";
 import { CONDITIONS, LEVEL_HELP, LEVEL_LABEL, LEVEL_PRIORITY, LEVEL_TARGET_MIN, type Condition, type Level } from "./severity";
 
 type PickLevel = Exclude<Level, "routine">;
@@ -101,6 +102,7 @@ export function EmergencyPicker({
           return (
             <button key={q.code} className={`epick-q sev-${q.level}`} onClick={() => send(c)} title={`Send now: ${LEVEL_LABEL[q.level]} · ${c.label}`}>
               <span className="sev-level">{LEVEL_LABEL[q.level]}</span> {c.label}
+              {DOCTOR_CONDITIONS.has(c.code) && <DoctorNeeded short />}
             </button>
           );
         })}
@@ -126,6 +128,7 @@ export function EmergencyPicker({
             <button onClick={() => send(c)} title={`Send: ${LEVEL_LABEL[c.level]} · ${c.label}, time sensitivity ${c.weight}/10`}>
               <kbd>{i + 1}</kbd>
               <span className="epick-cond">{c.label}</span>
+              {DOCTOR_CONDITIONS.has(c.code) && <DoctorNeeded short />}
               <span className={`sev-tw${c.weight >= 8 ? " hi" : c.weight >= 5 ? " mid" : ""}`}>T{c.weight}</span>
             </button>
           </li>
@@ -139,9 +142,20 @@ export function EmergencyPicker({
         ))}
       </div>
       <div className="epick-foot muted small">
-        Target to reach the patient: {LEVEL_TARGET_MIN[level]} min · <kbd>1</kbd>–<kbd>{list.length}</kbd> or a click sends ·{" "}
+        Target to reach the patient: {LEVEL_TARGET_MIN[level]} min
+        {list.some((c) => DOCTOR_CONDITIONS.has(c.code)) && " · Dr: a doctor car also goes (target 15 min)"} · <kbd>1</kbd>–<kbd>{list.length}</kbd> or a click sends ·{" "}
         <kbd>Enter</kbd> sends {list[0]?.label} · <kbd>Esc</kbd> cancels
       </div>
     </div>
+  );
+}
+
+/** This condition brings a doctor: a doctor car (VUZ) joins the ambulance crew on scene. */
+function DoctorNeeded({ short = false }: { short?: boolean }) {
+  return (
+    <span className="epick-dr" title="Doctor needed: a doctor car (doctor + nurse) is sent too and joins the ambulance crew on scene">
+      <Stethoscope aria-hidden />
+      {short ? "Dr" : "Doctor needed"}
+    </span>
   );
 }
