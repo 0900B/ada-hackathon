@@ -18,6 +18,7 @@ from fastapi.responses import StreamingResponse
 
 from . import config, demo
 from .agent import runner as agent
+from .agent.messages import FieldMessage, MessageError, parse_message, to_operator_events
 from .engine.actions import ActionError
 from .engine.events import EventError, apply_event
 from .engine.plans import apply_plan, simulate_plan
@@ -220,6 +221,53 @@ async def post_event(event: OperatorEvent = Body(...), state: WorldState = World
     if config.AGENT_AUTO and event.type in DISRUPTIVE_EVENTS and not clearing:
         agent.start_run(state, trigger=f"event:{record.id}", focus=record)
     return record
+
+
+@router.post("/messages")
+async def post_message(msg: FieldMessage, state: WorldState = World) -> dict:
+    """Part 3 of the brief: a field message (Slovenian/English) -> structured events -> new plan.
+
+    Claude interprets the message; the engine validates and applies the events; the dispatcher
+    agent then replans. Ambiguous messages come back with a clarification question instead.
+    """
+    if not config.agent_enabled():
+        raise HTTPException(status_code=503, detail="Message parsing needs the Claude API key; use the event buttons")
+    if msg.sender_vehicle_id and msg.sender_vehicle_id not in state.vehicles:
+        raise HTTPException(status_code=400, detail=f"Unknown vehicle {msg.sender_vehicle_id}")
+    try:
+        parsed = await parse_message(state, msg.text, msg.sender_vehicle_id)
+        events = to_operator_events(state, parsed)
+    except MessageError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except Exception as e:  # noqa: BLE001 - API/network failure: tell the operator, don't crash
+        log.warning("message parsing failed: %s", e)
+        raise HTTPException(status_code=502, detail="The AI could not be reached; please use the event buttons") from e
+
+    result: dict = {
+        "understood_sl": parsed.understood_sl,
+        "understood_en": parsed.understood_en,
+        "needs_clarification": parsed.needs_clarification,
+        "events": [e.model_dump(mode="json") for e in events],
+        "applied": [],
+        "run_id": None,
+    }
+    if not msg.apply or parsed.needs_clarification or not events:
+        return result
+    for ev in events:
+        try:
+            result["applied"].append(apply_event(state, ev))
+        except EventError as e:
+            result["error"] = f"{ev.type}: {e}"
+            break
+    if result["applied"]:
+        run = agent.start_run(
+            state,
+            trigger="message",
+            focus=result["applied"][-1],
+            question=f'Field message: "{msg.text}". Understood as: {parsed.understood_en}',
+        )
+        result["run_id"] = run.id
+    return result
 
 
 @router.post("/plans/simulate")

@@ -612,3 +612,42 @@ button.primary {
 .roads li.slow {
   color: var(--warn);
 }
+
+/* Field message (Part 3) */
+.field-message {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field-message textarea {
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: #222836;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  resize: vertical;
+}
+.examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+button.example {
+  font-size: 11px;
+  padding: 2px 6px;
+  color: var(--muted);
+  background: transparent;
+}
+.parsed {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  border-left: 3px solid var(--accent);
+  padding-left: 8px;
+}
+.parsed .applied {
+  color: var(--ok);
+}

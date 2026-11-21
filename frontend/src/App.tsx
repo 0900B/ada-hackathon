@@ -14,6 +14,7 @@ import {
   type WorldSnapshot,
 } from "./api";
 import { AgentPanel } from "./AgentPanel";
+import { FieldMessage } from "./FieldMessage";
 import { fmtTime } from "./format";
 import { MapView, type ClickMode } from "./MapView";
 import { FleetPage } from "./pages/FleetPage";
@@ -134,6 +135,9 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
               <Conditions state={state} />
             </Panel>
           )}
+          <Panel title="Message from the field">
+            <FieldMessage state={state} />
+          </Panel>
           <Panel title="AI dispatcher">
             <AgentPanel state={state} notify={setMessage} />
           </Panel>

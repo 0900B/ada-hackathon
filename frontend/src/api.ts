@@ -248,6 +248,18 @@ export const approveOption = (world: World, runId: string, optionIndex: number) 
   post<AgentRun>(`/${world}/agent/runs/${runId}/approve`, { option_index: optionIndex });
 export const rejectRun = (world: World, runId: string) =>
   post<AgentRun>(`/${world}/agent/runs/${runId}/reject`, { reason: null });
+export interface MessageResult {
+  understood_sl: string;
+  understood_en: string;
+  needs_clarification: string | null;
+  events: Record<string, unknown>[];
+  applied: EventRecord[];
+  run_id: string | null;
+  error?: string;
+}
+export const sendFieldMessage = (world: World, text: string, senderVehicleId: string | null) =>
+  post<MessageResult>(`/${world}/messages`, { text, sender_vehicle_id: senderVehicleId, apply: true });
+
 export const runScenario = (name: string) =>
   post<{ scenario: string; title: string; run_id: string }>(`/sim/admin/scenario/${name}`);
 
