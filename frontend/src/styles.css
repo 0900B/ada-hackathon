@@ -651,3 +651,18 @@ button.example {
 .parsed .applied {
   color: var(--ok);
 }
+
+/* Brand */
+.brand {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.brand-sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+.brand-sub strong {
+  color: var(--text);
+  font-weight: 500;
+}

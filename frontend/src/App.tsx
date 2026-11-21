@@ -14,6 +14,7 @@ import {
   type WorldSnapshot,
 } from "./api";
 import { AgentPanel } from "./AgentPanel";
+import { BRAND } from "./brand";
 import { FieldMessage } from "./FieldMessage";
 import { fmtTime } from "./format";
 import { MapView, type ClickMode } from "./MapView";
@@ -39,7 +40,12 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>🚑 Emergency Transport Assistant</h1>
+        <div className="brand">
+          <h1>🚑 {BRAND.product}</h1>
+          <span className="brand-sub">
+            {BRAND.tagline} · <strong>{BRAND.operator}</strong>
+          </span>
+        </div>
         <nav className="nav">
           <NavLink to="/live">● Live</NavLink>
           <NavLink to="/sim">Simulation</NavLink>
