@@ -127,7 +127,10 @@ def test_calls_are_dispatched_at_once_and_queues_stay_short():
     util = {k: busy[k] / samples[0] / (3 if k == "ambulance" else 5) for k in busy}
     assert all(0.3 <= u <= 0.85 for u in util.values()), util
     done = [t for t in W.trips.values() if t.status == "completed"]
-    assert len(done) >= len(records) - 6 and sum(1 for t in done if (t.delay_min or 0) >= 5) <= 3
+    assert len(done) >= len(records) - 8 and sum(1 for t in done if (t.delay_min or 0) >= 5) <= 3
+    # Nothing is stuck: what is still open (recent calls, long transfers) has a vehicle and arrives later.
+    still_open = [t for t in W.trips.values() if t.status not in ("completed", "cancelled")]
+    assert all(t.vehicle_id and t.eta_dropoff and t.eta_dropoff >= W.sim_time for t in still_open), still_open
 
 
 def test_generated_calls_never_start_an_analysis():
@@ -177,7 +180,7 @@ def test_every_scenario_builds_in_live_calls_mode_and_leaves_a_decision():
         assert title in rec.situation, rec.situation
         summary = W.events[-1].summary
         if name in demo.AUTOMATIC:  # the engine decided by itself at dispatch time (doctrine rules 1, 2, 6)
-            assert "diverted from" in summary or "available soon" in summary, (name, summary)
+            assert "diverted from" in summary or "available soon" in summary or "+ doctor" in summary, (name, summary)
         else:  # something to decide: options, or an escalation the dispatcher must act on
             assert rec.options or rec.escalation, f"{name}: the engine fallback has nothing to propose"
         for opt in rec.options:

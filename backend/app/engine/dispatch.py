@@ -32,6 +32,7 @@ from ..geo import haversine_km
 from ..models import Plan, PlanStep, Trip
 from ..routing import flies, travel_minutes
 from .actions import EMERGENCY_UNITS, level, near_current_patient
+from .doctors import origin_label, send_doctor
 from .projection import LATE_ALERT_MIN, route_trip_ids
 from .severity import (
     BUSY_UNIT_MIN_GAIN_MIN,
@@ -285,7 +286,8 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
             )
     if d.chosen is None:
         if trip.priority == "emergency":
-            return "; no ambulance or helicopter can take it: request one from a neighbouring station" + reason
+            doctor = send_doctor(state, trip)  # the doctor car still goes: first on scene
+            return "; no ambulance or helicopter can take it: request one from a neighbouring station" + doctor + reason
         pool = [c for c in find_candidates(state, trip.id, limit=100) if not c["step"]["interrupt_current"]]
         if not pool:
             return "; no vehicle can take it yet: left for the dispatcher to plan"
@@ -313,13 +315,15 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
     when = f"at {who} {_hhmm(o.reach)} (in {_mins(o.reach, state.sim_time):.0f} min), at {dest} {_hhmm(o.cand['trip_eta_dropoff'])}"
     if flies(v.type):
         road = d.best_road
-        gain = _mins(road.reach, o.reach) if road else 0.0
+        # what the decision compared: arrival at UKC for stroke and heart attack, else at the patient
+        gain = (road.rank - o.rank if compare else _mins(road.reach, o.reach)) if road else 0.0
+        at_ukc = " at UKC" if compare else ""
         if road is None:
             why = "helicopter; no ambulance can take it"
         elif trip.severity == "critical":
             why = "helicopter: the closest unit for a critical call" + (f", {gain:.0f} min sooner than {road.vehicle_id}" if gain >= 1 else "")
         else:
-            why = f"helicopter, {gain:.0f} min sooner than {road.vehicle_id} by road"
+            why = f"helicopter, {gain:.0f} min sooner{at_ukc} than {road.vehicle_id} by road"
         if o.kind == "override" and o.displaced is not None:
             why += f"; diverted from {o.displaced.id} ({o.displaced.severity})"
         clause = f"; dispatched {v.id} ({why}): {when}"
@@ -338,6 +342,11 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
         )
     else:
         clause = f"; dispatched {v.id} (no unit free; {o.cand['insertion']}): {when}"
+    clause += send_doctor(state, trip, v.id, o.reach)  # " + doctor D1 (ZD Center, at the patient 22:05, ...)"
+    wait = _mins(max(o.reach, trip.pickup_after), trip.pickup_after)
+    if trip.severity in ("critical", "serious") and wait > RED_REFERENCE_MIN and state.reserve_vehicles:
+        names = ", ".join(f"{r.id} ({origin_label(state, r)})" for r in state.reserve_vehicles.values())
+        clause += f"; no own unit within {RED_REFERENCE_MIN:.0f} min: can request {names}"
 
     if o.kind == "override" and o.displaced is not None:
         dsp = o.displaced

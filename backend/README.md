@@ -135,6 +135,23 @@ Severity and dispatch doctrine (`engine/severity.py`, `engine/dispatch.py`, rule
   The event summary says who, why, when, the helicopter check and the clinical reason.
 - Slovenian practice: a red call predicted over 15 min raises `red_response_over_15_min`; the last free
   ambulance of an area is kept for red calls (a van takes the non-urgent call).
+- **Doctor cars** D1 (base `zd_center`) and D2 (`zd_siska`), `type: "doctor"` (VUZ: physician + nurse;
+  `engine/doctors.py`). Red calls whose condition is `cardiac_arrest`, `choking`, `catastrophic_bleeding`,
+  `anaphylaxis`, `stemi`, `breathing_difficulty` or `major_trauma` get `needs_doctor: true` and
+  `doctor_target_min: 15` (set by the backend on every trip). The engine sends the ambulance by the rules
+  above plus the free doctor car that reaches the scene first (never one on a scene); the trip gets
+  `doctor_vehicle_id` and `doctor_eta` (projected while driving, the actual arrival once there); the
+  summary says `+ doctor D1 (Rudnik, at the patient 22:45, 5 min after the ambulance)`. The helicopter
+  has a doctor on board (`doctor_vehicle_id: "H1"`), unless it is over 15 min and a doctor car is
+  sooner (that car stands down when H1 lifts off). Doctor-car statuses: `to_pickup` = to the scene,
+  `loading` = on scene with the crew, `with_patient` = escorting to hospital, then `returning`;
+  `current_trip_id` = the supported trip; `trip.vehicle_id` stays the ambulance. A doctor car never
+  transports and is never a plan step. No doctor within the target: alert `doctor_response_over_15_min`.
+- **Reserve units** M1 (ambulance, `origin: "mutual_aid"`, base `base_domzale`) and P1 (`origin:
+  "private"`, base `base_private`) are not in the snapshot until requested. When no own unit reaches a
+  red call within 15 min, the summary says so, `find_candidates` (agent tool) and the engine fallback
+  offer them ("Request mutual aid: M1 from Domžale, at the patient HH:MM", "Private ambulance P1
+  (Brezovica), ..."); approving such a plan step activates the unit, and it leaves again once home.
 - **Vans** do the scheduled day (seated, wheelchair, stretcher, equipment) and urgent non-emergencies;
   never emergencies. Bookings (`task_request`) go to a van; a free ambulance only if no van fits.
 

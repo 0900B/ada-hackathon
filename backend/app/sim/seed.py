@@ -45,6 +45,9 @@ PLACES = [
     ("home_vrhnika", "Vrhnika", "residential", 45.9650, 14.2950),
     ("home_grosuplje", "Grosuplje", "residential", 45.9550, 14.6580),
     ("home_skofljica", "Škofljica", "residential", 45.9840, 14.5770),
+    # Bases of the reserve units, outside our own fleet (approximate).
+    ("base_domzale", "Ambulance station Domžale", "base", 46.1393, 14.5952),  # neighbouring region
+    ("base_private", "Private ambulance base Brezovica", "base", 46.0236, 14.4128),
 ]
 
 FLEET = [
@@ -57,6 +60,15 @@ FLEET = [
     ("T4", "Transport 4", "transport", "base_west"),
     ("T5", "Transport 5", "transport", "base_center"),
     ("H1", "Helicopter 1", "helicopter", "ukc"),  # HNMP, based at the hospital
+    # Doctor cars (VUZ, ZD Ljubljana): an emergency physician and a nurse who join the ambulance crew.
+    ("D1", "Doctor car 1", "doctor", "zd_center"),
+    ("D2", "Doctor car 2", "doctor", "zd_siska"),
+]
+# Reserve units: not in the world until the dispatcher requests them (an approved plan step).
+# (id, name, type, base, origin)
+RESERVE = [
+    ("M1", "Mutual aid ambulance (Domžale)", "ambulance", "base_domzale", "mutual_aid"),
+    ("P1", "Private ambulance 1", "ambulance", "base_private", "private"),
 ]
 
 DESTINATIONS = ["ukc", "onko", "zd_center", "zd_siska", "zd_vic"]
@@ -90,6 +102,11 @@ def seed_world(state: WorldState, seed: int, n_trips: int = 24, scheduled_day: b
     for vid, name, vtype, base in FLEET:
         b = state.places[base]
         state.vehicles[vid] = Vehicle(id=vid, name=name, type=vtype, base_id=base, lat=b.lat, lon=b.lon)  # type: ignore[arg-type]
+    for vid, name, vtype, base, origin in RESERVE:
+        b = state.places[base]
+        state.reserve_vehicles[vid] = Vehicle(
+            id=vid, name=name, type=vtype, origin=origin, base_id=base, lat=b.lat, lon=b.lon  # type: ignore[arg-type]
+        )
     equip_fleet(state, seed)  # crew, fuel, shift (own RNG: trips stay identical)
     if state.scheduled_day:
         _scheduled_day(state, random.Random(seed), n_trips)

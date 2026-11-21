@@ -31,6 +31,13 @@ CAPABILITIES = {
         "Remote places and long distances",
         "No scheduled trips or equipment",
         "Grounded by fog",
+        "Emergency physician on board",
+    ],
+    "doctor": [
+        "Doctor car (VUZ): emergency physician and nurse",
+        "Joins the ambulance crew on scene for life-threatening calls",
+        "Escorts the patient to hospital, then returns",
+        "Never transports patients",
     ],
 }
 
@@ -66,7 +73,24 @@ def vehicle_detail(state: WorldState, v: Vehicle) -> dict[str, Any]:
         legs.append(geometry[0])
     cur = (v.lat, v.lon)
     first = True
-    if v.status != "out_of_service":
+    if v.type == "doctor" and v.status != "out_of_service":
+        # A doctor car's stops: the scene of the call it supports (unless already there or past it),
+        # then the hospital it escorts the patient to.
+        trip = state.trips.get(v.current_trip_id) if v.current_trip_id else None
+        if trip is not None:
+            if v.status == "to_pickup":
+                p = places[trip.pickup_id]
+                add_leg(_geometry(state, v, cur, (p.lat, p.lon), first))
+                first, cur = False, (p.lat, p.lon)
+                stops.append({"kind": "pickup", "trip_id": trip.id, "label": trip.label, "priority": trip.priority,
+                              "place": p.name, "lat": p.lat, "lon": p.lon, "eta": trip.doctor_eta,
+                              "ready_at": trip.pickup_after})
+            d = places[trip.dropoff_id]
+            add_leg(_geometry(state, v, cur, (d.lat, d.lon), first))
+            first, cur = False, (d.lat, d.lon)
+            stops.append({"kind": "dropoff", "trip_id": trip.id, "label": trip.label, "priority": trip.priority,
+                          "place": d.name, "lat": d.lat, "lon": d.lon, "eta": trip.eta_dropoff, "delay_min": trip.delay_min})
+    if v.status != "out_of_service" and v.type != "doctor":
         for leg in project_route(state, v):
             trip = state.trips[leg.trip_id]
             label = getattr(trip, "label", None) or trip.patient
@@ -82,6 +106,7 @@ def vehicle_detail(state: WorldState, v: Vehicle) -> dict[str, Any]:
             first, cur = False, (d.lat, d.lon)
             stops.append({"kind": "dropoff", "trip_id": trip.id, "label": label, "priority": trip.priority,
                           "place": d.name, "lat": d.lat, "lon": d.lon, "eta": leg.eta_dropoff, "delay_min": leg.delay_min})
+    if v.status != "out_of_service":
         base = places.get(v.base_id)
         if base and stops:
             add_leg(_geometry(state, v, cur, (base.lat, base.lon), first))

@@ -24,6 +24,11 @@ closest unit, for a serious one when it is about 10 minutes or more faster, for 
 15 (remote places, long distances). \
 Fog (megla) grounds it (`grounded_by_fog_until`): it takes no new trips until then, so its released \
 trips need road vehicles.
+- Doctor cars D1 and D2 (VUZ: an emergency physician and a nurse) join the ambulance crew on scene \
+for red calls with needs_doctor, escort the patient to hospital and never transport anyone: never \
+put them in a plan step. The engine sends the doctor car that reaches the scene first; the \
+helicopter has a doctor on board, so a call it serves needs no doctor car. If doctor_eta is more \
+than 15 min after the call, propose the helicopter if rule 6 allows it, or accept and say so.
 - Trips have a severity level: critical > serious > urgent > routine (priority emergency = critical \
 or serious, urgent = urgent, scheduled = routine), a condition with a time-sensitivity weight, and a \
 response target to reach the patient. Each trip has a time the patient is ready for pickup and a \
@@ -102,6 +107,9 @@ at UKC, not only at the scene.
 8. Give each option a one-sentence clinical reason (e.g. "cardiac arrest: about 6% survival lost \
 per minute without defibrillation; A1 is 9 min closer"), using the situation's clinical_reason and \
 numbers from the tools only.
+9. Mutual aid: when no own unit reaches a red call within 15 minutes, offer the reserve_units \
+(M1 from a neighbouring station, P1 a private ambulance) that find_candidates shows clearly faster, \
+each as a one-step option for that call; approving it requests the unit. Never for other calls.
 
 Process:
 1. Read the event and the situation. Find the trips at risk: unassigned trips first, then late ones.

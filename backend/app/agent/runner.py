@@ -18,6 +18,7 @@ from .. import config
 from ..audit import AUDIT
 from ..engine.candidates import HELICOPTER_MIN_GAIN_MIN, find_candidates, greedy_plan, is_free
 from ..engine.dispatch import swap_options
+from ..engine.doctors import reserve_options
 from ..engine.projection import red_wait_min
 from ..engine.severity import RED_REFERENCE_MIN, clinical_reason
 from ..engine.plans import simulate_plan
@@ -231,7 +232,7 @@ def _faster_unit_options(state: WorldState, skip: set[str]) -> list[Recommendati
         now_at = max(t.eta_pickup, t.pickup_after)  # type: ignore[type-var]
         best: dict[str, tuple[float, dict]] = {}  # best alternative per kind: a road unit, the helicopter
         for c in find_candidates(state, t.id, limit=50):
-            if c["vehicle_id"] == t.vehicle_id or not c["trip_eta_pickup"] or c["vehicle_type"] == "transport":
+            if c["vehicle_id"] == t.vehicle_id or not c["trip_eta_pickup"] or c["vehicle_type"] in ("transport", "doctor"):
                 continue
             gain = (now_at - c["trip_eta_pickup"]).total_seconds() / 60
             kind = "air" if c["vehicle_type"] == "helicopter" else "road"
@@ -310,6 +311,19 @@ def _engine_recommendation(
                     else []
                 ),
                 cons=["Both crews change destination; tell them and the callers"],
+            )
+        )
+    for ro in reserve_options(state):  # no own unit within 15 min of a red call: mutual aid, private
+        t = state.trips[ro["trip_id"]]
+        options.append(
+            RecommendationOption(
+                title=ro["title"],
+                summary=f"{ro['step_details'][0]['text']}. {clinical_reason(t).capitalize()}.",
+                steps=ro["steps"],
+                pros=[f"{t.label} is reached {ro['wait_min']:.0f} min after the call instead of {ro['now_wait_min']:.0f} "
+                      f"({clinical_reason(t)})"],
+                cons=[f"A unit from outside our fleet: {ro['vehicle_id']} is requested on approval; "
+                      f"{t.vehicle_id} is released for the next call"],
             )
         )
     escalation = (

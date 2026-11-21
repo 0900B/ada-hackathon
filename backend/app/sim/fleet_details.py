@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from ..state import WorldState
 
 # Fuel used per km, in % of a full tank (ambulance ~550 km range, van ~650 km, helicopter ~170 km).
-FUEL_PCT_PER_KM: dict[str, float] = {"ambulance": 0.18, "transport": 0.15, "helicopter": 0.6}
+FUEL_PCT_PER_KM: dict[str, float] = {"ambulance": 0.18, "transport": 0.15, "helicopter": 0.6, "doctor": 0.12}
 LOW_FUEL_PCT = 20.0
 CRITICAL_FUEL_PCT = 10.0
 
@@ -24,16 +24,20 @@ _FIRST = ["Ana", "Luka", "Maja", "Nejc", "Tina", "Jure", "Eva", "Rok", "Nina", "
 _LAST = ["Novak", "Horvat", "Kranjc", "Zupan", "Potočnik", "Kos", "Vidmar", "Golob", "Turk", "Kralj", "Zajc", "Božič"]
 
 _ROLES: dict[str, list[str]] = {
-    "ambulance": ["Driver / paramedic", "Paramedic", "Emergency physician"],
+    # Slovenian NRV crew: a nurse or health technician leads, a medical rescuer drives. A doctor
+    # comes in a separate doctor car (VUZ) when the call needs one.
+    "ambulance": ["Medical rescuer (driver)", "Nurse, team leader"],
     "transport": ["Driver", "Medical technician"],
     "helicopter": ["Pilot", "Emergency physician", "Flight paramedic"],
+    "doctor": ["Emergency physician", "Nurse (driver)"],
 }
 
 
 def equip_fleet(state: WorldState, seed: int) -> None:
+    """Crews, fuel and shifts for the fleet and for the reserve units (mutual aid, private)."""
     rng = random.Random(seed + 7919)  # separate stream: must not change the seeded trips
     used: set[str] = set()
-    for v in state.vehicles.values():
+    for v in [*state.vehicles.values(), *state.reserve_vehicles.values()]:
         crew = []
         for role in _ROLES.get(v.type, ["Driver"]):
             while True:

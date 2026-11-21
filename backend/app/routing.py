@@ -16,8 +16,9 @@ if TYPE_CHECKING:
     from .state import WorldState
 
 ROAD_FACTOR = 1.35  # fallback: road distance / straight-line distance in a city
-BASE_SPEED_KMH: dict[VehicleType, float] = {"ambulance": 42.0, "transport": 36.0}  # fallback only
-ROUTE_TYPE_FACTOR: dict[VehicleType, float] = {"ambulance": 1.0, "transport": 1.1}  # vans are a bit slower
+# fallback only; the doctor car (VUZ) is an estate car with lights and sirens: as quick as an ambulance
+BASE_SPEED_KMH: dict[VehicleType, float] = {"ambulance": 42.0, "transport": 36.0, "doctor": 42.0}
+ROUTE_TYPE_FACTOR: dict[VehicleType, float] = {"ambulance": 1.0, "transport": 1.1, "doctor": 1.0}  # vans are a bit slower
 EMERGENCY_BONUS = 1.3  # lights and sirens
 INCIDENT_FACTORS = {"road_closure": 1.6, "accident": 1.35, "congestion": 1.25}  # detour/slowdown multipliers
 # Helicopters (HNMP) fly straight: no roads, so no traffic, incidents or lights-and-sirens bonus.

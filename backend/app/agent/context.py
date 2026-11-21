@@ -109,9 +109,21 @@ def build_situation(state: WorldState) -> dict[str, Any]:
                 **({"waiting_at_pickup_until": hhmm(v.waiting_until)} if v.waiting_until else {}),
                 "fuel_pct": round(v.fuel_pct),
                 **({"grounded_by_fog_until": hhmm(v.grounded_until)} if v.grounded_until else {}),
+                **({"origin": v.origin} if v.origin != "own" else {}),
             }
             for v in state.vehicles.values()
         ],
+        # Not in the fleet until requested: a plan step that names one requests it (red calls only).
+        **(
+            {
+                "reserve_units": [
+                    {"id": r.id, "type": r.type, "origin": r.origin, "base": places[r.base_id].name}
+                    for r in state.reserve_vehicles.values()
+                ]
+            }
+            if state.reserve_vehicles
+            else {}
+        ),
         "hospitals": build_hospitals(state),
         "open_trips": [
             {
@@ -124,6 +136,11 @@ def build_situation(state: WorldState) -> dict[str, Any]:
                 **({"response_target_min": t.response_target_min} if t.response_target_min else {}),
                 **({"modifiers": t.modifiers} if t.modifiers else {}),
                 **({"clinical_reason": clinical_reason(t)} if t.severity in ("critical", "serious") else {}),
+                **(
+                    {"needs_doctor": True, "doctor": t.doctor_vehicle_id, "doctor_eta": hhmm(t.doctor_eta)}
+                    if t.needs_doctor
+                    else {}
+                ),
                 "needs": t.needs,
                 "from": places[t.pickup_id].name,
                 "to": places[t.dropoff_id].name,
@@ -167,7 +184,7 @@ def build_user_message(state: WorldState, focus: EventRecord | None, question: s
 
 def tool_find_candidates(state: WorldState, trip_id: str, dropoff_id: str | None = None) -> dict[str, Any]:
     t = state.trips.get(trip_id)
-    candidates = find_candidates(state, trip_id, dropoff_id=dropoff_id)
+    candidates = find_candidates(state, trip_id, dropoff_id=dropoff_id, include_reserve=True)
     return {
         "trip": None
         if t is None
@@ -196,8 +213,16 @@ def tool_simulate_plan(state: WorldState, steps: list[dict[str, Any]]) -> dict[s
 
 def tool_vehicle_schedule(state: WorldState, vehicle_id: str) -> dict[str, Any]:
     v = state.vehicles.get(vehicle_id)
+    if v is None and vehicle_id in state.reserve_vehicles:
+        r = state.reserve_vehicles[vehicle_id]
+        return {"vehicle": r.id, "type": r.type, "origin": r.origin, "status": "reserve (not requested)",
+                "base": state.places[r.base_id].name, "schedule": []}
     if v is None:
         raise ValueError(f"Unknown vehicle {vehicle_id}")
+    if v.type == "doctor":
+        t = state.trips.get(v.current_trip_id) if v.current_trip_id else None
+        return {"vehicle": v.id, "type": v.type, "status": v.status, "near": nearest_place_name(state, v.lat, v.lon),
+                "supports": t.id if t else None, "doctor_eta": hhmm(t.doctor_eta) if t else None, "schedule": []}
     if v.status == "out_of_service":
         return {"vehicle": vehicle_id, "status": "out_of_service", "schedule": []}
     legs = project_route(state, v)

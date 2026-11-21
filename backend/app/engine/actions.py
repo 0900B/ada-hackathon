@@ -32,6 +32,8 @@ class ActionError(ValueError):
 
 
 def can_serve(v: Vehicle, trip: Trip) -> tuple[bool, str | None]:
+    if v.type == "doctor":
+        return False, f"{v.name} is a doctor car: it joins the ambulance crew on scene and never transports patients"
     if v.status == "out_of_service":
         return False, f"{v.name} is out of service"
     if v.grounded_until is not None:  # cleared by the simulator when the fog lifts
@@ -152,6 +154,11 @@ def assign_trip(
     if trip is None:
         raise ActionError(f"Unknown trip {trip_id}")
     v = state.vehicles.get(vehicle_id)
+    reserve = v is None and vehicle_id in state.reserve_vehicles  # mutual aid / private: activated below
+    if reserve:
+        v = state.reserve_vehicles[vehicle_id]
+        if trip.priority != "emergency":
+            raise ActionError(f"{v.name} is a reserve unit: requested only for red (critical or serious) calls")
     if v is None:
         raise ActionError(f"Unknown vehicle {vehicle_id}")
     redirect = dropoff_id is not None and dropoff_id != trip.dropoff_id
@@ -219,6 +226,10 @@ def assign_trip(
             )
 
     # All checks passed: from here on nothing raises.
+    if reserve:
+        from .doctors import activate_reserve  # local import: doctors imports routing
+
+        v = activate_reserve(state, v.id)
     if redirect:
         old = state.places.get(trip.dropoff_id)
         trip.dropoff_id = dropoff_id  # type: ignore[assignment]

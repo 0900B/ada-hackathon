@@ -85,6 +85,18 @@ def call_label(trip: Trip) -> str:
     return ", ".join(parts)
 # Conditions judged by arrival at the hospital (definitive care), not only at the scene.
 DEFINITIVE_CARE_CONDITIONS = {"stroke", "stemi"}
+# Red calls that also get a doctor car (VUZ: an emergency physician and a nurse, driving separately
+# and joining the ambulance crew on scene). Slovenian dispatch sends the nurse-and-rescuer ambulance
+# first; a doctor is really needed in only 10 to 30 % of top-priority interventions. A stroke gets
+# no doctor car: the time to the stroke centre matters more (ambulance with a pre-alert).
+DOCTOR_CONDITIONS = frozenset(
+    {"cardiac_arrest", "choking", "catastrophic_bleeding", "anaphylaxis", "stemi", "breathing_difficulty", "major_trauma"}
+)
+DOCTOR_TARGET_MIN = 15.0  # the doctor on scene within the Slovenian red reference (RED_REFERENCE_MIN)
+
+
+def needs_doctor(kind: str, severity: str | None, condition: str | None) -> bool:
+    return kind == "patient" and severity in ("critical", "serious") and condition in DOCTOR_CONDITIONS
 
 # Dispatch rules (doc section 3).
 BUSY_UNIT_MIN_GAIN_MIN = 3.0  # rule 1: a busy unit must beat the best free one by this much
@@ -141,4 +153,6 @@ def grade(state: WorldState, trip: Trip) -> Trip:
     p, ukc = state.places.get(trip.pickup_id), state.places.get("ukc")
     in_city = not (p and ukc) or haversine_km(p.lat, p.lon, ukc.lat, ukc.lon) <= CITY_RADIUS_KM
     trip.response_target_min = response_target(trip.severity, in_city)
+    trip.needs_doctor = needs_doctor(trip.kind, trip.severity, trip.condition)
+    trip.doctor_target_min = DOCTOR_TARGET_MIN if trip.needs_doctor else None
     return trip

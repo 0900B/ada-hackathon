@@ -317,7 +317,7 @@ def test_helicopter_rules_per_level():
     fresh(("A1", "H1"))
     park("A1", "home_vrhnika")  # far away: H1 is far more than 10 min faster
     rec, t = call(*near("home_moste", 0.002, 0.003), "serious", "stemi")
-    assert t.vehicle_id == "H1" and "min sooner than A1 by road" in rec.summary, rec.summary
+    assert t.vehicle_id == "H1" and "min sooner at UKC than A1 by road" in rec.summary  # heart attack: compared at UKC, rec.summary
     fresh(("A1", "H1"))
     park("A1", "home_vrhnika")
     rec, t = call(*near("home_moste", 0.002, 0.003), "urgent", "fall")  # urgent in the city: never flies

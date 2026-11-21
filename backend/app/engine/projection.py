@@ -53,6 +53,8 @@ def project_route(
     """
     ids = route_trip_ids(v) if trip_ids is None else trip_ids
     prefetch = prefetch and not flies(v.type)  # helicopters fly straight: no road routes
+    if v.type == "doctor" and trip_ids is None:
+        return []  # a doctor car's job is a call it supports, not a route of its own (see doctors.py)
     t = state.sim_time
     if v.busy_until and v.busy_until > t:
         t = v.busy_until
@@ -111,11 +113,14 @@ def project_all(state: WorldState) -> None:
         if trip.status == "unassigned":
             trip.eta_pickup = trip.eta_dropoff = trip.delay_min = None
     for v in state.vehicles.values():
-        if v.status == "out_of_service":
+        if v.status == "out_of_service" or v.type == "doctor":  # a doctor car supports a call, it doesn't carry it
             continue
         for leg in project_route(state, v, prefetch=real):
             trip = state.trips[leg.trip_id]
             trip.eta_pickup, trip.eta_dropoff, trip.delay_min = leg.eta_pickup, leg.eta_dropoff, leg.delay_min
+    from .doctors import project_doctors  # local import: doctors imports routing and plans
+
+    project_doctors(state)
     state.alerts = compute_alerts(state)
 
 
@@ -164,6 +169,21 @@ def red_wait_min(trip: Trip) -> float | None:
     return (max(trip.eta_pickup, trip.pickup_after) - trip.pickup_after).total_seconds() / 60
 
 
+def doctor_wait_min(state: WorldState, trip: Trip) -> float | None:
+    """For a call that needs a doctor and has none on scene yet: minutes from the call until one is
+    there (infinite if no doctor is coming). None when no doctor is needed or one is already there."""
+    if not trip.needs_doctor or trip.status in DONE:
+        return None
+    holder = state.vehicles.get(trip.doctor_vehicle_id) if trip.doctor_vehicle_id else None
+    if holder is not None and holder.type == "doctor" and holder.status in ("loading", "with_patient"):
+        return None  # on scene (or escorting)
+    if trip.doctor_eta is not None and trip.doctor_eta <= state.sim_time:
+        return None
+    if trip.doctor_eta is None:
+        return float("inf") if trip.vehicle_id else None  # no doctor coming (unassigned calls have their own alert)
+    return (max(trip.doctor_eta, trip.pickup_after) - trip.pickup_after).total_seconds() / 60
+
+
 def compute_alerts(state: WorldState) -> list[Alert]:
     alerts: list[Alert] = []
     for trip in state.trips.values():
@@ -204,6 +224,27 @@ def compute_alerts(state: WorldState) -> list[Alert]:
                     f"(reference for red calls: {RED_REFERENCE_MIN:.0f} min): ask a neighbouring station",
                     trip_id=trip.id,
                     vehicle_id=trip.vehicle_id,
+                )
+            )
+        doctor_wait = doctor_wait_min(state, trip)
+        if doctor_wait is not None and doctor_wait > (trip.doctor_target_min or RED_REFERENCE_MIN):
+            what = trip.condition_label or trip.severity
+            who = trip.doctor_vehicle_id
+            holder = state.vehicles.get(who) if who else None
+            advice = "ask a neighbouring station" if holder is not None and flies(holder.type) else "consider the helicopter"
+            alerts.append(
+                Alert(
+                    id=f"doctor_response_over_15_min:{trip.id}",
+                    kind="doctor_response_over_15_min",
+                    severity="high",
+                    message=(
+                        f"Doctor for {trip.id} ({what}) on scene only after {doctor_wait:.0f} min ({who})"
+                        if who
+                        else f"No doctor for {trip.id} ({what}): no doctor car free"
+                    )
+                    + f" (reference {trip.doctor_target_min or RED_REFERENCE_MIN:.0f} min): {advice}",
+                    trip_id=trip.id,
+                    vehicle_id=who,
                 )
             )
     for v in state.vehicles.values():

@@ -129,8 +129,9 @@ def step_details(before: WorldState, after: WorldState, steps: list[PlanStep]) -
                 if t.eta_pickup and pickup_at and (pickup_at - t.eta_pickup).total_seconds() >= 180
                 else ""
             )
+            unit = v.id if v.origin == "own" else f"{v.id} ({'mutual aid' if v.origin == 'mutual_aid' else 'private ambulance'}, requested)"
             text = (
-                f"{v.id} {when}: picks up {t.label} at {_hhmm(pickup_at)}{waits}, at {dest}{redirect} "
+                f"{unit} {when}: picks up {t.label} at {_hhmm(pickup_at)}{waits}, at {dest}{redirect} "
                 f"{_hhmm(t.eta_dropoff)}{late}"
             )
         out.append(
@@ -228,12 +229,17 @@ def apply_plan(state: WorldState, plan: Plan) -> EventRecord:
     kpis_before = kpis(state)
     _apply_steps(state, plan)
     project_all(state)
+    from .doctors import ensure_after_plan  # local import: doctors imports this module lazily too
+
+    doctors = ensure_after_plan(state, [s.trip_id for s in plan.steps])  # a doctor for every call that needs one
+    if doctors:
+        project_all(state)
     record = EventRecord(
         id=state.new_id("EV"),
         sim_time=state.sim_time,
         type="plan_applied",
         payload={**plan.model_dump(mode="json"), "step_details": [d["text"] for d in preview["step_details"]]},
-        summary=plan.rationale or f"Plan with {len(plan.steps)} step(s) applied",
+        summary=(plan.rationale or f"Plan with {len(plan.steps)} step(s) applied") + "".join(f"; {d}" for d in doctors),
         affected_trip_ids=[c["trip_id"] for c in preview["trip_changes"]],
         kpis_before=kpis_before,
         kpis_after=kpis(state),
