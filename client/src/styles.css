@@ -1146,8 +1146,8 @@ html, body, #root {
 /* ── Section label global margin bump ────────────────────────────────────── */
 .section-label { margin-bottom: 10px; }
 
-/* ── Panel sections — slightly more vertical padding ─────────────────────── */
-.panel-section { padding: 14px var(--sp-5); }
+/* ── Panel sections — controlled vertical padding ────────────────────────── */
+.panel-section { padding: 12px var(--sp-5); }
 
 /* ━━━━ DARK BLOCK: fleet + KPI share Gunmetal with the header ━━━━━━━━━━━━━━ */
 
@@ -1198,8 +1198,8 @@ html, body, #root {
   background: var(--p-gunmetal);
   border-bottom: 2px solid rgba(1, 180, 188, 0.40);
 }
-.kpi-item    { padding: 12px 0; border-right-color: rgba(255, 255, 255, 0.07); }
-.kpi-value   { font-size: 32px; color: var(--tx-on-dark); }
+.kpi-item    { padding: 14px 0; border-right-color: rgba(255, 255, 255, 0.07); }
+.kpi-value   { font-size: 36px; color: var(--tx-on-dark); }
 .kpi-unit    { font-size: 13px; color: var(--tx-on-dark-sub); }
 .kpi-label   { font-size: 9px;  color: var(--tx-on-dark-muted); margin-top: 5px; letter-spacing: 0.10em; }
 .kpi-warn    { color: #FA8925; }   /* orange — consistent with --op-mission on dark */
@@ -1441,11 +1441,11 @@ html, body, #root {
 
 /* -- 1. SITUATION ----------------------------------------------------------- */
 .dc-situation-lead {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 500;
   color: #111111;
-  line-height: 1.4;
-  letter-spacing: -0.01em;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
 }
 
 .dc-situation-detail {
@@ -1482,25 +1482,25 @@ html, body, #root {
 .dc-body .dc-rec-section {
   background: #f7fbf8;
   border-left: 3px solid #2f7d4f;
-  padding-left: 21px;
+  padding: 24px 24px 24px 21px;
   border-bottom: 1px solid #e5e5e5;
 }
 
 .dc-rec-title {
-  font-size: 20px;
+  font-size: 26px;
   font-weight: 500;
   color: #111111;
-  letter-spacing: -0.01em;
-  line-height: 1.35;
-  margin-bottom: 8px;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  margin-bottom: 10px;
 }
 
 .dc-rec-summary {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 400;
   color: #5a6063;
-  line-height: 1.65;
-  margin-bottom: 14px;
+  line-height: 1.6;
+  margin-bottom: 16px;
 }
 
 .dc-rec-delta {
