@@ -7,7 +7,7 @@
 
 html, body, #root {
   height: 100%;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
   font-size: 13px;
   color: #111;
   background: #fff;
@@ -44,7 +44,7 @@ html, body, #root {
 .panel-title {
   display: block;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #111;
@@ -80,7 +80,7 @@ html, body, #root {
 .section-label {
   display: block;
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #aaa;
@@ -104,6 +104,7 @@ html, body, #root {
 }
 
 .btn-scenario {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
   font-size: 11px;
   font-weight: 500;
   padding: 6px 8px;
@@ -126,11 +127,11 @@ html, body, #root {
 
 /* ── Status line ─────────────────────────────────────────── */
 .status-line {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 400;
   letter-spacing: 0.04em;
   color: #666;
-  font-family: ui-monospace, 'Courier New', monospace;
+  font-family: 'Space Mono', monospace;
 }
 .status-line.awaiting { color: #b26b00; }
 
@@ -149,7 +150,7 @@ html, body, #root {
 }
 .options-table th {
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: #aaa;
@@ -165,7 +166,8 @@ html, body, #root {
   font-family: inherit;
 }
 .options-table td:first-child {
-  font-family: ui-monospace, 'Courier New', monospace;
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
   color: #aaa;
   width: 20px;
 }
@@ -175,7 +177,8 @@ html, body, #root {
   color: #1f3a5f;
 }
 .opt-delta {
-  font-family: ui-monospace, 'Courier New', monospace;
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
   white-space: nowrap;
 }
 .opt-delta.better { color: #2f7d4f; }
@@ -185,7 +188,7 @@ html, body, #root {
 /* ── Recommendation ──────────────────────────────────────── */
 .rec-title {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   color: #111;
   margin-bottom: 4px;
 }
@@ -209,8 +212,9 @@ html, body, #root {
   color: #fff;
   border: 1px solid #111;
   border-radius: 2px;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
 }
 .btn-approve:hover:not(:disabled) { background: #333; border-color: #333; }
@@ -223,6 +227,7 @@ html, body, #root {
   color: #111;
   border: 1px solid #ccc;
   border-radius: 2px;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
   font-size: 12px;
   cursor: pointer;
 }
@@ -236,13 +241,13 @@ html, body, #root {
   gap: 3px;
 }
 .log-line {
-  font-size: 11px;
-  font-family: ui-monospace, 'Courier New', monospace;
+  font-size: 10px;
+  font-family: 'Space Mono', monospace;
   color: #555;
   line-height: 1.4;
 }
 .log-line .log-verdict {
-  font-weight: 700;
+  font-weight: 400;
 }
 .log-line .log-verdict.approved { color: #2f7d4f; }
 .log-line .log-verdict.rejected { color: #b3261e; }
@@ -259,9 +264,9 @@ html, body, #root {
   box-shadow: none !important;
   padding: 1px 3px !important;
   border-radius: 2px !important;
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 10px;
-  font-weight: 700;
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  font-weight: 400;
   color: #333;
   white-space: nowrap;
 }
@@ -274,7 +279,7 @@ html, body, #root {
 /* ── Offline notice ─────────────────────────────────────── */
 .offline-notice {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.06em;
   color: #aaa;
   margin-bottom: 8px;
@@ -289,7 +294,7 @@ html, body, #root {
 .legend-title {
   display: block;
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #aaa;
@@ -323,7 +328,7 @@ html, body, #root {
   box-shadow: none !important;
   border: 1px solid #e5e5e5 !important;
   font-size: 12px !important;
-  font-family: 'Inter', system-ui, sans-serif !important;
+  font-family: 'Space Grotesk', system-ui, sans-serif !important;
   padding: 8px 10px !important;
 }
 
@@ -338,8 +343,9 @@ html, body, #root {
 }
 
 .popup-id {
-  font-family: 'Courier New', Courier, monospace;
-  font-weight: 700;
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  font-weight: 400;
 }
 
 .popup-warn {

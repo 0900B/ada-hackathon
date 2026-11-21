@@ -20,8 +20,7 @@ Always commit and push to the `Klimentina` branch. Never commit or push to `main
   - high priority #b3261e
   - medium priority #8a7a00
   - hospital      #1f3a5f
-- Typography: Inter or system sans-serif; small uppercase labels with letter spacing;
-  monospace for IDs and times.
+- Typography: Space Grotesk (400, 500) for all text; Space Mono (400) ~1px smaller for IDs, times, and numbers; never bold above 500.
 - When in doubt, remove rather than add.
 
 ## Project rules
