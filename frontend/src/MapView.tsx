@@ -269,7 +269,7 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       const selected = v.id === selectedId;
       const faded = dim && !selected;
       const opacity = faded ? 0.2 : 0.85;
-      const target = heli ? flightTarget(v, trip, placeById) : null;
+      const target = heli ? flightTarget(v, trip, placeById, v.queue[0] ? tripById.get(v.queue[0]) : undefined) : null;
       const flying = target !== null && !v.busy_until;
 
       if (heli && target && !(detail && selected)) {

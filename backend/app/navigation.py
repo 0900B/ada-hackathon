@@ -215,6 +215,10 @@ def _target(state: WorldState, v: Vehicle) -> dict[str, Any] | None:
         kind, place_id = "pickup", trip.pickup_id
     elif v.status in ("with_patient", "loading") and trip:
         kind, place_id = "dropoff", trip.dropoff_id
+    elif v.status == "returning" and v.queue and v.queue[0] in state.trips:
+        # just delivered (unloading) with the next job queued: it drives there, not back to base
+        trip = state.trips[v.queue[0]]
+        kind, place_id = "pickup", trip.pickup_id
     elif v.status == "returning":
         kind, place_id = "base", v.base_id
     else:

@@ -20,6 +20,7 @@ export function flightTarget(
   v: Vehicle,
   trip: Trip | undefined,
   places: Map<string, Place>,
+  next?: Trip, // the first queued trip: after a drop-off it flies there, not home
 ): { place: Place; kind: "pickup" | "drop-off" | "base" } | null {
   const at = (id: string | undefined, kind: "pickup" | "drop-off" | "base") => {
     const place = id ? places.get(id) : undefined;
@@ -27,6 +28,6 @@ export function flightTarget(
   };
   if (v.status === "to_pickup") return at(trip?.pickup_id, "pickup");
   if (v.status === "with_patient" || v.status === "loading") return at(trip?.dropoff_id, "drop-off");
-  if (v.status === "returning") return at(v.base_id, "base");
+  if (v.status === "returning") return next ? at(next.pickup_id, "pickup") : at(v.base_id, "base");
   return null;
 }

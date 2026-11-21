@@ -75,8 +75,17 @@ function summarize(v: Vehicle, state: WorldSnapshot, places: Map<string, Place>,
   } else if (v.status === "to_pickup" && v.queue.length) {
     // just re-planned (e.g. diverted): the simulator picks the next trip on its next tick
     s = { tone: "moving", status: "pickup", text: `→ next ${v.queue[0]}`, warnings };
+  } else if (v.status === "returning" && v.queue.length) {
+    // Just delivered (unloading) with the next job queued: it goes there, not back to base
+    const next = trips.get(v.queue[0]);
+    s = {
+      tone: v.busy_until ? "loaded" : "moving",
+      status: v.busy_until ? "unloading" : "pickup",
+      text: next ? `next → ${shortPlace(places.get(next.pickup_id))} · ${prio(next)}${next.id}` : `next ${v.queue[0]}`,
+      warnings,
+    };
   } else if (v.status === "returning") {
-    s = { tone: "returning", status: "return", text: `→ ${shortPlace(base)}${v.queue.length ? ` · then ${v.queue[0]}` : ""}`, warnings };
+    s = { tone: "returning", status: "return", text: `→ ${shortPlace(base)}`, warnings };
   } else {
     const atBase = base && Math.abs(base.lat - v.lat) < 0.0005 && Math.abs(base.lon - v.lon) < 0.0005;
     s = {

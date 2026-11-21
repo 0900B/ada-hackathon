@@ -44,7 +44,12 @@ export function VehicleCard({
   const down = v.status === "out_of_service";
   const heli = v.type === "helicopter";
   const flight = heli
-    ? flightTarget(v, t ?? undefined, new Map(state.places.map((p) => [p.id, p])))
+    ? flightTarget(
+        v,
+        t ?? undefined,
+        new Map(state.places.map((p) => [p.id, p])),
+        state.trips.find((x) => x.id === v.queue[0]),
+      )
     : null;
 
   return (
