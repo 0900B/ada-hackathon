@@ -45,4 +45,4 @@ for scen in data["scenarios"]:
     summary.append({"scenario": scen["id"], "name": scen["name"], "file": scen["id"] + ".json", **s})
 print("osrm stats:", G._stats)
 if not ids:
-    json.dump({"format": "adahack-playback/1", "scenarios": summary}, open(os.path.join(G.OUTDIR, "index.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    json.dump({"format": "adahack-reference-run/1", "scenarios": summary}, open(os.path.join(G.OUTDIR, "index.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)

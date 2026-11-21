@@ -1,5 +1,6 @@
 {
-"format": "adahack-playback/1",
+"format": "adahack-reference-run/1",
+"note": "OUTPUT of a stand-in dispatcher: which vehicle took which call, the paths and the times are decisions, not input. The input is in scenario/scripts/.",
 "scenario": "D06",
 "name": "Rush hour mix: one red, five yellow, scheduled discharges",
 "intent": "Steady pressure over an hour in rush hour: six calls, one red and five yellow. The agent keeps the area rule, uses the nearest free unit each time and leaves eight scheduled discharges with the public units because the demand trigger never fires.",

@@ -1,5 +1,6 @@
 {
-"format": "adahack-playback/1",
+"format": "adahack-reference-run/1",
+"note": "OUTPUT of a stand-in dispatcher: which vehicle took which call, the paths and the times are decisions, not input. The input is in scenario/scripts/.",
 "scenario": "D02",
 "name": "Chest pain: ambulance and doctor start from different places",
 "intent": "One red call whose triage response includes a doctor. The doctor vehicle and the ambulance start at different bases; pre-alert to the ER.",

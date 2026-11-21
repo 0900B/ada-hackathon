@@ -2,7 +2,7 @@ import json
 import os, math, os, sys
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
-D = REPO + "/docs/scenario/playback"
+D = REPO + "/docs/scenario/reference_runs"
 CHAIN = ["SPREJETO", "NA POTI", "NA KRAJU", "PRI PACIENTU", "S KRAJA", "NA CILJU", "PREDAJA PACIENTA", "ZAKLJUČEK INT", "ČIŠČENJE", "PROST"]
 VIS = {"dispatch", "er", "crew", "map"}
 

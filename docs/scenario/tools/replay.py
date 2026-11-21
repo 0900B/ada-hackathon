@@ -7,6 +7,9 @@ Usage (from the repository root):
   python docs/scenario/tools/replay.py D12 --speed 30           # play in real time, 30 times faster
   python docs/scenario/tools/replay.py D12 --positions 60       # also print every unit's position each 60 s (from the track)
   python docs/scenario/tools/replay.py D12 --json               # raw event JSON lines, for piping into a dashboard
+  python docs/scenario/tools/replay.py D12 --script             # the INPUT script (what the world and people do, no vehicle decisions)
+
+By default this replays a reference run (a stand-in dispatcher's output). With --script it shows the input script instead.
 
 Every dashboard reads the same ordered stream and filters by `visible_on`, which is what keeps them in sync.
 """
@@ -19,7 +22,8 @@ from datetime import datetime, timedelta
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 HERE = os.path.dirname(os.path.abspath(__file__))
-PLAY = os.path.join(HERE, "..", "playback")
+PLAY = os.path.join(HERE, "..", "reference_runs")
+SCRIPTS = os.path.join(HERE, "..", "scripts")
 
 
 def pos_at(track, t):
@@ -41,6 +45,32 @@ def brief(e):
     return ""
 
 
+def show_script(a):
+    path = a.scenario if os.path.exists(a.scenario) else os.path.join(SCRIPTS, a.scenario + ".json")
+    d = json.load(open(path, encoding="utf-8"))
+    print(f'{d["scenario"]}: {d["name"]}  ({d["date"]} {d["start_local"]}, {d["shift"]} roster)')
+    print(f'fleet at the start: {len(d["fleet"])} units, patients: {len(d["patients"])}, no vehicle is assigned in this file')
+    t0 = time.time()
+    for e in d["timeline"]:
+        if a.speed:
+            wait = e["t_s"] / a.speed - (time.time() - t0)
+            if wait > 0:
+                time.sleep(wait)
+        x = e["data"]
+        txt = x.get("caller_text_sl") or x.get("text") or x.get("title_en") or x.get("problem") or ""
+        print(f'[{e["clock"]}] {e["type"]:28s} {x.get("call", ""):8s} {"HUMAN " if "human" in e["source"] else ""}{str(txt)[:100]}')
+    for c in d["conditional_events"]:
+        print(f'[when {json.dumps(c["trigger"], ensure_ascii=False)}] {c["type"]}')
+        for st in c.get("steps", []):
+            print(f'      +{st["after_s"]}s {st["type"]} {"HUMAN" if st.get("human") else ""}')
+    for p in d["patients"][:3 if not a.json else None]:
+        print(f'patient {p["id"]} ({p["severity"]}, {p["category"]}): {len(p["voice_entries"])} voice entries, anchored to the care episode')
+        for v in p["voice_entries"]:
+            print(f'      {v["anchor"]:11s} +{v["offset_s"]:>4}s  {v["transcript_sl"][:90]}')
+    if len(d["patients"]) > 3 and not a.json:
+        print(f'... {len(d["patients"]) - 3} more patients (use --json to print them all)')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("scenario")
@@ -49,7 +79,10 @@ def main():
     ap.add_argument("--speed", type=float, default=0.0, help="0 = print at once; otherwise simulated seconds per real second")
     ap.add_argument("--positions", type=float, default=0.0, help="print unit positions every N simulated seconds")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--script", action="store_true", help="show the input script (timeline, conditional events, patient entries) instead of a reference run")
     a = ap.parse_args()
+    if a.script:
+        return show_script(a)
     path = a.scenario if os.path.exists(a.scenario) else os.path.join(PLAY, a.scenario + ".json")
     d = json.load(open(path, encoding="utf-8"))
     evs = [e for e in d["events"] if a.dashboard == "all" or a.dashboard in e["visible_on"]]

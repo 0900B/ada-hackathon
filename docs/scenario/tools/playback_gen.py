@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pb_templates import TEMPLATES, pick_template  # noqa: E402
 
 SC = REPO + "/docs/scenario/dispatch_scenarios.json"
-OUTDIR = REPO + "/docs/scenario/playback"
+OUTDIR = REPO + "/docs/scenario/reference_runs"
 import tempfile
 CACHE = os.environ.get("OSRM_CACHE", os.path.join(tempfile.gettempdir(), "adahack_osrm_cache.json"))
 OFFSET = 120  # seconds before the first model minute, so call_received and triage come before the plan

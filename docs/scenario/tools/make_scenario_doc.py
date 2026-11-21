@@ -8,8 +8,9 @@ REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), 
 J = REPO + "/docs/scenario/dispatch_scenarios.json"
 D = json.load(open(J, encoding="utf-8"))
 S = {s["id"]: s for s in D["scenarios"]}
-PB12 = json.load(open(J.replace("dispatch_scenarios.json", "playback/D12.json"), encoding="utf-8"))
-IDX = {x["scenario"]: x for x in json.load(open(J.replace("dispatch_scenarios.json", "playback/index.json"), encoding="utf-8"))["scenarios"]}
+PB12 = json.load(open(J.replace("dispatch_scenarios.json", "reference_runs/D12.json"), encoding="utf-8"))
+SIDX = {x["scenario"]: x for x in json.load(open(J.replace("dispatch_scenarios.json", "scripts/index.json"), encoding="utf-8"))["scenarios"]}
+IDX = {x["scenario"]: x for x in json.load(open(J.replace("dispatch_scenarios.json", "reference_runs/index.json"), encoding="utf-8"))["scenarios"]}
 META = D["meta"]
 ROS = META["rosters_detail"]
 NAMES = {"ambulances": "Ambulances", "doctor_vehicles": "Doctor vehicles", "helicopter": "Helicopter", "sanitary_vans": "Public sanitary vans",
@@ -265,7 +266,7 @@ Team counts come from the 2026 insurer's decree (24.0 ambulance teams and 10 doc
 
 {ov_a}
 
-**What was sent** (different vehicles; fire, police and similar are alerted by dispatch and listed in the last column):
+**What a stand-in dispatcher sent** (a reference result, not part of the input: in the real system the model decides. Different vehicles; fire, police and similar are alerted by dispatch and listed in the last column):
 
 {ov_b}
 
@@ -356,17 +357,25 @@ Team counts come from the 2026 insurer's decree (24.0 ambulance teams and 10 doc
      "**In between:** a pedestrian crash (C3, minute 3), a wasp-sting allergy (C4, minute 6) and a cardiac arrest (C5, minute 9) arrive while the first units are still on the road. The trigger turns on at the arrest because the predicted arrival is over 15 minutes.",
      f'**Closure:** the road towards Domžale is closed after a collision while the arrest ambulance is on its way. The vehicles heading there ({", ".join(sorted({e["unit"] for e in PB12["events"] if e["type"] == "reroute"}))}) are rerouted, about {round(max(e["data"]["delta_s"] for e in PB12["events"] if e["type"] == "reroute") / 60)} minutes longer. **Jam:** a minor collision delays the Šiška patient\'s ambulance by 4 minutes.',
      "**Duplicate caller:** a second caller reports the pedestrian crash; the dispatcher merges it and no new units go (a human step). **Stale feed:** the traffic feed is stale for 5 minutes and ETAs are marked uncertain.",
-     f'**Breakdown:** the ambulance carrying the diabetic patient (C6) breaks down; the agent sends the nearest free ambulance ({next(e["unit"] for e in PB12["events"] if e["type"] == "replacement_dispatched")}) and the patient is transferred.',
-     "**Capacity and priority change:** UKC reports one free resuscitation bay (minute 16). The crew reports that the chest tightness (C7) has become a suspected heart attack (minute 21): the call is upgraded to red and a doctor vehicle is added.",
-     "Humans involved: seven triages, one merge decision and seven signatures. Everything else is the agent."]) + """## 4. Simulation scripts
+     f'**Breakdown:** the ambulance carrying the diabetic patient (C6) breaks down; the stand-in dispatcher sends the nearest free ambulance ({next(e["unit"] for e in PB12["events"] if e["type"] == "replacement_dispatched")}) and the patient is transferred.',
+     "**Capacity and priority change:** UKC reports one free resuscitation bay (minute 16). The caller phones back (minute 21): the chest tightness (C7) has become severe, the dispatcher re-triages to red and a doctor vehicle is added.",
+     "Humans involved: seven triages, one merge decision, one re-triage after the callback and seven signatures. Everything else is the model."]) + """## 4. Simulation scripts
 
-Each scenario has a replayable script in [`scenario/playback/`](scenario/playback/): every vehicle's timeline and road path, reroutes, patient vitals and voice entries, and one event stream for all dashboards. Format and how to replay: [SIMULATION_SCRIPTS.md](SIMULATION_SCRIPTS.md).
+Two kinds of file, kept apart on purpose. Format and how to replay both: [SIMULATION_SCRIPTS.md](SIMULATION_SCRIPTS.md).
 
-| Script | Vehicles | Patients | Events | Voice entries | Reroutes | Human steps |
+**Input scripts** ([`scenario/scripts/`](scenario/scripts/)) say what the world and the people do: the starting fleet, the calls, the dispatcher's simulated triage, closures and jams, hospital reports, data-feed problems, the patients with their monitor feed and the paramedic's voice entries, and a few conditional events. They contain **no dispatch decision**: which vehicle takes a call, how long it needs and which way it drives is for the model to decide.
+
+| Script | Calls | Patients | Timeline events | Conditional events | Voice entries | Road events | Human events |
+|---|---|---|---|---|---|---|---|
+""" + "\n".join(f'| [{k}](scenario/scripts/{v["file"]}) | {v["calls"]} | {v["patients"]} | {v["timeline_events"]} | {v["conditional_events"]} | {v["voice_entries"]} | {v["road_events"]} | {v["human_events"]} |' for k, v in sorted(SIDX.items())) + """
+
+**Reference runs** ([`scenario/reference_runs/`](scenario/reference_runs/)) are what a stand-in dispatcher did with the same input: who went, the paths, reroutes, statuses and one event stream for all dashboards. They are an example output for comparing the model and for showing the dashboards before the model is connected.
+
+| Run | Vehicles | Patients | Events | Voice entries | Reroutes | Human steps |
 |---|---|---|---|---|---|---|
-""" + "\n".join(f'| [{k}](scenario/playback/{v["file"]}) | {v["vehicles"]} | {v["patients"]} | {v["events"]} | {v["voice_entries"]} | {v["reroutes"]} | {v["human_steps"]} |' for k, v in sorted(IDX.items())) + """
+""" + "\n".join(f'| [{k}](scenario/reference_runs/{v["file"]}) | {v["vehicles"]} | {v["patients"]} | {v["events"]} | {v["voice_entries"]} | {v["reroutes"]} | {v["human_steps"]} |' for k, v in sorted(IDX.items())) + """
 
-*Vehicles* counts every vehicle that appears in the script: in D10 the initial wave of 24, of which 5 are stood down at minute 12; D07 and D12 include a replacement ambulance.
+*Vehicles* counts every vehicle that appears in the run: in D10 the initial wave of 24, of which 5 are stood down at minute 12; D07 and D12 include a replacement ambulance.
 
 ## 5. Using the scenarios
 

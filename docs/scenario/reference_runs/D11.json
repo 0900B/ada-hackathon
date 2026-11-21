@@ -1,5 +1,6 @@
 {
-"format": "adahack-playback/1",
+"format": "adahack-reference-run/1",
+"note": "OUTPUT of a stand-in dispatcher: which vehicle took which call, the paths and the times are decisions, not input. The input is in scenario/scripts/.",
 "scenario": "D11",
 "name": "Everything is out: no public unit is free within 15 minutes",
 "intent": "Storm hour, an extreme case: every ambulance in the area and in the neighbouring areas is tied up for at least 18 minutes. Two reds and two yellows arrive. Shows the rule for private ambulances: used for a red call only when no public unit, from any area, reaches in 15 minutes and the private one is faster.",

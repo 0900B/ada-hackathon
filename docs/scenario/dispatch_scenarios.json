@@ -21587,7 +21587,7 @@
      "from": "yellow",
      "to": "red",
      "add_doctor": true,
-     "title_en": "Crew reports the chest tightness has become a suspected heart attack: upgraded to red, doctor vehicle added"
+     "title_en": "Caller calls back: the pain has become severe, suspected heart attack. The dispatcher re-triages to red and a doctor vehicle is added"
     }
    ],
    "fleet_initial": [

@@ -1,5 +1,6 @@
 {
-"format": "adahack-playback/1",
+"format": "adahack-reference-run/1",
+"note": "OUTPUT of a stand-in dispatcher: which vehicle took which call, the paths and the times are decisions, not input. The input is in scenario/scripts/.",
 "scenario": "D03b",
 "name": "Same call with fog at Brnik: helicopter grounded",
 "intent": "The same call, but fog grounds the helicopter. The ground units already moved at the first minute; no replan needed.",

@@ -1,5 +1,6 @@
 {
-"format": "adahack-playback/1",
+"format": "adahack-reference-run/1",
+"note": "OUTPUT of a stand-in dispatcher: which vehicle took which call, the paths and the times are decisions, not input. The input is in scenario/scripts/.",
 "scenario": "D10",
 "name": "Mass-casualty: bus crash on the motorway, 22 patients",
 "intent": "The largest case: the caller says about 30 injured, so the agent sends everything it can within the 25-vehicle cap at once. The first team triages on scene (22 patients: 4 red, 8 yellow, 10 green) and reports; the vehicles that are still on their way and not needed are stood down. A human declares the mass-casualty event.",

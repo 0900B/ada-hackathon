@@ -1,5 +1,6 @@
 {
-"format": "adahack-playback/1",
+"format": "adahack-reference-run/1",
+"note": "OUTPUT of a stand-in dispatcher: which vehicle took which call, the paths and the times are decisions, not input. The input is in scenario/scripts/.",
 "scenario": "D05",
 "name": "Multi-vehicle crash on the ring road at dusk",
 "intent": "One incident, six patients (2 red, 2 yellow, 2 green): seven units plus fire and police. Helicopter window has closed, rush hour and a closed lane slow every ETA.",

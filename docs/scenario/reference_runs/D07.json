@@ -1,5 +1,6 @@
 {
-"format": "adahack-playback/1",
+"format": "adahack-reference-run/1",
+"note": "OUTPUT of a stand-in dispatcher: which vehicle took which call, the paths and the times are decisions, not input. The input is in scenario/scripts/.",
 "scenario": "D07",
 "name": "Busy afternoon, teams near full capacity",
 "intent": "Eleven calls in 75 minutes (3 red, 8 yellow) while most ambulances are already out. The demand trigger fires; non-urgent transports move to private vans; yellow calls and reds draw on other areas.",

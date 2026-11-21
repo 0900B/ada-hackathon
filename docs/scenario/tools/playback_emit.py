@@ -170,7 +170,7 @@ def assemble(scen):
             ev(t + w["duration_min"] * 60, "feed_status", ["dispatch"], data={"feed": w["feed"], "state": "fresh"})
         elif w["type"] == "priority_change":
             t = w["t_min"] * 60 + OFFSET
-            ev(t, "priority_change", ["dispatch", "er", "crew"], call=w["call"], actor="crew report", data={"from": w["from"], "to": w["to"], "title_en": w["title_en"], "note": "the crew's report changes the priority; the agent extends the response"})
+            ev(t, "priority_change", ["dispatch", "er", "crew"], call=w["call"], actor="caller callback and dispatcher re-triage", human=True, data={"from": w["from"], "to": w["to"], "title_en": w["title_en"], "note": "a human re-triage changes the priority; the agent extends the response"})
             for r in runs:
                 if r["rec"]["note"].startswith("doctor vehicle added"):
                     ev(t + 20, "agent_action", ["dispatch"], call=w["call"], data={"text": f"Doctor vehicle {r['unit']} added to {w['call']}" + (" and will meet the patient at the hospital" if r.get("followed_to_hospital") else "")})
@@ -203,7 +203,7 @@ def assemble(scen):
     idle = [{"id": u["id"], "kind": u["kind"], "area": u["area"], "lat": u["lat"], "lon": u["lon"], "state": u["state"]} for u in scen["fleet_initial"] if u["id"] not in vehicles]
     end_t = max(e["t_s"] for e in S.events)
     out = {
-        "format": "adahack-playback/1", "scenario": scen["id"], "name": scen["name"], "intent": scen["intent"], "date": scen["date"], "start_local": scen["start_local"], "shift": scen["shift"],
+        "format": "adahack-reference-run/1", "note": "OUTPUT of a stand-in dispatcher: which vehicle took which call, the paths and the times are decisions, not input. The input is in scenario/scripts/.", "scenario": scen["id"], "name": scen["name"], "intent": scen["intent"], "date": scen["date"], "start_local": scen["start_local"], "shift": scen["shift"],
         "clock": {"t_s": "seconds since the script origin; the first model minute is t_s = %d, ISO times are local (UTC+1)" % OFFSET, "origin_iso": S.iso(0), "end_t_s": end_t},
         "dashboards": {"dispatch": "all events", "er": "inbound ambulances, ETA, type, vitals, treatments, alerts, handover", "crew": "events for one unit (filter by unit)", "map": "positions from vehicles[].track, road events, reroutes"},
         "world": {"weather": scen["weather"], "road_events": [{"id": c["id"], "kind": c["kind"], "lat": round(c["lat"], 5), "lon": round(c["lon"], 5), "radius_m": c["r"], "from_t_s": round(c["t0"], 1), "to_t_s": round(c["t1"], 1),

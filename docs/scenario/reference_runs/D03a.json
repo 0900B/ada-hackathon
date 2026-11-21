@@ -1,5 +1,6 @@
 {
-"format": "adahack-playback/1",
+"format": "adahack-reference-run/1",
+"note": "OUTPUT of a stand-in dispatcher: which vehicle took which call, the paths and the times are decisions, not input. The input is in scenario/scripts/.",
 "scenario": "D03a",
 "name": "Cardiac arrest at a mountain trailhead, helicopter flies",
 "intent": "Red call far from the base. Helicopter, doctor vehicle, ambulance and first responders. The agent races the helicopter against the ground ETA.",

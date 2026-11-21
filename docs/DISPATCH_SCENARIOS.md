@@ -70,7 +70,7 @@ Team counts come from the 2026 insurer's decree (24.0 ambulance teams and 10 doc
 | D11 Everything is out: no public unit is free within 15 minutes | 16:00 | 4 | 2 / 2 / 0 | 4 ambulances, 2 doctor vehicles |
 | D12 Everything at once: seven overlapping calls with a closure, a jam, a breakdown and a priority change | 10:00 | 7 | 3 / 4 / 0 | 7 ambulances, 3 doctor vehicles |
 
-**What was sent** (different vehicles; fire, police and similar are alerted by dispatch and listed in the last column):
+**What a stand-in dispatcher sent** (a reference result, not part of the input: in the real system the model decides. Different vehicles; fire, police and similar are alerted by dispatch and listed in the last column):
 
 | Scenario | Ambulances | Doctor vehicles | Helicopter | Vans | **All vehicles sent** | Initial wave | From other regions | Private (ambulances / vans) | Other services alerted |
 |---|---|---|---|---|---|---|---|---|---|
@@ -584,34 +584,54 @@ Team counts come from the 2026 insurer's decree (24.0 ambulance teams and 10 doc
 - **In between:** a pedestrian crash (C3, minute 3), a wasp-sting allergy (C4, minute 6) and a cardiac arrest (C5, minute 9) arrive while the first units are still on the road. The trigger turns on at the arrest because the predicted arrival is over 15 minutes.
 - **Closure:** the road towards Domžale is closed after a collision while the arrest ambulance is on its way. The vehicles heading there (A16, D05) are rerouted, about 5 minutes longer. **Jam:** a minor collision delays the Šiška patient's ambulance by 4 minutes.
 - **Duplicate caller:** a second caller reports the pedestrian crash; the dispatcher merges it and no new units go (a human step). **Stale feed:** the traffic feed is stale for 5 minutes and ETAs are marked uncertain.
-- **Breakdown:** the ambulance carrying the diabetic patient (C6) breaks down; the agent sends the nearest free ambulance (A09) and the patient is transferred.
-- **Capacity and priority change:** UKC reports one free resuscitation bay (minute 16). The crew reports that the chest tightness (C7) has become a suspected heart attack (minute 21): the call is upgraded to red and a doctor vehicle is added.
-- Humans involved: seven triages, one merge decision and seven signatures. Everything else is the agent.
+- **Breakdown:** the ambulance carrying the diabetic patient (C6) breaks down; the stand-in dispatcher sends the nearest free ambulance (A09) and the patient is transferred.
+- **Capacity and priority change:** UKC reports one free resuscitation bay (minute 16). The caller phones back (minute 21): the chest tightness (C7) has become severe, the dispatcher re-triages to red and a doctor vehicle is added.
+- Humans involved: seven triages, one merge decision, one re-triage after the callback and seven signatures. Everything else is the model.
 
 **Engine events:** 7 `urgent_request` payloads in the JSON (`engine_events`), each valid against the engine's event model.
 
 ---
 ## 4. Simulation scripts
 
-Each scenario has a replayable script in [`scenario/playback/`](scenario/playback/): every vehicle's timeline and road path, reroutes, patient vitals and voice entries, and one event stream for all dashboards. Format and how to replay: [SIMULATION_SCRIPTS.md](SIMULATION_SCRIPTS.md).
+Two kinds of file, kept apart on purpose. Format and how to replay both: [SIMULATION_SCRIPTS.md](SIMULATION_SCRIPTS.md).
 
-| Script | Vehicles | Patients | Events | Voice entries | Reroutes | Human steps |
+**Input scripts** ([`scenario/scripts/`](scenario/scripts/)) say what the world and the people do: the starting fleet, the calls, the dispatcher's simulated triage, closures and jams, hospital reports, data-feed problems, the patients with their monitor feed and the paramedic's voice entries, and a few conditional events. They contain **no dispatch decision**: which vehicle takes a call, how long it needs and which way it drives is for the model to decide.
+
+| Script | Calls | Patients | Timeline events | Conditional events | Voice entries | Road events | Human events |
+|---|---|---|---|---|---|---|---|
+| [D01](scenario/scripts/D01.json) | 1 | 1 | 2 | 0 | 3 | 0 | 1 |
+| [D02](scenario/scripts/D02.json) | 1 | 1 | 2 | 0 | 7 | 0 | 1 |
+| [D03a](scenario/scripts/D03a.json) | 1 | 1 | 2 | 0 | 7 | 0 | 1 |
+| [D03b](scenario/scripts/D03b.json) | 1 | 1 | 2 | 0 | 7 | 0 | 1 |
+| [D04](scenario/scripts/D04.json) | 3 | 3 | 8 | 0 | 13 | 1 | 3 |
+| [D05](scenario/scripts/D05.json) | 1 | 6 | 5 | 0 | 18 | 1 | 1 |
+| [D06](scenario/scripts/D06.json) | 6 | 6 | 15 | 0 | 17 | 1 | 6 |
+| [D07](scenario/scripts/D07.json) | 11 | 11 | 23 | 1 | 32 | 0 | 11 |
+| [D08](scenario/scripts/D08.json) | 3 | 3 | 7 | 0 | 13 | 0 | 3 |
+| [D09](scenario/scripts/D09.json) | 14 | 14 | 33 | 0 | 38 | 1 | 14 |
+| [D10](scenario/scripts/D10.json) | 1 | 22 | 4 | 1 | 38 | 1 | 3 |
+| [D11](scenario/scripts/D11.json) | 4 | 4 | 10 | 0 | 16 | 0 | 4 |
+| [D12](scenario/scripts/D12.json) | 7 | 7 | 23 | 1 | 35 | 2 | 7 |
+
+**Reference runs** ([`scenario/reference_runs/`](scenario/reference_runs/)) are what a stand-in dispatcher did with the same input: who went, the paths, reroutes, statuses and one event stream for all dashboards. They are an example output for comparing the model and for showing the dashboards before the model is connected.
+
+| Run | Vehicles | Patients | Events | Voice entries | Reroutes | Human steps |
 |---|---|---|---|---|---|---|
-| [D01](scenario/playback/D01.json) | 1 | 1 | 50 | 3 | 0 | 2 |
-| [D02](scenario/playback/D02.json) | 2 | 1 | 82 | 7 | 0 | 2 |
-| [D03a](scenario/playback/D03a.json) | 3 | 1 | 83 | 7 | 0 | 2 |
-| [D03b](scenario/playback/D03b.json) | 2 | 1 | 89 | 7 | 0 | 2 |
-| [D04](scenario/playback/D04.json) | 4 | 3 | 202 | 13 | 1 | 6 |
-| [D05](scenario/playback/D05.json) | 7 | 6 | 289 | 18 | 7 | 6 |
-| [D06](scenario/playback/D06.json) | 7 | 6 | 321 | 17 | 0 | 12 |
-| [D07](scenario/playback/D07.json) | 13 | 11 | 604 | 32 | 0 | 22 |
-| [D08](scenario/playback/D08.json) | 6 | 3 | 230 | 13 | 0 | 7 |
-| [D09](scenario/playback/D09.json) | 14 | 14 | 724 | 38 | 1 | 28 |
-| [D10](scenario/playback/D10.json) | 24 | 22 | 805 | 38 | 10 | 16 |
-| [D11](scenario/playback/D11.json) | 6 | 4 | 261 | 16 | 0 | 8 |
-| [D12](scenario/playback/D12.json) | 12 | 7 | 490 | 35 | 2 | 15 |
+| [D01](scenario/reference_runs/D01.json) | 1 | 1 | 50 | 3 | 0 | 2 |
+| [D02](scenario/reference_runs/D02.json) | 2 | 1 | 82 | 7 | 0 | 2 |
+| [D03a](scenario/reference_runs/D03a.json) | 3 | 1 | 83 | 7 | 0 | 2 |
+| [D03b](scenario/reference_runs/D03b.json) | 2 | 1 | 89 | 7 | 0 | 2 |
+| [D04](scenario/reference_runs/D04.json) | 4 | 3 | 202 | 13 | 1 | 6 |
+| [D05](scenario/reference_runs/D05.json) | 7 | 6 | 289 | 18 | 7 | 6 |
+| [D06](scenario/reference_runs/D06.json) | 7 | 6 | 321 | 17 | 0 | 12 |
+| [D07](scenario/reference_runs/D07.json) | 13 | 11 | 604 | 32 | 0 | 22 |
+| [D08](scenario/reference_runs/D08.json) | 6 | 3 | 230 | 13 | 0 | 7 |
+| [D09](scenario/reference_runs/D09.json) | 14 | 14 | 724 | 38 | 1 | 28 |
+| [D10](scenario/reference_runs/D10.json) | 24 | 22 | 805 | 38 | 10 | 16 |
+| [D11](scenario/reference_runs/D11.json) | 6 | 4 | 261 | 16 | 0 | 8 |
+| [D12](scenario/reference_runs/D12.json) | 12 | 7 | 490 | 35 | 2 | 16 |
 
-*Vehicles* counts every vehicle that appears in the script: in D10 the initial wave of 24, of which 5 are stood down at minute 12; D07 and D12 include a replacement ambulance.
+*Vehicles* counts every vehicle that appears in the run: in D10 the initial wave of 24, of which 5 are stood down at minute 12; D07 and D12 include a replacement ambulance.
 
 ## 5. Using the scenarios
 

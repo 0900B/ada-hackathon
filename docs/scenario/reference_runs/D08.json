@@ -1,5 +1,6 @@
 {
-"format": "adahack-playback/1",
+"format": "adahack-reference-run/1",
+"note": "OUTPUT of a stand-in dispatcher: which vehicle took which call, the paths and the times are decisions, not input. The input is in scenario/scripts/.",
 "scenario": "D08",
 "name": "Saturday night, thin staffing, three reds",
 "intent": "Night roster (22 ambulances in the area against 26 by day), no helicopter, three reds in 21 minutes at different ends of the area. Shows other-area units for reds and the private option as last resort.",

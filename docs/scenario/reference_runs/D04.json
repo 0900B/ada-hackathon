@@ -1,5 +1,6 @@
 {
-"format": "adahack-playback/1",
+"format": "adahack-reference-run/1",
+"note": "OUTPUT of a stand-in dispatcher: which vehicle took which call, the paths and the times are decisions, not input. The input is in scenario/scripts/.",
 "scenario": "D04",
 "name": "Two reds compete for the nearest unit",
 "intent": "A yellow call is on its way when two red calls arrive three minutes apart. Shows diversion of a lower-priority unit and a dispatcher question when the clinical order is unclear.",

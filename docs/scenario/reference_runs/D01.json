@@ -1,5 +1,6 @@
 {
-"format": "adahack-playback/1",
+"format": "adahack-reference-run/1",
+"note": "OUTPUT of a stand-in dispatcher: which vehicle took which call, the paths and the times are decisions, not input. The input is in scenario/scripts/.",
 "scenario": "D01",
 "name": "Quiet morning: one yellow call",
 "intent": "The smallest case: one patient, one ambulance. Shows procedure-first selection from live positions, local area only, no escalation.",

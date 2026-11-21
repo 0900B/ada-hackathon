@@ -1,5 +1,5 @@
 {
- "format": "adahack-playback/1",
+ "format": "adahack-reference-run/1",
  "scenarios": [
   {
    "scenario": "D01",
@@ -469,7 +469,7 @@
    "events": 490,
    "voice_entries": 35,
    "reroutes": 2,
-   "human_steps": 15,
+   "human_steps": 16,
    "event_types": {
     "agent_action": 10,
     "call_received": 8,

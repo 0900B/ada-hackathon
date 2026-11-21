@@ -351,7 +351,7 @@ Most of this touches `backend/app/models.py` and `backend/app/engine/`, which te
 3. **Review and sign.** The finished record with highlighted gaps and a sign button.
 4. **Filters and gates.** Fuel eligibility, weather on ETA (already in the engine), helicopter fog gate (needs a helicopter vehicle type), private providers taking non-urgent trips when the trigger fires.
 
-Test material for these slices: [DISPATCH_SCENARIOS.md](DISPATCH_SCENARIOS.md) (12 scenarios from one ambulance to a 22-patient event, with engine-ready events) and [SIMULATION_SCRIPTS.md](SIMULATION_SCRIPTS.md) (replayable scripts: vehicle paths, reroutes, patient vitals, voice entries and one event stream for all dashboards).
+Test material for these slices: [DISPATCH_SCENARIOS.md](DISPATCH_SCENARIOS.md) (12 scenarios from one ambulance to a 22-patient event, with engine-ready events) and [SIMULATION_SCRIPTS.md](SIMULATION_SCRIPTS.md) (input scripts with the calls, closures, patient vitals and voice entries but no vehicle decisions, so the model decides who goes where; plus reference runs of a stand-in dispatcher with paths and one event stream for all dashboards).
 
 Not for Sunday: monitor integration, IS NMP import, real hospital capacity, a real fuel feed, wake-phrase accuracy in a real ambulance.
 
