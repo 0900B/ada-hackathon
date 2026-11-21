@@ -63,13 +63,18 @@ prevoz", "potrebujemo prevoz opreme") is a task_request: kind equipment for carg
 in label), otherwise patient; ready_in_min = minutes from now_local_time (in the context) until \
 the time mentioned (0 if "zdaj"); priority urgent \
 only if the message says so. Life-threatening cases stay urgent_request.
-- Put what was said about cargo (patient, equipment) in the event's note.
+- Put what was said about cargo (patient, equipment) in the event's note. Use "" for a note or label you have nothing for.
 - understood_sl and understood_en: one short sentence each, saying what you understood and any \
 assumption you made. Be factual.
 """
 
 _NULLABLE_STR = {"anyOf": [{"type": "string"}, {"type": "null"}]}
 _NULLABLE_NUM = {"anyOf": [{"type": "number"}, {"type": "null"}]}
+# Free text where "" means none. Structured outputs allow at most 16 union-typed (nullable) parameters
+# per schema (Anthropic API, 400 "too many parameters with union types"), so optional notes and labels
+# are plain strings; to_operator_events turns "" back into None. tests/test_parse_schema.py guards it.
+_TEXT = {"type": "string"}
+MAX_UNION_PARAMS = 16
 
 
 def _event(type_name: str, props: dict[str, Any]) -> dict[str, Any]:
@@ -82,8 +87,8 @@ def _event(type_name: str, props: dict[str, Any]) -> dict[str, Any]:
 
 
 EVENT_SCHEMAS = [
-    _event("breakdown", {"vehicle_id": {"type": "string"}, "note": _NULLABLE_STR}),
-    _event("delay", {"vehicle_id": {"type": "string"}, "minutes": {"type": "integer"}, "note": _NULLABLE_STR}),
+    _event("breakdown", {"vehicle_id": {"type": "string"}, "note": _TEXT}),
+    _event("delay", {"vehicle_id": {"type": "string"}, "minutes": {"type": "integer"}, "note": _TEXT}),
     _event(
         "road_closure",
         {
@@ -106,10 +111,10 @@ EVENT_SCHEMAS = [
             "severity": {"anyOf": [{"type": "string", "enum": ["critical", "serious", "urgent"]}, {"type": "null"}]},
             "condition": {"anyOf": [{"type": "string", "enum": list(CONDITIONS)}, {"type": "null"}]},
             "modifiers": {"type": "array", "items": {"type": "string", "enum": list(MODIFIERS)}},
-            "note": _NULLABLE_STR,
+            "note": _TEXT,
         },
     ),
-    _event("fog", {"duration_min": {"type": "integer"}, "note": _NULLABLE_STR}),
+    _event("fog", {"duration_min": {"type": "integer"}, "note": _TEXT}),
     _event(
         "priority_change",
         {
@@ -117,10 +122,10 @@ EVENT_SCHEMAS = [
             "priority": {"type": "string", "enum": ["emergency", "urgent", "scheduled"]},
             "severity": {"anyOf": [{"type": "string", "enum": list(SEVERITIES)}, {"type": "null"}]},
             "condition": {"anyOf": [{"type": "string", "enum": list(CONDITIONS)}, {"type": "null"}]},
-            "note": _NULLABLE_STR,
+            "note": _TEXT,
         },
     ),
-    _event("hospital_capacity", {"place_id": {"type": "string"}, "capacity": {"type": "integer"}, "note": _NULLABLE_STR}),
+    _event("hospital_capacity", {"place_id": {"type": "string"}, "capacity": {"type": "integer"}, "note": _TEXT}),
     _event(
         "task_request",
         {
@@ -130,8 +135,8 @@ EVENT_SCHEMAS = [
             "needs": {"type": "string", "enum": ["stretcher", "wheelchair", "seated", "equipment"]},
             "priority": {"type": "string", "enum": ["scheduled", "urgent"]},
             "ready_in_min": {"type": "integer"},
-            "label": _NULLABLE_STR,
-            "note": _NULLABLE_STR,
+            "label": _TEXT,
+            "note": _TEXT,
         },
     ),
 ]
@@ -292,6 +297,9 @@ def to_operator_events(state: WorldState, parsed: ParsedMessage, text: str | Non
     out = []
     for raw in parsed.events:
         ev = dict(raw)
+        for k in ("note", "label"):  # plain-string fields in the schema: "" means none
+            if k in ev and isinstance(ev[k], str) and not ev[k].strip():
+                ev[k] = None
         _apply_grading(state, ev, text)
         if ev["type"] == "road_closure":
             place = state.places.get(ev.pop("near_place_id") or "")
