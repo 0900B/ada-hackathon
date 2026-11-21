@@ -152,6 +152,10 @@ Severity and dispatch doctrine (`engine/severity.py`, `engine/dispatch.py`, rule
   red call within 15 min, the summary says so, `find_candidates` (agent tool) and the engine fallback
   offer them ("Request mutual aid: M1 from Domžale, at the patient HH:MM", "Private ambulance P1
   (Brezovica), ..."); approving such a plan step activates the unit, and it leaves again once home.
+- **Service times** (`engine/service_times.py`, values and sources in `docs/SERVICE_TIMES.md`): turnout
+  from rest (ambulance 1 min, doctor car 5), on scene by severity (critical 20, cardiac arrest 25,
+  serious 15, stroke 12, urgent 12; van pickup 8; equipment 5), handover 15 (van 5, equipment 5),
+  cleaning 10 (van 5). A unit handing over or cleaning is `returning` with `busy_until` and not free.
 - **Vans** do the scheduled day (seated, wheelchair, stretcher, equipment) and urgent non-emergencies;
   never emergencies. Bookings (`task_request`) go to a van; a free ambulance only if no van fits.
 
