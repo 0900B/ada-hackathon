@@ -127,12 +127,13 @@ export default function App() {
             </>
           )}
 
-          {run?.status === 'done' && run?.recommendation && (
-            <ActionsSection run={run} busy={busy} action={action} />
-          )}
-
           <DecisionLogSection runs={state?.agent?.runs ?? []} />
         </div>
+
+        {/* Sticky action bar — lives outside panel-body so it stays visible while panel scrolls */}
+        {run?.status === 'done' && run?.recommendation && (
+          <ActionsSection run={run} busy={busy} action={action} />
+        )}
 
         <Legend />
       </aside>
@@ -152,7 +153,7 @@ function ScenariosSection({ busy, action }) {
   return (
     <div className="panel-section">
       <span className="section-label">SCENARIOS</span>
-      <div className="scenario-grid">
+      <div className="scenario-list">
         {SCENARIOS.map(s => (
           <button
             key={s.name}
@@ -163,14 +164,14 @@ function ScenariosSection({ busy, action }) {
             {s.label}
           </button>
         ))}
-        <button
-          className="btn-scenario btn-reset"
-          disabled={busy}
-          onClick={() => action(() => resetSimulation())}
-        >
-          Reset
-        </button>
       </div>
+      <button
+        className="btn-reset-link"
+        disabled={busy}
+        onClick={() => action(() => resetSimulation())}
+      >
+        Reset simulation
+      </button>
     </div>
   )
 }
@@ -211,14 +212,22 @@ function StatusSection({ run }) {
 // ── Situation ─────────────────────────────────────────────────────────────────
 
 function SituationSection({ rec }) {
+  // Split at the first sentence boundary so the lead is prominent
+  const dot    = rec.situation.indexOf('. ')
+  const lead   = dot > -1 ? rec.situation.slice(0, dot + 1) : rec.situation
+  const detail = dot > -1 ? rec.situation.slice(dot + 2).trim() : ''
+
   return (
     <div className="panel-section">
       <span className="section-label">SITUATION</span>
-      <p className="situation-text">{rec.situation}</p>
+      <p className="situation-lead">{lead}</p>
+      {detail && <p className="situation-detail">{detail}</p>}
+
       {rec.escalation && (
-        <p className="situation-text" style={{ color: '#b3261e', marginTop: 6 }}>
-          {rec.escalation}
-        </p>
+        <>
+          <span className="section-label" style={{ marginTop: 10 }}>ACTIONS FOR CREW</span>
+          <p className="situation-detail">{rec.escalation}</p>
+        </>
       )}
     </div>
   )
