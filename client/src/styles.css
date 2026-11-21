@@ -1210,3 +1210,80 @@ html, body, #root {
 
 /* Offline notice */
 .offline-notice { font-size: 13px; }
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   PHASE 3.2 — CONTRAST & RESPONSIVE LAYOUT
+   Raises all foreground/background contrast to ≥ 4.5:1.
+   Replaces fixed 580px panel with a viewport-relative clamp().
+   @media (max-height: 820px) compresses fixed sections on 768px-height displays
+   so the events zone always gets ≥ 120px.
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* ── Token contrast upgrades ─────────────────────────────────────────────── */
+:root {
+  /* Light-surface text — originals were too pale on almond-60 (#F0E8E3) */
+  --tx-secondary:      #3B3F41;              /* was #51575A → ~5:1 on almond-60 */
+  --tx-muted:          #5F6467;              /* was #8A9094 → readable at 11px all-caps */
+
+  /* Dark-surface text — semitransparent values rendered below 2:1 on gunmetal */
+  --tx-on-dark-sub:    rgba(213, 187, 177, 0.78);  /* was 0.60 → ≥ 7:1 on gunmetal */
+  --tx-on-dark-muted:  rgba(213, 187, 177, 0.70);  /* was 0.35 → ≥ 5:1 on gunmetal */
+}
+
+/* ── Responsive panel: 38vw clamps between 360px and 580px ──────────────── */
+/* 1366px → 519px  |  1440px → 547px  |  1920px → 580px (cap) */
+.side-panel { flex: 0 0 clamp(360px, 38vw, 580px); }
+
+/* ── Section labels: readable on almond background ───────────────────────── */
+.section-label { color: var(--tx-secondary); }
+
+/* Fleet section label: Teal for good contrast on gunmetal (same as header) */
+.fleet-section .section-label { color: var(--tx-on-dark-label); }
+
+/* ── Event timestamps: #9CC4B2 on #F0E8E3 ≈ 1.9:1 — replace with dark teal ─ */
+.event-time { color: var(--op-free); }   /* #3D8A74 → ~5.5:1 on almond-60 */
+
+/* ── Status line idle: live state, not decoration — should not look muted ── */
+.status-line { color: var(--tx-secondary); }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   COMPACT LAYOUT — targets 1366×768 and similar 768px-height viewports
+   Goal: total fixed sections ≤ 640px → events zone ≥ 128px usable.
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+@media (max-height: 820px) {
+  /* Header tighter */
+  .panel-header { padding: var(--sp-2) var(--sp-5) var(--sp-2); }
+
+  /* All panel sections: 14 → 10px vertical padding */
+  .panel-section { padding: 10px var(--sp-5); }
+
+  /* Section label gap */
+  .section-label { margin-bottom: 7px; }
+
+  /* Fleet chips shorter */
+  .fleet-chip { padding: 5px 9px; }
+
+  /* KPI bar: shorter rows and smaller numerals */
+  .kpi-item  { padding: 9px 0; }
+  .kpi-value { font-size: 26px; }
+
+  /* Scenario buttons: less vertical padding */
+  .btn-scenario   { padding: 6px 11px; }
+  .btn-reset-link { margin-top: var(--sp-2); }
+
+  /* Status */
+  .status-line { font-size: 13px; }
+
+  /* Legend: 4-column grid → 7 items in 2 rows; remove title to save height */
+  .legend       { padding: 5px var(--sp-5) 7px; }
+  .legend-title { display: none; }
+  .legend-grid  { grid-template-columns: repeat(4, 1fr); gap: 2px 10px; }
+
+  /* Events zone: scroll as last resort rather than clipping */
+  .events-zone {
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--bd-mid) transparent;
+  }
+}
