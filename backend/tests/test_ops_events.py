@@ -457,9 +457,11 @@ def test_hospital_full_scenario_engine_plan():
     assert {s.trip_id for s in plan.steps if s.dropoff_id} == overflow
     k = simulate([s.model_dump() for s in plan.steps])["kpis_after"]
     assert k["over_capacity"] == 0 and sum(k["unassigned"].values()) == 0
-    # Redirects go to vehicles with slack: no patient is parked at the end of a long queue, and the
-    # distant hospital does not wreck a busy vehicle's later trips (in-place gave 7 late, 729 min).
-    assert k["late_non_scheduled"] == 0 and k["max_delay_min"] < 90 and k["late_trips"] <= len(overflow), k
+    # Ambulances never take scheduled trips, so the redirected (scheduled) patients ride in vans whose
+    # day is full: the distant hospital costs those patients lateness, but no emergency/urgent trip is
+    # late and only the redirected patients themselves are affected.
+    assert k["late_non_scheduled"] == 0 and k["late_trips"] <= len(overflow), k
+    assert all(W.vehicles[s.vehicle_id].type == "transport" for s in plan.steps), "scheduled redirects go by van"
 
 
 # --- Agent plumbing -------------------------------------------------------------------------

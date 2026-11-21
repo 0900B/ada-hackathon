@@ -15,7 +15,8 @@ API (GPS feed, orders, crew messages, decisions), so it can sit next to an exist
   reaches the patient first (the event message says who and when). An ambulance never holds more than
   its current job plus one, and is never turned away from a patient on board.
 - **Transport vans T1–T5 do the planned day**: seated, wheelchair and stretcher patients, equipment.
-  They never take emergencies. New bookings go to a van; an ambulance only helps if no van can.
+  They never take emergencies. All scheduled work (pickups, transfers, new bookings) goes to the vans:
+  ambulances and the helicopter never take scheduled trips.
 - **Helicopter H1** flies emergencies and urgent trips only, when it is clearly faster (remote places,
   long distances). Fog grounds it.
 - **Approving a plan does exactly what the option says**: each option lists, step by step, which
@@ -85,11 +86,11 @@ With Auto-analyse off, a scenario only applies its events; press **A** for the A
 | Button | What happens | What to point out |
 |---|---|---|
 | 📦 Prep: crew demo | Fast-forwards until a van carries equipment; nothing else (seed 42: **T1** with blood products) | Sets up the live crew message |
-| 🚐 Stranded patient | A van (T3) breaks down **with a patient on board**; its other bookings lose their vehicle | Press A: a free ambulance collects the stranded patient at the roadside ("goes now"); the bookings are spread over the other vans; some become late, so the AI drafts patient notifications. One ambulance stays free |
+| 🚐 Stranded patient | A van (T3) breaks down **with a patient on board**; its other bookings lose their vehicle | Press A: a free ambulance collects the stranded patient at the roadside ("goes now", it's urgent); the van's scheduled bookings are spread over the other vans only; some become late, so the AI drafts patient notifications |
 | 🧠 Stroke + closure | Suspected stroke in Polje plus a closure on Zaloška (Kodeljevo), right on the way to UKC | The engine sends the nearest free ambulance **at once** (event message: who and when). Click it: its route goes **around** the closure (orange). Press A: the AI checks the knock-on effects on vans that drive through the closure; hospital pre-alert |
 | 🚁 Remote emergency | A hiker falls at Kamniška Bistrica, about 45 min by road | The engine sends **helicopter H1** (about 30 min sooner than the nearest ambulance). Watch it **fly** straight there, land, load the patient and land at UKC (~25 min). Optional: press **F** (fog) while it flies: it finishes the flight with the patient on board, then stays grounded |
-| ❄️ Snow cascade | Snowstorm, a van stuck 25 min and a fall on ice | The fall on ice gets the nearest ambulance at once; many van trips turn late: press A, the agent prioritises, moves late trips and weighs using a free ambulance |
+| ❄️ Snow cascade | Snowstorm, a van stuck 25 min and a fall on ice | The fall on ice gets the nearest ambulance at once; many van trips turn late: press A, the agent prioritises and moves late trips between the vans (ambulances stay free) |
 | 🧰 Stranded equipment | T1 breaks down with blood products on board | Press A: another vehicle (a free ambulance, as it's urgent) must collect it at the breakdown site first; T1's bookings go to other vans |
-| 🏥 UKC full | A patient on a van becomes an emergency; UKC can admit only one more | The van can't take an emergency: the engine sends the nearest ambulance at once. Press A: the emergency keeps the last UKC slot; the other incoming patients are redirected |
+| 🏥 UKC full | A patient on a van becomes an emergency; UKC can admit only one more | The van can't take an emergency: the engine sends the nearest ambulance at once. Press A: the emergency keeps the last UKC slot; the other incoming patients are redirected by van to Trbovlje, which makes them late (the AI should say so) |
 
 Extra buttons: **🌫 Fog** grounds the helicopter for 1 h (a trip it has not picked up yet goes to the nearest ambulance at once). **Priority & capacity** changes a patient's priority or a hospital's capacity. **Map click (E)**: a new emergency at that spot is dispatched at once.
