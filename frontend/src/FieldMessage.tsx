@@ -7,6 +7,7 @@ const EXAMPLES = [
   "Zamujamo 20 minut, zastoj na obvoznici.",
   "Nujno: sum na možgansko kap v Polju, ležeči prevoz v UKC.",
   "Zaprta Zaloška cesta pri UKC zaradi nesreče.",
+  "Megla na heliportu, helikopter ne more vzleteti.",
 ];
 
 export function FieldMessage({ state }: { state: WorldSnapshot }) {

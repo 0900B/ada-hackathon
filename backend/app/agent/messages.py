@@ -40,6 +40,8 @@ a delay (estimate the minutes only if the message gives a number; otherwise use 
 near_place_id for the closest known place, or lat/lon if you are confident about the street.
 - A new urgent patient ("nujno", "sum na kap", "padec", "nezavesten") is an urgent_request: \
 emergency for life-threatening cases, otherwise urgent; stretcher unless the patient can sit.
+- Fog ("megla") at the helicopter base or "helikopter ne more vzleteti" is a fog event: it \
+grounds the helicopters, 60 minutes unless the message says otherwise.
 - Put what was said about cargo (patient, equipment) in the event's note.
 - understood_sl and understood_en: one short sentence each, saying what you understood and any \
 assumption you made. Be factual.
@@ -83,6 +85,7 @@ EVENT_SCHEMAS = [
             "note": _NULLABLE_STR,
         },
     ),
+    _event("fog", {"duration_min": {"type": "integer"}, "note": _NULLABLE_STR}),
 ]
 
 PARSE_SCHEMA = {

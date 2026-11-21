@@ -208,7 +208,7 @@ async def stream(request: Request, state: WorldState = World) -> StreamingRespon
     )
 
 
-DISRUPTIVE_EVENTS = {"breakdown", "delay", "road_closure", "urgent_request", "weather_override"}
+DISRUPTIVE_EVENTS = {"breakdown", "delay", "road_closure", "urgent_request", "weather_override", "fog"}
 
 
 @router.post("/events")

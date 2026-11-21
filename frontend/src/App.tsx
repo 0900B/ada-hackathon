@@ -16,6 +16,7 @@ import {
 import { AgentPanel } from "./AgentPanel";
 import { BRAND } from "./brand";
 import { FieldMessage } from "./FieldMessage";
+import { FogControl } from "./FogControl";
 import { fmtTime } from "./format";
 import { MapView, type ClickMode } from "./MapView";
 import { AuditPage } from "./pages/AuditPage";
@@ -344,6 +345,7 @@ function Controls({
           ⛔ Closure (click map)
         </button>
       </div>
+      <FogControl send={send} busy={busy} />
       {!sim && <p className="muted">Live uses real weather and traffic. Hypothetical scenarios run in Simulation.</p>}
       {sim && (
         <div className="row">
