@@ -119,7 +119,15 @@ export default function App() {
           <ScenariosSection busy={busy} action={action} />
           <StatusSection run={run} />
 
-          {/* Parts 2 and 3 will be added here */}
+          {run?.recommendation && (
+            <>
+              <SituationSection rec={run.recommendation} />
+              <OptionsSection run={run} />
+              <RecommendationSection run={run} />
+            </>
+          )}
+
+          {/* Part 3 (approve/reject + log) will be added here */}
         </div>
 
         <Legend />
@@ -192,6 +200,94 @@ function StatusSection({ run }) {
     <div className="panel-section">
       <span className="section-label">STATUS</span>
       <p className={`status-line${awaiting ? ' awaiting' : ''}`}>{text}</p>
+    </div>
+  )
+}
+
+// ── Situation ─────────────────────────────────────────────────────────────────
+
+function SituationSection({ rec }) {
+  return (
+    <div className="panel-section">
+      <span className="section-label">SITUATION</span>
+      <p className="situation-text">{rec.situation}</p>
+      {rec.escalation && (
+        <p className="situation-text" style={{ color: '#b3261e', marginTop: 6 }}>
+          {rec.escalation}
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ── Options ───────────────────────────────────────────────────────────────────
+
+function deltaClass(before, after) {
+  if (after < before) return 'better'
+  if (after > before) return 'worse'
+  return 'same'
+}
+
+function OptionsSection({ run }) {
+  const { recommendation: rec } = run
+  if (!rec || rec.options.length === 0) return null
+
+  return (
+    <div className="panel-section">
+      <span className="section-label">OPTIONS</span>
+      <table className="options-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Action</th>
+            <th>Δ Delay</th>
+            <th>Trade-off</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rec.options.map((opt, i) => {
+            const isRec = i === rec.recommended_index
+            const before = rec.kpis_before
+            const after  = opt.kpis_after
+            const delayBefore = before?.total_delay_min ?? 0
+            const delayAfter  = after?.total_delay_min  ?? 0
+            const diff = Math.round(delayAfter - delayBefore)
+            const cls  = deltaClass(delayBefore, delayAfter)
+            return (
+              <tr key={i} className={isRec ? 'opt-row-rec' : ''}>
+                <td>{i + 1}</td>
+                <td>{opt.title}</td>
+                <td>
+                  {after
+                    ? <span className={`opt-delta ${cls}`}>
+                        {diff > 0 ? `+${diff}` : diff} min
+                      </span>
+                    : <span className="opt-delta same">—</span>
+                  }
+                </td>
+                <td>{opt.summary}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// ── Recommendation ────────────────────────────────────────────────────────────
+
+function RecommendationSection({ run }) {
+  const { recommendation: rec } = run
+  if (!rec || rec.recommended_index < 0) return null
+  const opt = rec.options[rec.recommended_index]
+  if (!opt) return null
+
+  return (
+    <div className="panel-section">
+      <span className="section-label">RECOMMENDATION</span>
+      <p className="rec-title">Option {rec.recommended_index + 1} — {opt.title}</p>
+      <p className="rec-reasoning">{rec.reasoning}</p>
     </div>
   )
 }
