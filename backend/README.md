@@ -37,6 +37,25 @@ uv pip install --python .venv/Scripts/python.exe -r requirements.txt   # macOS/L
 | POST | `/plans/simulate` | What-if: before/after KPIs and per-trip changes |
 | POST | `/plans/apply` | Operator approved: apply the plan |
 | POST | `/admin/reset` | Re-seed the simulation |
+| POST | `/agent/analyze` | Ask the Claude agent to review the situation (`{"question": "..."}` optional) |
+| GET | `/agent/runs` | Agent runs, newest first (also in `/state` and `/stream` under `agent`) |
+| POST | `/agent/runs/{id}/approve` | Operator approves an option: `{"option_index": 0}` |
+| POST | `/agent/runs/{id}/reject` | Operator rejects the recommendation |
+
+## The Claude agent (`app/agent/`)
+
+Disruptive events (breakdown, delay, closure, urgent request, snow) start an analysis automatically.
+Claude (`claude-opus-5-5` by default) gets the situation, then uses three tools backed by the engine:
+`find_candidates` (vehicles ranked by simulated outcome), `simulate_plan` (what-if for a whole option)
+and `get_vehicle_schedule`. It returns 2-3 options as structured JSON with a recommendation and
+notification drafts in Slovenian and English.
+
+The model proposes; the engine decides the numbers. Every option is re-simulated by the engine before the
+operator sees it, so all figures in the UI come from the engine, not the model. If there's no
+`ANTHROPIC_API_KEY`, or Claude fails or declines, the engine's own greedy plan is shown instead.
+
+Settings: `ANTHROPIC_API_KEY` (required for Claude), `AGENT_MODEL`, `AGENT_EFFORT` (default `medium`),
+`AGENT_AUTO` (`1`/`0`), `AGENT_MAX_TURNS`, `AGENT_TIMEOUT_S`.
 
 Example events:
 

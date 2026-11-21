@@ -105,6 +105,69 @@ export interface EventRecord {
   kpis_after: Kpis;
 }
 
+export interface PlanStep {
+  trip_id: string;
+  vehicle_id: string;
+  position: number | null;
+  interrupt_current: boolean;
+}
+
+export interface TripChange {
+  trip_id: string;
+  patient: string;
+  priority: Priority;
+  vehicle_before: string | null;
+  vehicle_after: string | null;
+  delay_before_min: number | null;
+  delay_after_min: number | null;
+  eta_dropoff_after: string | null;
+}
+
+export interface RecommendationOption {
+  title: string;
+  summary: string;
+  steps: PlanStep[];
+  pros: string[];
+  cons: string[];
+  feasible: boolean | null;
+  errors: string[];
+  kpis_after: Kpis | null;
+  trip_changes: TripChange[];
+}
+
+export interface Recommendation {
+  situation: string;
+  options: RecommendationOption[];
+  recommended_index: number;
+  reasoning: string;
+  notifications: { recipient: string; message_sl: string; message_en: string }[];
+  escalation: string | null;
+  kpis_before: Kpis | null;
+}
+
+export interface AgentStep {
+  at: string;
+  kind: "info" | "reasoning" | "tool_call" | "tool_result" | "error";
+  text: string;
+}
+
+export interface AgentRun {
+  id: string;
+  trigger: string;
+  event_id: string | null;
+  question: string | null;
+  status: "running" | "done" | "error" | "superseded" | "approved" | "rejected";
+  engine: "claude" | "engine_fallback" | null;
+  model: string | null;
+  started_at: string;
+  finished_at: string | null;
+  steps: AgentStep[];
+  recommendation: Recommendation | null;
+  error: string | null;
+  decision: { option_index?: number; title?: string; reason?: string | null } | null;
+  usage: Record<string, number>;
+}
+
 export interface WorldSnapshot {
   version: number;
   sim_time: string;
@@ -118,6 +181,7 @@ export interface WorldSnapshot {
   alerts: Alert[];
   kpis: Kpis;
   events: EventRecord[];
+  agent: { enabled: boolean; model: string; auto: boolean; runs: AgentRun[] };
 }
 
 // --- Live state over server-sent events --------------------------------------
@@ -158,3 +222,7 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
 
 export const postEvent = (event: Record<string, unknown>) => post<EventRecord>("/events", event);
 export const resetSimulation = () => post<{ ok: boolean }>("/admin/reset");
+export const analyzeNow = (question?: string) => post<AgentRun>("/agent/analyze", { question: question ?? null });
+export const approveOption = (runId: string, optionIndex: number) =>
+  post<AgentRun>(`/agent/runs/${runId}/approve`, { option_index: optionIndex });
+export const rejectRun = (runId: string) => post<AgentRun>(`/agent/runs/${runId}/reject`, { reason: null });

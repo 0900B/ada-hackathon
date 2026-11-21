@@ -33,6 +33,7 @@ class EventError(ValueError):
 
 
 def apply_event(state: WorldState, ev: OperatorEvent) -> EventRecord:
+    project_all(state)  # fresh baseline, so feed updates since the last tick don't count as event effects
     before = {t.id: (t.status, t.vehicle_id, t.eta_dropoff) for t in state.trips.values()}
     kpis_before = kpis(state)
     created: list[str] = []

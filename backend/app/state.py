@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Any
 
 from .models import (
+    AgentRun,
     Alert,
     EventRecord,
     Incident,
@@ -45,6 +46,7 @@ class WorldState:
         self.weather_override: WeatherNow | None = None
         self.alerts: list[Alert] = []
         self.events: list[EventRecord] = []
+        self.agent_runs: list[AgentRun] = []
         self.bump()
 
     # --- helpers -------------------------------------------------------------
@@ -76,12 +78,14 @@ class WorldState:
         clone.incidents = dict(self.incidents)
         clone.alerts = []
         clone.events = []
+        clone.agent_runs = []
         return clone
 
     # --- serialisation -------------------------------------------------------
 
     def snapshot(self) -> dict[str, Any]:
-        from .engine.projection import kpis  # local import: projection depends on this module's types
+        from . import config  # local imports: these modules depend on this one's types
+        from .engine.projection import kpis
 
         def dump(items):
             return [i.model_dump(mode="json") for i in items]
@@ -105,4 +109,10 @@ class WorldState:
             "alerts": dump(self.alerts),
             "kpis": kpis(self),
             "events": dump(self.events[-20:]),
+            "agent": {
+                "enabled": config.agent_enabled(),
+                "model": config.AGENT_MODEL,
+                "auto": config.AGENT_AUTO,
+                "runs": dump(reversed(self.agent_runs[-5:])),  # newest first
+            },
         }

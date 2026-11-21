@@ -9,6 +9,7 @@ import {
   type Priority,
   type WorldSnapshot,
 } from "./api";
+import { AgentPanel } from "./AgentPanel";
 import { MapView, type ClickMode } from "./MapView";
 
 type Send = (event: Record<string, unknown>) => Promise<void>;
@@ -78,12 +79,12 @@ export default function App() {
         </section>
         <aside className="side">
           <KpiRow kpis={state.kpis} />
+          {message && <div className={`message ${message.kind}`}>{message.text}</div>}
+          <Panel title="AI dispatcher">
+            <AgentPanel state={state} notify={setMessage} />
+          </Panel>
           <Panel title="Inject event">
             <Controls state={state} busy={busy} mode={mode} setMode={setMode} send={send} setMessage={setMessage} />
-            {message && <div className={`message ${message.kind}`}>{message.text}</div>}
-          </Panel>
-          <Panel title="AI dispatcher">
-            <p className="muted">Recommendations from the Claude agent will appear here.</p>
           </Panel>
           <Panel title={`Alerts (${state.alerts.length})`}>
             <Alerts state={state} send={send} />

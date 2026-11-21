@@ -224,3 +224,73 @@ class PlanStep(BaseModel):
 class Plan(BaseModel):
     steps: list[PlanStep] = Field(min_length=1)
     rationale: str | None = None
+
+
+# --- Agent runs and recommendations -------------------------------------------
+
+
+class AgentStep(BaseModel):
+    at: datetime
+    kind: Literal["info", "reasoning", "tool_call", "tool_result", "error"]
+    text: str
+
+
+class NotificationDraft(BaseModel):
+    recipient: str
+    message_sl: str
+    message_en: str
+
+
+class RecommendationOption(BaseModel):
+    title: str
+    summary: str
+    steps: list[PlanStep]
+    pros: list[str]
+    cons: list[str]
+    # Filled in by the engine after the run, never by the model:
+    feasible: bool | None = None
+    errors: list[str] = Field(default_factory=list)
+    kpis_after: dict[str, Any] | None = None
+    trip_changes: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class Recommendation(BaseModel):
+    situation: str
+    options: list[RecommendationOption]
+    recommended_index: int  # -1 when there are no options
+    reasoning: str
+    notifications: list[NotificationDraft] = Field(default_factory=list)
+    escalation: str | None = None
+    kpis_before: dict[str, Any] | None = None  # filled in by the engine
+
+
+class AgentRun(BaseModel):
+    id: str
+    trigger: str  # "event:EV-0003" or "operator"
+    event_id: str | None = None
+    question: str | None = None
+    status: Literal["running", "done", "error", "superseded", "approved", "rejected"] = "running"
+    engine: Literal["claude", "engine_fallback"] | None = None  # who produced the recommendation
+    model: str | None = None
+    started_at: datetime
+    finished_at: datetime | None = None
+    steps: list[AgentStep] = Field(default_factory=list)
+    recommendation: Recommendation | None = None
+    error: str | None = None
+    decision: dict[str, Any] | None = None
+    usage: dict[str, int] = Field(default_factory=dict)
+
+    def log(self, kind: str, text: str) -> None:
+        self.steps.append(AgentStep(at=utcnow(), kind=kind, text=text[:600]))  # type: ignore[arg-type]
+
+
+class AnalyzeRequest(BaseModel):
+    question: str | None = None
+
+
+class ApproveRequest(BaseModel):
+    option_index: int
+
+
+class RejectRequest(BaseModel):
+    reason: str | None = None

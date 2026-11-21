@@ -24,10 +24,16 @@ def _apply_steps(state: WorldState, plan: Plan) -> list[str]:
     return errors
 
 
-def simulate_plan(state: WorldState, plan: Plan) -> dict[str, Any]:
+def simulate(state: WorldState, plan: Plan) -> tuple[WorldState, list[str]]:
+    """Apply the plan to a what-if copy and project it. Returns the copy and any step errors."""
     sim = state.clone_for_simulation()
     errors = _apply_steps(sim, plan)
     project_all(sim)
+    return sim, errors
+
+
+def simulate_plan(state: WorldState, plan: Plan) -> dict[str, Any]:
+    sim, errors = simulate(state, plan)
 
     changes = []
     for tid, after in sim.trips.items():
@@ -50,7 +56,7 @@ def simulate_plan(state: WorldState, plan: Plan) -> dict[str, Any]:
                     "vehicle_after": after.vehicle_id,
                     "delay_before_min": d_before,
                     "delay_after_min": d_after,
-                    "eta_dropoff_after": after.eta_dropoff.isoformat() if after.eta_dropoff else None,
+                    "eta_dropoff_after": after.eta_dropoff,
                 }
             )
     return {
@@ -63,6 +69,7 @@ def simulate_plan(state: WorldState, plan: Plan) -> dict[str, Any]:
 
 
 def apply_plan(state: WorldState, plan: Plan) -> EventRecord:
+    project_all(state)
     preview = simulate_plan(state, plan)
     if not preview["feasible"]:
         raise ActionError("; ".join(preview["errors"]))

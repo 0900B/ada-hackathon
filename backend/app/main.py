@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from . import config
+from .agent import runner as agent
 from .engine.actions import ActionError
 from .engine.events import EventError, apply_event
 from .engine.plans import apply_plan, simulate_plan
@@ -19,7 +20,16 @@ from .engine.projection import kpis, project_all
 from .fetchers.base import run_periodic
 from .fetchers.traffic import update_traffic
 from .fetchers.weather import fetch_weather
-from .models import EventRecord, OperatorEvent, Plan, utcnow
+from .models import (
+    AgentRun,
+    AnalyzeRequest,
+    ApproveRequest,
+    EventRecord,
+    OperatorEvent,
+    Plan,
+    RejectRequest,
+    utcnow,
+)
 from .sim.seed import seed_world
 from .sim.simulator import tick
 from .state import WorldState
@@ -61,8 +71,14 @@ async def lifespan(app: FastAPI):
             name="traffic",
         ),
     ]
-    log.info("backend started: %d vehicles, %d trips", len(state.vehicles), len(state.trips))
+    log.info(
+        "backend started: %d vehicles, %d trips, agent %s",
+        len(state.vehicles),
+        len(state.trips),
+        f"enabled ({config.AGENT_MODEL})" if config.agent_enabled() else "disabled (no ANTHROPIC_API_KEY): engine fallback only",
+    )
     yield
+    agent.cancel_all()
     for t in tasks:
         t.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
@@ -121,13 +137,23 @@ async def stream(request: Request) -> StreamingResponse:
     )
 
 
+DISRUPTIVE_EVENTS = {"breakdown", "delay", "road_closure", "urgent_request", "weather_override"}
+
+
 @app.post("/events")
-def post_event(event: OperatorEvent = Body(...)) -> EventRecord:
-    """Inject an event: breakdown, delay, road_closure, clear_incident, urgent_request, weather_override."""
+async def post_event(event: OperatorEvent = Body(...)) -> EventRecord:
+    """Inject an event: breakdown, delay, road_closure, clear_incident, urgent_request, weather_override.
+
+    Disruptive events start an agent analysis automatically (AGENT_AUTO=1).
+    """
     try:
-        return apply_event(state, event)
+        record = apply_event(state, event)
     except EventError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    clearing = getattr(event, "clear", False)
+    if config.AGENT_AUTO and event.type in DISRUPTIVE_EVENTS and not clearing:
+        agent.start_run(state, trigger=f"event:{record.id}", focus=record)
+    return record
 
 
 @app.post("/plans/simulate")
@@ -147,5 +173,73 @@ def post_apply(plan: Plan) -> EventRecord:
 
 @app.post("/admin/reset")
 def reset() -> dict:
+    agent.cancel_all()
     seed_world(state, config.RANDOM_SEED)
     return {"ok": True, "trips": len(state.trips), "vehicles": len(state.vehicles)}
+
+
+# --- Agent ---------------------------------------------------------------------------
+
+
+def _find_run(run_id: str) -> AgentRun:
+    run = next((r for r in state.agent_runs if r.id == run_id), None)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"Unknown run {run_id}")
+    return run
+
+
+@app.post("/agent/analyze")
+async def analyze(req: AnalyzeRequest | None = None) -> AgentRun:
+    """Ask the agent to review the current situation (optionally with a question). Runs in the background."""
+    return agent.start_run(state, trigger="operator", question=req.question if req else None)
+
+
+@app.get("/agent/runs")
+def list_runs() -> list[AgentRun]:
+    return list(reversed(state.agent_runs))
+
+
+@app.get("/agent/runs/{run_id}")
+def get_run(run_id: str) -> AgentRun:
+    return _find_run(run_id)
+
+
+@app.post("/agent/runs/{run_id}/approve")
+def approve(run_id: str, req: ApproveRequest) -> AgentRun:
+    """Operator approves one option: its steps are re-checked against the live world and applied."""
+    run = _find_run(run_id)
+    if run.status != "done" or run.recommendation is None:
+        raise HTTPException(status_code=409, detail=f"Run {run_id} is {run.status}; nothing to approve")
+    options = run.recommendation.options
+    if not 0 <= req.option_index < len(options):
+        raise HTTPException(status_code=400, detail="option_index out of range")
+    option = options[req.option_index]
+    applied_event = None
+    if option.steps:
+        try:
+            applied_event = apply_plan(state, Plan(steps=option.steps, rationale=f"Approved: {option.title}"))
+        except ActionError as e:
+            # The world moved on since the recommendation (e.g. a patient was picked up meanwhile).
+            raise HTTPException(status_code=409, detail=f"Plan no longer valid: {e}. Ask for a new analysis.") from e
+    run.status = "approved"
+    run.decision = {
+        "option_index": req.option_index,
+        "title": option.title,
+        "event_id": applied_event.id if applied_event else None,
+        "at": utcnow().isoformat(),
+    }
+    run.log("info", f"Operator approved option {req.option_index + 1}: {option.title}")
+    state.bump()
+    return run
+
+
+@app.post("/agent/runs/{run_id}/reject")
+def reject(run_id: str, req: RejectRequest | None = None) -> AgentRun:
+    run = _find_run(run_id)
+    if run.status not in ("done", "running"):
+        raise HTTPException(status_code=409, detail=f"Run {run_id} is {run.status}")
+    run.status = "rejected"
+    run.decision = {"reason": req.reason if req else None, "at": utcnow().isoformat()}
+    run.log("info", "Operator rejected the recommendation" + (f": {req.reason}" if req and req.reason else ""))
+    state.bump()
+    return run
