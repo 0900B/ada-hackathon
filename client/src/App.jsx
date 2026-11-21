@@ -174,6 +174,7 @@ export default function App() {
   const [placementMode, setPlacementMode] = useState(null)   // { kind: string } | null
   const [notification, setNotification]   = useState(null)   // { id, text } | null
   const [demoScene, setDemoScene]         = useState(null)   // { incidents, kpis, run } | null
+  const [approvalFlash, setApprovalFlash] = useState(null)   // { vehicleIds, title, key } | null
   const action = useAction(setMessage, setBusy)
 
   function handleScenario(name) {
@@ -189,6 +190,16 @@ export default function App() {
         setDemoScene(makeDemoScene(name)) // backend unreachable — show demo
       }
     })
+  }
+
+  function handleApprove(runId, optionIdx, option) {
+    const vehicleIds = (option?.steps ?? []).map(s => s.vehicle_id).filter(Boolean)
+    setApprovalFlash({ vehicleIds, title: option?.title ?? 'Plan approved', key: Date.now() })
+    setCardMinimised(true)
+    setTimeout(() => setApprovalFlash(null), 2600)
+    // Skip API for mock/demo runs — they have no backend state to update
+    const isMock = runId.startsWith('DEMO-') || runId === 'MOCK-001'
+    if (!isMock) action(() => approveOption(runId, optionIdx))
   }
 
   // Merge live incidents with demo-scene incidents and custom events
@@ -264,6 +275,7 @@ export default function App() {
           {...mapProps}
           highlightIds={highlightIds}
           highlightIncidents={highlightIncidents}
+          flashIds={approvalFlash?.vehicleIds ?? []}
           placementMode={placementMode}
           onPlaceEvent={handlePlaceEvent}
         />
@@ -275,12 +287,16 @@ export default function App() {
             onDone={() => setNotification(null)}
           />
         )}
+        {approvalFlash && (
+          <ApprovalBanner key={approvalFlash.key} title={approvalFlash.title} />
+        )}
         {showCard && !cardMinimised && (
           <DecisionCard
             run={run}
             busy={busy}
             action={action}
             onMinimise={() => setCardMinimised(true)}
+            onApprove={handleApprove}
           />
         )}
         {showCard && cardMinimised && (
@@ -363,7 +379,7 @@ export default function App() {
 
 // ── Floating decision card ────────────────────────────────────────────────────
 
-function DecisionCard({ run, busy, action, onMinimise }) {
+function DecisionCard({ run, busy, action, onMinimise, onApprove }) {
   const rec = run.recommendation
   const [selectedIdx, setSelectedIdx] = useState(rec.recommended_index ?? 0)
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -448,7 +464,10 @@ function DecisionCard({ run, busy, action, onMinimise }) {
             <button
               className="btn-approve"
               disabled={busy}
-              onClick={() => action(() => approveOption(run.id, selectedIdx))}
+              onClick={() => onApprove
+                ? onApprove(run.id, selectedIdx, selectedOpt)
+                : action(() => approveOption(run.id, selectedIdx))
+              }
             >
               Approve
             </button>
@@ -928,4 +947,15 @@ function MapNotification({ text, onDone }) {
   }, [onDone])
 
   return <div className="map-notification">{text}</div>
+}
+
+// ── Approval outcome banner (map overlay, auto-dismissed) ─────────────────────
+
+function ApprovalBanner({ title }) {
+  return (
+    <div className="approval-banner">
+      <span className="ab-label">APPROVED</span>
+      <span className="ab-title">{title}</span>
+    </div>
+  )
 }

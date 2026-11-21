@@ -67,7 +67,7 @@ function MapClickHandler({ placementMode, onPlaceEvent }) {
   return null
 }
 
-export default function Map({ vehicles = [], places = [], incidents = [], highlightIds = [], highlightIncidents = false, placementMode = null, onPlaceEvent = null }) {
+export default function Map({ vehicles = [], places = [], incidents = [], highlightIds = [], highlightIncidents = false, flashIds = [], placementMode = null, onPlaceEvent = null }) {
   const hospitals = places.filter(p => p.kind === 'hospital')
   const bases     = places.filter(p => p.kind === 'base')
   const callSites = places.filter(p => p.kind === 'call_location' || p.kind === 'incident_site')
@@ -148,9 +148,23 @@ export default function Map({ vehicles = [], places = [], incidents = [], highli
         </CircleMarker>
       ))}
 
+      {/* ── Dispatch flash rings — green, larger, for newly approved vehicles ── */}
+      {vehicles
+        .filter(v => flashIds.includes(v.id))
+        .map(v => (
+          <CircleMarker
+            key={`flash-${v.id}`}
+            center={[v.lat, v.lon]}
+            radius={(v.type === 'ambulance' ? 7 : 6) + 7}
+            pathOptions={{ color: COLOR.free, weight: 2.5, fillOpacity: 0 }}
+            interactive={false}
+          />
+        ))
+      }
+
       {/* ── Outer rings for affected vehicles (rendered first, appear behind) ── */}
       {vehicles
-        .filter(v => highlightIds.includes(v.id))
+        .filter(v => highlightIds.includes(v.id) && !flashIds.includes(v.id))
         .map(v => (
           <CircleMarker
             key={`ring-${v.id}`}
@@ -168,7 +182,10 @@ export default function Map({ vehicles = [], places = [], incidents = [], highli
           key={v.id}
           center={[v.lat, v.lon]}
           radius={v.type === 'ambulance' ? 7 : 6}
-          pathOptions={vehicleStyle(v)}
+          pathOptions={flashIds.includes(v.id)
+            ? { color: COLOR.free, weight: 2.5, fillColor: COLOR.free, fillOpacity: 1 }
+            : vehicleStyle(v)
+          }
         >
           <Tooltip
             permanent
