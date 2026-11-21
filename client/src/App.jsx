@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import MapView from './Map'
 import { API_URL, fetchState, runScenario, resetSimulation, triggerAnalysis, approveOption, rejectRun } from './api'
-import { ambulances, hospitals, activeCalls, MOCK_RUN } from './mockData'
+import { ambulances, hospitals, activeCalls, MOCK_RUN, MOCK_SCENARIO_DEFS } from './mockData'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -135,6 +135,26 @@ function deltaClass(before, after) {
   return 'same'
 }
 
+// ── Demo scene builder (per-scenario fallback) ─────────────────────────────────
+
+function makeDemoScene(name) {
+  const def = MOCK_SCENARIO_DEFS[name]
+  if (!def) return null
+  const now = new Date().toISOString()
+  return {
+    incidents: def.incidents.map(i => ({ ...i, created_at: now })),
+    kpis: def.kpis,
+    run: {
+      id: `DEMO-${name}-${Date.now()}`,
+      status: 'done',
+      trigger: `event:${name}`,
+      started_at: new Date(Date.now() - 20000).toISOString(),
+      finished_at: new Date(Date.now() - 3000).toISOString(),
+      recommendation: def.recommendation,
+    },
+  }
+}
+
 // ── Event creation ─────────────────────────────────────────────────────────────
 
 const EVENT_KIND_LABELS = {
@@ -153,11 +173,31 @@ export default function App() {
   const [customEvents, setCustomEvents]   = useState([])
   const [placementMode, setPlacementMode] = useState(null)   // { kind: string } | null
   const [notification, setNotification]   = useState(null)   // { id, text } | null
+  const [demoScene, setDemoScene]         = useState(null)   // { incidents, kpis, run } | null
   const action = useAction(setMessage, setBusy)
 
-  // Merge live incidents with locally-created custom events
+  function handleScenario(name) {
+    action(async () => {
+      if (offline) {
+        setDemoScene(makeDemoScene(name))
+        return
+      }
+      try {
+        await runScenario(name)
+        setDemoScene(null) // live SSE will carry the actual run
+      } catch {
+        setDemoScene(makeDemoScene(name)) // backend unreachable — show demo
+      }
+    })
+  }
+
+  // Merge live incidents with demo-scene incidents and custom events
   const liveMapProps  = state ? liveToMapProps(state) : mockToMapProps()
-  const allIncidents  = [...(liveMapProps.incidents ?? []), ...customEvents]
+  const allIncidents  = [
+    ...(liveMapProps.incidents ?? []),
+    ...(demoScene?.incidents ?? []),
+    ...customEvents,
+  ]
   const mapProps      = { ...liveMapProps, incidents: allIncidents }
 
   function handlePlaceEvent(lat, lon) {
@@ -179,9 +219,9 @@ export default function App() {
   const liveRun   = runsArr.length > 0
     ? [...runsArr].sort((a, b) => new Date(b.started_at) - new Date(a.started_at))[0]
     : null
-  // Fall back to mock run when backend is offline so the decision screen is
-  // always visible for demo/presentation purposes without a live connection.
-  const run = liveRun ?? (offline ? MOCK_RUN : null)
+  // demoScene.run when a scenario was clicked (online fail or offline);
+  // MOCK_RUN as absolute last resort so the card is always demonstrable.
+  const run = liveRun ?? demoScene?.run ?? (offline ? MOCK_RUN : null)
 
   const showCard    = run?.status === 'done'
     && !!run?.recommendation
@@ -279,7 +319,7 @@ export default function App() {
         <FleetSection vehicles={state?.vehicles ?? []} />
 
         {/* ── KPI strip: late, pending, delay ── */}
-        <KpiBar kpis={state?.kpis} />
+        <KpiBar kpis={state?.kpis ?? demoScene?.kpis} />
 
         {/* ── Events zone: fills remaining height; overflow hidden — no scroll ── */}
         <div className="events-zone">
@@ -307,7 +347,8 @@ export default function App() {
         <ScenariosSection
           busy={busy || run?.status === 'running'}
           action={action}
-          onReset={() => { setCustomEvents([]); setPlacementMode(null) }}
+          onScenario={handleScenario}
+          onReset={() => { setCustomEvents([]); setPlacementMode(null); setDemoScene(null) }}
         />
 
         {/* ── Status: current agent + run state ── */}
@@ -609,7 +650,7 @@ const SCENARIOS = [
   { name: 'snow_cascade',     label: 'Snow cascade'     },
 ]
 
-function ScenariosSection({ busy, action, onReset }) {
+function ScenariosSection({ busy, action, onScenario, onReset }) {
   return (
     <div className="panel-section">
       <span className="section-label">SCENARIOS</span>
@@ -619,7 +660,7 @@ function ScenariosSection({ busy, action, onReset }) {
             key={s.name}
             className="btn-scenario"
             disabled={busy}
-            onClick={() => action(() => runScenario(s.name))}
+            onClick={() => onScenario ? onScenario(s.name) : action(() => runScenario(s.name))}
           >
             {s.label}
           </button>
