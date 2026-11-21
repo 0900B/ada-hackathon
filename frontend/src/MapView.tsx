@@ -231,17 +231,33 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       });
     }
 
-    // Vehicles standing on the same spot (e.g. parked at a base) are fanned out side by side.
-    // Only stationary ones: a moving vehicle is never offset, so nothing jumps when one drives off.
+    // Vehicles standing close together on screen (parked at a base, or at UKC right next to Base
+    // Center) are fanned out side by side, so no callsign hides another. Only stationary ones: a
+    // moving vehicle is never offset, so nothing jumps when one drives off. Grouping is by screen
+    // distance at the current zoom (recomputed on zoomend), not by identical coordinates.
     const stationary = (v: Vehicle) =>
       v.status === "idle" || v.status === "loading" || v.status === "out_of_service" || Boolean(v.busy_until) || Boolean(v.waiting_until);
-    const spots = new Map<string, string[]>();
-    for (const v of state.vehicles) {
-      if (!stationary(v)) continue;
-      const k = `${v.lat.toFixed(4)},${v.lon.toFixed(4)}`;
-      spots.set(k, [...(spots.get(k) ?? []), v.id]);
-    }
     const map = mapRef.current;
+    const fanned = new Map<string, L.LatLng>(); // vehicle id -> display position
+    if (map) {
+      const parked = state.vehicles
+        .filter(stationary)
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map((v) => ({ v, p: map.latLngToLayerPoint([v.lat, v.lon]) }));
+      const overlaps = (a: L.Point, b: L.Point) => Math.abs(a.x - b.x) < VEH_W && Math.abs(a.y - b.y) < 26;
+      const groups: (typeof parked)[] = [];
+      for (const item of parked) {
+        const group = groups.find((g) => g.some((m) => overlaps(m.p, item.p)));
+        if (group) group.push(item);
+        else groups.push([item]);
+      }
+      for (const g of groups) {
+        if (g.length < 2) continue;
+        const cx = g.reduce((sum, m) => sum + m.p.x, 0) / g.length;
+        const cy = g.reduce((sum, m) => sum + m.p.y, 0) / g.length;
+        g.forEach((m, i) => fanned.set(m.v.id, map.layerPointToLatLng(L.point(cx + (i - (g.length - 1) / 2) * VEH_W, cy))));
+      }
+    }
 
     const seen = new Set<string>();
     for (const v of state.vehicles) {
@@ -306,16 +322,10 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       const cls = `${selected ? " selected" : ""}${faded ? " faded" : ""}`;
       const held = Boolean(v.busy_until) && v.status !== "loading" && !(v.status === "returning" && !v.current_trip_id);
       const html = vehicleHtml(v, cls, heli && flying && !grounded, grounded, held);
-      const spot = (stationary(v) && spots.get(`${v.lat.toFixed(4)},${v.lon.toFixed(4)}`)) || [v.id];
-      const shift = spot.length > 1 ? (spot.indexOf(v.id) - (spot.length - 1) / 2) * VEH_W : 0;
       const size: [number, number] = [heli ? 72 : 60, 24];
       const anchor: [number, number] = [size[0] / 2, size[1] / 2]; // constant: the element is never re-created
       // The fan-out is a pixel offset of the marker's position, so changes glide like normal movement
-      let pos = L.latLng(v.lat, v.lon);
-      if (shift !== 0 && map) {
-        const p = map.latLngToLayerPoint(pos);
-        pos = map.layerPointToLatLng(L.point(p.x + shift, p.y));
-      }
+      const pos = fanned.get(v.id) ?? L.latLng(v.lat, v.lon);
       const key = html;
       const where = target ? ` · ${target.kind === "base" ? "flying home" : `flying to ${target.kind}`}: ${target.place.name}` : "";
       const groundedText = grounded ? ` · grounded by fog until ${fmtTime(v.grounded_until)}` : "";
