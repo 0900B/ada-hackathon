@@ -1,11 +1,8 @@
-<<<<<<< HEAD
-# Claude Code Project Instructions
+# CLAUDE.md — Permanent project rules
 
-## Git Branch Policy
+## Git branch policy
 
 Always commit and push to the `Klimentina` branch. Never commit or push to `main`.
-=======
-# CLAUDE.md — Permanent project rules
 
 ## Design rules
 
@@ -18,20 +15,18 @@ Always commit and push to the `Klimentina` branch. Never commit or push to `main
 - No rounded cards, no pill-shaped badges, no large rounded buttons. Corners max 2px.
 - Light theme: white/neutral greys, black text, thin 1px borders (#e5e5e5).
 - Colour only for meaning, muted:
-  - free        #2f7d4f
-  - on mission  #b26b00
+  - free          #2f7d4f
+  - on mission    #b26b00
   - high priority #b3261e
   - medium priority #8a7a00
-  - hospital    #1f3a5f
+  - hospital      #1f3a5f
 - Typography: Inter or system sans-serif; small uppercase labels with letter spacing;
   monospace for IDs and times.
 - When in doubt, remove rather than add.
 
 ## Project rules
 
-- Frontend in `client/`, backend in `server/`.
-  (The `frontend/` and `backend/` directories are the original prototype; don't touch them
-  unless asked.)
+- Active frontend in `frontend/`, active backend in `backend/`.
+  (The `client/` directory is an abandoned early prototype; do not touch it unless asked.)
 - Never commit secrets (.env). Commit and push after each working step.
 - Keep code simple and commented; explain briefly what was done in each response.
->>>>>>> 162fda6ddc0e34ce41701de2670910c9aab70d9b
