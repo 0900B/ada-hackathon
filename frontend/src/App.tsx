@@ -23,6 +23,7 @@ import {
   Construction,
   Database,
   Octagon,
+  PhoneIncoming,
   Sun,
   TrafficCone,
   X,
@@ -406,6 +407,29 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
   );
 }
 
+/** Where the calls come from: the demo's synthetic call stream (both worlds), or the scheduled day. */
+function CallsChip({ state }: { state: WorldSnapshot }) {
+  const c = state.calls;
+  if (!c) return null;
+  const text =
+    state.mode === "scheduled_day"
+      ? "Scheduled day (no call stream)"
+      : !c.enabled
+        ? "Call stream off"
+        : c.paused_until
+          ? `Synthetic calls paused until ${fmtTime(c.paused_until)}`
+          : `Synthetic calls ${c.per_hour}/h`;
+  const title =
+    "Demo call generator: synthetic emergency calls and urgent transports, each dispatched at once by the engine" +
+    (c.next_at ? `\nNext call ${fmtTime(c.next_at)}` : "") +
+    `\n${c.generated} calls so far`;
+  return (
+    <span className="chip" title={title}>
+      <PhoneIncoming /> {text}
+    </span>
+  );
+}
+
 function MapLegend() {
   return (
     <div className="map-legend" aria-label="Map legend">
@@ -465,6 +489,7 @@ function StatusBar({ state, connected }: { state: WorldSnapshot; connected: bool
         >
           <Car /> Traffic ×{state.traffic.factor.toFixed(2)} · {state.traffic.source === "tomtom" ? "TomTom live" : "profile"}
         </span>
+        <CallsChip state={state} />
         <span
           className={`chip ${unhealthy.some((s) => s.health === "down") ? "bad" : unhealthy.length ? "warn" : "ok"}`}
           title={sourcesTitle}
@@ -472,7 +497,7 @@ function StatusBar({ state, connected }: { state: WorldSnapshot; connected: bool
           <Database />
           {unhealthy.length
             ? unhealthy.map((s) => `${s.name}: ${s.health}`).join(" · ")
-            : `Data feeds fresh (${sources.map((s) => s.name).join(", ")})`}
+            : "Data feeds fresh"}
         </span>
       </div>
     </div>
