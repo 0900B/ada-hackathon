@@ -1,0 +1,164 @@
+{
+  "generated_at": "2026-11-21T22:23:16+00:00",
+  "seeds": 100,
+  "hours": 8.0,
+  "loads_per_hour": {
+    "normal": 5.0,
+    "high": 8.75
+  },
+  "road_routing": false,
+  "doctor_cars": true,
+  "runtime_s": 241,
+  "results": {
+    "normal": {
+      "per_hour": 5.0,
+      "helicopter": true,
+      "baseline": {
+        "calls": 4568,
+        "critical_calls": 169,
+        "critical_within_target_pct": 35.5,
+        "critical_median_min": 10.9,
+        "critical_p90_min": 45.2,
+        "serious_calls": 1737,
+        "serious_within_18_pct": 44.2,
+        "serious_median_min": 22.5,
+        "serious_p90_min": 66.8,
+        "urgent_calls": 2662,
+        "urgent_within_60_pct": 97.8,
+        "doctor_calls": 517,
+        "doctor_within_15_pct": 47.6,
+        "late_transports_pct": 20.5,
+        "not_reached": 29,
+        "ambulance_utilisation_pct": 76.6
+      },
+      "planb": {
+        "calls": 4568,
+        "critical_calls": 169,
+        "critical_within_target_pct": 74.0,
+        "critical_median_min": 4.8,
+        "critical_p90_min": 19.6,
+        "serious_calls": 1737,
+        "serious_within_18_pct": 81.5,
+        "serious_median_min": 8.2,
+        "serious_p90_min": 28.5,
+        "urgent_calls": 2662,
+        "urgent_within_60_pct": 98.6,
+        "doctor_calls": 517,
+        "doctor_within_15_pct": 73.9,
+        "late_transports_pct": 5.3,
+        "not_reached": 0,
+        "ambulance_utilisation_pct": 59.7,
+        "seeds_serious_within_18_pct": {
+          "better": 100,
+          "same": 0,
+          "worse": 0
+        },
+        "seeds_critical_within_target_pct": {
+          "better": 53,
+          "same": 31,
+          "worse": 1
+        }
+      }
+    },
+    "high": {
+      "per_hour": 8.75,
+      "helicopter": true,
+      "baseline": {
+        "calls": 6988,
+        "critical_calls": 263,
+        "critical_within_target_pct": 13.7,
+        "critical_median_min": 24.5,
+        "critical_p90_min": 57.4,
+        "serious_calls": 2669,
+        "serious_within_18_pct": 22.2,
+        "serious_median_min": 47.0,
+        "serious_p90_min": 94.6,
+        "urgent_calls": 4056,
+        "urgent_within_60_pct": 95.1,
+        "doctor_calls": 789,
+        "doctor_within_15_pct": 37.8,
+        "late_transports_pct": 30.9,
+        "not_reached": 256,
+        "ambulance_utilisation_pct": 91.8
+      },
+      "planb": {
+        "calls": 6988,
+        "critical_calls": 263,
+        "critical_within_target_pct": 52.9,
+        "critical_median_min": 8.0,
+        "critical_p90_min": 27.3,
+        "serious_calls": 2669,
+        "serious_within_18_pct": 53.7,
+        "serious_median_min": 15.4,
+        "serious_p90_min": 72.6,
+        "urgent_calls": 4056,
+        "urgent_within_60_pct": 96.6,
+        "doctor_calls": 789,
+        "doctor_within_15_pct": 58.2,
+        "late_transports_pct": 15.9,
+        "not_reached": 46,
+        "ambulance_utilisation_pct": 81.7,
+        "seeds_serious_within_18_pct": {
+          "better": 99,
+          "same": 0,
+          "worse": 1
+        },
+        "seeds_critical_within_target_pct": {
+          "better": 59,
+          "same": 32,
+          "worse": 3
+        }
+      }
+    },
+    "normal_ground_only": {
+      "per_hour": 5.0,
+      "helicopter": false,
+      "baseline": {
+        "calls": 4568,
+        "critical_calls": 169,
+        "critical_within_target_pct": 34.3,
+        "critical_median_min": 11.5,
+        "critical_p90_min": 46.4,
+        "serious_calls": 1737,
+        "serious_within_18_pct": 43.1,
+        "serious_median_min": 23.0,
+        "serious_p90_min": 67.0,
+        "urgent_calls": 2662,
+        "urgent_within_60_pct": 97.8,
+        "doctor_calls": 517,
+        "doctor_within_15_pct": 46.6,
+        "late_transports_pct": 20.3,
+        "not_reached": 60,
+        "ambulance_utilisation_pct": 76.6
+      },
+      "planb": {
+        "calls": 4568,
+        "critical_calls": 169,
+        "critical_within_target_pct": 42.6,
+        "critical_median_min": 9.0,
+        "critical_p90_min": 33.9,
+        "serious_calls": 1737,
+        "serious_within_18_pct": 45.5,
+        "serious_median_min": 20.2,
+        "serious_p90_min": 74.4,
+        "urgent_calls": 2662,
+        "urgent_within_60_pct": 98.5,
+        "doctor_calls": 517,
+        "doctor_within_15_pct": 48.7,
+        "late_transports_pct": 18.5,
+        "not_reached": 36,
+        "ambulance_utilisation_pct": 76.5,
+        "seeds_serious_within_18_pct": {
+          "better": 43,
+          "same": 47,
+          "worse": 10
+        },
+        "seeds_critical_within_target_pct": {
+          "better": 16,
+          "same": 67,
+          "worse": 2
+        }
+      }
+    }
+  }
+}
