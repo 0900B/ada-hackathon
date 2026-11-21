@@ -5,6 +5,8 @@ import { fmtTime, humanize } from "./format";
 import { VehicleTypeIcon } from "./icons";
 import { conditionText, LEVEL_LABEL, levelOf } from "./severity";
 import { ResponseLine, SeverityBadge } from "./SeverityBadge";
+import { doctorJob } from "./doctor";
+import { DoctorTag, OriginTag } from "./DoctorTag";
 
 type Send = (event: Record<string, unknown>) => Promise<void>;
 
@@ -63,7 +65,20 @@ function summarize(v: Vehicle, state: WorldSnapshot, places: Map<string, Place>,
   const held = v.busy_until && v.status !== "loading" && !(v.status === "returning" && !v.current_trip_id) ? fmtTime(v.busy_until) : null;
 
   let s: Summary;
-  if (v.status === "to_pickup" && trip) {
+  if (v.type === "doctor") {
+    // A doctor car never carries the patient: it joins the ambulance's crew and escorts it
+    const unit = trip?.vehicle_id ?? "the ambulance";
+    s =
+      v.status === "to_pickup" && trip
+        ? { tone: "moving", status: "to scene", text: `→ ${shortPlace(places.get(trip.pickup_id))} · doctor for ${trip.id}`, warnings, job: trip }
+        : v.status === "loading" && trip
+          ? { tone: "loaded", status: "on scene", text: `on scene with ${unit} · ${trip.id}`, warnings, job: trip }
+          : v.status === "with_patient" && trip
+            ? { tone: "loaded", status: "escort", text: `escorting to ${shortPlace(places.get(trip.dropoff_id))} · ${trip.id}`, warnings, job: trip }
+            : v.status === "returning"
+              ? { tone: "returning", status: "return", text: `→ ${shortPlace(base)}`, warnings }
+              : { tone: "idle", status: "idle", text: base ? `at ${shortPlace(base)}` : "available", warnings };
+  } else if (v.status === "to_pickup" && trip) {
     s = { tone: "moving", status: "pickup", text: `→ ${shortPlace(places.get(trip.pickup_id))} · ${trip.id} ${what(trip)}`, warnings, job: trip };
   } else if (v.status === "loading" && trip) {
     s = { tone: "loaded", status: "loading", text: `${what(trip)} at ${shortPlace(places.get(trip.pickup_id))} · ${trip.id}`, warnings, job: trip };
@@ -180,6 +195,7 @@ export function VehicleStrip({
                 )}
               </span>
               <span className="vchip-text">
+                <OriginTag v={veh} />
                 {s.job && level !== "routine" && <SeverityBadge trip={s.job} compact />}
                 {s.text}
               </span>
@@ -247,6 +263,7 @@ function VehiclePopover({
         <strong>
           {v.id} · {v.name}
         </strong>
+        <OriginTag v={v} />
         <button className="link vc-close" onClick={onClose} aria-label="Close">
           <X />
         </button>
@@ -258,17 +275,20 @@ function VehiclePopover({
       </div>
       {trip ? (
         <div className="vpop-trip">
+          {v.type === "doctor" && <div className="vpop-doctor">{doctorJob(v, trip, name)}</div>}
           <div>
             <strong>{trip.id}</strong> {trip.label}
           </div>
-          <div>
-            <SeverityBadge trip={trip} />
+          <div className="sev-row">
+            <SeverityBadge trip={trip} /> <DoctorTag trip={trip} vehicles={state.vehicles} now={state.sim_time} />
           </div>
           <div className="muted">
             {name(trip.pickup_id)} → {name(trip.dropoff_id)}
           </div>
           <div className="muted">
-            {trip.status === "onboard" ? "on board" : `pickup ${fmtTime(trip.eta_pickup)}`} · drop-off {fmtTime(trip.eta_dropoff)}
+            {v.type === "doctor"
+              ? `at the scene ${fmtTime(trip.doctor_eta ?? null)} · ${trip.vehicle_id ?? "no ambulance yet"} ${trip.status === "onboard" ? "has the patient" : `at ${fmtTime(trip.eta_pickup)}`}`
+              : `${trip.status === "onboard" ? "on board" : `pickup ${fmtTime(trip.eta_pickup)}`} · drop-off ${fmtTime(trip.eta_dropoff)}`}
             {(trip.delay_min ?? 0) >= 5 && <span className="late"> · +{Math.round(trip.delay_min ?? 0)} min late</span>}
           </div>
           <div className="small">

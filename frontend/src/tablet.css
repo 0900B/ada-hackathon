@@ -598,6 +598,30 @@
 }
 .mdt-job-sev {
   margin: 4px 0 2px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+/* Doctor car: whom it joins, first and prominent */
+.mdt-job-doctor {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--doctor-fg);
+  margin: 2px 0 4px;
+}
+.mdt.day .mdt-job-doctor,
+.mdt.day .drtag {
+  --doctor-fg: #6b2fd6;
+}
+.mdt.day .drtag {
+  background: #f1eafe;
+  border-color: #b79bf0;
+}
+.mdt.day .drtag.missed,
+.mdt.day .drtag.needed {
+  background: var(--sev-ser-bg);
+  border-color: var(--sev-ser-bd);
 }
 .mdt-job-sev .sev {
   flex-wrap: wrap;

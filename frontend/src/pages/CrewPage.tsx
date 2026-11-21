@@ -31,6 +31,8 @@ import { fmtTime, humanize, vehicleStatusText } from "../format";
 import { Callsign } from "../icons";
 import { LEVEL_PRIORITY, levelOf, levelUp, severitySupported } from "../severity";
 import { ResponseLine, SeverityBadge } from "../SeverityBadge";
+import { doctorJobLine } from "../doctor";
+import { DoctorTag } from "../DoctorTag";
 import { useHotkeys } from "../hotkeys";
 import { SPEECH_LANGS, speechSecureContext, usePushToTalk, useSpeechInput } from "../voice";
 import "../voice.css";
@@ -258,19 +260,35 @@ function CrewConsole({
                 {trip.kind === "equipment" ? "equipment" : trip.needs} · {trip.id}
               </span>
             </div>
+            {vehicle.type === "doctor" && <div className="crew-doctor">{doctorJobLine(vehicle, trip, placeName)}</div>}
             <div className="crew-sev">
-              <SeverityBadge trip={trip} size="md" />
+              <SeverityBadge trip={trip} size="md" /> <DoctorTag trip={trip} vehicles={state.vehicles} now={state.sim_time} size="md" />
             </div>
             <div className="crew-route">
               {placeName(trip.pickup_id)} → {placeName(trip.dropoff_id)}
             </div>
-            <div className={`crew-eta${late ? " late" : ""}`}>
-              {trip.status === "onboard" ? "Drop-off" : "Pickup"} ETA{" "}
-              <strong>{fmtTime(trip.status === "onboard" ? trip.eta_dropoff : trip.eta_pickup)}</strong>
-              {trip.status !== "onboard" && <> · drop-off {fmtTime(trip.eta_dropoff)}</>}
-              {late && <> · +{Math.round(trip.delay_min ?? 0)} min late</>}
-            </div>
-            {trip.status !== "onboard" && (
+            {vehicle.type === "doctor" ? (
+              <div className="crew-eta">
+                {vehicle.status === "to_pickup" ? (
+                  <>
+                    At the scene <strong>{fmtTime(trip.doctor_eta ?? null)}</strong> · {trip.vehicle_id ?? "no ambulance yet"}
+                    {trip.vehicle_id && trip.status !== "onboard" && <> at {fmtTime(trip.eta_pickup)}</>}
+                  </>
+                ) : (
+                  <>
+                    Hospital <strong>{fmtTime(trip.eta_dropoff)}</strong> · with {trip.vehicle_id ?? "the ambulance"}
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className={`crew-eta${late ? " late" : ""}`}>
+                {trip.status === "onboard" ? "Drop-off" : "Pickup"} ETA{" "}
+                <strong>{fmtTime(trip.status === "onboard" ? trip.eta_dropoff : trip.eta_pickup)}</strong>
+                {trip.status !== "onboard" && <> · drop-off {fmtTime(trip.eta_dropoff)}</>}
+                {late && <> · +{Math.round(trip.delay_min ?? 0)} min late</>}
+              </div>
+            )}
+            {trip.status !== "onboard" && vehicle.type !== "doctor" && (
               <div className="crew-resp">
                 <ResponseLine trip={trip} now={state.sim_time} />
               </div>

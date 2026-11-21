@@ -255,6 +255,11 @@ kbd {
 .crew-resp {
   font-size: 14px;
 }
+.crew-doctor {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--doctor-fg);
+}
 .crew-next {
   background: var(--surface-2);
   border: 1px solid var(--border);

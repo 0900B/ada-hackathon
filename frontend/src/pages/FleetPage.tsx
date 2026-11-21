@@ -3,6 +3,8 @@ import type { WorldSnapshot } from "../api";
 import { fmtTime, vehicleStatusText } from "../format";
 import { Callsign } from "../icons";
 import { ResponseLine, SeverityBadge } from "../SeverityBadge";
+import { doctorJobLine } from "../doctor";
+import { DoctorTag, OriginTag } from "../DoctorTag";
 
 /** Every vehicle with its current trip and projected queue (Live or Simulation: ?world=). */
 export function FleetPage({ state }: { state: WorldSnapshot }) {
@@ -29,7 +31,11 @@ export function FleetPage({ state }: { state: WorldSnapshot }) {
             <section key={v.id} className={`panel vehicle-card st-${v.status}`}>
               <h3>
                 <Callsign v={v} /> {v.name}
+                <OriginTag v={v} />
               </h3>
+              {v.type === "doctor" && trips.get(v.current_trip_id ?? "") && (
+                <p className="vc-doctor">{doctorJobLine(v, trips.get(v.current_trip_id ?? ""), (id) => place.get(id) ?? id)}</p>
+              )}
               <p className="muted">
                 {v.type} · {vehicleStatusText(v, state.trips)} · base {place.get(v.base_id) ?? v.base_id}
                 {v.busy_until ? ` · busy until ${fmtTime(v.busy_until)}` : ""}
@@ -45,7 +51,8 @@ export function FleetPage({ state }: { state: WorldSnapshot }) {
                     const late = (t.delay_min ?? 0) >= 5;
                     return (
                       <li key={id} className={late ? "late" : ""}>
-                        <strong>{t.id}</strong> <SeverityBadge trip={t} /> <span className="muted">{t.kind === "equipment" ? t.label : t.needs}</span>
+                        <strong>{t.id}</strong> <SeverityBadge trip={t} /> <DoctorTag trip={t} vehicles={state.vehicles} now={state.sim_time} />{" "}
+                        <span className="muted">{t.kind === "equipment" ? t.label : t.needs}</span>
                         <br />
                         {place.get(t.pickup_id)} → {place.get(t.dropoff_id)}
                         <br />

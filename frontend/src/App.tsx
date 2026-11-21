@@ -42,6 +42,8 @@ import { OpsControls } from "./OpsControls";
 import { fmtTime } from "./format";
 import { compareTrips, LEVEL_RANK, levelOf, targetMisses, type ResponseInfo } from "./severity";
 import { ResponseLine, SeverityBadge } from "./SeverityBadge";
+import { doctorMisses, type DoctorInfo } from "./doctor";
+import { DoctorTag, OriginTag } from "./DoctorTag";
 import { MapView, type ClickMode } from "./MapView";
 import { AuditPage } from "./pages/AuditPage";
 import { FleetPage } from "./pages/FleetPage";
@@ -293,8 +295,9 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
   };
 
   const misses = responseAlerts(state);
-  const alertCount = misses.length + state.alerts.length + state.incidents.filter((i) => i.active).length;
-  const critical = misses.length > 0 || state.alerts.some((a) => a.severity === "critical");
+  const drMisses = doctorAlerts(state);
+  const alertCount = misses.length + drMisses.length + state.alerts.length + state.incidents.filter((i) => i.active).length;
+  const critical = misses.length > 0 || drMisses.length > 0 || state.alerts.some((a) => a.severity === "critical");
   const tabs: { id: Tab; label: string; badge?: string; hot?: boolean }[] = [
     { id: "dispatch", label: "Dispatch", badge: unseenRun ? "New" : undefined, hot: unseenRun },
     ...(sim ? [{ id: "scenarios" as Tab, label: "Scenarios" }] : []),
@@ -462,6 +465,9 @@ function MapLegend() {
       <span title="Open serious call (may become life-threatening soon), until a unit reaches the patient">
         <i className="lg lg-ser" /> Serious call
       </span>
+      <span title="Doctor car (doctor + nurse): drives to the scene, joins the ambulance crew, escorts the patient">
+        <i className="lg lg-doctor" /> Doctor car
+      </span>
       <span>
         <i className="lg lg-idle" /> Available
       </span>
@@ -624,10 +630,18 @@ function responseAlerts(state: WorldSnapshot): { trip: Trip; r: ResponseInfo }[]
   return targetMisses(state.trips, state.sim_time).filter((m) => !covered.has(m.trip.id));
 }
 
+/** Critical calls whose doctor (car or helicopter) will reach the scene after the target. */
+function doctorAlerts(state: WorldSnapshot): { trip: Trip; d: DoctorInfo }[] {
+  const covered = new Set(state.alerts.filter((a) => a.trip_id && /doctor/i.test(a.kind)).map((a) => a.trip_id));
+  return doctorMisses(state.trips, state.vehicles, state.sim_time).filter((m) => !covered.has(m.trip.id));
+}
+
 function Alerts({ state, send }: { state: WorldSnapshot; send: Send }) {
   const incidents = state.incidents.filter((i) => i.active);
   const misses = responseAlerts(state);
-  if (misses.length === 0 && state.alerts.length === 0 && incidents.length === 0) return <p className="muted">All clear.</p>;
+  const drMisses = doctorAlerts(state);
+  if (misses.length === 0 && drMisses.length === 0 && state.alerts.length === 0 && incidents.length === 0)
+    return <p className="muted">All clear.</p>;
   return (
     <ul className="alerts">
       {misses.map(({ trip: t, r }) => (
@@ -640,6 +654,20 @@ function Alerts({ state, send }: { state: WorldSnapshot; send: Send }) {
             {r.minutes == null
               ? `No unit yet: waiting ${Math.round(r.waited)} min, target ${r.target} min.`
               : `${t.vehicle_id ?? "The unit"} reaches the patient ${r.minutes} min after the call: target ${r.target} min, ${r.minutes - r.target} min over.`}
+          </div>
+        </li>
+      ))}
+      {drMisses.map(({ trip: t, d }) => (
+        <li key={`doctor:${t.id}`} className={`alert target-miss lvl-${levelOf(t)}`}>
+          <div className="target-miss-head">
+            <SeverityBadge trip={t} weight={false} modifiers={false} />
+            <strong className="id">{t.id}</strong>
+            <DoctorTag trip={t} vehicles={state.vehicles} now={state.sim_time} />
+          </div>
+          <div>
+            {d.minutes == null
+              ? `Needs a doctor and none is free: waiting ${Math.round(d.waited)} min, target ${d.target} min to the scene.`
+              : `Doctor ${d.vehicle} reaches the scene ${d.minutes} min after the call: target ${d.target} min, ${d.minutes - d.target} min over.`}
           </div>
         </li>
       ))}
@@ -697,6 +725,7 @@ function TripTable({
   onSelect: (vehicleId: string | null) => void;
 }) {
   const place = new Map(state.places.map((p) => [p.id, p.name]));
+  const vehicleById = new Map(state.vehicles.map((v) => [v.id, v]));
   // Most severe first, then the most time-critical condition, then the earliest due
   const open = state.trips.filter((t) => t.status !== "completed" && t.status !== "cancelled").sort(compareTrips);
   const done = state.trips.length - open.length;
@@ -738,14 +767,18 @@ function TripTable({
               <td className="cell-sev">
                 <SeverityBadge trip={t} />
               </td>
-              <td>
+              <td className="cell-resp">
                 <ResponseLine trip={t} now={state.sim_time} compact />
+                <DoctorTag trip={t} vehicles={state.vehicles} now={state.sim_time} compact />
               </td>
               <td className="cell-clip cell-route" title={route}>
                 {route}
               </td>
-              <td className={t.vehicle_id ? "id" : "muted"}>{t.vehicle_id ?? "—"}</td>
-              <td>{t.status.replace(/_/g, " ")}</td>
+              <td className={t.vehicle_id ? "id" : "muted"}>
+                {t.vehicle_id ?? "—"}
+                <OriginTag v={vehicleById.get(t.vehicle_id ?? "")} compact />
+              </td>
+              <td>{t.status === "en_route_pickup" ? "to pickup" : t.status === "onboard" ? "on board" : t.status.replace(/_/g, " ")}</td>
               <td>{fmtTime(t.due_by)}</td>
               <td>{fmtTime(t.eta_dropoff)}</td>
               <td className={late ? "late" : ""}>{t.delay_min == null ? "—" : late ? `+${Math.round(t.delay_min)} min` : "on time"}</td>

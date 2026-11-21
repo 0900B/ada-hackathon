@@ -22,6 +22,8 @@
   --offline: #6e7a88;
   --detour: #f0883e;
   --heli: #f0883e;
+  --doctor: #a371f7; /* doctor cars and their way to the scene */
+  --doctor-fg: #c9a8ff;
   --prio-em-bg: #3a1417;
   --prio-em-fg: #ff9b9b;
   --prio-em-bd: #7a2a2f;
@@ -313,7 +315,7 @@ svg.lucide {
   top: 10px;
   left: 50%;
   transform: translateX(-50%);
-  width: 400px;
+  width: 440px;
   max-width: calc(100% - 120px);
   display: flex;
   flex-direction: column;
@@ -402,6 +404,28 @@ svg.lucide {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.epick-dr {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 14px;
+  padding: 0 4px;
+  border-radius: 3px;
+  border: 1px solid #4b3a73;
+  background: #1b1430;
+  color: var(--doctor-fg);
+}
+.epick-dr svg {
+  width: 10px;
+  height: 10px;
+}
+.epick-conds .epick-dr {
+  margin-left: 0;
 }
 .epick-mods {
   display: flex;
@@ -818,6 +842,10 @@ button.primary kbd {
   border-color: var(--crit);
   background: rgba(242, 85, 90, 0.25);
 }
+.lg-doctor {
+  border-color: var(--doctor);
+  background: #1b1430;
+}
 .lg-crit,
 .lg-ser {
   width: 9px;
@@ -874,6 +902,35 @@ button.primary kbd {
 .call-mk.serious::before {
   background: #1a0d0e;
   border: 2px solid var(--sev-ser-bd);
+}
+/* Doctor converging on the call: a violet pip on the marker (red when none is free or late) */
+.call-mk .call-dr {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  width: 15px;
+  height: 15px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #1b1430;
+  border: 1.5px solid var(--doctor);
+  color: var(--doctor-fg);
+}
+.call-mk .call-dr svg {
+  width: 9px;
+  height: 9px;
+  stroke-width: 2.4;
+}
+.call-mk .call-dr.on_scene,
+.call-mk .call-dr.helicopter {
+  background: var(--doctor);
+  color: #fff;
+}
+.call-mk .call-dr.needed,
+.call-mk .call-dr.missed {
+  border-color: var(--sev-crit-bd);
+  color: var(--sev-ser-fg);
 }
 .call-ring {
   position: absolute;
@@ -1006,7 +1063,7 @@ th {
   max-width: 160px;
 }
 .trip-table td.cell-sev {
-  max-width: 205px;
+  max-width: 190px;
   overflow: hidden;
 }
 .trip-table td.cell-sev .sev {
@@ -1198,6 +1255,96 @@ th {
   width: 20px;
   height: 20px;
 }
+/* Doctor of a call (DoctorTag.tsx): "Dr D1 7/15", "Dr needed", "Dr on H1" */
+.drtag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  vertical-align: middle;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 14px;
+  padding: 0 4px;
+  border-radius: 3px;
+  border: 1px solid #4b3a73;
+  background: #1b1430;
+  color: var(--doctor-fg);
+  font-variant-numeric: tabular-nums;
+}
+.drtag svg {
+  width: 11px;
+  height: 11px;
+  flex: none;
+}
+.drtag.missed,
+.drtag.needed {
+  border-color: var(--sev-ser-bd);
+  background: var(--sev-ser-bg);
+  color: var(--sev-ser-fg);
+}
+.drtag.arrived {
+  opacity: 0.75;
+}
+.drtag-md {
+  font-size: 13px;
+  line-height: 18px;
+  padding: 1px 6px;
+}
+.drtag-md svg {
+  width: 14px;
+  height: 14px;
+}
+.drtag-lg {
+  font-size: 16px;
+  line-height: 24px;
+  padding: 1px 8px;
+  border-radius: 4px;
+}
+.drtag-lg svg {
+  width: 18px;
+  height: 18px;
+}
+/* "Mutual aid" / "Private": units that are not ours */
+.origin-tag {
+  display: inline-block;
+  vertical-align: middle;
+  margin: 0 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 14px;
+  text-transform: uppercase;
+  padding: 0 4px;
+  border-radius: 3px;
+  border: 1px solid var(--prio-ur-bd);
+  background: var(--prio-ur-bg);
+  color: var(--prio-ur-fg);
+  font-family: var(--font);
+}
+.vchip-text .origin-tag {
+  margin: 0 4px 0 0;
+}
+.trip-table td.cell-resp {
+  white-space: nowrap;
+}
+.trip-table td.cell-resp .drtag {
+  display: flex;
+  width: max-content;
+  margin-top: 1px;
+}
+.sev-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+.vpop-doctor,
+.vc-doctor {
+  color: var(--doctor-fg);
+  font-weight: 600;
+}
+
 /* Response target: met (quiet) or missed (red) */
 .resp {
   white-space: nowrap;
@@ -1782,6 +1929,23 @@ button.scenario-prep {
 }
 .vm.type-helicopter {
   color: #ffd2ad;
+}
+/* Doctor car: violet plate and glyph; its way to the scene is violet too (route and ring) */
+.vm.type-doctor {
+  background: #1b1430;
+  color: #d9c5ff;
+}
+.vm.type-doctor.st-to_pickup {
+  --ring: var(--doctor);
+}
+.vm-origin {
+  font: 700 9px/1 var(--font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 3px;
+  border-radius: 2px;
+  background: #3a2c0d;
+  color: #f2bf5e;
 }
 .vm.selected {
   outline: 2px solid #fff;
