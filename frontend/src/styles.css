@@ -163,9 +163,7 @@ body {
 }
 /* Dark tiles: filter each tile image, not the moving pane (a filtered, transformed pane can
    escape overflow clipping in some GPU-accelerated browsers) */
-.map .leaflet-tile {
-  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9);
-}
+/* (dark filter for the base map: see .base-layer below) */
 .leaflet-container {
   background: #1a1d24;
 }
@@ -732,4 +730,135 @@ table.audit pre {
   margin: 0;
   font-size: 12px;
   color: var(--warn);
+}
+
+/* Map layers: only the base map is darkened; traffic tiles keep their colours */
+.map .base-layer .leaflet-tile {
+  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9);
+}
+.leaflet-control-layers {
+  background: var(--panel) !important;
+  color: var(--text);
+  border: 1px solid var(--border) !important;
+  font-size: 12px;
+}
+
+/* Vehicle selection */
+.veh {
+  cursor: pointer;
+}
+.veh.selected {
+  outline: 2px solid #ffd43b;
+  outline-offset: 2px;
+  transform: scale(1.25);
+}
+.veh.faded {
+  opacity: 0.45;
+}
+.stop-num {
+  width: 20px;
+  height: 20px;
+  line-height: 18px;
+  border-radius: 50%;
+  text-align: center;
+  font: 700 11px system-ui, sans-serif;
+  color: #111;
+  background: #ffd43b;
+  border: 1px solid #111;
+}
+.stop-num.stop-base {
+  background: #9775fa;
+  color: #fff;
+}
+.vehicle-card-float {
+  position: absolute;
+  z-index: 1000;
+  top: 10px;
+  left: 56px;
+  width: 320px;
+  max-height: calc(100% - 20px);
+  overflow-y: auto;
+  background: rgba(23, 27, 35, 0.97);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+.vc-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.vc-close {
+  margin-left: auto;
+  font-size: 14px;
+}
+.vc-bar {
+  height: 8px;
+  background: #2b3140;
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 4px 0;
+}
+.vc-bar-fill {
+  height: 100%;
+}
+.vc-bar-fill.ok {
+  background: var(--ok);
+}
+.vc-bar-fill.warn {
+  background: var(--warn);
+}
+.vc-bar-fill.bad {
+  background: var(--bad);
+}
+.vc-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+.vc-small {
+  font-size: 11px;
+  margin-top: 2px;
+}
+.vc-stops {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.vc-stops li.late {
+  color: #ff8787;
+}
+.vc-num {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+  border-radius: 50%;
+  background: #ffd43b;
+  color: #111;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+}
+.vc-actions button {
+  font-size: 12px;
+}
+tr.clickable {
+  cursor: pointer;
+}
+tr.clickable:hover {
+  background: rgba(77, 171, 247, 0.08);
+}
+tr.row-selected {
+  background: rgba(255, 212, 59, 0.12) !important;
 }

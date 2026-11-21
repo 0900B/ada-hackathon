@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, Navigate, NavLink, Route, Routes } from "react-router";
 import {
   API_URL,
@@ -10,6 +10,8 @@ import {
   type EventRecord,
   type Kpis,
   type Priority,
+  fetchVehicle,
+  type VehicleDetail,
   type World,
   type WorldSnapshot,
 } from "./api";
@@ -17,6 +19,7 @@ import { AgentPanel } from "./AgentPanel";
 import { BRAND } from "./brand";
 import { FieldMessage } from "./FieldMessage";
 import { FogControl } from "./FogControl";
+import { VehicleCard } from "./VehicleCard";
 import { OpsControls } from "./OpsControls";
 import { fmtTime } from "./format";
 import { MapView, type ClickMode } from "./MapView";
@@ -104,6 +107,28 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
   const [mode, setMode] = useState<ClickMode>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<VehicleDetail | null>(null);
+  const [centerOn, setCenterOn] = useState<{ lat: number; lon: number; n: number } | null>(null);
+
+  // Selected vehicle: refresh its card and highlighted route every 3 s
+  useEffect(() => {
+    if (!selectedId) {
+      setDetail(null);
+      return;
+    }
+    let stop = false;
+    const load = () =>
+      fetchVehicle(world, selectedId)
+        .then((d) => !stop && setDetail(d))
+        .catch(() => !stop && setDetail(null));
+    void load();
+    const timer = setInterval(load, 3000);
+    return () => {
+      stop = true;
+      clearInterval(timer);
+    };
+  }, [world, selectedId]);
 
   const send: Send = async (event) => {
     setBusy(true);
@@ -136,7 +161,24 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
               </button>
             </div>
           )}
-          <MapView state={state} mode={mode} onMapClick={onMapClick} />
+          <MapView
+            state={state}
+            mode={mode}
+            onMapClick={onMapClick}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            detail={detail}
+            centerOn={centerOn}
+          />
+          {detail && selectedId && (
+            <VehicleCard
+              detail={detail}
+              busy={busy}
+              send={send}
+              onClose={() => setSelectedId(null)}
+              onCenter={() => setCenterOn({ lat: detail.vehicle.lat, lon: detail.vehicle.lon, n: Date.now() })}
+            />
+          )}
         </section>
         <aside className="side">
           <KpiRow kpis={state.kpis} />
@@ -166,7 +208,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
           </Panel>
         </aside>
         <section className="trips">
-          <TripTable state={state} />
+          <TripTable state={state} selectedId={selectedId} onSelect={setSelectedId} />
         </section>
     </main>
   );
@@ -424,7 +466,15 @@ function EventLog({ events }: { events: EventRecord[] }) {
   );
 }
 
-function TripTable({ state }: { state: WorldSnapshot }) {
+function TripTable({
+  state,
+  selectedId,
+  onSelect,
+}: {
+  state: WorldSnapshot;
+  selectedId: string | null;
+  onSelect: (vehicleId: string | null) => void;
+}) {
   const place = new Map(state.places.map((p) => [p.id, p.name]));
   const open = state.trips
     .filter((t) => t.status !== "completed" && t.status !== "cancelled")
@@ -456,7 +506,14 @@ function TripTable({ state }: { state: WorldSnapshot }) {
         {open.map((t) => {
           const late = (t.delay_min ?? 0) >= 5;
           return (
-            <tr key={t.id} className={t.status === "unassigned" ? "row-unassigned" : late ? "row-late" : ""}>
+            <tr
+              key={t.id}
+              className={`${t.status === "unassigned" ? "row-unassigned" : late ? "row-late" : ""}${
+                t.vehicle_id && t.vehicle_id === selectedId ? " row-selected" : ""
+              }${t.vehicle_id ? " clickable" : ""}`}
+              onClick={() => t.vehicle_id && onSelect(t.vehicle_id)}
+              title={t.vehicle_id ? `Show ${t.vehicle_id} on the map` : undefined}
+            >
               <td>{t.id}</td>
               <td>{t.label ?? t.patient}</td>
               <td>

@@ -37,6 +37,10 @@ export interface Vehicle {
   on_road: boolean;
   path_progress: number;
   path: [number, number][] | null; // remaining road geometry of the current leg (null = no road route)
+  crew: { name: string; role: string }[];
+  fuel_pct: number;
+  km_today: number;
+  shift_end: string | null;
 }
 
 export interface Trip {
@@ -259,6 +263,36 @@ export const approveOption = (world: World, runId: string, optionIndex: number) 
   post<AgentRun>(`/${world}/agent/runs/${runId}/approve`, { option_index: optionIndex });
 export const rejectRun = (world: World, runId: string) =>
   post<AgentRun>(`/${world}/agent/runs/${runId}/reject`, { reason: null });
+export interface VehicleStop {
+  kind: "pickup" | "dropoff" | "base";
+  trip_id: string | null;
+  label: string | null;
+  priority: Priority | null;
+  place: string;
+  lat: number;
+  lon: number;
+  eta: string | null;
+  delay_min?: number | null;
+}
+
+export interface VehicleDetail {
+  vehicle: Vehicle;
+  base: string;
+  capabilities: string[];
+  fuel: { pct: number; range_km: number | null; low: boolean };
+  current_trip: Trip | null;
+  stops: VehicleStop[];
+  legs: [number, number][][];
+}
+
+export async function fetchVehicle(world: World, id: string): Promise<VehicleDetail> {
+  const res = await fetch(`${API_URL}/${world}/vehicles/${id}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return (await res.json()) as VehicleDetail;
+}
+
+export const trafficTileUrl = (layer: "flow" | "incidents") => `${API_URL}/tiles/traffic/${layer}/{z}/{x}/{y}.png`;
+
 export interface MessageResult {
   understood_sl: string;
   understood_en: string;
