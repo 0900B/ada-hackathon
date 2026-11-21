@@ -241,9 +241,11 @@ def navigation(state: WorldState, v: Vehicle) -> dict[str, Any]:
     emergency = bool(target["trip_id"] and state.trips[target["trip_id"]].priority == "emergency")
     straight_m = haversine_km(v.lat, v.lon, target["lat"], target["lon"]) * 1000
     minutes = vehicle_leg_minutes(state, v, target["lat"], target["lon"], emergency) if straight_m > 15 else 0.0
+    # Loading, unloading or an operator delay: it sets off when that is over
+    start = max(state.sim_time, v.busy_until) if v.busy_until else state.sim_time
     timing = {
         "remaining_s": round(minutes * 60),
-        "eta": (state.sim_time + timedelta(minutes=minutes)).isoformat(),
+        "eta": (start + timedelta(minutes=minutes)).isoformat(),
         "waiting": bool(v.busy_until and v.busy_until > state.sim_time),
     }
     if straight_m <= 15:

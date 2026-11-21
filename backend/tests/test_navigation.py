@@ -69,6 +69,22 @@ def test_idle_and_out_of_service_have_no_leg():
     assert navigation.navigation(W, v)["status"] == "out_of_service"
 
 
+def test_eta_waits_for_loading_or_a_delay():
+    """While loading (or held by a delay) the vehicle stands still: the ETA starts after that."""
+    fresh()
+    h = next(v for v in W.vehicles.values() if v.type == "helicopter")  # flight mode: no OSRM involved
+    trip = next(t for t in W.trips.values() if t.status == "assigned")
+    h.current_trip_id, h.status, h.queue = trip.id, "to_pickup", []
+    free = navigation.navigation(W, h)
+    h.busy_until = W.sim_time + timedelta(minutes=7)
+    held = navigation.navigation(W, h)
+    assert held["waiting"] is True and free["waiting"] is False
+    from datetime import datetime
+
+    gap = (datetime.fromisoformat(held["eta"]) - datetime.fromisoformat(free["eta"])).total_seconds() / 60
+    assert abs(gap - 7) < 0.1, gap
+
+
 def test_helicopter_gets_bearing_and_distance():
     fresh()
     h = next(v for v in W.vehicles.values() if v.type == "helicopter")

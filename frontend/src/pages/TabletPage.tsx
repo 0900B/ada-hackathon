@@ -232,6 +232,16 @@ function NavBanner({ nav, vehicle, trip, state }: { nav: Navigation | null; vehi
     return <div className="mdt-banner idle">{busy}</div>;
   }
   const eta = nav.eta ? fmtTime(nav.eta) : "–";
+  // Standing still for a while: loading, unloading or held by an operator delay
+  const busyUntil = vehicle.busy_until && Date.parse(vehicle.busy_until) > Date.parse(state.sim_time) ? vehicle.busy_until : null;
+  const busyText =
+    vehicle.status === "loading"
+      ? trip?.kind === "equipment"
+        ? "Loading the equipment"
+        : "Loading the patient"
+      : vehicle.status === "returning"
+        ? "Unloading"
+        : "Held";
   const stopLine = (
     <div className="mdt-next-stop">
       {kindText[nav.target.kind]}: <strong>{nav.target.name}</strong>
@@ -244,6 +254,21 @@ function NavBanner({ nav, vehicle, trip, state }: { nav: Navigation | null; vehi
       )}
     </div>
   );
+  if (busyUntil) {
+    return (
+      <div className="mdt-banner">
+        <span className="mdt-turn-icon">
+          <Clock />
+        </span>
+        <div>
+          <div className="mdt-instr">
+            {busyText} · until {fmtTime(busyUntil)}
+          </div>
+          {stopLine}
+        </div>
+      </div>
+    );
+  }
   if (nav.status === "arrived") {
     return (
       <div className="mdt-banner">
