@@ -269,9 +269,35 @@ html, body, #root {
 .log-line .log-verdict.approved { color: #2f7d4f; }
 .log-line .log-verdict.rejected { color: #b3261e; }
 
-/* ── Tile layer: greyscale + slight brightness so colour markers stand out */
-.map-container .leaflet-tile {
+/* ── Light base-layer tile filter (scoped; Standard and Satellite are unfiltered) */
+.tiles-light .leaflet-tile {
   filter: grayscale(60%) contrast(0.95) brightness(1.03);
+}
+
+/* ── Layer switcher control ──────────────────────────────── */
+.leaflet-control-layers {
+  background: #fff !important;
+  border: 1px solid #e5e5e5 !important;
+  border-radius: 2px !important;
+  box-shadow: none !important;
+}
+.leaflet-control-layers-expanded {
+  padding: 6px 10px !important;
+  font-family: 'Space Grotesk', system-ui, sans-serif !important;
+  font-size: 11px !important;
+  color: #111 !important;
+}
+.leaflet-control-layers label {
+  display: flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  margin: 2px 0 !important;
+  cursor: pointer !important;
+  font-size: 11px !important;
+  color: #111 !important;
+}
+.leaflet-control-layers-separator {
+  display: none !important;
 }
 
 /* ── Ambulance ID label (Leaflet permanent tooltip) ─────── */

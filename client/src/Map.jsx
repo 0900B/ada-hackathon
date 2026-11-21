@@ -1,6 +1,6 @@
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { Circle, CircleMarker, MapContainer, Marker, Popup, TileLayer, Tooltip } from 'react-leaflet'
+import { Circle, CircleMarker, LayersControl, MapContainer, Marker, Popup, TileLayer, Tooltip } from 'react-leaflet'
 
 // Meaning-only colours from CLAUDE.md
 const COLOR = {
@@ -60,11 +60,30 @@ export default function Map({ vehicles = [], places = [], incidents = [] }) {
       zoom={14}
       style={{ width: '100%', height: '100%' }}
     >
-      <TileLayer
-        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        maxZoom={19}
-      />
+      <LayersControl position="topright" collapsed={false}>
+        <LayersControl.BaseLayer checked name="Light">
+          <TileLayer
+            className="tiles-light"
+            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            maxZoom={19}
+          />
+        </LayersControl.BaseLayer>
+        <LayersControl.BaseLayer name="Standard">
+          <TileLayer
+            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            maxZoom={19}
+          />
+        </LayersControl.BaseLayer>
+        <LayersControl.BaseLayer name="Satellite">
+          <TileLayer
+            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            attribution='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+            maxZoom={19}
+          />
+        </LayersControl.BaseLayer>
+      </LayersControl>
 
       {/* ── Hospitals: navy square ── */}
       {hospitals.map(h => (
