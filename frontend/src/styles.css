@@ -1655,3 +1655,7 @@ tr.row-selected {
   width: 64px;
   flex: 0 0 64px;
 }
+
+.plan-steps li.step-late {
+  color: #ffa8a8;
+}
