@@ -121,6 +121,11 @@ def find_candidates(
             t = sim.trips[trip_id]
             k = kpis(sim)
             details = step_details(state, sim, applied)
+            pushes = [  # how much later the vehicle's other trips arrive because of this one
+                (sim.trips[o].eta_dropoff - state.trips[o].eta_dropoff).total_seconds() / 60
+                for o in route_trip_ids(sim.vehicles[v.id])
+                if o != trip_id and sim.trips[o].eta_dropoff and state.trips[o].eta_dropoff
+            ]
             results.append(
                 {
                     "step": step.model_dump(exclude={"before_trip_id"}),
@@ -138,6 +143,7 @@ def find_candidates(
                     "trip_eta_dropoff": t.eta_dropoff,
                     "trip_delay_min": t.delay_min,
                     "pickup_in_min": _minutes(t.eta_pickup, state.sim_time) if t.eta_pickup else None,
+                    "pushes_others_min": round(max(pushes, default=0.0), 1),  # worst knock-on for this vehicle's trips
                     "kpis_after": {
                         "late_trips": k["late_trips"],
                         "late_non_scheduled": k["late_non_scheduled"],
@@ -214,7 +220,7 @@ def _repair_late(sim: WorldState, steps: list[PlanStep]) -> None:
     delay by LATE_REPAIR_MIN_GAIN minutes; it never takes the last free ambulance and never touches
     emergencies or loaded trips.
     """
-    tried: set[str] = set()
+    tried: set[str] = {s.trip_id for s in steps}  # never move a trip this plan has just placed: one step per trip
     for _ in range(LATE_REPAIR_MAX_MOVES):
         late = sorted(
             (

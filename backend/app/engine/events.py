@@ -308,6 +308,7 @@ def _drives_through(state: WorldState, v, inc: Incident) -> bool:
 
 
 BOOKING_SLACK_MIN = 30  # default deadline: ready + direct travel + loading + this
+BOOKING_MAX_PUSH_MIN = 10  # a booking may push other booked patients' arrival back by at most this
 
 
 def _book_task(state: WorldState, ev: TaskRequestEvent, created: list[str]) -> str:
@@ -348,9 +349,9 @@ def _book_task(state: WorldState, ev: TaskRequestEvent, created: list[str]) -> s
     if not ev.auto_assign:
         return what + "; waiting for the dispatcher"
     late_now = kpis(state)["late_trips"]
-    # A booking never diverts a vehicle from the trip it is on, never flies, and fits without
-    # making any trip late. Vans first; an ambulance only if no van fits, only a free one (never
-    # queued behind an emergency) and never the last free one.
+    # A booking never diverts a vehicle from the trip it is on, never flies, fits without making
+    # any trip late and pushes no booked patient back by more than BOOKING_MAX_PUSH_MIN. Vans first;
+    # an ambulance only if no van fits, only a free one and never the last free one.
     fits = [
         c
         for c in find_candidates(state, trip.id, limit=200, all_positions=True)
@@ -358,6 +359,7 @@ def _book_task(state: WorldState, ev: TaskRequestEvent, created: list[str]) -> s
         and not flies(c["vehicle_type"])
         and c["kpis_after"]["late_trips"] <= late_now
         and (c["trip_delay_min"] or 0) <= 0
+        and c["pushes_others_min"] <= BOOKING_MAX_PUSH_MIN
     ]
     vans = [c for c in fits if c["vehicle_type"] == "transport"]
     ambulances = [
