@@ -175,6 +175,7 @@ SEVERITY = {"road_closure": 0, "accident": 1, "congestion": 2}
 def replace_provider_incidents(state: WorldState, provider: str, fresh: dict[str, Incident]) -> None:
     """Swap in one feed's current incidents; other feeds' and operator-injected incidents stay."""
     kept = dict(sorted(fresh.items(), key=lambda kv: SEVERITY[kv[1].kind])[:MAX_INCIDENTS])
-    for inc_id in [i for i, inc in state.incidents.items() if inc.provider == provider]:
-        del state.incidents[inc_id]
-    state.incidents.update(kept)
+    live = state.feed.incidents  # shared by the live and simulation worlds
+    for inc_id in [i for i, inc in live.items() if inc.provider == provider]:
+        del live[inc_id]
+    live.update(kept)

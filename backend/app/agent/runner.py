@@ -45,10 +45,14 @@ def _get_client() -> anthropic.AsyncAnthropic:
 # --- Public API ---------------------------------------------------------------------
 
 
+def _task_key(state: WorldState, run_id: str) -> str:
+    return f"{state.name}:{run_id}"  # run ids are per world, so key tasks by world too
+
+
 def start_run(state: WorldState, trigger: str, focus: EventRecord | None = None, question: str | None = None) -> AgentRun:
     """Start an analysis in the background. A newer run supersedes any run still in progress."""
     for run in state.agent_runs:
-        if run.status == "running" and (task := _tasks.get(run.id)):
+        if run.status == "running" and (task := _tasks.get(_task_key(state, run.id))):
             task.cancel()
             run.status = "superseded"
             run.finished_at = utcnow()
@@ -63,17 +67,19 @@ def start_run(state: WorldState, trigger: str, focus: EventRecord | None = None,
     )
     state.agent_runs.append(run)
     del state.agent_runs[:-20]  # keep the history bounded
-    task = asyncio.create_task(_run(state, run, focus, question), name=run.id)
-    _tasks[run.id] = task
-    task.add_done_callback(lambda _t, rid=run.id: _tasks.pop(rid, None))
+    task_key = _task_key(state, run.id)
+    task = asyncio.create_task(_run(state, run, focus, question), name=task_key)
+    _tasks[task_key] = task
+    task.add_done_callback(lambda _t, k=task_key: _tasks.pop(k, None))
     state.bump()
     return run
 
 
-def cancel_all() -> None:
-    for task in list(_tasks.values()):
-        task.cancel()
-    _tasks.clear()
+def cancel_all(state: WorldState | None = None) -> None:
+    """Cancel running analyses: all of them, or only those of one world."""
+    prefix = f"{state.name}:" if state is not None else ""
+    for k in [k for k in _tasks if k.startswith(prefix)]:
+        _tasks.pop(k).cancel()
 
 
 # --- The run --------------------------------------------------------------------------

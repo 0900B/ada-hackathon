@@ -103,7 +103,7 @@ def run_scenario(state: WorldState, name: str) -> dict[str, Any]:
     if name not in SCENARIOS:
         raise KeyError(name)
     title, build = SCENARIOS[name]
-    agent.cancel_all()
+    agent.cancel_all(state)
     seed_world(state, config.RANDOM_SEED)
     records = build(state)
     question = (

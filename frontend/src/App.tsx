@@ -1,15 +1,16 @@
 import { useState, type ReactNode } from "react";
-import { Link, NavLink, Route, Routes } from "react-router";
+import { Link, Navigate, NavLink, Route, Routes } from "react-router";
 import {
   API_URL,
   postEvent,
-  resetSimulation,
+  resetWorld,
   runScenario,
   SCENARIOS,
   useWorldState,
   type EventRecord,
   type Kpis,
   type Priority,
+  type World,
   type WorldSnapshot,
 } from "./api";
 import { AgentPanel } from "./AgentPanel";
@@ -32,23 +33,48 @@ function describe(rec: EventRecord): string {
   );
 }
 
-/** Layout: one live connection shared by every page, header with navigation, then the routed page. */
+/** Layout: header with navigation, then the routed page. Each page opens its own live connection. */
 export default function App() {
-  const { state, connected } = useWorldState();
-
-  if (!state) {
-    return <div className="loading">Connecting to {API_URL} …</div>;
-  }
-
   return (
     <div className="app">
-      <Header state={state} connected={connected} />
+      <header className="header">
+        <h1>🚑 Emergency Transport Assistant</h1>
+        <nav className="nav">
+          <NavLink to="/live">● Live</NavLink>
+          <NavLink to="/sim">Simulation</NavLink>
+          <NavLink to="/fleet">Fleet</NavLink>
+        </nav>
+      </header>
       <Routes>
-        <Route path="/" element={<Dashboard state={state} />} />
-        <Route path="/fleet" element={<FleetPage state={state} />} />
+        <Route path="/" element={<Navigate to="/live" replace />} />
+        <Route path="/live" element={<WorldPage key="live" world="live" />} />
+        <Route path="/sim" element={<WorldPage key="sim" world="sim" />} />
+        <Route path="/fleet" element={<FleetRoute />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </div>
+  );
+}
+
+function WorldPage({ world }: { world: World }) {
+  const { state, connected } = useWorldState(world);
+  if (!state) return <div className="loading">Connecting to {API_URL} …</div>;
+  return (
+    <>
+      <StatusBar state={state} connected={connected} />
+      <Dashboard state={state} />
+    </>
+  );
+}
+
+function FleetRoute() {
+  const { state, connected } = useWorldState("live");
+  if (!state) return <div className="loading">Connecting to {API_URL} …</div>;
+  return (
+    <>
+      <StatusBar state={state} connected={connected} />
+      <FleetPage state={state} />
+    </>
   );
 }
 
@@ -62,6 +88,7 @@ function NotFound() {
 }
 
 function Dashboard({ state }: { state: WorldSnapshot }) {
+  const world = state.world;
   const [mode, setMode] = useState<ClickMode>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
@@ -69,7 +96,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
   const send: Send = async (event) => {
     setBusy(true);
     try {
-      setMessage({ kind: "ok", text: describe(await postEvent(event)) });
+      setMessage({ kind: "ok", text: describe(await postEvent(world, event)) });
     } catch (e) {
       setMessage({ kind: "error", text: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -102,10 +129,15 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
         <aside className="side">
           <KpiRow kpis={state.kpis} />
           {message && <div className={`message ${message.kind}`}>{message.text}</div>}
+          {!state.hypothetical && (
+            <Panel title="Live conditions">
+              <Conditions state={state} />
+            </Panel>
+          )}
           <Panel title="AI dispatcher">
             <AgentPanel state={state} notify={setMessage} />
           </Panel>
-          <Panel title="Inject event">
+          <Panel title={state.hypothetical ? "Inject event (hypothetical)" : "Report event"}>
             <Controls state={state} busy={busy} mode={mode} setMode={setMode} send={send} setMessage={setMessage} />
           </Panel>
           <Panel title={`Alerts (${state.alerts.length})`}>
@@ -122,20 +154,16 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
   );
 }
 
-function Header({ state, connected }: { state: WorldSnapshot; connected: boolean }) {
+function StatusBar({ state, connected }: { state: WorldSnapshot; connected: boolean }) {
   const w = state.weather.now;
   return (
-    <header className="header">
-      <h1>🚑 Emergency Transport Assistant</h1>
-      <nav className="nav">
-        <NavLink to="/" end>
-          Dashboard
-        </NavLink>
-        <NavLink to="/fleet">Fleet</NavLink>
-      </nav>
+    <div className={`statusbar ${state.hypothetical ? "is-sim" : "is-live"}`}>
+      <span className="mode-badge">
+        {state.hypothetical ? `SIMULATION · hypothetical · ${state.speedup}× speed` : "LIVE · real weather, traffic and incidents"}
+      </span>
       <div className="chips">
-        <span className={`chip ${connected ? "ok" : "bad"}`}>{connected ? "● live" : "● reconnecting"}</span>
-        <span className="chip">Sim time {fmtTime(state.sim_time)}</span>
+        <span className={`chip ${connected ? "ok" : "bad"}`}>{connected ? "● connected" : "● reconnecting"}</span>
+        <span className="chip">{state.hypothetical ? "Sim time" : "Time"} {fmtTime(state.sim_time)}</span>
         {w && (
           <span className={`chip ${state.weather.overridden ? "warn" : ""}`}>
             {w.snowfall_cm > 0 ? "❄" : w.precipitation_mm > 0 ? "🌧" : "☀"} {w.temperature_c.toFixed(1)} °C ·{" "}
@@ -156,8 +184,59 @@ function Header({ state, connected }: { state: WorldSnapshot; connected: boolean
             {s.name}: {s.health}
           </span>
         ))}
+        <span className="chip" title="Road routes cached (OSRM / TomTom)">
+          🛣 roads: {state.roads.routes_cached} routes
+        </span>
       </div>
-    </header>
+    </div>
+  );
+}
+
+/** Live page: what the real world looks like right now. */
+function Conditions({ state }: { state: WorldSnapshot }) {
+  const w = state.weather.now;
+  const nextHours = state.weather.forecast.filter((h) => new Date(h.time).getTime() > Date.now()).slice(0, 4);
+  const live = state.incidents.filter((i) => i.source === "live");
+  return (
+    <div className="conditions">
+      {w && (
+        <div>
+          <strong>
+            {w.snowfall_cm > 0 ? "❄" : w.precipitation_mm > 0 ? "🌧" : "☀"} {w.temperature_c.toFixed(1)} °C
+          </strong>{" "}
+          · {w.precipitation_mm} mm · wind {Math.round(w.wind_speed_kmh)} km/h <span className="muted">({w.source})</span>
+          {nextHours.length > 0 && (
+            <div className="muted">
+              Next hours:{" "}
+              {nextHours
+                .map((h) => `${fmtTime(h.time)} ${Math.round(h.temperature_c)}° ${h.snowfall_cm > 0 ? "❄" : h.precipitation_mm > 0 ? "🌧" : ""}`)
+                .join(" · ")}
+            </div>
+          )}
+        </div>
+      )}
+      <div>
+        <strong>Traffic ×{state.traffic.factor.toFixed(2)}</strong>{" "}
+        <span className="muted">({state.traffic.source === "tomtom" ? "TomTom live" : state.traffic.source})</span>
+        {state.traffic.samples.length > 0 && (
+          <ul className="roads">
+            {state.traffic.samples.map((s) => (
+              <li key={s.road} className={s.ratio < 0.7 ? "slow" : ""}>
+                {s.road}: {s.current_kmh}/{s.free_flow_kmh} km/h
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div>
+        <strong>{live.length} live incident(s)</strong>
+        {live.slice(0, 5).map((i) => (
+          <div key={i.id} className="muted">
+            {i.kind === "road_closure" ? "⛔" : i.kind === "accident" ? "💥" : "🚦"} {i.description}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -211,9 +290,10 @@ function Controls({
   const vehicleId = inService.some((v) => v.id === picked) ? picked : (inService[0]?.id ?? "");
   const snowing = state.weather.overridden;
 
+  const sim = state.hypothetical;
   const reset = async () => {
     try {
-      await resetSimulation();
+      await resetWorld(state.world);
       setMessage({ kind: "ok", text: "Simulation reset" });
     } catch (e) {
       setMessage({ kind: "error", text: e instanceof Error ? e.message : String(e) });
@@ -251,20 +331,23 @@ function Controls({
           ⛔ Closure (click map)
         </button>
       </div>
+      {!sim && <p className="muted">Live uses real weather and traffic. Hypothetical scenarios run in Simulation.</p>}
+      {sim && (
+        <div className="row">
+          <button
+            disabled={busy}
+            onClick={() => send(snowing ? { type: "weather_override", clear: true } : { type: "weather_override", snowfall_cm: 2 })}
+          >
+            {snowing ? "☀ End snowstorm" : "❄ Snowstorm"}
+          </button>
+          <button className="ghost" disabled={busy} onClick={reset}>
+            ↺ Reset simulation
+          </button>
+        </div>
+      )}
+      {sim && <div className="scenario-label muted">🎬 Demo scenarios (reset + several events + one AI analysis)</div>}
       <div className="row">
-        <button
-          disabled={busy}
-          onClick={() => send(snowing ? { type: "weather_override", clear: true } : { type: "weather_override", snowfall_cm: 2 })}
-        >
-          {snowing ? "☀ End snowstorm" : "❄ Snowstorm"}
-        </button>
-        <button className="ghost" disabled={busy} onClick={reset}>
-          ↺ Reset simulation
-        </button>
-      </div>
-      <div className="scenario-label muted">🎬 Demo scenarios (reset + several events + one AI analysis)</div>
-      <div className="row">
-        {SCENARIOS.map((s) => (
+        {(sim ? SCENARIOS : []).map((s) => (
           <button
             key={s.name}
             title={s.title}

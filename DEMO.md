@@ -5,9 +5,10 @@ operator, within about 30 seconds, what is at risk and 2–3 simulated options. 
 with one click.
 
 ## Before you go on stage
-- [ ] Open the Vercel dashboard on the presenting laptop. The header shows `● live` and every data source shows `fresh`.
+- [ ] Open the Vercel dashboard on the presenting laptop. The status bar shows `● connected` and every data source shows `fresh`.
 - [ ] The AI badge says `Claude · claude-sonnet-5-5`, not "Engine only".
-- [ ] Do a dry run of the scenario you'll show, then click **↺ Reset simulation**.
+- [ ] Show the **Live** tab for real conditions, then switch to **Simulation** for the scenario.
+- [ ] Do a dry run of the scenario you'll show in **Simulation**, then click **↺ Reset simulation**.
 - [ ] Zoom the browser so the map and the AI panel are both readable on the projector.
 - [ ] Have a phone hotspot ready in case the venue Wi-Fi fails.
 
@@ -17,11 +18,11 @@ with one click.
 a road closes, they must work out who is affected, which vehicle should take over, and what that does
 to everyone else's schedule. Today that happens in their heads, under time pressure.
 
-**2. The live system (30 s).** Show the map: the fleet moving across Ljubljana, live weather, traffic,
-and every trip's predicted arrival. "The backend runs constantly, so when something happens the facts
-are already there."
+**2. The live system (30 s).** On the **Live** tab: the fleet driving real roads across Ljubljana,
+real weather, TomTom traffic speeds and real incidents, and every trip's predicted arrival. "The backend
+runs constantly, so when something happens the facts are already there."
 
-**3. The scenario (90 s).** Click **🧠 Stroke + closure**.
+**3. The scenario (90 s).** Switch to **Simulation** and click **🧠 Stroke + closure**.
 - While the agent works, point at the live trace: "Claude is checking which ambulances can reach
   the patient, then simulating complete plans. Every number you'll see comes from our simulation
   engine, not from the language model."

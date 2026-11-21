@@ -570,3 +570,45 @@ button.primary {
   background: #495057;
   text-decoration: line-through;
 }
+
+/* Live / Simulation status bar */
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.mode-badge {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 3px 10px;
+  border-radius: 4px;
+}
+.statusbar.is-live .mode-badge {
+  background: rgba(64, 192, 87, 0.15);
+  color: var(--ok);
+  border: 1px solid var(--ok);
+}
+.statusbar.is-sim .mode-badge {
+  background: rgba(250, 176, 5, 0.15);
+  color: var(--warn);
+  border: 1px solid var(--warn);
+}
+.conditions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+.roads {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  columns: 2;
+  font-size: 12px;
+}
+.roads li.slow {
+  color: var(--warn);
+}

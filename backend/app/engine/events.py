@@ -129,6 +129,8 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
     if isinstance(ev, ClearIncidentEvent):
         inc = state.incidents.get(ev.incident_id)
         if inc is None:
+            if ev.incident_id in state.feed.incidents:
+                raise EventError("Live incidents from TomTom/promet.si clear themselves when the feed does")
             raise EventError(f"Unknown incident {ev.incident_id}")
         inc.active = False
         return f"Incident {inc.id} cleared"
@@ -164,6 +166,8 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
         return f"New {ev.priority} request {trip.id}: {pickup.name} -> {dropoff.name}"
 
     if isinstance(ev, WeatherOverrideEvent):
+        if not state.hypothetical:
+            raise EventError("Live mode always uses real weather; use Simulation for hypothetical weather")
         if ev.clear:
             state.weather_override = None
             return "Weather override cleared; back to live weather"

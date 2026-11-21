@@ -7,7 +7,8 @@ def _float(name: str, default: float) -> float:
 
 
 SIM_TICK_S = _float("SIM_TICK_S", 2.0)  # real seconds between simulation ticks
-SIM_SPEEDUP = _float("SIM_SPEEDUP", 5.0)  # simulated seconds per real second
+SIM_SPEEDUP = _float("SIM_SPEEDUP", 5.0)  # simulation world: simulated seconds per real second
+LIVE_SPEEDUP = _float("LIVE_SPEEDUP", 1.0)  # live world runs on the real clock
 WEATHER_INTERVAL_S = _float("WEATHER_INTERVAL_S", 600)
 TRAFFIC_INTERVAL_S = _float("TRAFFIC_INTERVAL_S", 30)  # time-of-day profile (no TomTom key)
 # TomTom (when TOMTOM_API_KEY is set). Free plan, per month: Flow Segment Data 20,000 requests,

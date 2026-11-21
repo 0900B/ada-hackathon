@@ -41,6 +41,7 @@ def build_situation(state: WorldState) -> dict[str, Any]:
     w = state.effective_weather
     places = state.places
     return {
+        "mode": "live (real conditions)" if not state.hypothetical else "simulation (hypothetical scenario for training/demo)",
         "now": hhmm(state.sim_time),
         "weather": None
         if w is None
@@ -61,7 +62,7 @@ def build_situation(state: WorldState) -> dict[str, Any]:
         "alerts": [a.message for a in state.alerts[:12]],
         "incidents": [
             {"id": i.id, "kind": i.kind, "description": i.description, "near": nearest_place_name(state, i.lat, i.lon)}
-            for i in state.incidents.values()
+            for i in state.all_incidents()
             if i.active
         ],
         "vehicles": [

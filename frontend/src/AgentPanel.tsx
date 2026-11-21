@@ -129,7 +129,7 @@ export function AgentPanel({ state, notify }: { state: WorldSnapshot; notify: No
     <div className="agent">
       <div className="agent-head">
         <span className={`chip ${enabled ? "ok" : "warn"}`}>{enabled ? `Claude · ${model}` : "Engine only (no API key)"}</span>
-        <button disabled={busy} onClick={() => act(() => analyzeNow(), "Analysis started")}>
+        <button disabled={busy} onClick={() => act(() => analyzeNow(state.world), "Analysis started")}>
           ✨ Analyze now
         </button>
       </div>
@@ -175,7 +175,7 @@ export function AgentPanel({ state, notify }: { state: WorldSnapshot; notify: No
                   index={i}
                   before={rec.kpis_before}
                   busy={busy}
-                  onApprove={(idx) => act(() => approveOption(run.id, idx), `Option ${idx + 1} applied`)}
+                  onApprove={(idx) => act(() => approveOption(state.world, run.id, idx), `Option ${idx + 1} applied`)}
                 />
               ))}
               {rec.reasoning && <p className="reasoning">💡 {rec.reasoning}</p>}
@@ -202,7 +202,7 @@ export function AgentPanel({ state, notify }: { state: WorldSnapshot; notify: No
                 </ul>
               </details>
               {run.status === "done" && (
-                <button className="ghost" disabled={busy} onClick={() => act(() => rejectRun(run.id), "Recommendation rejected")}>
+                <button className="ghost" disabled={busy} onClick={() => act(() => rejectRun(state.world, run.id), "Recommendation rejected")}>
                   Reject all
                 </button>
               )}

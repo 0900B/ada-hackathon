@@ -25,22 +25,34 @@ uv pip install --python .venv/Scripts/python.exe -r requirements.txt   # macOS/L
 .venv/Scripts/python.exe -m app                                         # http://localhost:8000/docs
 ```
 
+## Two worlds: live and sim
+
+The real-world feeds (weather, TomTom traffic and incidents, promet.si) are fetched once and shared.
+Two worlds read them:
+
+- **`live`**: real clock, real conditions only. Operators can report real events (breakdown, delay,
+  emergency, closure); hypothetical weather and demo scenarios are refused.
+- **`sim`**: the presentation sandbox: 5× clock (`SIM_SPEEDUP`), snowstorm override, demo scenarios, reset.
+
 ## API
+
+`{world}` is `live` or `sim`.
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/health` | Per-source freshness (`fresh` / `stale` / `down`) |
-| GET | `/state` | Full snapshot: vehicles, trips, places, incidents, weather, alerts, events |
-| GET | `/stream` | Server-sent events (SSE): a snapshot on every change, for the frontend |
-| GET | `/alerts`, `/kpis` | Current alerts, headline numbers |
-| POST | `/events` | Inject an event (see below) |
-| POST | `/plans/simulate` | What-if: before/after KPIs and per-trip changes |
-| POST | `/plans/apply` | Operator approved: apply the plan |
-| POST | `/admin/reset` | Re-seed the simulation |
-| POST | `/agent/analyze` | Ask the Claude agent to review the situation (`{"question": "..."}` optional) |
-| GET | `/agent/runs` | Agent runs, newest first (also in `/state` and `/stream` under `agent`) |
-| POST | `/agent/runs/{id}/approve` | Operator approves an option: `{"option_index": 0}` |
-| POST | `/agent/runs/{id}/reject` | Operator rejects the recommendation |
+| GET | `/health` | Feed freshness, both worlds' clocks, TomTom usage, road-routing cache |
+| GET | `/{world}/state` | Full snapshot: vehicles (with road path), trips, places, incidents, weather, alerts, events |
+| GET | `/{world}/stream` | Server-sent events (SSE): a snapshot on every change, for the frontend |
+| GET | `/{world}/alerts`, `/{world}/kpis` | Current alerts, headline numbers |
+| POST | `/{world}/events` | Report/inject an event (see below) |
+| POST | `/{world}/plans/simulate` | What-if: before/after KPIs and per-trip changes |
+| POST | `/{world}/plans/apply` | Operator approved: apply the plan |
+| POST | `/{world}/admin/reset` | Re-seed that world |
+| GET/POST | `/sim/admin/scenarios`, `/sim/admin/scenario/{name}` | Demo scenarios (simulation only) |
+| POST | `/{world}/agent/analyze` | Ask the Claude agent to review the situation (`{"question": "..."}` optional) |
+| GET | `/{world}/agent/runs` | Agent runs, newest first (also in `/state` and `/stream` under `agent`) |
+| POST | `/{world}/agent/runs/{id}/approve` | Operator approves an option: `{"option_index": 0}` |
+| POST | `/{world}/agent/runs/{id}/reject` | Operator rejects the recommendation |
 
 ## The Claude agent (`app/agent/`)
 

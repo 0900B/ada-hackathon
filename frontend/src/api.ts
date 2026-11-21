@@ -61,6 +61,7 @@ export interface Incident {
   radius_m: number;
   active: boolean;
   source: "live" | "injected";
+  provider: string | null;
 }
 
 export interface WeatherNow {
@@ -172,14 +173,24 @@ export interface AgentRun {
   usage: Record<string, number>;
 }
 
+export type World = "live" | "sim";
+
 export interface WorldSnapshot {
+  world: World;
+  hypothetical: boolean;
+  speedup: number;
   version: number;
   sim_time: string;
   places: Place[];
   vehicles: Vehicle[];
   trips: Trip[];
   incidents: Incident[];
-  weather: { now: WeatherNow | null; overridden: boolean };
+  weather: {
+    now: WeatherNow | null;
+    overridden: boolean;
+    forecast: { time: string; temperature_c: number; precipitation_mm: number; snowfall_cm: number }[];
+  };
+  roads: { enabled: boolean; routes_cached: number; matrix_places: number; pending: number; osrm: number; tomtom: number };
   traffic: {
     factor: number;
     source: string;
@@ -194,12 +205,13 @@ export interface WorldSnapshot {
 
 // --- Live state over server-sent events --------------------------------------
 
-export function useWorldState() {
+export function useWorldState(world: World) {
   const [state, setState] = useState<WorldSnapshot | null>(null);
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    const es = new EventSource(`${API_URL}/stream`); // reconnects automatically
+    setState(null);
+    const es = new EventSource(`${API_URL}/${world}/stream`); // reconnects automatically
     es.onopen = () => setConnected(true);
     es.onerror = () => setConnected(false);
     es.onmessage = (msg) => {
@@ -207,7 +219,7 @@ export function useWorldState() {
       setConnected(true);
     };
     return () => es.close();
-  }, []);
+  }, [world]);
 
   return { state, connected };
 }
@@ -228,14 +240,16 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
   return data as T;
 }
 
-export const postEvent = (event: Record<string, unknown>) => post<EventRecord>("/events", event);
-export const resetSimulation = () => post<{ ok: boolean }>("/admin/reset");
-export const analyzeNow = (question?: string) => post<AgentRun>("/agent/analyze", { question: question ?? null });
-export const approveOption = (runId: string, optionIndex: number) =>
-  post<AgentRun>(`/agent/runs/${runId}/approve`, { option_index: optionIndex });
-export const rejectRun = (runId: string) => post<AgentRun>(`/agent/runs/${runId}/reject`, { reason: null });
+export const postEvent = (world: World, event: Record<string, unknown>) => post<EventRecord>(`/${world}/events`, event);
+export const resetWorld = (world: World) => post<{ ok: boolean }>(`/${world}/admin/reset`);
+export const analyzeNow = (world: World, question?: string) =>
+  post<AgentRun>(`/${world}/agent/analyze`, { question: question ?? null });
+export const approveOption = (world: World, runId: string, optionIndex: number) =>
+  post<AgentRun>(`/${world}/agent/runs/${runId}/approve`, { option_index: optionIndex });
+export const rejectRun = (world: World, runId: string) =>
+  post<AgentRun>(`/${world}/agent/runs/${runId}/reject`, { reason: null });
 export const runScenario = (name: string) =>
-  post<{ scenario: string; title: string; run_id: string }>(`/admin/scenario/${name}`);
+  post<{ scenario: string; title: string; run_id: string }>(`/sim/admin/scenario/${name}`);
 
 export const SCENARIOS = [
   { name: "stranded_patient", label: "🚐 Stranded patient", title: "Van breaks down with a patient on board" },
