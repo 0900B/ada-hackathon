@@ -1,14 +1,50 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Map from './Map'
 import { API_URL, fetchState, runScenario, resetSimulation, approveOption, rejectRun } from './api'
 import { ambulances, hospitals, activeCalls } from './mockData'
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+// Find the closest place to a lat/lon — used for incident location labels
+function nearestPlace(lat, lon, places) {
+  let best = null, bestDist = Infinity
+  for (const p of places) {
+    if (!p.lat || !p.lon) continue
+    const d = Math.hypot(p.lat - lat, p.lon - lon)
+    if (d < bestDist) { bestDist = d; best = p }
+  }
+  return best
+}
+
+function incidentKindLabel(kind) {
+  if (kind === 'road_closure') return 'Road closure'
+  if (kind === 'accident')     return 'Accident'
+  if (kind === 'congestion')   return 'Congestion'
+  return kind.replace(/_/g, ' ')
+}
+
+// Vehicles that need a "pending decision" ring: active while run.status === 'done'
+function getAffectedVehicleIds(run, state) {
+  if (!run || run.status !== 'done') return new Set()
+  const ids = new Set()
+  for (const opt of (run.recommendation?.options ?? [])) {
+    for (const step of (opt.steps ?? [])) {
+      if (step.vehicle_id) ids.add(step.vehicle_id)
+    }
+  }
+  // Always include broken-down vehicles
+  for (const v of (state?.vehicles ?? [])) {
+    if (v.status === 'out_of_service') ids.add(v.id)
+  }
+  return ids
+}
 
 // ── Data conversion ────────────────────────────────────────────────────────────
 
 function liveToMapProps(state) {
   return {
-    vehicles: state.vehicles,
-    places:   state.places.filter(p => p.kind !== 'residential'),
+    vehicles:  state.vehicles,
+    places:    state.places.filter(p => p.kind !== 'residential'),
     incidents: state.incidents.filter(i => i.active !== false),
   }
 }
@@ -57,14 +93,12 @@ function useWorldState() {
           setState(s)
         } catch {}
       }, 3000)
-      // stop polling as soon as SSE kicks in
       return () => clearInterval(poll)
     }, 8000)
     return () => clearTimeout(id)
   }, [state])
 
-  const offline = state === null
-  return { state, offline }
+  return { state, offline: state === null }
 }
 
 // ── Shared action helper ──────────────────────────────────────────────────────
@@ -83,21 +117,76 @@ function useAction(setMessage, setBusy) {
   }
 }
 
+// ── Extract vehicle IDs mentioned in recommendation text ──────────────────────
+
+function extractHighlightIds(rec, vehicles) {
+  if (!rec || !vehicles?.length) return []
+  const text = [
+    rec.situation ?? '',
+    ...(rec.options?.map(o => `${o.title} ${o.summary}`) ?? []),
+    rec.reasoning ?? '',
+  ].join(' ')
+  return vehicles.filter(v => text.includes(v.id)).map(v => v.id)
+}
+
+// ── Shared delta helper ───────────────────────────────────────────────────────
+
+function deltaClass(before, after) {
+  if (after < before) return 'better'
+  if (after > before) return 'worse'
+  return 'same'
+}
+
 // ── Root component ────────────────────────────────────────────────────────────
 
 export default function App() {
   const { state, offline } = useWorldState()
-  const [busy, setBusy]       = useState(false)
-  const [message, setMessage] = useState(null)
+  const [busy, setBusy]               = useState(false)
+  const [message, setMessage]         = useState(null)
+  const [cardMinimised, setCardMinimised] = useState(false)
   const action = useAction(setMessage, setBusy)
 
   const mapProps = state ? liveToMapProps(state) : mockToMapProps()
   const run      = state?.agent?.runs?.[0] ?? null
+  const showCard = run?.status === 'done' && !!run?.recommendation
+
+  // Reset minimised whenever a new decision arrives
+  const prevRunId = useRef(null)
+  useEffect(() => {
+    if (showCard && run.id !== prevRunId.current) {
+      setCardMinimised(false)
+      prevRunId.current = run.id
+    }
+  }, [run?.id, showCard])
+
+  // Esc minimises the card
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape' && showCard && !cardMinimised) setCardMinimised(true)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [showCard, cardMinimised])
+
+  const cardOpen           = showCard && !cardMinimised
+  const highlightIds       = cardOpen ? extractHighlightIds(run.recommendation, mapProps.vehicles) : []
+  const highlightIncidents = cardOpen
 
   return (
     <div className="layout">
       <div className="map-container">
-        <Map {...mapProps} />
+        <Map {...mapProps} highlightIds={highlightIds} highlightIncidents={highlightIncidents} />
+        {showCard && !cardMinimised && (
+          <DecisionCard
+            run={run}
+            busy={busy}
+            action={action}
+            onMinimise={() => setCardMinimised(true)}
+          />
+        )}
+        {showCard && cardMinimised && (
+          <DecisionBar onShow={() => setCardMinimised(false)} />
+        )}
       </div>
 
       <aside className="side-panel">
@@ -118,25 +207,122 @@ export default function App() {
 
           <ScenariosSection busy={busy} action={action} />
           <StatusSection run={run} />
-
-          {run?.recommendation && (
-            <>
-              <SituationSection rec={run.recommendation} />
-              <OptionsSection run={run} />
-              <RecommendationSection run={run} />
-            </>
-          )}
-
+          {run?.recommendation && <SituationSection rec={run.recommendation} />}
           <DecisionLogSection runs={state?.agent?.runs ?? []} />
         </div>
 
-        {/* Sticky action bar — lives outside panel-body so it stays visible while panel scrolls */}
-        {run?.status === 'done' && run?.recommendation && (
-          <ActionsSection run={run} busy={busy} action={action} />
-        )}
-
         <Legend />
       </aside>
+    </div>
+  )
+}
+
+// ── Floating decision card ────────────────────────────────────────────────────
+
+function DecisionCard({ run, busy, action, onMinimise }) {
+  const rec = run.recommendation
+  const [selectedIdx, setSelectedIdx] = useState(rec.recommended_index)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+
+  useEffect(() => {
+    setSelectedIdx(rec.recommended_index)
+    setDetailsOpen(false)
+  }, [run.id])
+
+  const trigger     = run.trigger.startsWith('event:') ? run.trigger.slice(6) : run.trigger
+  const dot         = rec.situation.indexOf('. ')
+  const lead        = dot > -1 ? rec.situation.slice(0, dot + 1) : rec.situation
+  const detail      = dot > -1 ? rec.situation.slice(dot + 2).trim() : ''
+  const selectedOpt = rec.options[selectedIdx]
+  const kpisBefore  = rec.kpis_before
+
+  return (
+    <div className="decision-card">
+      <div className="dc-header">
+        <span className="dc-event-tag">EVENT</span>
+        <span className="dc-event-name">{trigger.replace(/_/g, ' ')}</span>
+        <span className="dc-event-sep">·</span>
+        <span className="dc-event-lead">{lead}</span>
+        <button className="dc-minimise" onClick={onMinimise}>Minimise</button>
+      </div>
+
+      <div className="dc-section">
+        <span className="dc-label">RECOMMENDED</span>
+        <p className="dc-rec-title">Option {selectedIdx + 1} — {selectedOpt?.title}</p>
+        <div className="dc-action-row">
+          <button
+            className="btn-approve"
+            disabled={busy}
+            onClick={() => action(() => approveOption(run.id, selectedIdx))}
+          >
+            Approve
+          </button>
+          <button
+            className="btn-reject"
+            disabled={busy}
+            onClick={() => action(() => rejectRun(run.id))}
+          >
+            Reject
+          </button>
+        </div>
+      </div>
+
+      {rec.options.length > 1 && (
+        <div className="dc-section">
+          <span className="dc-label">ALTERNATIVES</span>
+          <table className="dc-alt-table">
+            <tbody>
+              {rec.options.map((opt, i) => {
+                if (i === selectedIdx) return null
+                const before = kpisBefore?.total_delay_min ?? 0
+                const after  = opt.kpis_after?.total_delay_min ?? 0
+                const diff   = Math.round(after - before)
+                const cls    = deltaClass(before, after)
+                return (
+                  <tr key={i} className="dc-alt-row" onClick={() => setSelectedIdx(i)}>
+                    <td className="dc-alt-num">{i + 1}</td>
+                    <td className="dc-alt-title">{opt.title}</td>
+                    <td className="dc-alt-delta">
+                      {opt.kpis_after
+                        ? <span className={`opt-delta ${cls}`}>{diff > 0 ? `+${diff}` : diff} min</span>
+                        : <span className="opt-delta same">—</span>
+                      }
+                    </td>
+                    <td className="dc-alt-summary">{opt.summary}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {(detail || rec.escalation || rec.reasoning) && (
+        <div className="dc-section dc-last-section">
+          <button className="dc-details-toggle" onClick={() => setDetailsOpen(d => !d)}>
+            {detailsOpen ? '▾' : '▸'} Details
+          </button>
+          {detailsOpen && (
+            <div className="dc-details-body">
+              {detail         && <p className="situation-detail">{detail}</p>}
+              {rec.escalation && <p className="situation-detail" style={{ marginTop: 6 }}>{rec.escalation}</p>}
+              {rec.reasoning  && <p className="rec-reasoning"   style={{ marginTop: 6 }}>{rec.reasoning}</p>}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Minimised decision bar ────────────────────────────────────────────────────
+
+function DecisionBar({ onShow }) {
+  return (
+    <div className="decision-bar">
+      <span className="decision-bar-text">Decision pending</span>
+      <span className="decision-bar-sep">·</span>
+      <button className="decision-bar-show" onClick={onShow}>Show</button>
     </div>
   )
 }
@@ -209,124 +395,24 @@ function StatusSection({ run }) {
   )
 }
 
-// ── Situation ─────────────────────────────────────────────────────────────────
+// ── Situation (panel: event context, no actions) ──────────────────────────────
 
 function SituationSection({ rec }) {
-  // Split at the first sentence boundary so the lead is prominent
   const dot    = rec.situation.indexOf('. ')
   const lead   = dot > -1 ? rec.situation.slice(0, dot + 1) : rec.situation
   const detail = dot > -1 ? rec.situation.slice(dot + 2).trim() : ''
 
   return (
     <div className="panel-section">
-      <span className="section-label">SITUATION</span>
+      <span className="section-label">EVENT</span>
       <p className="situation-lead">{lead}</p>
       {detail && <p className="situation-detail">{detail}</p>}
-
       {rec.escalation && (
         <>
           <span className="section-label" style={{ marginTop: 10 }}>ACTIONS FOR CREW</span>
           <p className="situation-detail">{rec.escalation}</p>
         </>
       )}
-    </div>
-  )
-}
-
-// ── Options ───────────────────────────────────────────────────────────────────
-
-function deltaClass(before, after) {
-  if (after < before) return 'better'
-  if (after > before) return 'worse'
-  return 'same'
-}
-
-function OptionsSection({ run }) {
-  const { recommendation: rec } = run
-  if (!rec || rec.options.length === 0) return null
-
-  return (
-    <div className="panel-section">
-      <span className="section-label">OPTIONS</span>
-      <table className="options-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Action</th>
-            <th>Δ Delay</th>
-            <th>Trade-off</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rec.options.map((opt, i) => {
-            const isRec = i === rec.recommended_index
-            const before = rec.kpis_before
-            const after  = opt.kpis_after
-            const delayBefore = before?.total_delay_min ?? 0
-            const delayAfter  = after?.total_delay_min  ?? 0
-            const diff = Math.round(delayAfter - delayBefore)
-            const cls  = deltaClass(delayBefore, delayAfter)
-            return (
-              <tr key={i} className={isRec ? 'opt-row-rec' : ''}>
-                <td>{i + 1}</td>
-                <td>{opt.title}</td>
-                <td>
-                  {after
-                    ? <span className={`opt-delta ${cls}`}>
-                        {diff > 0 ? `+${diff}` : diff} min
-                      </span>
-                    : <span className="opt-delta same">—</span>
-                  }
-                </td>
-                <td>{opt.summary}</td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-// ── Recommendation ────────────────────────────────────────────────────────────
-
-function RecommendationSection({ run }) {
-  const { recommendation: rec } = run
-  if (!rec || rec.recommended_index < 0) return null
-  const opt = rec.options[rec.recommended_index]
-  if (!opt) return null
-
-  return (
-    <div className="panel-section">
-      <span className="section-label">RECOMMENDATION</span>
-      <p className="rec-title">Option {rec.recommended_index + 1} — {opt.title}</p>
-      <p className="rec-reasoning">{rec.reasoning}</p>
-    </div>
-  )
-}
-
-// ── Approve / Reject ──────────────────────────────────────────────────────────
-
-function ActionsSection({ run, busy, action }) {
-  const rec = run.recommendation
-  const recIdx = rec?.recommended_index ?? 0
-
-  return (
-    <div className="action-row">
-      <button
-        className="btn-approve"
-        disabled={busy}
-        onClick={() => action(() => approveOption(run.id, recIdx))}
-      >
-        Approve
-      </button>
-      <button
-        className="btn-reject"
-        disabled={busy}
-        onClick={() => action(() => rejectRun(run.id))}
-      >
-        Reject
-      </button>
     </div>
   )
 }

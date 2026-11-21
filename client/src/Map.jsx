@@ -49,7 +49,7 @@ function incidentColor(kind) {
   return COLOR.high  // road_closure, accident
 }
 
-export default function Map({ vehicles = [], places = [], incidents = [] }) {
+export default function Map({ vehicles = [], places = [], incidents = [], highlightIds = [], highlightIncidents = false }) {
   const hospitals = places.filter(p => p.kind === 'hospital')
   const bases     = places.filter(p => p.kind === 'base')
   const callSites = places.filter(p => p.kind === 'call_location' || p.kind === 'incident_site')
@@ -150,6 +150,28 @@ export default function Map({ vehicles = [], places = [], incidents = [] }) {
             Type: {v.type}
           </Popup>
         </CircleMarker>
+      ))}
+
+      {/* ── Decision highlight: thin dark ring on vehicles and incidents referenced by the card ── */}
+      {highlightIds.map(id => {
+        const v = vehicles.find(v => v.id === id)
+        if (!v) return null
+        return (
+          <CircleMarker
+            key={`hl-${id}`}
+            center={[v.lat, v.lon]}
+            radius={(v.type === 'ambulance' ? 7 : 6) + 5}
+            pathOptions={{ color: '#111', weight: 1.5, fill: false, opacity: 0.55 }}
+          />
+        )
+      })}
+      {highlightIncidents && incidents.map(inc => (
+        <Circle
+          key={`hl-inc-${inc.id}`}
+          center={[inc.lat, inc.lon]}
+          radius={inc.radius_m}
+          pathOptions={{ color: '#111', weight: 2, fill: false, opacity: 0.45 }}
+        />
       ))}
     </MapContainer>
   )
