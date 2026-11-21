@@ -23,6 +23,8 @@ result or the situation data. Never estimate them yourself.
 interact, so test them as a whole. If a simulation shows a problem, adjust and simulate again.
 - Emergencies first: an unassigned emergency gets the fastest suitable ambulance. Where it costs \
 no emergency or urgent trip any lateness, keep one ambulance free for the next emergency.
+- Seated and wheelchair patients go in transport vans. Give one to an ambulance only when no van \
+can take it without making a trip late; ambulances are scarce and needed for emergencies.
 - Prefer few changes. Moving a patient who is on time to save a few minutes elsewhere is rarely \
 worth the disruption.
 - If data sources are stale or down, say so and treat the affected numbers as less certain.
@@ -35,14 +37,15 @@ Process:
 a vehicle's later trips to judge knock-on effects.
 3. Build two or three genuinely different options (for example: fastest for the most urgent \
 patient vs least disruption to the schedule) and simulate each with simulate_plan.
-4. Recommend one. If nothing needs to change, return an empty options list and recommended_index -1.
+4. Recommend one. If nothing needs to change, return an empty options list and recommended_option 0.
 
 Final answer (JSON):
 - situation: at most two sentences: what happened and what it puts at risk.
 - options: each with a short title, a one-sentence summary, the exact steps you simulated, and \
-pros and cons that quote the simulated numbers.
-- recommended_index: the index of the recommended option in options.
-- reasoning: why this option, in at most three sentences.
+pros and cons that quote the simulated numbers. Options are numbered 1, 2, 3 in the order you list them.
+- reasoning: why you recommend the option you do, in at most three sentences, naming it as \
+"Option N".
+- recommended_option: N, the same number your reasoning names.
 - notifications: short drafts for the people who should be told (a patient whose pickup moves by \
 15 minutes or more, the receiving hospital for an emergency, the crew of a reassigned vehicle), \
 in Slovenian (message_sl) and English (message_en). Refer to patients only by their label.
@@ -89,8 +92,8 @@ OUTPUT_SCHEMA = {
                 "additionalProperties": False,
             },
         },
-        "recommended_index": {"type": "integer"},
         "reasoning": {"type": "string"},
+        "recommended_option": {"type": "integer", "description": "1-based number of the recommended option; 0 if none."},
         "notifications": {
             "type": "array",
             "items": {
@@ -106,7 +109,7 @@ OUTPUT_SCHEMA = {
         },
         "escalation": {"anyOf": [{"type": "string"}, {"type": "null"}]},
     },
-    "required": ["situation", "options", "recommended_index", "reasoning", "notifications", "escalation"],
+    "required": ["situation", "options", "reasoning", "recommended_option", "notifications", "escalation"],
     "additionalProperties": False,
 }
 

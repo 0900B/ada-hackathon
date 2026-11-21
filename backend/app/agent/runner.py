@@ -161,7 +161,10 @@ async def _claude_loop(
         text = "".join(b.text for b in response.content if b.type == "text").strip()
         if not text:
             raise AgentFailure(f"no final answer (stop_reason={response.stop_reason})")
-        return Recommendation.model_validate(json.loads(text))
+        data = json.loads(text)
+        # The model numbers options from 1 (as it names them in prose); the API uses a 0-based index.
+        data["recommended_index"] = int(data.pop("recommended_option", 0)) - 1
+        return Recommendation.model_validate(data)
 
     raise AgentFailure(f"no answer within {config.AGENT_MAX_TURNS} turns")
 
