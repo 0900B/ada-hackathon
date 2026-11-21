@@ -68,6 +68,11 @@ html, body, #root {
   font-size: 13px;
 }
 
+/* ── Tile layer: greyscale + slight brightness so colour markers stand out */
+.map-container .leaflet-tile {
+  filter: grayscale(100%) brightness(1.05) contrast(0.9);
+}
+
 /* ── Ambulance ID label (Leaflet permanent tooltip) ─────── */
 .amb-label {
   background: none !important;

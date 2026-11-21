@@ -33,12 +33,11 @@ export default function Map() {
       zoom={13}
       style={{ width: '100%', height: '100%' }}
     >
-      {/* CARTO Positron — clean light tiles */}
+      {/* OSM tiles + CSS grayscale filter for a clean light appearance */}
       <TileLayer
-        url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        subdomains="abcd"
-        maxZoom={20}
+        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        maxZoom={19}
       />
 
       {/* ── Hospitals: small square ── */}
