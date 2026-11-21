@@ -563,8 +563,19 @@ button.primary {
 .veh-transport {
   background: #1971c2;
 }
+.veh-helicopter {
+  background: #e8590c;
+  border-radius: 10px;
+  border-color: #ffd8a8;
+}
 .veh.st-idle {
   opacity: 0.6;
+}
+/* Helicopter grounded by fog: greyed, dashed outline (still in service, just can't fly) */
+.veh.grounded {
+  background: #868e96;
+  border: 1px dashed #ffd8a8;
+  opacity: 1;
 }
 .veh.st-out_of_service {
   background: #495057;

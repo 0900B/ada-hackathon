@@ -20,6 +20,7 @@ export function FleetPage({ state }: { state: WorldSnapshot }) {
               <p className="muted">
                 {v.type} · {humanize(v.status)} · base {place.get(v.base_id) ?? v.base_id}
                 {v.busy_until ? ` · busy until ${fmtTime(v.busy_until)}` : ""}
+                {v.grounded_until ? ` · 🌫 grounded by fog until ${fmtTime(v.grounded_until)}` : ""}
               </p>
               {route.length === 0 ? (
                 <p className="muted">No trips.</p>

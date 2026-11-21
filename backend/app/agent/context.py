@@ -74,6 +74,7 @@ def build_situation(state: WorldState) -> dict[str, Any]:
                 "current_trip": v.current_trip_id,
                 "queue": v.queue,
                 "busy_until": hhmm(v.busy_until),
+                **({"grounded_by_fog_until": hhmm(v.grounded_until)} if v.grounded_until else {}),
             }
             for v in state.vehicles.values()
         ],
@@ -151,6 +152,7 @@ def tool_vehicle_schedule(state: WorldState, vehicle_id: str) -> dict[str, Any]:
         "type": v.type,
         "status": v.status,
         "near": nearest_place_name(state, v.lat, v.lon),
+        **({"grounded_by_fog_until": hhmm(v.grounded_until)} if v.grounded_until else {}),
         "schedule": [
             {
                 "trip": leg.trip_id,

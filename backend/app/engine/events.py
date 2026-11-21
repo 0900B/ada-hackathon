@@ -9,6 +9,7 @@ from ..models import (
     ClearIncidentEvent,
     DelayEvent,
     EventRecord,
+    FogEvent,
     Incident,
     Place,
     RoadClosureEvent,
@@ -17,8 +18,8 @@ from ..models import (
     WeatherNow,
     WeatherOverrideEvent,
 )
-from ..routing import travel_minutes
-from .projection import DONE, LOAD_MIN, kpis, project_all
+from ..routing import flies, travel_minutes
+from .projection import DONE, LOAD_MIN, kpis, project_all, route_trip_ids
 
 if TYPE_CHECKING:
     from ..models import OperatorEvent
@@ -181,4 +182,40 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
         )
         return f"Weather override: {ev.snowfall_cm} cm snow, {ev.temperature_c} °C"
 
+    if isinstance(ev, FogEvent):
+        return _ground_helicopters(state, ev)
+
     raise EventError(f"Unsupported event type {getattr(ev, 'type', '?')}")
+
+
+def _ground_helicopters(state: WorldState, ev: FogEvent) -> str:
+    """Fog: no helicopter may take off until it lifts (the simulator clears grounded_until).
+
+    Trips not yet picked up go back to unassigned so road vehicles can be found for them. A
+    helicopter with a patient on board finishes that flight, then flies home and waits.
+    """
+    helis = [v for v in state.vehicles.values() if flies(v.type)]
+    if not helis:
+        raise EventError("There is no helicopter to ground")
+    until = state.sim_time + timedelta(minutes=ev.duration_min)
+    released: list[str] = []
+    finishing: list[str] = []
+    for v in helis:
+        v.grounded_until = max(v.grounded_until or until, until)
+        for tid in route_trip_ids(v):
+            trip = state.trips[tid]
+            if trip.status == "onboard":
+                finishing.append(f"{v.name} flies {tid} in first")
+                continue
+            trip.status, trip.vehicle_id = "unassigned", None
+            released.append(tid)
+        v.queue = []
+        if v.current_trip_id and state.trips[v.current_trip_id].status != "onboard":
+            v.current_trip_id = None  # the simulator now sends it back to base
+    names = ", ".join(v.name for v in helis)
+    summary = f"Fog (megla): {names} grounded for {ev.duration_min:.0f} min"
+    if released:
+        summary += f"; {len(released)} trip(s) released for road vehicles ({', '.join(released)})"
+    if finishing:
+        summary += f"; {', '.join(finishing)}"
+    return summary + (f" ({ev.note})" if ev.note else "")

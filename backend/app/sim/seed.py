@@ -10,7 +10,8 @@ from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from ..engine.actions import can_serve
-from ..engine.projection import LOAD_MIN, project_all, project_route, route_trip_ids
+from ..engine.candidates import spends_helicopter
+from ..engine.projection import LATE_ALERT_MIN, LOAD_MIN, project_all, project_route, route_trip_ids
 from ..models import Needs, Place, Trip, Vehicle
 from ..routing import travel_minutes
 
@@ -50,6 +51,7 @@ FLEET = [
     ("T3", "Transport 3", "transport", "base_center"),
     ("T4", "Transport 4", "transport", "base_west"),
     ("T5", "Transport 5", "transport", "base_center"),
+    ("H1", "Helicopter 1", "helicopter", "ukc"),  # HNMP, based at the hospital
 ]
 
 DESTINATIONS = ["ukc", "onko", "zd_center", "zd_siska", "zd_vic"]
@@ -99,7 +101,8 @@ def seed_world(state: WorldState, seed: int, n_trips: int = 24) -> None:
 
     # Pre-plan the day greedily, like a dispatcher would: each trip goes to the
     # compatible vehicle where it would be least late. Ambulances only take stretcher
-    # cases, keeping them free for emergencies.
+    # cases, keeping them free for emergencies. The helicopter only gets a routine trip
+    # when no road vehicle can do it on time.
     for trip in sorted(trips, key=lambda t: t.pickup_after):
         state.trips[trip.id] = trip
         best = None
@@ -108,7 +111,9 @@ def seed_world(state: WorldState, seed: int, n_trips: int = 24) -> None:
             if not ok or (v.type == "ambulance" and trip.needs != "stretcher"):
                 continue
             leg = project_route(state, v, route_trip_ids(v) + [trip.id])[-1]
-            score = (leg.delay_min, leg.eta_dropoff)
+            keep_free = spends_helicopter(state, v.type, trip)
+            late = leg.delay_min >= LATE_ALERT_MIN
+            score = (late or keep_free, leg.delay_min, keep_free, leg.eta_dropoff)
             if best is None or score < best[0]:
                 best = (score, v)
         if best:

@@ -12,7 +12,7 @@ def utcnow() -> datetime:
 
 
 PlaceKind = Literal["hospital", "health_centre", "residential", "base", "incident_site", "call_location"]
-VehicleType = Literal["ambulance", "transport"]
+VehicleType = Literal["ambulance", "transport", "helicopter"]
 VehicleStatus = Literal["idle", "to_pickup", "loading", "with_patient", "returning", "out_of_service"]
 Priority = Literal["emergency", "urgent", "scheduled"]
 Needs = Literal["stretcher", "wheelchair", "seated"]
@@ -37,7 +37,7 @@ class Place(BaseModel):
 class Vehicle(BaseModel):
     id: str
     name: str
-    type: VehicleType  # ambulance: any patient incl. stretcher/emergency; transport: seated/wheelchair only
+    type: VehicleType  # ambulance/helicopter: any patient incl. stretcher/emergency; transport: seated/wheelchair only
     base_id: str
     lat: float
     lon: float
@@ -45,6 +45,9 @@ class Vehicle(BaseModel):
     current_trip_id: str | None = None
     queue: list[str] = Field(default_factory=list)  # upcoming trip ids, in order
     busy_until: datetime | None = None  # loading/unloading, or stuck after an injected delay
+    # Helicopters (HNMP) fly straight, off the road network. Fog grounds them until this time:
+    # no new flights; a patient already on board is flown in, then the helicopter goes home.
+    grounded_until: datetime | None = None
     # The leg being driven (set by the simulator): where it started, its target, progress 0..1.
     path_from: tuple[float, float] | None = Field(default=None, exclude=True)
     path_to: tuple[float, float] | None = Field(default=None, exclude=True)
@@ -204,6 +207,17 @@ class WeatherOverrideEvent(BaseModel):
     wind_speed_kmh: float = 20.0
 
 
+class FogEvent(BaseModel):
+    """Fog (megla) at the helicopter base: every helicopter is grounded for duration_min.
+
+    An operational report, so it is allowed in both worlds. Trips not yet picked up are released.
+    """
+
+    type: Literal["fog"]
+    duration_min: float = Field(default=60, gt=0, le=480)
+    note: str | None = None
+
+
 OperatorEvent = Annotated[
     Union[
         BreakdownEvent,
@@ -212,6 +226,7 @@ OperatorEvent = Annotated[
         ClearIncidentEvent,
         UrgentRequestEvent,
         WeatherOverrideEvent,
+        FogEvent,
     ],
     Field(discriminator="type"),
 ]

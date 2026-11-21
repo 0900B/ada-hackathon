@@ -5,13 +5,14 @@ every later trip, and project_all makes that visible after every tick.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from ..models import Alert, Severity, Vehicle
 from ..roads import ROADS, key
-from ..routing import travel_minutes, vehicle_leg_minutes
+from ..routing import flies, travel_minutes, vehicle_leg_minutes
 
 if TYPE_CHECKING:
     from ..state import WorldState
@@ -48,6 +49,7 @@ def project_route(
     for what-if copies), so the legs vehicles will actually drive are on real roads.
     """
     ids = route_trip_ids(v) if trip_ids is None else trip_ids
+    prefetch = prefetch and not flies(v.type)  # helicopters fly straight: no road routes
     t = state.sim_time
     if v.busy_until and v.busy_until > t:
         t = v.busy_until
@@ -148,6 +150,17 @@ def compute_alerts(state: WorldState) -> list[Alert]:
                     kind="vehicle_down",
                     severity="high",
                     message=f"{v.name} is out of service",
+                    vehicle_id=v.id,
+                )
+            )
+        elif v.grounded_until and v.grounded_until > state.sim_time:
+            left = math.ceil((v.grounded_until - state.sim_time).total_seconds() / 60)
+            alerts.append(
+                Alert(
+                    id=f"vehicle_grounded:{v.id}",
+                    kind="vehicle_down",
+                    severity="medium",
+                    message=f"{v.name} grounded by fog for another {left} min: no new flights",
                     vehicle_id=v.id,
                 )
             )

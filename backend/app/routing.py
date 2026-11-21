@@ -18,6 +18,21 @@ BASE_SPEED_KMH: dict[VehicleType, float] = {"ambulance": 42.0, "transport": 36.0
 ROUTE_TYPE_FACTOR: dict[VehicleType, float] = {"ambulance": 1.0, "transport": 1.1}  # vans are a bit slower
 EMERGENCY_BONUS = 1.3  # lights and sirens
 INCIDENT_FACTORS = {"road_closure": 1.6, "accident": 1.35, "congestion": 1.25}  # detour/slowdown multipliers
+# Helicopters (HNMP) fly straight: no roads, so no traffic, incidents or lights-and-sirens bonus.
+HELICOPTER_SPEED_KMH = 200.0
+HELICOPTER_OVERHEAD_MIN = 3.0  # take-off and landing, added to every flight leg
+
+
+def flies(vehicle_type: VehicleType) -> bool:
+    """True for aircraft: straight-line travel, and never ask the road router for routes."""
+    return vehicle_type == "helicopter"
+
+
+def flight_minutes(alat: float, alon: float, blat: float, blon: float) -> float:
+    km = haversine_km(alat, alon, blat, blon)
+    if km < 0.01:
+        return 0.0
+    return km / HELICOPTER_SPEED_KMH * 60 + HELICOPTER_OVERHEAD_MIN
 
 
 def weather_factor(w: WeatherNow | None) -> float:
@@ -88,6 +103,8 @@ def travel_minutes(
     vehicle_type: VehicleType,
     emergency: bool = False,
 ) -> float:
+    if flies(vehicle_type):
+        return flight_minutes(alat, alon, blat, blon)
     straight_km = haversine_km(alat, alon, blat, blon)
     if straight_km < 0.01:
         return 0.0

@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 from ..models import Trip, Vehicle
 
 if TYPE_CHECKING:
     from ..state import WorldState
+
+LJ = ZoneInfo("Europe/Ljubljana")
 
 
 class ActionError(ValueError):
@@ -16,6 +19,9 @@ class ActionError(ValueError):
 def can_serve(v: Vehicle, trip: Trip) -> tuple[bool, str | None]:
     if v.status == "out_of_service":
         return False, f"{v.name} is out of service"
+    if v.grounded_until is not None:  # cleared by the simulator when the fog lifts
+        until = v.grounded_until.astimezone(LJ).strftime("%H:%M")
+        return False, f"{v.name} is grounded by fog until {until} and cannot take new flights"
     if v.type == "transport":
         if trip.needs == "stretcher":
             return False, f"{v.name} is a transport van and cannot carry stretcher patients"
