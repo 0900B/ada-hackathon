@@ -1,131 +1,177 @@
 # Demo script: Plan B (3 minutes)
 
-**One-liner:** *Kaos na terenu?* Plan B is a dispatch system for an EMS operator. It runs the fleet
-on real roads with live traffic and weather. When something goes wrong, a crew can simply **say** it
-in Slovenian, and within about 30 seconds the dispatcher sees what's at risk and 2–3 simulated plans to
-approve.
+**One line:** *Kaos na terenu?* Plan B is an AI co-pilot for an EMS dispatcher in Ljubljana. The engine
+dispatches every call at once, by severity and true arrival time. When something goes wrong, a crew
+says it in Slovenian, and about 20 seconds later the dispatcher has simulated plans to approve with one key.
 
-We present an **independent EMS** (a fictional operator, "Ljubljana Demo EMS"), not an integration
-into Slovenia's 112/DCZ system. If the jury asks about integration: every input and output is an
-API (GPS feed, orders, crew messages, decisions), so it can sit next to an existing dispatch centre.
-
-**How operations work: live calls** (the default; close to how Slovenian EMS works):
-- There is **no pre-planned day**. Calls come in all the time (about one every 7–8 minutes of world
-  time): emergencies at addresses around Ljubljana, now and then a remote one, urgent patient
-  transports (health centre to UKC, GP referrals, urgent discharges, transfers) and urgent equipment runs
-  (blood products, lab samples, a ventilator). The engine dispatches **each call at once**; the event log
-  says who was sent and when they arrive. Vehicles return to base after every job, so clicking a vehicle
-  shows its current job and at most one more.
-- **Every call has a severity level and a condition**: critical (cardiac arrest, choking, catastrophic
-  bleeding, anaphylaxis; reach within 8 min), serious (stroke, heart attack, breathing difficulty, major
-  trauma, seizure, sepsis; 18 min), urgent (falls, fractures, transfers, equipment; 60 min). Within a
-  level, each condition has a time-sensitivity weight (cardiac arrest 10, stroke and heart attack 6,
-  seizure 4, ...). The doctrine and its sources: `docs/DISPATCH_PRIORITIES.md`.
-- **Ambulances A1–A3 are emergency units.** The engine sends the unit that reaches the patient first,
-  including one **finishing a drop-off nearby** (if at least 3 min sooner than the free one). A
-  life-threatening call may **divert** a unit from a less urgent call it has not reached yet, when that
-  saves at least 3 min (critical) or 5 min (serious) and the displaced patient is still reached within
-  their own target by another unit. Never with a patient on board, on scene or within 2 min of its
-  patient; no call is displaced twice. Two calls of the same level are never swapped automatically: the
-  engine proposes a swap (more time-critical first, else the shorter worst wait). Every summary gives
-  the clinical reason ("cardiac arrest: about 6% survival lost per minute without defibrillation").
-- **Transport vans T1–T5** take urgent patient transports and equipment runs (and bookings). Never
-  emergencies. The last free ambulance of an area is kept for red calls: a van takes the non-urgent job.
-- **Helicopter H1**: the closest unit for a critical call even in the city; for a serious call only if
-  10 min faster; urgent calls only when remote. It is checked for every red call (the summary says so).
-  Fog grounds it.
-- A red call predicted to be reached after **15 min** (the Slovenian reference) raises an alert and the
-  engine recommends asking a neighbouring station.
-- A routine call **never** starts an AI analysis (no tokens). Only a genuine problem may (a call no unit
-  can take, or one that will be late), and only when Auto-analyse is on.
-- **Approving a plan does exactly what the option says**: each option lists, step by step, which
-  vehicle goes now or next and when it arrives; the vehicles then do that. If the world changed while
-  the option was on screen (e.g. the vehicle has loaded another patient), approval is refused with the
-  reason instead of doing something else.
-
-**If a juror asks for the brief's "initial plan" (začetni plan):** switch the world to the **scheduled
-day**: the vans start with a pre-planned list of booked trips (0 late, 0 unassigned) and no random calls
-come in. `POST /sim/admin/reset {"scheduled_day": true}` (or the UI switch, if wired); back with
-`{"scheduled_day": false}`. `SCHEDULED_DAY=1` makes it the start-up default. The demo scenarios always
-run in live-calls mode.
+Timings below were measured on the deployed system (Railway, Simulation, Claude Sonnet 5.5) on
+21 November; see "What we measured" at the end.
 
 ## Roles
-- **Presenter (laptop on the projector):** dispatcher dashboard, Simulation tab.
-- **Crew (teammate with an Android phone, Chrome):** Crew view, e.g. `https://<vercel-url>/crew/T1?world=sim`.
 
-## Before going on stage (10 min before)
-- [ ] Laptop: open the Vercel URL. The status bar shows `Connected` and `Data feeds fresh`, with traffic as "TomTom live".
-- [ ] The AI badge shows `Claude · claude-sonnet-5-5`, not "Engine only".
-- [ ] **Auto-analyse:** it is off by default (saves tokens). Either turn on the **Auto-analyse** switch in the AI dispatcher panel (Simulation, Dispatch tab) right before going on stage, or remember to press **A** (Analyse) after each event / the crew message. Leave it off during rehearsals. Routine live calls never start an analysis, even with it on.
-- [ ] Both worlds run **live calls** (status: `mode: live_calls`): calls appear in the event log every few minutes. After a scenario button, new calls pause for 30 world-minutes (6 real minutes in Simulation) so they don't disturb the decision. To stop calls entirely: `POST /sim/admin/calls {"enabled": false}`.
-- [ ] **Don't push to `main` anymore.** Every push restarts the backend and resets the simulation.
-- [ ] Phone: open the Crew view URL over **HTTPS** (the Vercel URL, never a local IP). Tap the mic once and **allow microphone access**. Set the SL/EN toggle to **SL**.
-- [ ] Dry run: Simulation → Scenarios tab → **Prepare crew demo**. The message shows the vehicle carrying equipment: always **T1**, loading blood products at UKC for the Oncology Institute (a short run: the crew should speak within about a minute). Open `/crew/T1?world=sim` on the phone, say the sentence, approve, then **Reset simulation** (bottom of the Scenarios tab).
-- [ ] Browser zoom: make the map and the right-hand panel readable on the projector. Press `?` once to check that the shortcuts work.
-- [ ] Phone hotspot ready, in case the venue Wi-Fi fails.
+| Who | Device | Screen |
+|---|---|---|
+| Presenter | Laptop on the projector | Dashboard, **Simulation** tab (Live tab for the first 25 s) |
+| Crew (teammate) | Android phone, Chrome | `/crew/T1?world=sim` on the production domain |
+| Optional | iPad | `/vehicle/T5?world=sim` (the van that will collect the blood products) |
+
+## Pre-stage checklist (15 minutes before)
+
+- [ ] Laptop: open the **production** Vercel domain (Vercel dashboard, Domains), never a
+      `frontend-<hash>-….vercel.app` preview link: previews may point at an old build.
+- [ ] Hard refresh (Ctrl+Shift+R) on the laptop and on the phone.
+- [ ] Status bar shows **Data feeds fresh** and **TomTom live**; the AI badge shows
+      **Claude · claude-sonnet-5-5** (not "Engine only").
+- [ ] Simulation tab, Dispatch tab: switch **Auto-analyse on** (or remember to press **A** after the
+      crew message). Leave it off during rehearsals: it costs tokens.
+- [ ] Phone: open `/crew/T1?world=sim`, tap the mic once and **allow microphone access**, SL/EN toggle on **SL**.
+- [ ] Phone hotspot on and tested with the laptop.
+- [ ] Browser zoom so the map and the right-hand panel are readable from the back of the room.
+- [ ] Scenarios tab: **Reset simulation**. Nobody pushes to `main` from now on (a push restarts the
+      backend and resets the simulation).
 
 ## The 3 minutes
 
-**0:00–0:25 · The problem.** "Dispatchers juggle dozens of transports. When a vehicle breaks down or
-a road closes, they must work out, under pressure, who is affected, who takes over, and what that does
-to everyone else. The brief calls it *kaos na terenu*, and asks for *a new plan*. That's Plan B."
+**0:00–0:20 · The problem** (laptop on the Live tab)
+> "When a vehicle breaks down or two emergencies come in at once, a dispatcher has seconds to work out
+> who is affected, who takes over, and what that does to everyone else. The brief calls it *kaos na
+> terenu* and asks for a new plan. That is Plan B."
 
-**0:25–0:50 · Live tab: live calls, dispatched at once.**
-- Show real Ljubljana: the fleet drives real roads, TomTom traffic colours are on, plus real weather and real incidents.
-- Point at the event log: "Calls come in; the engine sends the nearest suitable free unit at once and says when it arrives."
-- Click a vehicle on a job: its crew, fuel, its current job (and at most one more) with ETAs. Click an idle **ambulance**: nothing planned, waiting at its base for the next emergency.
-- "Every call already has a vehicle and an arrival time. The system always knows the facts."
+**0:20–0:45 · Live: real Ljubljana, every call dispatched at once**
+- Point at the map: real roads, TomTom traffic colours, real weather and incidents.
+- Point at the event log:
+  > "Calls come in with a severity: critical, serious, urgent. The engine sends the unit that reaches
+  > the patient first, and says why: the condition, the target time, the arrival."
+- Click an idle ambulance: "Nothing planned: it waits for the next emergency."
 
-**0:50–2:10 · Simulation: the crew speaks, Plan B answers (*popravek plana* + AI).**
-1. Scenarios tab: click **Prepare crew demo** (T1 is now carrying blood products). The dashboard switches to the Dispatch tab when the AI starts.
-2. **Crew on the phone, holding the mic button:** *"Vozilo je obstalo. Oprema je še v njem."*
-3. **Point at the dashboard:**
-   - "Understood: T1 broke down, the equipment is still inside." The AI also states its assumption: no vehicle was named, so it took the sender's.
-   - If Auto-analyse is off, press **A** now.
-   - The AI dispatcher's live trace: "It's checking which vehicles can reach the breakdown site, and simulating complete plans. **Every number comes from our engine, not the language model.**"
-   - The options appear. Read out the recommended one: who collects the blood products at the breakdown site (the brief's rule; usually a free van, "goes now"), who takes T1's next job (lab samples), plus the before/after numbers. Each step line says who goes now or next and when.
-4. Press **Y** (or click Approve). The vehicles do exactly what the steps said: the routes update on the map, and the crew's phone shows "Dispatcher approved the new plan".
+**0:45–1:50 · The crew speaks, Plan B answers**
+1. Click **Simulation**, Scenarios tab, **Prepare crew demo**.
+   > "Transport 1 is carrying blood products to the Oncology Institute."
+2. Nod to the crew. Holding the mic button, the crew says:
+   *"Vozilo je obstalo. Oprema je še v njem."*
+3. Dashboard (the Dispatch tab opens by itself):
+   > "It understood: T1 broke down, the blood products are still inside. Now the AI dispatcher checks
+   > which vehicles can reach the breakdown site and simulates complete plans. Every number you will
+   > see comes from our engine, not from the language model."
+   (If Auto-analyse is off, press **A** now.) Options appear about 15 s after the message.
+4. Read the recommended option, for example:
+   > "T5 goes now to the breakdown site and picks up the blood products at 22:18, at the Oncology
+   > Institute at 22:27. T2 takes T1's next job, the lab samples. Both ambulances stay free for
+   > emergencies. And it drafted the crew messages, in Slovenian."
+5. Press **Y**. Point at the map: T5 turns towards T1 (it picks up about one minute later in real
+   time); the crew phone shows that the dispatcher approved the new plan.
+   > "The vehicles do exactly what the option said. If the world had changed in the meantime, the
+   > approval would be refused with the reason."
 
-**2:10–2:40 · Why you can trust it.**
-- **Human in the loop:** the AI proposes; the dispatcher approves with one key.
-- **No invented numbers:** the engine re-simulates every option before it's shown.
-- **Always works:** without the AI, the engine's own plan appears. If a data feed fails, the system falls back and says so.
-- **Every data source has a backup** (say this sentence): *"Weather comes from two providers, traffic from TomTom with promet.si and a time-of-day model behind it, routing from OSRM and TomTom. If the AI is down, our engine still plans. In production it runs on private servers, twice, in two data centres, with login, encryption and a full audit trail."* Details for jury questions: `docs/RELIABILITY_AND_SECURITY.md`.
-- **Accountable:** the **Audit** page logs every message, recommendation and decision, stored in Postgres.
+**1:50–2:25 · Life-threatening first: what an emergency physician would decide**
+1. Scenarios tab, **Priority override**. Read the new line in the event log:
+   > "A cardiac arrest, nobody doing CPR, right next to A1, which is on its way to a fall. The engine
+   > diverts A1 at once: 18 minutes sooner than the next ambulance. The fall is not forgotten: T1 takes
+   > it, still within its 60-minute target. And it says why: about 6 % survival lost per minute without
+   > defibrillation."
+2. Point at A1 turning on the map.
+   > "That is the doctrine, written down with its sources: severity first, true arrival time, never
+   > divert a unit with a patient on board, never displace a call twice."
+   Do not approve anything here (see the fallbacks).
 
-**2:40–3:00 · Close.** "Live calls, helicopters with fog grounding, equipment, hospital capacity and priority
-changes are all in there too. Next step: real vehicle GPS and real orders. Plan B: when things go
-wrong, a new plan in 30 seconds."
+**2:25–2:50 · Why you can trust it**
+> "The AI proposes, the dispatcher decides with one key. Every option is re-simulated by the engine
+> before it is shown. Without the AI, the engine's own plan still appears. Every data source has a
+> backup: weather from two providers, traffic from TomTom with promet.si and a time-of-day model
+> behind it, routing from OSRM and TomTom. Every message, recommendation and decision is in the audit log."
 
-## If something goes wrong
-- **Speech doesn't work** (permission, noise, network): tap the quick button **1 · "Vozilo je obstalo."** on the phone, or type the sentence. Same result.
-- **Claude is slow or down:** the engine fallback still produces a plan. Say: "That's the reliability point: the operator is never left empty-handed."
-- **Wi-Fi is down:** switch to the hotspot. The backend runs on Railway, so only the devices need internet.
-- **The scene looks odd:** **Reset simulation** → **Stroke and closure** (Scenarios tab). It's the most predictable scenario and needs no phone.
+**2:50–3:00 · Close**
+> "Next step: real vehicle GPS and real calls. Plan B: when things go wrong, a new plan in 20 seconds."
 
-## Hotkeys (dashboard, press `?` to see them)
-`M` mic · `A` analyse · `Y` approve recommended · `N` reject · `B`/`D` breakdown/delay for the selected vehicle · `F` fog · `E`/`C` emergency/closure on the map · `Esc` cancel · `?` help
+## Fallbacks
 
-## Scenarios (Simulation tab)
-Every scenario starts from an empty live-calls day, puts the fleet on a few live jobs, fast-forwards to
-the moment and applies its events. New random calls pause for 30 world-minutes. With Auto-analyse off,
-press **A**: the analysis gets the scenario's description. Three scenarios show a decision the
-**engine takes by itself** at the moment of dispatch (marked "Automatic": closest unit incl. one
-finishing nearby, override of a less urgent call, the helicopter): point at the event log line, which
-says what happened and the clinical reason. The others leave a decision for the AI (even the
-engine-only fallback has an option to approve or an escalation).
+| Step | Symptom | Do this | Say |
+|---|---|---|---|
+| Any | Wi-Fi drops | Laptop and phone to the hotspot; the backend is on Railway | (nothing) |
+| Crew message | Speech not recognised, or mic blocked | Crew taps the quick button **1 · Vozilo je obstalo.** (or types the sentence) | "Same message, one tap." |
+| Crew message | Phone shows "AI could not be reached" | Quick button **1** still works: it sends the breakdown as a plain event | "Even without the AI, the report gets through." |
+| Analysis | No options after 30 s | Wait 10 s more; otherwise press **A** again. If the badge says "Engine only", the engine's plan appears at once | "That is the reliability point: the dispatcher is never left empty-handed." |
+| Approve | "Plan no longer valid: …" | Press **A** for a fresh analysis (about 15 s) | "It re-checks before it acts: the world moved on, so it asks again." |
+| Priority override | The AI panel fills by itself (Auto-analyse on) | Leave it; do not approve. A1 reaches the patient during the analysis | "The AI confirms the engine's decision." |
+| Scene looks odd | Wrong vehicles, old jobs | **Reset simulation**, then **Same level, different urgency**, press **A** (options in about 11 s), approve the swap | "Two serious calls: the heart attack goes first, catheter lab within 90 minutes." |
 
-| Button | What happens | The decision when you press A |
-|---|---|---|
-| Prepare crew demo | T1 loads blood products at UKC for the Oncology Institute (one more job queued); A2, T3, T4 busy | Sets up the live crew message ("Vozilo je obstalo. Oprema je še v njem.") |
-| Stranded patient | T2 breaks down **with an urgent patient on board** (one more job queued); A1 and A2 are on emergencies | Who collects the patient at the roadside: a free van (goes now) or A3, the last free ambulance; who takes T2's next job |
-| Stroke and closure | **Automatic (available soon).** Stroke in Polje, Zaloška closed at Kodeljevo. A2 is handing over a patient at UKC, the only free ambulance (A3) is far away, driving back from a transfer to Novo mesto, H1 is out on a mountain call | The event log: "dispatched A2 (available soon: drops off at UKC, at the patient ..., 7 min sooner at UKC than A3)". The stroke is judged by arrival at UKC (stroke centre). The loaded leg goes **around** the closure (orange). Over 15 min: the red-call alert and mutual-aid advice |
-| Priority override | **Automatic (override).** A1 is on its way to an urgent fall when a cardiac arrest (no bystander CPR) is reported next to it; A2 has a patient on board, A3 is far away | The event log: "A1 diverted from TR-003 (urgent) to this critical call ... 18 min sooner than A3; TR-003 taken over by T1 (within its 60-min target); Cardiac arrest: about 6% survival lost per minute without defibrillation" |
-| Two serious calls | A1 is on its way to a seizure in Polje when a suspected heart attack is reported right next to it; the engine sends the free A3 (same level: nothing automatic) | Press A: **swap** proposed: A1 takes the heart attack (more time-critical: catheter lab within 90 min), A3 the seizure; approve and A1 turns around |
-| Remote emergency | **Automatic (override, helicopter).** H1 is flying to an urgent skier (wrist fracture, Krvavec) when a hiker falls at Kamniška Bistrica (major trauma, 45 min by road) | The engine turns H1 around at once ("31 min sooner than A3 by road"); the skier stays with H1, next, within target. Watch H1 **fly**, land, load and land at UKC. Optional: **F** (fog) while it flies |
-| Call surge | Seven calls in about three minutes, including a **cardiac arrest** and a child with breathing difficulty; three ambulances | The arrest gets **H1** (the closest unit for a critical call, even in the city); the fall goes to a van; two serious calls wait for units finishing at UKC, over 15 min: red-call alerts. Press A: who waits (time sensitivity), mutual aid from a neighbouring station |
-| Snow cascade | Snowstorm, T1 stuck 25 min with a patient on board and another queued, a fall on ice with a head injury (serious) | The fall gets the nearest ambulance at once; T1's queued patient turns late: move it to a free van; who else waits |
-| Stranded equipment | T1 breaks down with the blood products on board | Who collects them at the breakdown site (the brief's rule) and who takes T1's next job |
-| UKC full | Five patients heading to UKC; one (in a van) gets chest pain (now serious, suspected heart attack) and UKC can admit only two more | The engine sends an ambulance to the heart attack at once (it keeps its UKC slot). Which three are redirected, where (Trbovlje / Novo mesto), and by whom (a long transfer: some will be late, the AI should say so) |
+## Jury Q&A cheat sheet
 
-Extra buttons (Events tab): **Fog: ground helicopters 1 h** grounds the helicopter for 1 h (a trip it has not picked up yet goes to the nearest ambulance at once). **Priority & capacity** changes a patient's priority or a hospital's capacity. **Map click (E)**: a new emergency at that spot is dispatched at once.
+- **Is this an integration into 112 / the national dispatch centre?** No. We present an independent
+  EMS operator. Every input and output is an API (GPS feed, calls, crew messages, decisions), so it
+  can sit next to an existing dispatch centre.
+- **How do you prioritise?** Four levels (critical, serious, urgent, routine) with response targets
+  (8/15 min, 18 min, 60 min), a time-sensitivity weight per condition, and Slovenian practice: the
+  15-minute reference for red calls, the helicopter checked for every red call, the last free
+  ambulance of an area kept for red calls. Rules and sources: `docs/DISPATCH_PRIORITIES.md`.
+- **What does the AI decide?** Nothing on its own. Routine dispatch is the engine (deterministic,
+  instant). The AI reads the situation after a disruption, proposes two or three plans, and every
+  plan is simulated by the engine before it is shown. A human approves.
+- **What if Claude is down or slow?** The engine's own plan appears (no AI needed); crews can still
+  report with quick buttons. See `docs/RELIABILITY_AND_SECURITY.md`.
+- **Security?** API keys only on the server, never in the browser or logs; map tiles proxied; audit
+  log of every decision. Production plan: private servers, two data centres, login, encryption.
+  `docs/RELIABILITY_AND_SECURITY.md`.
+- **Data sources?** Weather: Open-Meteo, backup MET Norway. Traffic: TomTom live, backup a
+  time-of-day profile (promet.si / NAP client built, waiting for access). Incidents: TomTom plus crew
+  reports. Routing: OSRM, TomTom for detours around closures. Vehicle GPS and calls are simulated.
+- **Cost?** A routine call never starts an AI analysis. One analysis is about 1,500 output tokens and
+  15 s; a field message is one short call.
+- **Honest limits:** GPS and calls are simulated; travel times are estimates (they are refined as road
+  routes come in, so an ETA can move by a few minutes); the doctrine is our reading of public sources,
+  not a validated medical protocol; the helicopter ignores weather other than fog.
+
+## Rehearsal: three full runs
+
+Run the whole script three times with a stopwatch. After each run: **Reset simulation**, Auto-analyse
+back off.
+
+- [ ] Run 1: with speech. Note the seconds from the crew sentence to the options (target: under 25 s).
+- [ ] Run 2: with the quick button **1** instead of speech (the fallback path), and the presenter
+      pressing **A** by hand (Auto-analyse off).
+- [ ] Run 3: full timing. Finish by 2:55. If over, cut the Live part to 15 s.
+- [ ] Each run: the recommended option collects the blood products at the breakdown site; after **Y**,
+      the van heads there within a few seconds; the Priority override line names A1, T1 and the
+      clinical reason.
+- [ ] The crew knows the sentence by heart and the position of quick button **1**.
+
+## What we measured (Railway, 21 November)
+
+| Step | Time |
+|---|---|
+| Crew breakdown report to options (Auto-analyse on) | 13.8 s |
+| Analyse after a scenario | 11.4 s (Same level) to 15.8 s (Priority override, Call surge, Stroke and closure) |
+| Approve | 0.2 s; the vehicles move on the next tick |
+| Approved van at the breakdown site | about 5 world-minutes, about 1 real minute |
+| One analysis | about 1,250–1,800 output tokens |
+
+Most reliable: **Prepare crew demo** (recommended option every time: a free van collects the blood
+products), **Same level, different urgency** (swap recommended and executed), **Call surge** (keeps the
+dispatch and asks a neighbouring station, in Slovenian). **Priority override** is best shown through
+the engine's event line, without waiting for the AI.
+
+## Appendix: scenarios and hotkeys
+
+Every scenario resets the simulation, stages the situation and pauses new random calls for 30
+world-minutes. "Automatic" scenarios show a decision the engine takes by itself: point at the event log.
+
+| Button | What happens |
+|---|---|
+| Prepare crew demo | T1 carries blood products to the Oncology Institute; the crew reports the breakdown |
+| Stranded patient | T2 breaks down with an urgent patient on board; who collects the patient |
+| Stroke and closure | Automatic: A2, finishing a handover at UKC, goes next to a stroke in Polje; Zaloška closed; over 15 min, the red-call alert |
+| Priority override | Automatic: A1 diverted from a fall to a cardiac arrest; T1 takes the fall within its target |
+| Same level, different urgency | Two serious calls; press **A**: swap so the heart attack goes first |
+| Call surge | Seven calls at once incl. a cardiac arrest (H1) and a child with breathing difficulty; mutual aid |
+| Remote emergency | Automatic: H1 turns around for a mountain trauma; the skier stays with H1, next |
+| Snow cascade | Snowstorm, a stuck van with a patient on board, a fall on ice |
+| Stranded equipment | T1 breaks down with blood products on board (no phone needed) |
+| UKC full | UKC can admit two more; which patients are redirected and by whom |
+
+Hotkeys (press `?`): `A` analyse · `Y` approve the recommended option · `N` reject · `M` mic ·
+`B`/`D` breakdown/delay for the selected vehicle · `F` fog · `E`/`C` emergency/closure on the map ·
+`Esc` cancel.
+
+The brief's "initial plan" (začetni plan): `POST /sim/admin/reset {"scheduled_day": true}` starts a
+pre-planned day for the vans (0 late, 0 unassigned, no random calls); `{"scheduled_day": false}`
+returns to live calls.
