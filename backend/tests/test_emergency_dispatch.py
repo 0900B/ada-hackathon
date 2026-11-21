@@ -346,7 +346,44 @@ def test_protect_cover_sends_a_van_for_an_urgent_call():
 
 def _urgent(**kw) -> dict:
     return {"type": "urgent_request", "pickup_place_id": "home_moste", "lat": None, "lon": None, "dropoff_id": None,
-            "needs": "stretcher", "priority": "emergency", "severity": None, "condition": None, "modifiers": [], "note": None, **kw}
+            "needs": "stretcher", "priority": "emergency", "severity": None, "condition": None, "modifiers": [], "note": "", **kw}
+
+
+def _schema_metrics(schema) -> tuple[int, int]:
+    """(parameters with union types, optional parameters), counted the way the structured-outputs limits do."""
+    unions = optional = 0
+    stack = [schema]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, dict):
+            props = node.get("properties")
+            if isinstance(props, dict):
+                required = set(node.get("required", []))
+                optional += sum(1 for name in props if name not in required)
+                unions += sum(1 for p in props.values() if isinstance(p, dict) and ("anyOf" in p or isinstance(p.get("type"), list)))
+            stack.extend(node.values())
+        elif isinstance(node, list):
+            stack.extend(node)
+    return unions, optional
+
+
+def test_structured_output_schemas_stay_within_the_api_limits():
+    # The API rejects a request whose strict schemas together have more than 16 union-typed (nullable)
+    # parameters or 24 optional ones; the parser then fails on every message (it did: 20 after the
+    # severity fields were added). Count each request's schemas together.
+    from app.agent.messages import MAX_UNION_PARAMS, PARSE_SCHEMA
+    from app.agent.prompts import OUTPUT_SCHEMA, TOOLS
+
+    parse_unions, parse_optional = _schema_metrics(PARSE_SCHEMA)
+    assert parse_unions <= MAX_UNION_PARAMS and parse_optional <= 24, (parse_unions, parse_optional)
+    agent = [OUTPUT_SCHEMA] + [t["input_schema"] for t in TOOLS if t.get("strict")]
+    agent_unions = sum(_schema_metrics(s)[0] for s in agent)
+    agent_optional = sum(_schema_metrics(s)[1] for s in agent)
+    assert agent_unions <= 16 and agent_optional <= 24 and len(TOOLS) <= 20, (agent_unions, agent_optional)
+    # An empty note from the schema means "no note".
+    fresh()
+    (ev,) = _parse("Nujno, padec v Mostah.", _urgent(priority="urgent", note=""))
+    assert ev.note is None, ev.note
 
 
 def _parse(text: str, *events: dict):
