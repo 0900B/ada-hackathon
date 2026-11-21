@@ -365,6 +365,29 @@ html, body, #root {
 .btn-reset-link:hover:not(:disabled) { color: var(--tx-secondary); }
 .btn-reset-link:disabled { opacity: 0.38; cursor: default; }
 
+/* Analyse trigger — appears in StatusSection when no run is active */
+.btn-analyse {
+  display: block;
+  width: 100%;
+  margin-top: var(--sp-2);
+  padding: 7px var(--sp-3);
+  background: transparent;
+  border: var(--bw-thin) solid var(--accent-data);
+  border-radius: var(--r-none);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-data);
+  cursor: pointer;
+  transition: background var(--tr-fast), color var(--tr-fast);
+}
+.btn-analyse:hover:not(:disabled) {
+  background: var(--accent-data-bg);
+}
+.btn-analyse:disabled { opacity: 0.38; cursor: default; }
+
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    STATUS LINE

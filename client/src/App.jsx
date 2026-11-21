@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import MapView from './Map'
-import { API_URL, fetchState, runScenario, resetSimulation, approveOption, rejectRun } from './api'
+import { API_URL, fetchState, runScenario, resetSimulation, triggerAnalysis, approveOption, rejectRun } from './api'
 import { ambulances, hospitals, activeCalls } from './mockData'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -242,7 +242,7 @@ export default function App() {
         <ScenariosSection busy={busy || run?.status === 'running'} action={action} />
 
         {/* ── Status: current agent + run state ── */}
-        <StatusSection run={run} />
+        <StatusSection run={run} busy={busy} action={action} />
 
         {/* ── Legend ── */}
         <Legend />
@@ -567,7 +567,7 @@ function ScenariosSection({ busy, action }) {
 
 // ── Status ────────────────────────────────────────────────────────────────────
 
-function StatusSection({ run }) {
+function StatusSection({ run, busy, action }) {
   const [elapsed, setElapsed] = useState(0)
 
   useEffect(() => {
@@ -589,10 +589,22 @@ function StatusSection({ run }) {
     else                                { text = run.status.toUpperCase() }
   }
 
+  // Show Analyse button when no analysis is running or pending a decision
+  const canAnalyse = run?.status !== 'running' && run?.status !== 'done'
+
   return (
     <div className="panel-section status-section">
       <span className="section-label">STATUS</span>
       <p className={`status-line${run?.status === 'running' ? ' analysing' : ''}${awaiting ? ' awaiting' : ''}`}>{text}</p>
+      {canAnalyse && (
+        <button
+          className="btn-analyse"
+          disabled={busy}
+          onClick={() => action(() => triggerAnalysis())}
+        >
+          Analyse
+        </button>
+      )}
     </div>
   )
 }

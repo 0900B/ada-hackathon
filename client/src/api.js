@@ -23,5 +23,6 @@ async function post(path, body) {
 
 export const runScenario     = (name)             => post(`/admin/scenario/${name}`);
 export const resetSimulation = ()                 => post('/admin/reset');
+export const triggerAnalysis = ()                 => post('/agent/analyze');
 export const approveOption   = (runId, idx)       => post(`/agent/runs/${runId}/approve`, { option_index: idx });
 export const rejectRun       = (runId)            => post(`/agent/runs/${runId}/reject`,  { reason: null });
