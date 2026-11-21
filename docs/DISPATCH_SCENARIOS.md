@@ -68,23 +68,25 @@ Team counts come from the 2026 insurer's decree (24.0 ambulance teams and 10 doc
 | D09 Snow and ice morning: many calls, slow roads | 07:30 | 14 | 2 / 12 / 0 | 14 ambulances, 2 doctor vehicles, helicopter |
 | D10 Mass-casualty: bus crash on the motorway, 22 patients | 18:10 | 1 | 4 / 8 / 10 | 12 ambulances, 4 doctor vehicles, helicopter, 3 vans |
 | D11 Everything is out: no public unit is free within 15 minutes | 16:00 | 4 | 2 / 2 / 0 | 4 ambulances, 2 doctor vehicles |
+| D12 Everything at once: seven overlapping calls with a closure, a jam, a breakdown and a priority change | 10:00 | 7 | 3 / 4 / 0 | 7 ambulances, 3 doctor vehicles |
 
 **What was sent** (different vehicles; fire, police and similar are alerted by dispatch and listed in the last column):
 
-| Scenario | Ambulances | Doctor vehicles | Helicopter | Vans | **All vehicles sent** | From other regions | Private (ambulances / vans) | Other services alerted |
-|---|---|---|---|---|---|---|---|---|
-| D01 | 1 | 0 | no | 0 | **1** | 0 | 0 / 0 | none |
-| D02 | 1 | 1 | no | 0 | **2** | 0 | 0 / 0 | first responders |
-| D03a | 1 | 1 | yes | 0 | **3** | 0 | 0 / 0 | first responders |
-| D03b | 1 | 1 | no | 0 | **2** | 0 | 0 / 0 | first responders |
-| D04 | 3 | 1 | no | 0 | **4** | 0 | 0 / 0 | first responders |
-| D05 | 4 | 2 | no | 1 | **7** | 0 | 0 / 0 | first responders, fire brigade, police |
-| D06 | 6 | 1 | no | 0 | **7** | 0 | 0 / 0 | none |
-| D07 | 10 | 2 | no | 0 | **12** | 1 | 0 / 0 | none |
-| D08 | 3 | 3 | no | 0 | **6** | 0 | 0 / 0 | first responders, fire brigade, police |
-| D09 | 12 | 2 | no | 0 | **14** | 0 | 0 / 0 | fire brigade, police |
-| D10 | 12 | 4 | no | 3 | **19** | 2 | 0 / 3 | first responders, fire brigade, police, mass-casualty trailer, incident commander and triage team |
-| D11 | 4 | 2 | no | 0 | **6** | 0 | 2 / 0 | first responders, fire brigade, police |
+| Scenario | Ambulances | Doctor vehicles | Helicopter | Vans | **All vehicles sent** | Initial wave | From other regions | Private (ambulances / vans) | Other services alerted |
+|---|---|---|---|---|---|---|---|---|---|
+| D01 | 1 | 0 | no | 0 | **1** | same | 0 | 0 / 0 | none |
+| D02 | 1 | 1 | no | 0 | **2** | same | 0 | 0 / 0 | first responders |
+| D03a | 1 | 1 | yes | 0 | **3** | same | 0 | 0 / 0 | first responders |
+| D03b | 1 | 1 | no | 0 | **2** | same | 0 | 0 / 0 | first responders |
+| D04 | 3 | 1 | no | 0 | **4** | same | 0 | 0 / 0 | first responders |
+| D05 | 4 | 2 | no | 1 | **7** | same | 0 | 0 / 0 | first responders, fire brigade, police |
+| D06 | 6 | 1 | no | 0 | **7** | same | 0 | 0 / 0 | none |
+| D07 | 10 | 2 | no | 0 | **12** | same | 1 | 0 / 0 | none |
+| D08 | 3 | 3 | no | 0 | **6** | same | 0 | 0 / 0 | first responders, fire brigade, police |
+| D09 | 12 | 2 | no | 0 | **14** | same | 0 | 0 / 0 | fire brigade, police |
+| D10 | 12 | 4 | no | 3 | **19** | 24 | 2 | 0 / 3 | first responders, fire brigade, police, mass-casualty trailer, incident commander and triage team |
+| D11 | 4 | 2 | no | 0 | **6** | same | 0 | 2 / 0 | first responders, fire brigade, police |
+| D12 | 7 | 3 | no | 0 | **10** | same | 0 | 0 / 0 | first responders, police |
 
 **Reading the tables:** *vehicles needed by the rules* come from the patient counts and doctor flags. *All vehicles sent* can be smaller when a vehicle serves two calls one after the other (D07, D09) and smaller when the helicopter cannot fly (D03b, D05, D09, D10). The ambulance column includes private ambulances; the private column splits them out.
 
@@ -468,40 +470,41 @@ Team counts come from the 2026 insurer's decree (24.0 ambulance teams and 10 doc
 ---
 ### D10. Mass-casualty: bus crash on the motorway, 22 patients
 
-**Shows:** The largest case: 4 red, 8 yellow, 10 green. The first team reports and a human declares the event; the agent prepares the allocation.
+**Shows:** The largest case. The caller says about 30 injured, so the agent sends everything it can at once. The first team triages on the spot, reports, and the vehicles that are still on the way and no longer needed are stood down.
 
 **Setup:** 18:10 start, weekday, day roster; light rain, 3 °C; speed factor from weather 0.93; 50 percent of units busy with scheduled transports at the start. 1 call, 22 patients.
 
 | Call | Time | Place | Level | Patients | Needs (by rule) | Sent (unit, minutes to arrive) |
 |---|---|---|---|---|---|---|
-| D10-C1 | 18:10 | A1 motorway near Šentjakob (synthetic crash site) | red | 4 red, 8 yellow, 10 green | 12 ambulances, 4 doctor vehicles, helicopter, 3 vans + first responders, fire, police, mass-casualty trailer and incident command | A13 ZD Domžale, 6 min; A14 ZD Domžale, 6 min; A08 UKC station, 14 min; A01 UKC station, 19 min; A03 UKC station, 24 min; A02 UKC station, 25 min; A05 UKC station, 25 min; A09 UKC station, 25 min; A28 ZD Kranj (other region), 35 min; A16 ZD Kamnik, 35 min; A32 ZD Tržič (other region), 37 min; A15 ZD Kamnik, 37 min; D02 ZD Ljubljana, 24 min; D01 ZD Ljubljana, 24 min; D03 ZD Ljubljana, 29 min; D05 ZD Kamnik, 31 min; PT03 private van, 41 min; PT05 private van, 48 min; PT01 private van, 52 min |
+| D10-C1 | 18:10 | A1 motorway near Šentjakob (synthetic crash site) | red | 30 estimated (5 red, 10 yellow, 15 green) -> 22 triaged on scene (4 red, 8 yellow, 10 green) | initial wave 15 ambulances, 5 doctor vehicles, helicopter, 4 vans -> after triage 12 ambulances, 4 doctor vehicles, helicopter, 3 vans + first responders, fire, police, mass-casualty trailer and incident command | A13 ZD Domžale, 6 min; A14 ZD Domžale, 6 min; A08 UKC station, 14 min; A01 UKC station, 19 min; A03 UKC station, 19 min; A02 UKC station, 25 min; A05 UKC station, 25 min; A09 UKC station, 25 min; A28 ZD Kranj (other region), 35 min; A16 ZD Kamnik, 35 min; A32 ZD Tržič (other region), 37 min; A15 ZD Kamnik, 37 min; A12 UKC outpost Medvode, 37 min [stood down at minute 12]; A20 ZD Kočevje, 42 min [stood down at minute 12]; A04 UKC station, 44 min [stood down at minute 12]; D02 ZD Ljubljana, 24 min; D01 ZD Ljubljana, 24 min; D03 ZD Ljubljana, 29 min; D05 ZD Kamnik, 31 min; D04 ZD Domžale, 47 min [stood down at minute 12]; PT03 private van, 41 min; PT05 private van, 48 min; PT01 private van, 52 min; PT02 private van, 57 min [stood down at minute 12] |
 
 **All units sent:**
 
 - **Ambulances (12):** A01, A02, A03, A05, A08, A09, A13, A14, A15, A16, A28, A32 (other regions: A28 ZD Kranj, A32 ZD Tržič)
 - **Doctor vehicles (4):** D01, D02, D03, D05
 - **Private vans (3):** PT01, PT03, PT05
-- **Helicopter:** not sent (outside the daylight window (08:00 to 16:30), local time 18:10)
+- **Helicopter:** not sent (outside the daylight window (08:00 to 16:30))
 - **From other regions:** A28 (ZD Kranj), A32 (ZD Tržič)
 - **Private units:** PT01, PT03, PT05
 - **Other services alerted by dispatch (not part of the ambulance fleet):** first responders, fire brigade, police, mass-casualty trailer, incident commander and triage team
+- **Stood down after triage (5):** A04, A12, A20, D04, PT02 (the initial wave was 24 vehicles)
 
 - **Vehicles needed by the rules:** 12 ambulances, 4 doctor vehicles, helicopter, 3 vans. **Different vehicles sent:** 19 (helicopter included where it flew).
 - **Demand trigger:** on at minute 0 (predicted red arrival 19 min (over 15)).
 - **Units taken off another job:** 2.
 - **First ambulance to each red call:** D10-C1 5.9 min; 15-minute target met.
-- **Ljubljana-area ambulances:** 10 of 26 free at the lowest point; at most 62 percent busy.
+- **Ljubljana-area ambulances:** 9 of 26 free at the lowest point; at most 65 percent busy.
 
 **What to point out:**
 
-- **19 vehicles for 22 patients.** One ambulance for each of the 4 red and 8 yellow patients is 12 ambulances; one doctor vehicle for each red patient is 4; the 10 green patients go in 3 vans. No helicopter: it is after dark.
-- The 12 ambulances come from all around, and the later ones are far: the ambulances for the red patients arrive in 6, 6, 14, 19 minutes, those for the yellow patients in 24 to 37 minutes.
-- **Other regions:** A28 (ZD Kranj), A32 (ZD Tržič), sent for yellow patients because the demand trigger was on and the local wait was over 30 minutes. **Private:** PT01, PT03, PT05, vans for the green patients, because the public vans were not free within 20 minutes. No private ambulance was needed.
-- Doctor vehicles arrive in 24 to 31 minutes, later than the first ambulances; a faster doctor arrival would need the helicopter or a doctor on the first ambulances.
-- Alerted by dispatch (not counted): fire, police, first responders, the mass-casualty trailer and an incident commander with a triage team [S, `SURGE_AND_MULTI_SERVICE_COORDINATION.md`].
-- 19 vehicles stay under the station's 25-vehicle surge cap, but the other calls of that evening have to be served from what is left. The trigger turns on at minute 0.
-- Hospital distribution with the synthetic UKC capacity (accepts 3 red, 6 yellow, 20 green at once): one red and two yellow patients overflow to another hospital (SB Celje, SB Jesenice or SB Novo mesto), a long transfer for a red patient.
-- **Human steps:** declaring the mass-casualty event and activating the regional coordination group (art. 21) [S]. The agent prepares the plan for both.
+- **Minute 0, before anyone has seen the scene:** the dispatcher triages the call as red with a suspected mass-casualty event. The agent sends the **initial wave** sized for the caller's estimate (5 red, 10 yellow, 15 green by assumption): 24 vehicles, which is as much as the 25-vehicle surge cap allows. Alerted by dispatch: fire, police, first responders, the mass-casualty trailer, an incident commander with a triage team [S, `SURGE_AND_MULTI_SERVICE_COORDINATION.md`].
+- **Minute 12, the first team has done start triage on the spot** and reports (METHANE, a human step): 22 patients, 4 red, 8 yellow, 10 green. A human declares the mass-casualty event and the regional coordination group is formed (art. 21) [S].
+- **Stand-down:** with one patient per ambulance the real need is 12 ambulances, 4 doctor vehicles and 3 vans. The agent stands down the 5 vehicles that are still furthest away (A04, A12, A20, D04, PT02). They become free where they are and can cover the rest of the area.
+- **What stays: 19 vehicles.** 12 ambulances (the four red patients get the first to arrive, in 6, 6, 14, 19 minutes; the yellow patients' ambulances in 19 to 37 minutes), 4 doctor vehicles (arriving in 24 to 31 minutes) and 3 vans for the 10 green patients.
+- **Other regions:** A28 (ZD Kranj), A32 (ZD Tržič), sent for yellow patients because the demand trigger was on and the local wait was over 30 minutes. **Private:** PT01, PT03, PT05, vans for the green patients, because the public vans were not free within 20 minutes. No private ambulance was needed. No helicopter: it is after dark.
+- **Hospital distribution** with the synthetic UKC capacity (accepts 3 red, 6 yellow, 20 green at once): one red and two yellow patients overflow to SB Celje. The agent proposes it; the incident medical lead confirms, because the destination of a red patient is a clinical decision.
+- A slip road is closed by the fire brigade while the units are on their way: ten vehicles are rerouted (see the script).
+- **How this works in real life is only partly documented.** The Slovenian guideline says the first team sends METHANE with an initial estimate of casualties, starts primary triage and calls additional help as needed, and the dispatcher activates further teams per the unit's plan [S, mass-casualty guideline 2013]. I found no published rule for sending an over-sized first wave or for standing vehicles down; that is common practice elsewhere [I] and is modelled here as the agent's job with a human confirming the declaration.
 
 **Engine events:** 1 `urgent_request` payload in the JSON (`engine_events`), each valid against the engine's event model.
 
@@ -545,13 +548,78 @@ Team counts come from the 2026 insurer's decree (24.0 ambulance teams and 10 doc
 **Engine events:** 4 `urgent_request` payloads in the JSON (`engine_events`), each valid against the engine's event model.
 
 ---
-## 4. Using the scenarios
+### D12. Everything at once: seven overlapping calls
 
-- **With the engine.** Each scenario has `engine_events`: `urgent_request` payloads with a time offset in minutes. Red becomes `priority: "emergency"` and yellow `"urgent"`. All 47 payloads were checked against the engine's event model. The engine holds one trip per request, so patient counts, doctor vehicles, helicopters, private providers and the demand trigger need new code; the JSON carries them as `calls[].patients`, `calls[].doctors` and the `expected` block.
+**Shows:** A 25-minute demo script where events overlap in every way: two calls in the same minute, calls that arrive while others are on the road, a duplicate caller, a closure, a jam, a stale feed, a breakdown with a patient aboard, a capacity drop and a patient who gets worse.
+
+**Setup:** 10:00 start, weekday, day roster; dry; speed factor from weather 1.0; 45 percent of units busy with scheduled transports at the start. 7 calls, 7 patients.
+
+| Call | Time | Place | Level | Patients | Needs (by rule) | Sent (unit, minutes to arrive) |
+|---|---|---|---|---|---|---|
+| D12-C1 | 10:00 | Bežigrad | red | 1 red | 1 ambulance, 1 doctor vehicle + first responders | A04 UKC station, 4 min; D01 ZD Ljubljana, 8 min |
+| D12-C2 | 10:00 | Vič (residential block) | yellow | 1 yellow | 1 ambulance | A05 UKC station, 10 min |
+| D12-C3 | 10:03 | Zaloška cesta | red | 1 red | 1 ambulance, 1 doctor vehicle + first responders, police | A06 UKC station, 3 min; D02 ZD Ljubljana, 12 min |
+| D12-C4 | 10:06 | Šiška | yellow | 1 yellow | 1 ambulance | A07 UKC station, 10 min |
+| D12-C5 | 10:09 | Domžale (outskirts) | red | 1 red | 1 ambulance, 1 doctor vehicle + first responders | A16 ZD Kamnik, 16 min; D05 ZD Kamnik, 20 min |
+| D12-C6 | 10:14 | Črnuče | yellow | 1 yellow | 1 ambulance | A02 UKC station, 7 min |
+| D12-C7 | 10:18 | Polje | yellow | 1 yellow | 1 ambulance | A03 UKC station, 12 min |
+
+**All units sent:**
+
+- **Ambulances (7):** A02, A03, A04, A05, A06, A07, A16
+- **Doctor vehicles (3):** D01, D02, D05
+- **From other regions:** none
+- **Private units:** none
+- **Other services alerted by dispatch (not part of the ambulance fleet):** first responders, police
+
+- **Vehicles needed by the rules:** 7 ambulances, 3 doctor vehicles. **Different vehicles sent:** 10 (helicopter included where it flew).
+- **Demand trigger:** on at minute 9 (predicted red arrival 16 min (over 15)).
+- **Units taken off another job:** 4.
+- **First ambulance to each red call:** D12-C1 4.0 min, D12-C3 2.6 min, D12-C5 15.9 min; 15-minute target missed.
+- **Ljubljana-area ambulances:** 9 of 26 free at the lowest point; at most 65 percent busy.
+
+**What to point out:**
+
+- **Same time:** D12-C1 (red chest pain) and D12-C2 (yellow fall) arrive in the same minute; two ambulances and a doctor vehicle go out at once.
+- **In between:** a pedestrian crash (C3, minute 3), a wasp-sting allergy (C4, minute 6) and a cardiac arrest (C5, minute 9) arrive while the first units are still on the road. The trigger turns on at the arrest because the predicted arrival is over 15 minutes.
+- **Closure:** the road towards Domžale is closed after a collision while the arrest ambulance is on its way. The vehicles heading there (A16, D05) are rerouted, about 5 minutes longer. **Jam:** a minor collision delays the Šiška patient's ambulance by 4 minutes.
+- **Duplicate caller:** a second caller reports the pedestrian crash; the dispatcher merges it and no new units go (a human step). **Stale feed:** the traffic feed is stale for 5 minutes and ETAs are marked uncertain.
+- **Breakdown:** the ambulance carrying the diabetic patient (C6) breaks down; the agent sends the nearest free ambulance (A09) and the patient is transferred.
+- **Capacity and priority change:** UKC reports one free resuscitation bay (minute 16). The crew reports that the chest tightness (C7) has become a suspected heart attack (minute 21): the call is upgraded to red and a doctor vehicle is added.
+- Humans involved: seven triages, one merge decision and seven signatures. Everything else is the agent.
+
+**Engine events:** 7 `urgent_request` payloads in the JSON (`engine_events`), each valid against the engine's event model.
+
+---
+## 4. Simulation scripts
+
+Each scenario has a replayable script in [`scenario/playback/`](scenario/playback/): every vehicle's timeline and road path, reroutes, patient vitals and voice entries, and one event stream for all dashboards. Format and how to replay: [SIMULATION_SCRIPTS.md](SIMULATION_SCRIPTS.md).
+
+| Script | Vehicles | Patients | Events | Voice entries | Reroutes | Human steps |
+|---|---|---|---|---|---|---|
+| [D01](scenario/playback/D01.json) | 1 | 1 | 50 | 3 | 0 | 2 |
+| [D02](scenario/playback/D02.json) | 2 | 1 | 82 | 7 | 0 | 2 |
+| [D03a](scenario/playback/D03a.json) | 3 | 1 | 83 | 7 | 0 | 2 |
+| [D03b](scenario/playback/D03b.json) | 2 | 1 | 89 | 7 | 0 | 2 |
+| [D04](scenario/playback/D04.json) | 4 | 3 | 202 | 13 | 1 | 6 |
+| [D05](scenario/playback/D05.json) | 7 | 6 | 289 | 18 | 7 | 6 |
+| [D06](scenario/playback/D06.json) | 7 | 6 | 321 | 17 | 0 | 12 |
+| [D07](scenario/playback/D07.json) | 13 | 11 | 604 | 32 | 0 | 22 |
+| [D08](scenario/playback/D08.json) | 6 | 3 | 230 | 13 | 0 | 7 |
+| [D09](scenario/playback/D09.json) | 14 | 14 | 724 | 38 | 1 | 28 |
+| [D10](scenario/playback/D10.json) | 24 | 22 | 805 | 38 | 10 | 16 |
+| [D11](scenario/playback/D11.json) | 6 | 4 | 261 | 16 | 0 | 8 |
+| [D12](scenario/playback/D12.json) | 12 | 7 | 490 | 35 | 2 | 15 |
+
+*Vehicles* counts every vehicle that appears in the script: in D10 the initial wave of 24, of which 5 are stood down at minute 12; D07 and D12 include a replacement ambulance.
+
+## 5. Using the scenarios
+
+- **With the engine.** Each scenario has `engine_events`: `urgent_request` payloads with a time offset in minutes. Red becomes `priority: "emergency"` and yellow `"urgent"`. All payloads were checked against the engine's event model. The engine holds one trip per request, so patient counts, doctor vehicles, helicopters, private providers and the demand trigger need new code; the JSON carries them as `calls[].patients`, `calls[].doctors` and the `expected` block.
 - **As a test of the agent.** Feed the `calls` and compare the agent's choices with `dispatch_log`: the units, the order of events and the totals in `expected`. The model is a stand-in, so a different but defensible choice is not an error; a choice that breaks a rule in section 1 is.
 - **For the stage.** A good order is D01, D02, D04, D07, D10. D03a and D03b are the weather pair, D09 shows weather, fuel and cleaning, D11 shows the private-ambulance rule.
 
-## 5. What is assumed
+## 6. What is assumed
 
 - The speeds, thresholds (25 percent free, 15 and 30 and 45 minutes), service times and the private pool (3 ambulances, 6 vans, 15 and 30 minutes to mobilise) are assumptions [A].
 - The model picks initial positions of busy units at random around their base from a fixed seed (20261123). Another seed changes individual ETAs, not the rules.
@@ -560,7 +628,7 @@ Team counts come from the 2026 insurer's decree (24.0 ambulance teams and 10 doc
 - Hospital capacity is the synthetic set in `scenario/ljubljana_scenario.json`.
 - No fuel feed exists: the fuel and cleaning cases in D09 are set by hand.
 
-## 6. Open questions
+## 7. Open questions
 
 - **Green patients in a mass-casualty event:** the model sends them by van (4 per van). If every patient should get an ambulance, D10 needs 22 ambulances and would not fit the 25-vehicle cap together with the day's other calls.
 - **Yellow calls and private ambulances.** The rule used is: only if even other regions leave a wait over 45 minutes. Say if you want it stricter or looser.
