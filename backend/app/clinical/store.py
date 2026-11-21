@@ -75,5 +75,5 @@ def get_log(state: WorldState) -> ClinicalLog:
     log = getattr(state, "clinical", None)
     if log is None:
         log = ClinicalLog()
-        state.clinical = log  # type: ignore[attr-defined]  # until the state.py seam declares it
+        state.clinical = log
     return log
