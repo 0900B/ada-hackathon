@@ -11,6 +11,13 @@ const EXAMPLES = [
   "Nujno: sum na možgansko kap v Polju, ležeči prevoz v UKC.",
   "Zaprta Zaloška cesta v Mostah zaradi nesreče.",
   "Megla na heliportu, helikopter ne more vzleteti.",
+  // From the field-message catalogue (docs/SURGE_EVENTS.md §4, Metelko): numbers as words, locatives
+  "Zaradi kolone zamujamo približno petindvajset minut.",
+  "Stojimo za zaledenelim tovornjakom, še dvajset minut.",
+  "Cesta proti Vrhniki je zaprta, ne moremo mimo.",
+  "Klic: padec na ledu v Šiški, sum na zlom kolka.",
+  "Še en nujen klic: bolečina v prsih v Črnučah.",
+  "Sneži, ceste so spolzke, vozimo počasneje.",
 ];
 
 /**
