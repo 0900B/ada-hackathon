@@ -45,7 +45,7 @@ uv pip install --python .venv/Scripts/python.exe -r requirements.txt   # macOS/L
 ## The Claude agent (`app/agent/`)
 
 Disruptive events (breakdown, delay, closure, urgent request, snow) start an analysis automatically.
-Claude (`claude-opus-5-5` by default) gets the situation, then uses three tools backed by the engine:
+Claude (`claude-sonnet-5-5` by default; set `AGENT_MODEL=claude-opus-5-5` for Opus) gets the situation, then uses three tools backed by the engine:
 `find_candidates` (vehicles ranked by simulated outcome), `simulate_plan` (what-if for a whole option)
 and `get_vehicle_schedule`. It returns 2-3 options as structured JSON with a recommendation and
 notification drafts in Slovenian and English.

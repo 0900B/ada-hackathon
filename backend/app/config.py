@@ -15,7 +15,8 @@ RANDOM_SEED = int(os.getenv("RANDOM_SEED", "42"))
 HTTP_USER_AGENT = os.getenv("HTTP_USER_AGENT", "adahack-transport-backend/0.1")
 
 # Claude agent
-AGENT_MODEL = os.getenv("AGENT_MODEL", "claude-opus-5-5")
+AGENT_MODEL = os.getenv("AGENT_MODEL", "claude-sonnet-5-5")
+# Sonnet 5.5 defaults to "high"; "medium" is the recommended start for multi-step tool use.
 AGENT_EFFORT = os.getenv("AGENT_EFFORT", "medium")  # low | medium | high | xhigh | max
 AGENT_AUTO = os.getenv("AGENT_AUTO", "1") == "1"  # analyse disruptive events automatically
 AGENT_MAX_TURNS = int(os.getenv("AGENT_MAX_TURNS", "10"))
