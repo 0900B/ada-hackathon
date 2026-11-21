@@ -1,32 +1,28 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, Navigate, NavLink, Route, Routes, useMatch } from "react-router";
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useMatch, useSearchParams } from "react-router";
 import {
   API_URL,
   postEvent,
-  resetWorld,
-  runScenario,
-  SCENARIOS,
   useWorldState,
   type EventRecord,
   type Kpis,
   type Priority,
-  analyzeNow,
-  approveOption,
   fetchVehicle,
-  rejectRun,
   type VehicleDetail,
   type World,
   type WorldSnapshot,
 } from "./api";
-import { AgentPanel } from "./AgentPanel";
+import { AgentPanel, type AgentKeys } from "./AgentPanel";
 import { BookingForm } from "./BookingForm";
 import { BRAND } from "./brand";
+import { EventsPanel } from "./EventsPanel";
 import { FieldMessage } from "./FieldMessage";
 import { useHotkeys } from "./hotkeys";
 import { ShortcutsHelp } from "./ShortcutsHelp";
 import { CrewPage } from "./pages/CrewPage";
-import { FogControl } from "./FogControl";
+import { ScenariosPanel } from "./ScenariosPanel";
 import { VehicleCard } from "./VehicleCard";
+import { VehicleStrip } from "./VehicleStrip";
 import { OpsControls } from "./OpsControls";
 import { fmtTime } from "./format";
 import { MapView, type ClickMode } from "./MapView";
@@ -34,6 +30,9 @@ import { AuditPage } from "./pages/AuditPage";
 import { FleetPage } from "./pages/FleetPage";
 
 type Send = (event: Record<string, unknown>) => Promise<void>;
+type Toast = { kind: "ok" | "error"; text: string; sticky: boolean; n: number };
+type Notify = (kind: "ok" | "error", text: string, sticky?: boolean) => void;
+type Tab = "dispatch" | "scenarios" | "events" | "book" | "alerts";
 
 const PRIORITY_ORDER: Record<Priority, number> = { emergency: 0, urgent: 1, scheduled: 2 };
 
@@ -48,9 +47,18 @@ function describe(rec: EventRecord): string {
   );
 }
 
+const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
 /** Layout: header with navigation, then the routed page. Each page opens its own live connection. */
 export default function App() {
   const crew = useMatch("/crew/*");
+  const { pathname } = useLocation();
+  // Fleet and Crew view follow the world of the dashboard you came from
+  const [lastWorld, setLastWorld] = useState<World>("live");
+  useEffect(() => {
+    if (pathname === "/sim" || pathname === "/live") setLastWorld(pathname === "/sim" ? "sim" : "live");
+  }, [pathname]);
+
   if (crew) {
     // Crew view (phone): full screen, without the dispatcher header
     return (
@@ -71,10 +79,13 @@ export default function App() {
         <nav className="nav">
           <NavLink to="/live">● Live</NavLink>
           <NavLink to="/sim">Simulation</NavLink>
-          <NavLink to="/fleet">Fleet</NavLink>
+          <NavLink to={`/fleet?world=${lastWorld}`}>Fleet</NavLink>
           <NavLink to="/audit">Audit</NavLink>
-          <NavLink to="/crew">Crew view</NavLink>
+          <NavLink to={`/crew?world=${lastWorld === "live" ? "live" : "sim"}`}>Crew view</NavLink>
         </nav>
+        <span className="header-help muted">
+          Press <kbd>?</kbd> for shortcuts
+        </span>
       </header>
       <Routes>
         <Route path="/" element={<Navigate to="/live" replace />} />
@@ -100,7 +111,13 @@ function WorldPage({ world }: { world: World }) {
 }
 
 function FleetRoute() {
-  const { state, connected } = useWorldState("live");
+  const [params] = useSearchParams();
+  const world: World = params.get("world") === "sim" ? "sim" : "live";
+  return <FleetWorld key={world} world={world} />;
+}
+
+function FleetWorld({ world }: { world: World }) {
+  const { state, connected } = useWorldState(world);
   if (!state) return <div className="loading">Connecting to {API_URL} …</div>;
   return (
     <>
@@ -121,15 +138,53 @@ function NotFound() {
 
 function Dashboard({ state }: { state: WorldSnapshot }) {
   const world = state.world;
+  const sim = state.hypothetical;
   const [mode, setMode] = useState<ClickMode>(null);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [cardOpen, setCardOpen] = useState(false); // full vehicle card (marker / trip row) vs the strip's drop-down
   const [detail, setDetail] = useState<VehicleDetail | null>(null);
   const [centerOn, setCenterOn] = useState<{ lat: number; lon: number; n: number } | null>(null);
-  const [picked, setPicked] = useState(""); // vehicle chosen in the controls dropdown
+  const [picked, setPicked] = useState(""); // vehicle chosen in the Events tab dropdown
   const [help, setHelp] = useState(false);
+  const [tab, setTab] = useState<Tab>("dispatch");
+  const [unseenRun, setUnseenRun] = useState(false);
   const micToggle = useRef<(() => void) | null>(null);
+  const agentKeys = useRef<AgentKeys | null>(null);
+
+  // One selection for markers, trip rows and the vehicle strip; markers and rows open the full card
+  const select = (id: string | null, card = true) => {
+    setSelectedId(id);
+    setCardOpen(id !== null && card);
+  };
+  const centerVehicle = (id: string) => {
+    const v = state.vehicles.find((x) => x.id === id);
+    if (v) setCenterOn({ lat: v.lat, lon: v.lon, n: Date.now() });
+  };
+
+  const notify: Notify = (kind, text, sticky = false) => setToast({ kind, text, sticky: sticky || kind === "error", n: Date.now() });
+
+  // Toasts fade after a while; errors and notes marked sticky stay until closed or replaced
+  useEffect(() => {
+    if (!toast || toast.sticky) return;
+    const timer = setTimeout(() => setToast((t) => (t?.n === toast.n ? null : t)), 9000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  // A new AI analysis (scenario, field message, event, hotkey): bring the AI dispatcher into view,
+  // except while booking, where switching would hide the booking result (a dot marks the tab instead)
+  const latestRun = state.agent.runs[0];
+  const lastRunId = useRef(latestRun?.id);
+  useEffect(() => {
+    if (!latestRun || latestRun.id === lastRunId.current) return;
+    lastRunId.current = latestRun.id;
+    if (tab === "book") setUnseenRun(true);
+    else setTab("dispatch");
+  }, [latestRun, tab]);
+  useEffect(() => {
+    if (tab === "dispatch") setUnseenRun(false);
+  }, [tab]);
 
   // Selected vehicle: refresh its card and highlighted route every 3 s
   useEffect(() => {
@@ -153,50 +208,49 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
   const send: Send = async (event) => {
     setBusy(true);
     try {
-      setMessage({ kind: "ok", text: describe(await postEvent(world, event)) });
+      notify("ok", describe(await postEvent(world, event)));
     } catch (e) {
-      setMessage({ kind: "error", text: e instanceof Error ? e.message : String(e) });
+      notify("error", errorText(e));
     } finally {
       setBusy(false);
     }
   };
 
-  // Hotkeys (see ShortcutsHelp, "?"): B/D act on the vehicle selected on the map, else the dropdown's
-  const inService = state.vehicles.filter((v) => v.status !== "out_of_service");
-  const target =
-    (selectedId && inService.some((v) => v.id === selectedId) ? selectedId : undefined) ??
-    inService.find((v) => v.id === picked)?.id ??
-    inService[0]?.id;
-  const latestRun = state.agent.runs[0];
-  const report = (p: Promise<unknown>, ok: string) =>
-    p.then(
-      () => setMessage({ kind: "ok", text: ok }),
-      (e) => setMessage({ kind: "error", text: e instanceof Error ? e.message : String(e) }),
-    );
+  // B/D act on the vehicle selected on the map (marker or trip row), never on some other vehicle
+  const selectedVehicle = selectedId ? state.vehicles.find((v) => v.id === selectedId) : undefined;
+  const onSelected = (what: string, fn: (id: string) => void) => {
+    if (!selectedVehicle) notify("error", `Select a vehicle first (click its marker or a trip row), then press the key to ${what}.`);
+    else if (selectedVehicle.status === "out_of_service") notify("error", `${selectedVehicle.name} is already out of service.`);
+    else fn(selectedVehicle.id);
+  };
+
   useHotkeys({
-    m: () => micToggle.current?.(),
-    a: () => void report(analyzeNow(world), "Analysis started"),
+    m: () => {
+      setTab("dispatch");
+      micToggle.current?.();
+    },
+    a: () => {
+      setTab("dispatch");
+      agentKeys.current?.analyse();
+    },
     y: () => {
-      const rec = latestRun?.recommendation;
-      const i = rec?.recommended_index ?? -1;
-      if (latestRun?.status === "done" && rec && rec.options[i] && rec.options[i].feasible !== false)
-        void report(approveOption(world, latestRun.id, i), `Option ${i + 1} applied`);
+      setTab("dispatch");
+      agentKeys.current?.approveRecommended();
     },
     n: () => {
-      if (latestRun?.status === "done") void report(rejectRun(world, latestRun.id), "Recommendation rejected");
+      setTab("dispatch");
+      agentKeys.current?.reject();
     },
-    b: () => {
-      if (target) void send({ type: "breakdown", vehicle_id: target, note: "reported by operator (hotkey)" });
-    },
-    d: () => {
-      if (target) void send({ type: "delay", vehicle_id: target, minutes: 10, note: "reported by operator (hotkey)" });
-    },
+    b: () => onSelected("report a breakdown", (id) => void send({ type: "breakdown", vehicle_id: id, note: "reported by operator (hotkey)" })),
+    d: () =>
+      onSelected("delay it 10 min", (id) => void send({ type: "delay", vehicle_id: id, minutes: 10, note: "reported by operator (hotkey)" })),
     f: () => void send({ type: "fog", duration_min: 60 }),
     e: () => setMode((m) => (m === "emergency" ? null : "emergency")),
     c: () => setMode((m) => (m === "closure" ? null : "closure")),
     Escape: () => {
       setMode(null);
-      setSelectedId(null);
+      select(null);
+      setToast(null);
     },
     "?": () => setHelp((h) => !h),
   });
@@ -210,85 +264,156 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
     setMode(null);
   };
 
+  const alertCount = state.alerts.length + state.incidents.filter((i) => i.active).length;
+  const critical = state.alerts.some((a) => a.severity === "critical");
+  const tabs: { id: Tab; label: string; badge?: string; hot?: boolean }[] = [
+    { id: "dispatch", label: "Dispatch", badge: unseenRun ? "●" : undefined, hot: unseenRun },
+    ...(sim ? [{ id: "scenarios" as Tab, label: "Scenarios" }] : []),
+    { id: "events", label: sim ? "Events" : "Report" },
+    { id: "book", label: "Book" },
+    { id: "alerts", label: "Alerts", badge: alertCount ? String(alertCount) : undefined, hot: critical },
+  ];
+
   return (
     <main className="main">
-        <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
-        <section className="map-wrap">
-          {mode && (
-            <div className="map-hint">
-              Click the map to place the {mode === "closure" ? "road closure" : "emergency call"} ·{" "}
-              <button className="link" onClick={() => setMode(null)}>
-                cancel
-              </button>
-            </div>
-          )}
-          <MapView
-            state={state}
-            mode={mode}
-            onMapClick={onMapClick}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
+      <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
+      <section className="map-col">
+        <VehicleStrip
+          state={state}
+          selectedId={selectedId}
+          onSelect={(id) => select(id, false)}
+          onCenter={centerVehicle}
+          onOpenCard={(id) => select(id, true)}
+          send={send}
+          busy={busy}
+        />
+        <div className="map-wrap">
+        {mode && (
+          <div className="map-hint">
+            Click the map to place the {mode === "closure" ? "road closure" : "emergency call"} ·{" "}
+            <button className="link" onClick={() => setMode(null)}>
+              cancel (Esc)
+            </button>
+          </div>
+        )}
+        <MapView
+          state={state}
+          mode={mode}
+          onMapClick={onMapClick}
+          selectedId={selectedId}
+          onSelect={(id) => select(id)}
+          detail={detail}
+          centerOn={centerOn}
+        />
+        <MapLegend />
+        {detail && selectedId && cardOpen && (
+          <VehicleCard
             detail={detail}
-            centerOn={centerOn}
+            state={state}
+            busy={busy}
+            send={send}
+            onClose={() => select(null)}
+            onCenter={() => setCenterOn({ lat: detail.vehicle.lat, lon: detail.vehicle.lon, n: Date.now() })}
           />
-          {detail && selectedId && (
-            <VehicleCard
-              detail={detail}
-              busy={busy}
-              send={send}
-              onClose={() => setSelectedId(null)}
-              onCenter={() => setCenterOn({ lat: detail.vehicle.lat, lon: detail.vehicle.lon, n: Date.now() })}
-            />
-          )}
-        </section>
-        <aside className="side">
-          <KpiRow kpis={state.kpis} />
-          {message && <div className={`message ${message.kind}`}>{message.text}</div>}
-          {!state.hypothetical && (
-            <Panel title="Live conditions">
-              <Conditions state={state} />
+        )}
+        {toast && (
+          <div className={`toast ${toast.kind}`} role="status" aria-live="polite">
+            <span>{toast.text}</span>
+            <button className="link toast-close" onClick={() => setToast(null)} aria-label="Dismiss">
+              ✕
+            </button>
+          </div>
+        )}
+        </div>
+      </section>
+      <aside className="side">
+        <KpiRow kpis={state.kpis} />
+        <div className="side-tabs" role="tablist" aria-label="Dashboard sections">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={tab === t.id}
+              className={`side-tab${tab === t.id ? " on" : ""}`}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+              {t.badge && <span className={`tab-badge${t.hot ? " hot" : ""}`}>{t.badge}</span>}
+            </button>
+          ))}
+        </div>
+        {/* Every tab stays mounted (hidden), so forms, results and the mic hotkey survive switching */}
+        <div className="side-body" hidden={tab !== "dispatch"}>
+          <FieldMessage state={state} micToggleRef={micToggle} />
+          <AgentPanel state={state} notify={notify} keysRef={agentKeys} />
+        </div>
+        {sim && (
+          <div className="side-body" hidden={tab !== "scenarios"}>
+            <Panel title="Scenarios">
+              <ScenariosPanel world={world} notify={notify} />
             </Panel>
-          )}
-          <Panel title="Message from the field">
-            <FieldMessage state={state} micToggleRef={micToggle} />
-          </Panel>
-          <Panel title="AI dispatcher">
-            <AgentPanel state={state} notify={setMessage} />
-          </Panel>
-          <Panel title="Book transport">
-            <BookingForm state={state} />
-          </Panel>
-          <Panel title={state.hypothetical ? "Inject event (hypothetical)" : "Report event"}>
-            <Controls
-              state={state}
-              busy={busy}
-              mode={mode}
-              setMode={setMode}
-              send={send}
-              setMessage={setMessage}
-              picked={picked}
-              setPicked={setPicked}
-            />
+          </div>
+        )}
+        <div className="side-body" hidden={tab !== "events"}>
+          <Panel title={sim ? "What-if events (hypothetical)" : "Report an event"}>
+            <EventsPanel state={state} busy={busy} mode={mode} setMode={setMode} send={send} picked={picked} setPicked={setPicked} />
           </Panel>
           <Panel title="Priority & capacity">
             <OpsControls state={state} send={send} busy={busy} />
           </Panel>
-          <Panel title={`Alerts (${state.alerts.length})`}>
+        </div>
+        <div className="side-body" hidden={tab !== "book"}>
+          <Panel title="Book transport">
+            <BookingForm state={state} />
+          </Panel>
+        </div>
+        <div className="side-body" hidden={tab !== "alerts"}>
+          {!sim && (
+            <Panel title="Live conditions">
+              <Conditions state={state} />
+            </Panel>
+          )}
+          <Panel title={`Alerts (${alertCount})`}>
             <Alerts state={state} send={send} />
           </Panel>
           <Panel title="Event log">
             <EventLog events={state.events} />
           </Panel>
-        </aside>
-        <section className="trips">
-          <TripTable state={state} selectedId={selectedId} onSelect={setSelectedId} />
-        </section>
+        </div>
+      </aside>
+      <section className="trips">
+        <TripTable state={state} selectedId={selectedId} onSelect={(id) => select(id)} />
+      </section>
     </main>
+  );
+}
+
+function MapLegend() {
+  return (
+    <div className="map-legend" aria-label="Map legend">
+      <span>
+        <i className="lg lg-ambulance" /> Ambulance
+      </span>
+      <span>
+        <i className="lg lg-transport" /> Transport van
+      </span>
+      <span>
+        <i className="lg lg-heli">🚁</i> Helicopter (flies straight)
+      </span>
+      <span>
+        <i className="lg lg-closure" /> Closure / incident
+      </span>
+    </div>
   );
 }
 
 function StatusBar({ state, connected }: { state: WorldSnapshot; connected: boolean }) {
   const w = state.weather.now;
+  const sources = Object.values(state.sources);
+  const unhealthy = sources.filter((s) => s.health !== "fresh");
+  const sourcesTitle =
+    sources.map((s) => `${s.name}: ${s.health}${s.last_error ? ` (${s.last_error})` : ` · ${s.kind} · ${s.age_s ?? "–"} s old`}`).join("\n") +
+    `\nRoad routes cached (OSRM / TomTom): ${state.roads.routes_cached}`;
   return (
     <div className={`statusbar ${state.hypothetical ? "is-sim" : "is-live"}`}>
       <span className="mode-badge">
@@ -296,7 +421,9 @@ function StatusBar({ state, connected }: { state: WorldSnapshot; connected: bool
       </span>
       <div className="chips">
         <span className={`chip ${connected ? "ok" : "bad"}`}>{connected ? "● connected" : "● reconnecting"}</span>
-        <span className="chip">{state.hypothetical ? "Sim time" : "Time"} {fmtTime(state.sim_time)}</span>
+        <span className="chip chip-strong">
+          {state.hypothetical ? "Sim time" : "Time"} {fmtTime(state.sim_time)}
+        </span>
         {w && (
           <span className={`chip ${state.weather.overridden ? "warn" : ""}`}>
             {w.snowfall_cm > 0 ? "❄" : w.precipitation_mm > 0 ? "🌧" : "☀"} {w.temperature_c.toFixed(1)} °C ·{" "}
@@ -312,13 +439,13 @@ function StatusBar({ state, connected }: { state: WorldSnapshot; connected: bool
         >
           🚗 Traffic ×{state.traffic.factor.toFixed(2)} · {state.traffic.source === "tomtom" ? "TomTom live" : "profile"}
         </span>
-        {Object.values(state.sources).map((s) => (
-          <span key={s.name} className={`chip src-${s.health}`} title={s.last_error ?? `${s.kind} · ${s.age_s ?? "–"} s old`}>
-            {s.name}: {s.health}
-          </span>
-        ))}
-        <span className="chip" title="Road routes cached (OSRM / TomTom)">
-          🛣 roads: {state.roads.routes_cached} routes
+        <span
+          className={`chip ${unhealthy.some((s) => s.health === "down") ? "bad" : unhealthy.length ? "warn" : "ok"}`}
+          title={sourcesTitle}
+        >
+          {unhealthy.length
+            ? `⚠ ${unhealthy.map((s) => `${s.name}: ${s.health}`).join(" · ")}`
+            : `✓ data feeds fresh (${sources.map((s) => s.name).join(", ")})`}
         </span>
       </div>
     </div>
@@ -395,124 +522,23 @@ function KpiRow({ kpis }: { kpis: Kpis }) {
 
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="panel">
-      <h2>{title}</h2>
+    <section className="panel">
+      <h2 className="panel-title">{title}</h2>
       {children}
-    </div>
-  );
-}
-
-function Controls({
-  state,
-  busy,
-  mode,
-  setMode,
-  send,
-  setMessage,
-  picked,
-  setPicked,
-}: {
-  state: WorldSnapshot;
-  busy: boolean;
-  mode: ClickMode;
-  setMode: (m: ClickMode) => void;
-  send: Send;
-  setMessage: (m: { kind: "ok" | "error"; text: string } | null) => void;
-  picked: string;
-  setPicked: (id: string) => void;
-}) {
-  const inService = state.vehicles.filter((v) => v.status !== "out_of_service");
-  const [minutes, setMinutes] = useState(20);
-  const vehicleId = inService.some((v) => v.id === picked) ? picked : (inService[0]?.id ?? "");
-  const snowing = state.weather.overridden;
-
-  const sim = state.hypothetical;
-  const reset = async () => {
-    try {
-      await resetWorld(state.world);
-      setMessage({ kind: "ok", text: "Simulation reset" });
-    } catch (e) {
-      setMessage({ kind: "error", text: e instanceof Error ? e.message : String(e) });
-    }
-  };
-
-  return (
-    <div className="controls">
-      <div className="row">
-        <select value={vehicleId} onChange={(e) => setPicked(e.target.value)}>
-          {inService.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.id} · {v.name} ({v.status.replace(/_/g, " ")})
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="row">
-        <button
-          disabled={busy || !vehicleId}
-          onClick={() => send({ type: "breakdown", vehicle_id: vehicleId, note: "reported by operator" })}
-        >
-          🔧 Breakdown
-        </button>
-        <input type="number" min={1} max={240} value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} />
-        <button disabled={busy || !vehicleId} onClick={() => send({ type: "delay", vehicle_id: vehicleId, minutes })}>
-          ⏱ Delay
-        </button>
-      </div>
-      <div className="row">
-        <button className={mode === "emergency" ? "active" : ""} onClick={() => setMode(mode === "emergency" ? null : "emergency")}>
-          🚨 Emergency (click map)
-        </button>
-        <button className={mode === "closure" ? "active" : ""} onClick={() => setMode(mode === "closure" ? null : "closure")}>
-          ⛔ Closure (click map)
-        </button>
-      </div>
-      <FogControl send={send} busy={busy} />
-      {!sim && <p className="muted">Live uses real weather and traffic. Hypothetical scenarios run in Simulation.</p>}
-      {sim && (
-        <div className="row">
-          <button
-            disabled={busy}
-            onClick={() => send(snowing ? { type: "weather_override", clear: true } : { type: "weather_override", snowfall_cm: 2 })}
-          >
-            {snowing ? "☀ End snowstorm" : "❄ Snowstorm"}
-          </button>
-          <button className="ghost" disabled={busy} onClick={reset}>
-            ↺ Reset simulation
-          </button>
-        </div>
-      )}
-      {sim && <div className="scenario-label muted">🎬 Demo scenarios (reset + several events + one AI analysis)</div>}
-      <div className="row">
-        {(sim ? SCENARIOS : []).map((s) => (
-          <button
-            key={s.name}
-            title={s.title}
-            disabled={busy}
-            onClick={async () => {
-              try {
-                const r = await runScenario(s.name);
-                setMessage({ kind: "ok", text: r.note ?? `Scenario started: ${r.title}` });
-              } catch (e) {
-                setMessage({ kind: "error", text: e instanceof Error ? e.message : String(e) });
-              }
-            }}
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
-    </div>
+    </section>
   );
 }
 
 function Alerts({ state, send }: { state: WorldSnapshot; send: Send }) {
-  if (state.alerts.length === 0 && state.incidents.length === 0) return <p className="muted">All clear.</p>;
+  const incidents = state.incidents.filter((i) => i.active);
+  if (state.alerts.length === 0 && incidents.length === 0) return <p className="muted">All clear.</p>;
   return (
     <ul className="alerts">
-      {state.incidents.map((inc) => (
+      {incidents.map((inc) => (
         <li key={inc.id} className={`alert ${inc.kind === "congestion" ? "sev-medium" : "sev-high"}`}>
-          {inc.kind === "road_closure" ? "⛔" : inc.kind === "accident" ? "💥" : "🚦"} {inc.description}
+          <span>
+            {inc.kind === "road_closure" ? "⛔" : inc.kind === "accident" ? "💥" : "🚦"} {inc.description}
+          </span>
           {inc.source === "injected" && (
             <button className="link" onClick={() => send({ type: "clear_incident", incident_id: inc.id })}>
               clear
@@ -563,11 +589,11 @@ function TripTable({
   const done = state.trips.length - open.length;
 
   return (
-    <table>
+    <table className="trip-table">
       <thead>
         <tr>
           <th>Trip</th>
-          <th>Patient</th>
+          <th>Patient / load</th>
           <th>Priority</th>
           <th>Needs</th>
           <th>Route</th>
@@ -581,6 +607,7 @@ function TripTable({
       <tbody>
         {open.map((t) => {
           const late = (t.delay_min ?? 0) >= 5;
+          const route = `${place.get(t.pickup_id) ?? t.pickup_id} → ${place.get(t.dropoff_id) ?? t.dropoff_id}`;
           return (
             <tr
               key={t.id}
@@ -590,20 +617,22 @@ function TripTable({
               onClick={() => t.vehicle_id && onSelect(t.vehicle_id)}
               title={t.vehicle_id ? `Show ${t.vehicle_id} on the map` : undefined}
             >
-              <td>{t.id}</td>
-              <td>{t.label ?? t.patient}</td>
+              <td className="mono">{t.id}</td>
+              <td className="cell-clip" title={t.label ?? t.patient ?? ""}>
+                {t.label ?? t.patient}
+              </td>
               <td>
                 <span className={`prio prio-${t.priority}`}>{t.priority}</span>
               </td>
               <td>{t.needs}</td>
-              <td>
-                {place.get(t.pickup_id) ?? t.pickup_id} → {place.get(t.dropoff_id) ?? t.dropoff_id}
+              <td className="cell-clip cell-route" title={route}>
+                {route}
               </td>
               <td>{t.vehicle_id ?? "—"}</td>
               <td>{t.status.replace(/_/g, " ")}</td>
               <td>{fmtTime(t.due_by)}</td>
               <td>{fmtTime(t.eta_dropoff)}</td>
-              <td>{t.delay_min == null ? "—" : late ? `+${Math.round(t.delay_min)} min` : "on time"}</td>
+              <td className={late ? "late" : ""}>{t.delay_min == null ? "—" : late ? `+${Math.round(t.delay_min)} min` : "on time"}</td>
             </tr>
           );
         })}
@@ -611,7 +640,7 @@ function TripTable({
       <tfoot>
         <tr>
           <td colSpan={10} className="muted">
-            {open.length} open · {done} completed
+            {open.length} open · {done} completed · click a row to show its vehicle
           </td>
         </tr>
       </tfoot>
