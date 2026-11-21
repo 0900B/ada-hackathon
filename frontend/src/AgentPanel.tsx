@@ -92,6 +92,21 @@ function Delta({ label, before, after, unit = "" }: { label: string; before: num
   );
 }
 
+/** The recommendation's situation summary: long texts start clamped to three lines, click to expand. */
+function Situation({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const long = text.length > 220;
+  return (
+    <p
+      className={`situation${long && !open ? " clamp-3" : ""}${long ? " expandable" : ""}`}
+      title={long && !open ? "Click to show the full text" : undefined}
+      onClick={long ? () => setOpen((o) => !o) : undefined}
+    >
+      {text}
+    </p>
+  );
+}
+
 /** What started this analysis, in one line: a field message, a scenario, an event or the operator. */
 function RunContext({ run, state }: { run: AgentRun; state: WorldSnapshot }) {
   if (run.trigger === "message" && run.question) {
@@ -121,9 +136,17 @@ function RunContext({ run, state }: { run: AgentRun; state: WorldSnapshot }) {
         <Zap /> <span>{event.summary}</span>
       </div>
     );
+  // An analysis right after a scenario carries the scenario's description: show just its title
+  const scenario = run.question ? /^Demo scenario: (.+?)\. These events/.exec(run.question) : null;
+  if (scenario)
+    return (
+      <div className="run-context" title={run.question ?? undefined}>
+        <Clapperboard /> <span>Scenario: {scenario[1]}</span>
+      </div>
+    );
   return (
-    <div className="run-context">
-      <User /> <span>Operator review{run.question ? `: ${run.question}` : ""}</span>
+    <div className="run-context" title={run.question ?? undefined}>
+      <User /> <span className="clamp-2">Operator review{run.question ? `: ${run.question}` : ""}</span>
     </div>
   );
 }
@@ -287,7 +310,7 @@ function RecommendationView({
           <TriangleAlert /> <span>{run.error ?? "Claude unavailable"}: showing the engine's own plan.</span>
         </div>
       )}
-      <p className="situation">{rec.situation}</p>
+      <Situation text={rec.situation} />
       {rec.escalation && (
         <div className="escalation">
           <Siren /> <span>{rec.escalation}</span>

@@ -368,7 +368,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
         {sim && (
           <div className="side-body" hidden={tab !== "scenarios"}>
             <Panel title="Scenarios">
-              <ScenariosPanel world={world} notify={notify} />
+              <ScenariosPanel state={state} notify={notify} />
             </Panel>
           </div>
         )}

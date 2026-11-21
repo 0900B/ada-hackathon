@@ -210,10 +210,24 @@ export interface AgentRun {
 
 export type World = "live" | "sim";
 
+/** live_calls (default): no pre-planned day, a stream of calls dispatched at once. */
+export type OperationsMode = "live_calls" | "scheduled_day";
+
+export interface CallsStatus {
+  enabled: boolean;
+  active: boolean; // generating now (live-calls mode and switched on)
+  per_hour: number;
+  next_at: string | null;
+  paused_until: string | null; // calls pause for a while after a scenario starts
+  generated: number;
+}
+
 export interface WorldSnapshot {
   world: World;
   hypothetical: boolean;
   speedup: number;
+  mode?: OperationsMode;
+  calls?: CallsStatus;
   version: number;
   sim_time: string;
   places: Place[];
@@ -276,7 +290,15 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
 }
 
 export const postEvent = (world: World, event: Record<string, unknown>) => post<EventRecord>(`/${world}/events`, event);
-export const resetWorld = (world: World) => post<{ ok: boolean }>(`/${world}/admin/reset`);
+/** Reset (re-seed) a world; scheduledDay switches the mode, undefined keeps the current one. */
+export const resetWorld = (world: World, scheduledDay?: boolean) =>
+  post<{ ok: boolean; mode: OperationsMode }>(
+    `/${world}/admin/reset`,
+    scheduledDay === undefined ? undefined : { scheduled_day: scheduledDay },
+  );
+/** Live-calls generator: switch it on/off or change the rate (calls per world hour). */
+export const setCalls = (world: World, body: { enabled?: boolean; per_hour?: number }) =>
+  post<CallsStatus>(`/${world}/admin/calls`, body);
 export const analyzeNow = (world: World, question?: string) =>
   post<AgentRun>(`/${world}/agent/analyze`, { question: question ?? null });
 export const approveOption = (world: World, runId: string, optionIndex: number) =>
@@ -384,15 +406,16 @@ export const runScenario = (name: string) =>
   );
 
 export const SCENARIOS = [
-  { name: "stranded_patient", label: "Stranded patient", title: "Van breaks down with a patient on board" },
+  { name: "stranded_patient", label: "Stranded patient", title: "Van breaks down with an urgent patient on board" },
   { name: "stroke_rush_hour", label: "Stroke and closure", title: "Stroke emergency with a road closure near UKC" },
-  { name: "snow_cascade", label: "Snow cascade", title: "Snowstorm, a delayed van and an emergency at once" },
-  { name: "stranded_equipment", label: "Stranded equipment", title: "Vehicle breaks down with medical equipment on board" },
-  { name: "hospital_full", label: "UKC full", title: "UKC can admit only one more patient as a patient becomes an emergency" },
-  { name: "remote_emergency", label: "Remote emergency", title: "Remote emergency in the mountains: the helicopter flies" },
+  { name: "surge", label: "Call surge", title: "Surge: seven calls at once, three ambulances" },
+  { name: "remote_emergency", label: "Remote emergency", title: "Remote emergency in the mountains: the helicopter is needed" },
+  { name: "snow_cascade", label: "Snow cascade", title: "Snowstorm, a stuck van and an emergency at once" },
+  { name: "stranded_equipment", label: "Stranded equipment", title: "Van breaks down with blood products on board" },
+  { name: "hospital_full", label: "UKC full", title: "UKC can admit only two more patients as a patient becomes an emergency" },
   {
     name: "equipment_en_route",
     label: "Prepare crew demo",
-    title: "Prepare the live crew demo: fast-forward until a van carries equipment (no AI run)",
+    title: "Prep for the live crew demo: T1 is carrying blood products",
   },
 ];
