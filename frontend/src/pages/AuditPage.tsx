@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Power,
   RotateCcw,
+  SlidersHorizontal,
   Zap,
   Dot,
   type LucideIcon,
@@ -43,6 +44,8 @@ const KINDS = [
   "plan_applied",
   "scenario",
   "reset",
+  "setting",
+  "startup",
 ];
 
 const KIND_ICON: Record<string, LucideIcon> = {
@@ -55,6 +58,7 @@ const KIND_ICON: Record<string, LucideIcon> = {
   plan_applied: Map,
   scenario: Clapperboard,
   reset: RotateCcw,
+  setting: SlidersHorizontal,
   startup: Power,
 };
 
