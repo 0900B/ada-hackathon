@@ -111,6 +111,24 @@ def run_scenario(state: WorldState, name: str) -> dict[str, Any]:
         + "; ".join(f"({i + 1}) {r.summary}" for i, r in enumerate(records))
         + ". Analyse the combined situation and recommend what to do."
     )
-    run = agent.start_run(state, trigger=f"scenario:{name}", question=question)
+    # Pass a focus record so build_user_message emits the explicit KPI-delta line
+    # ("unassigned 0 -> N") that tells Claude action is required. Without focus,
+    # Claude only sees the current snapshot and may conclude nothing changed.
+    if len(records) == 1:
+        focus = records[0]
+    else:
+        # Synthesise one record spanning all events so the aggregate delta is shown.
+        all_affected = list(dict.fromkeys(tid for r in records for tid in r.affected_trip_ids))
+        focus = EventRecord(
+            id=records[0].id,
+            sim_time=records[0].sim_time,
+            type="scenario",
+            payload={},
+            summary="; ".join(r.summary for r in records),
+            affected_trip_ids=all_affected,
+            kpis_before=records[0].kpis_before,
+            kpis_after=records[-1].kpis_after,
+        )
+    run = agent.start_run(state, trigger=f"scenario:{name}", focus=focus, question=question)
     state.bump()
     return {"scenario": name, "title": title, "events": records, "run_id": run.id}
