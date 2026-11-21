@@ -109,7 +109,15 @@ def step_details(before: WorldState, after: WorldState, steps: list[PlanStep]) -
                 action, when = "queued", f"stop {order + 1} of its route, after {', '.join(ahead)}"
             redirect = f" (redirected to {dest})" if s.dropoff_id and s.dropoff_id != before.trips[t.id].dropoff_id else ""
             late = f", {t.delay_min:.0f} min late" if (t.delay_min or 0) >= 1 else ""
-            text = f"{v.id} {when}: picks up {t.label} at {_hhmm(pickup_at)}, at {dest}{redirect} {_hhmm(t.eta_dropoff)}{late}"
+            waits = (
+                f" (arrives {_hhmm(t.eta_pickup)} and waits until {'the patient' if t.kind == 'patient' else 'it'} is ready)"
+                if t.eta_pickup and pickup_at and (pickup_at - t.eta_pickup).total_seconds() >= 180
+                else ""
+            )
+            text = (
+                f"{v.id} {when}: picks up {t.label} at {_hhmm(pickup_at)}{waits}, at {dest}{redirect} "
+                f"{_hhmm(t.eta_dropoff)}{late}"
+            )
         out.append(
             {
                 "trip_id": t.id,

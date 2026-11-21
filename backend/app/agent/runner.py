@@ -108,7 +108,7 @@ async def _run(state: WorldState, run: AgentRun, focus: EventRecord | None, ques
         log.warning("agent run %s fell back to engine: %s", run.id, reason)
         run.error = reason[:300]
         run.log("error", f"Claude unavailable ({reason[:200]}). Using the engine's best plan.")
-        _finish(state, run, _engine_recommendation(state, focus, reason), engine="engine_fallback")
+        _finish(state, run, _engine_recommendation(state, focus, reason, question), engine="engine_fallback")
 
 
 async def _claude_loop(
@@ -191,12 +191,27 @@ def _add_usage(run: AgentRun, usage: Any) -> None:
 # --- Fallback and finishing --------------------------------------------------------------
 
 
-def _engine_recommendation(state: WorldState, focus: EventRecord | None, reason: str) -> Recommendation:
+def _situation(focus: EventRecord | None, question: str | None) -> str:
+    """What happened, for the fallback: the event, else the operator's/scenario's question."""
+    if focus:
+        return focus.summary
+    if question:
+        # Scenario questions read "Demo scenario: <title>. These events just happened together: (1) ...".
+        text = question.removeprefix("Demo scenario: ").split(" Analyse the combined situation")[0]
+        return text.replace(" These events just happened together:", "")[:600]
+    return "Operator requested a review."
+
+
+def _engine_recommendation(
+    state: WorldState, focus: EventRecord | None, reason: str, question: str | None = None
+) -> Recommendation:
     plan, unresolved = greedy_plan(state)
-    situation = focus.summary if focus else "Operator requested a review."
+    situation = _situation(focus, question)
     options = []
+    k = kpis(state)  # after the plan, if there is one
     if plan:
-        details = simulate_plan(state, plan)["step_details"]
+        result = simulate_plan(state, plan)
+        details, k = result["step_details"], result["kpis_after"]
         what = "; ".join(d["text"] for d in details[:3]) + (f"; and {len(details) - 3} more" if len(details) > 3 else "")
         options.append(
             RecommendationOption(
@@ -212,13 +227,26 @@ def _engine_recommendation(state: WorldState, focus: EventRecord | None, reason:
         if unresolved
         else None
     )
+    late = (
+        f" {k['late_trips']} trip(s) {'stay' if options else 'are'} predicted late (worst {k['max_delay_min']:.0f} min)"
+        f"{' after this plan' if options else ''}: no {'further ' if options else ''}reassignment found that clearly "
+        "helps; consider a reserve vehicle and tell the patients."
+        if k["late_trips"]
+        else ""
+    )
+    dispatched = [t for t in state.trips.values() if t.dispatched_at and t.status in ("assigned", "en_route_pickup")]
+    sent = (
+        " Already dispatched by the engine: " + ", ".join(f"{t.id} → {t.vehicle_id}" for t in dispatched) + "."
+        if dispatched
+        else ""
+    )
     return Recommendation(
         situation=situation,
         options=options,
         recommended_index=0 if options else -1,
-        reasoning=f"Claude was unavailable ({reason[:120]}), so this is the engine's own best plan."
+        reasoning=f"Claude was unavailable ({reason[:120]}), so this is the engine's own best plan.{sent}{late}"
         if options
-        else f"Claude was unavailable ({reason[:120]}). No unassigned trips need a vehicle.",
+        else f"Claude was unavailable ({reason[:120]}). No trip needs a vehicle.{sent}{late}",
         escalation=escalation,
     )
 

@@ -24,7 +24,7 @@ from app import config, demo, main  # noqa: E402
 from app.agent import runner  # noqa: E402
 from app.agent.context import build_situation, describe_call, execute_tool  # noqa: E402
 from app.agent.prompts import OUTPUT_SCHEMA, TOOLS, _STEP  # noqa: E402
-from app.engine.actions import EQUIPMENT_CARRIERS, can_serve  # noqa: E402
+from app.engine.actions import EQUIPMENT_CARRIERS, assign_trip, can_serve  # noqa: E402
 from app.engine.candidates import greedy_plan  # noqa: E402
 from app.engine.events import EMERGENCY_SLACK_MIN  # noqa: E402
 from app.engine.projection import DONE, LOAD_MIN, over_capacity, project_all  # noqa: E402
@@ -201,12 +201,16 @@ def _van_trip(min_ahead: float = 60) -> Trip:
 
 
 def test_priority_change_to_emergency_releases_a_van_trip():
+    """A van can't take an emergency: the trip is released and (new dispatch model) the engine sends
+    the nearest free emergency unit at once, like for a new emergency call."""
     fresh()
     trip = _van_trip()
     van, old_due = trip.vehicle_id, trip.due_by
     rec = post_event({"type": "priority_change", "trip_id": trip.id, "priority": "emergency", "note": "chest pain"})
     t = W.trips[trip.id]
-    assert t.priority == "emergency" and t.status == "unassigned" and t.vehicle_id is None
+    assert t.priority == "emergency" and t.status == "assigned" and t.vehicle_id != van
+    assert W.vehicles[t.vehicle_id].type in ("ambulance", "helicopter")  # never a van
+    assert t.dispatched_at == W.sim_time
     assert trip.id not in W.vehicles[van].queue
     assert t.pickup_after <= W.sim_time, "an emergency is collected now"
     pickup, drop = W.places[t.pickup_id], W.places[t.dropoff_id]
@@ -214,26 +218,34 @@ def test_priority_change_to_emergency_releases_a_van_trip():
     expected = W.sim_time + timedelta(minutes=direct + LOAD_MIN + EMERGENCY_SLACK_MIN)
     assert abs((t.due_by - expected).total_seconds()) < 2 and t.due_by < old_due
     assert f"released from {van}" in rec["summary"] and "due-by" in rec["summary"], rec["summary"]
+    assert f"dispatched {t.vehicle_id}" in rec["summary"], rec["summary"]
     assert trip.id in rec["affected_trip_ids"]
-    alert = next(a for a in W.alerts if a.id == f"trip_unassigned:{trip.id}")
-    assert alert.severity == "critical"
+    assert not any(a.id == f"trip_unassigned:{trip.id}" for a in W.alerts)
 
     bad = simulate([step(trip.id, van)])
     assert not bad["feasible"] and "emergencies need an ambulance" in bad["errors"][0]
     assert client.post("/sim/plans/apply", json={"steps": [step(trip.id, van)]}).status_code == 400
     plan, _ = greedy_plan(W)
-    s = next(s for s in plan.steps if s.trip_id == trip.id)
-    assert W.vehicles[s.vehicle_id].type in ("ambulance", "helicopter")  # never a van
+    assert plan is None or trip.id not in [s.trip_id for s in plan.steps]  # already dispatched
 
 
 def test_priority_change_keeps_a_compatible_vehicle():
+    """An ambulance driving to an urgent call has a second urgent call queued; the second patient
+    becomes an emergency: it stays on that ambulance and goes first (the ambulance turns around)."""
     fresh()
-    a1 = W.vehicles["A1"]
-    assert len(a1.queue) >= 2
-    second = a1.queue[1]
-    rec = post_event({"type": "priority_change", "trip_id": second, "priority": "emergency"})
-    assert W.trips[second].vehicle_id == "A1" and W.trips[second].status == "assigned"
-    assert "released" not in rec["summary"] and "still #2 in A1's queue" in rec["summary"], rec["summary"]
+    first = post_event({"type": "urgent_request", "pickup_id": "home_skofljica", "priority": "urgent"})["affected_trip_ids"][0]
+    amb = W.vehicles[W.trips[first].vehicle_id]
+    assert amb.type == "ambulance"
+    run_until(lambda: amb.current_trip_id == first, 2)
+    second = Trip(id="TR-X2", patient="P-X2", priority="urgent", needs="stretcher", pickup_id="home_rudnik",
+                  dropoff_id="ukc", pickup_after=W.sim_time, due_by=W.sim_time + timedelta(minutes=90))
+    W.trips[second.id] = second
+    assign_trip(W, second.id, amb.id)
+    assert amb.queue == [second.id]
+    rec = post_event({"type": "priority_change", "trip_id": second.id, "priority": "emergency"})
+    assert W.trips[second.id].vehicle_id == amb.id and W.trips[second.id].status == "assigned"
+    assert "released" not in rec["summary"] and f"moved to the front of {amb.id}'s route" in rec["summary"], rec["summary"]
+    assert amb.current_trip_id is None and amb.queue == [second.id, first]  # turned around: the emergency first
 
     van_trip = _van_trip(30)
     rec = post_event({"type": "priority_change", "trip_id": van_trip.id, "priority": "urgent"})
@@ -432,14 +444,16 @@ def test_hospital_full_scenario_engine_plan():
     fresh()
     records = demo._hospital_full(W)
     escalated = records[0].affected_trip_ids[0]
-    assert W.trips[escalated].priority == "emergency" and W.trips[escalated].status == "unassigned"
-    assert "released from" in records[0].summary and "must be redirected" in records[1].summary
+    t = W.trips[escalated]
+    # New dispatch model: the emergency is released from its van and an ambulance is sent at once.
+    assert t.priority == "emergency" and t.status == "assigned" and W.vehicles[t.vehicle_id].type == "ambulance"
+    assert "released from" in records[0].summary and "dispatched" in records[0].summary
+    assert "must be redirected" in records[1].summary
     overflow = {t.id for t in over_capacity(W)["ukc"]}
     assert escalated not in overflow, "the emergency keeps the last admission"
     plan, unresolved = greedy_plan(W)
     assert not unresolved
-    first = plan.steps[0]
-    assert first.trip_id == escalated and W.vehicles[first.vehicle_id].type == "ambulance" and first.dropoff_id is None
+    assert escalated not in {s.trip_id for s in plan.steps}  # already dispatched: the plan is the redirects
     assert {s.trip_id for s in plan.steps if s.dropoff_id} == overflow
     k = simulate([s.model_dump() for s in plan.steps])["kpis_after"]
     assert k["over_capacity"] == 0 and sum(k["unassigned"].values()) == 0
@@ -501,13 +515,16 @@ def test_existing_events_unchanged():
     rec = post_event({"type": "urgent_request", "pickup_id": "home_polje", "priority": "emergency"})
     new = W.trips[rec["affected_trip_ids"][0]]
     assert new.id == f"TR-{len(W.trips):03d}" and new.kind == "patient" and new.patient
+    # New dispatch model: the engine sends the nearest free emergency unit at once.
+    assert new.status == "assigned" and W.vehicles[new.vehicle_id].type in ("ambulance", "helicopter")
+    assert f"dispatched {new.vehicle_id}" in rec["summary"], rec["summary"]
     post_event({"type": "delay", "vehicle_id": "T2", "minutes": 10})
     inc = post_event({"type": "road_closure", "lat": 46.0563, "lon": 14.5232})
     assert inc["type"] == "road_closure"
     post_event({"type": "clear_incident", "incident_id": next(iter(W.incidents))})
     post_event({"type": "weather_override", "snowfall_cm": 2})
     plan, unresolved = greedy_plan(W)
-    assert plan and new.id in [s.trip_id for s in plan.steps]
+    assert plan and tid in [s.trip_id for s in plan.steps]  # the stranded patient (left for the plan)
     r = client.post("/sim/plans/apply", json={"steps": [s.model_dump() for s in plan.steps]})
     assert r.status_code == 200
     assert client.get("/sim/state").status_code == 200

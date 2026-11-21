@@ -13,6 +13,14 @@ if TYPE_CHECKING:
 
 LJ = ZoneInfo("Europe/Ljubljana")
 EQUIPMENT_CARRIERS = ("ambulance", "transport")  # equipment goes by road; the helicopter stays free for patients
+# Dispatch model (a fictional independent EMS operator, close to how Slovenian EMS works):
+# - ambulances (A*) are the emergency units: emergencies and urgent calls, dispatched on
+#   availability and proximity. They start the day free and never hold a long queue.
+# - transport vans (T*) do the scheduled day (seated, wheelchair and stretcher patients,
+#   equipment) and urgent non-emergency trips; never emergencies.
+# - the helicopter (H1) only flies emergencies and urgent trips (never routine work or cargo).
+EMERGENCY_UNITS = ("ambulance", "helicopter")
+MAX_QUEUED_EMERGENCY_UNIT = 1  # an emergency unit holds its current job plus at most this many queued
 
 
 class ActionError(ValueError):
@@ -27,11 +35,17 @@ def can_serve(v: Vehicle, trip: Trip) -> tuple[bool, str | None]:
         return False, f"{v.name} is grounded by fog until {until} and cannot take new flights"
     if trip.needs == "equipment" and v.type not in EQUIPMENT_CARRIERS:
         return False, f"{v.name} cannot carry equipment transfers"
-    if v.type == "transport":
-        if trip.needs == "stretcher":
-            return False, f"{v.name} is a transport van and cannot carry stretcher patients"
-        if trip.priority == "emergency":
-            return False, f"{v.name} is a transport van; emergencies need an ambulance"
+    if v.type == "transport" and trip.priority == "emergency":
+        return False, f"{v.name} is a transport van; emergencies need an ambulance"
+    if v.type == "helicopter" and trip.priority == "scheduled":
+        return False, f"{v.name} only flies emergencies and urgent trips; scheduled trips go by road"
+    if v.type in EMERGENCY_UNITS:
+        jobs = [t for t in ([v.current_trip_id] if v.current_trip_id else []) + list(v.queue) if t != trip.id]
+        if len(jobs) > MAX_QUEUED_EMERGENCY_UNIT:
+            return False, (
+                f"{v.name} already has {len(jobs)} jobs ({', '.join(jobs)}); an emergency unit takes at most "
+                f"its current job plus {MAX_QUEUED_EMERGENCY_UNIT} queued trip"
+            )
     return True, None
 
 

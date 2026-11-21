@@ -159,9 +159,30 @@ def _snow_cascade(state: WorldState) -> list[EventRecord]:
     ]
 
 
+# Kamniška Bistrica (valley below the Kamnik Alps), approximate: ~30 km from UKC, ~45 min by road.
+REMOTE_CALL = (46.3085, 14.5910)
+
+
+def _remote_emergency(state: WorldState) -> list[EventRecord]:
+    """A time-critical emergency far from the city's ambulances: the engine sends helicopter H1, which
+    is far faster than any ambulance by road. It flies there, loads, flies to UKC and lands."""
+    _fast_forward(state, 5)
+    return [
+        apply_event(
+            state,
+            UrgentRequestEvent(
+                type="urgent_request", lat=REMOTE_CALL[0], lon=REMOTE_CALL[1], place_name="Kamniška Bistrica (hiking trail)",
+                dropoff_id="ukc", needs="stretcher", priority="emergency",
+                note="hiker fell, suspected spinal injury; 45 min by road",
+            ),
+        )
+    ]
+
+
 SCENARIOS: dict[str, tuple[str, Callable[[WorldState], list[EventRecord]]]] = {
     "stranded_patient": ("Van breaks down with a patient on board", _stranded_patient),
     "stroke_rush_hour": ("Stroke emergency with a road closure near UKC", _stroke_rush_hour),
+    "remote_emergency": ("Remote emergency in the mountains: the helicopter flies", _remote_emergency),
     "snow_cascade": ("Snowstorm, a delayed van and an emergency at once", _snow_cascade),
     "stranded_equipment": ("Vehicle breaks down with medical equipment on board", _stranded_equipment),
     "hospital_full": ("UKC can admit only one more patient as a patient becomes an emergency", _hospital_full),
