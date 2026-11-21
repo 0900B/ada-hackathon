@@ -1,6 +1,6 @@
 # Slovenian emergency medical services: research findings (Ljubljana focus)
 
-Researched 2026-11-21 for the AdaHack Epilog challenge #3. Workflow diagrams and per-step data dependencies are in [WORKFLOWS.md](WORKFLOWS.md); image copies are in `docs/diagrams/`.
+Researched 2026-11-21 for the AdaHack Epilog challenge #3. Workflow diagrams and per-step data dependencies are in [WORKFLOWS.md](WORKFLOWS.md); image copies are in `docs/diagrams/`. Ljubljana fleet, teams, shifts and dispatch decision: [LJUBLJANA_FLEET_AND_TEAMS.md](LJUBLJANA_FLEET_AND_TEAMS.md). Surge capacity, private ambulances, army, multi-event coordination: [SURGE_AND_MULTI_SERVICE_COORDINATION.md](SURGE_AND_MULTI_SERVICE_COORDINATION.md).
 
 **How to read this:** each fact is tagged **[S]** stated in a source I read, **[I]** my inference, **[?]** not found. Several PDFs could not be read by the web fetch tool, so I extracted their text locally and read it directly; those are marked "(read in full)". Source dates are given because some are old.
 
@@ -24,17 +24,18 @@ Researched 2026-11-21 for the AdaHack Epilog challenge #3. Workflow diagrams and
 - **Chain [S]:** 112 → one of **13 regional notification centres (ReCO)** → **medical dispatch centre (DCZ)**. There are two DCZ, in **Ljubljana and Maribor**, set up under the Pravilnik o dispečerski službi zdravstva (OJ RS 58/2017; a consolidated text dated 21 May 2025 exists, status not verified).
 - **Operator [S]:** the DCZ is an independent unit inside **UKC Ljubljana**. The 2026 decree lists "helicopter EMS and the health dispatch service" under UKC Ljubljana's programme. Phone for the UKC dispatch service is on the UKC website.
 - **Triage [S]:** the Slovenian Index for Emergency medical help, based on the Norwegian index (3rd edition). Outcomes: doctor-staffed emergency team, rescuer ambulance without doctor, doctor home visit, send the patient to the nearest health service, or phone advice.
-- **Team selection [S]:** the nearest suitable team is sent; a dispatcher screen lists the nearest first responders (can include non-emergency vehicles or motorcycles). A 2026 report says a team from a nearby health centre may be sent if it is faster. **GPS use [?]:** not confirmed in any source.
+- **Team selection [S]:** the nearest suitable team is sent; a dispatcher screen lists the nearest first responders (can include non-emergency vehicles or motorcycles). A 2026 report says a team from a nearby health centre may be sent if it is faster. **GPS [S, updated]:** the dispatch rulebook (art. 11, OJ 58/2017) requires every ambulance to have a GPS transmitter, radio, navigation device and tablet, with position data reaching dispatch within 10 seconds (99.5% availability). Full detail in [LJUBLJANA_FLEET_AND_TEAMS.md](LJUBLJANA_FLEET_AND_TEAMS.md).
 - **Roll-out [S]:** regions are joining step by step (for example Idrija, Pomurje, Gorenjska were reported). In the old model each local unit dispatched itself.
 - **Road accidents [S]:** ReCO alerts fire brigade and police in parallel; emergency vehicles use lights and sirens and form a rescue corridor; DARS (motorway company) also takes part.
-- **Routes [?]:** no source describes how routes are calculated. Only "nearest team" is stated. Treat as unknown; for the challenge, use OSRM.
+- **Routes [S for intent, ? for software]:** the dispatcher uses traffic information and orders the vehicle the fastest route; the routing software is not named in any source. For the challenge, use OSRM.
 
 ## 3. Who operates what in Ljubljana
 
 - **UKC Ljubljana [S, decree 2026]:** 12 NRV teams, 1 motorcycle team, helicopter EMS and dispatch service contracts. A 2019 report says the Ljubljana ambulance station handles up to 45,000 interventions a year over about 1,700 km² and had 3 rescue motorcycles; it also took delivery of two ambulances able to carry incubators.
 - **ZD Ljubljana [S, decree 2026]:** for on-duty emergency care in the City of Ljubljana: 3 doctor-plus-nurse intervention teams (MoE VUZ), 1 urgent home-visit team (MoE DZ), 5 on-duty teams (DS1), 2.5 rapid-exam teams in working hours, 1.5 triage and admission teams, 0.8 emergency-centre team. The walk-in adult emergency clinic (SNMP) is at the UKC emergency department, entrance from Bohoričeva, open 24/7.
 - **Fleet maintenance [S]:** a 2026 EU tender covers maintenance of the Ljubljana ambulance station's fleet, about €1.6M ex VAT, split by manufacturer (VW, MAN, Mercedes-Benz). I read only a search summary of this notice, not the notice itself.
-- **Ownership and renting [?]:** not found. The tender and per-team funding suggest the public institute owns and maintains emergency ambulances **[I]**. Non-emergency transport is different: private providers hold concessions with ZZZS (a 2022 regional news report, Podravje; not verified for Ljubljana).
+- **Fleet size [S, updated]:** 29 vehicles (2018) and 30 (end 2022) at the UKC station, with type mix, age and mileage in [LJUBLJANA_FLEET_AND_TEAMS.md](LJUBLJANA_FLEET_AND_TEAMS.md). Maintenance is outsourced under a 2026 framework contract (six lots, about €402k awarded).
+- **Ownership and renting [?]:** still not found. The tender and per-team funding suggest the public institute owns and maintains emergency ambulances **[I]**. Non-emergency transport is different: private providers hold concessions with ZZZS (a 2022 regional news report, Podravje; not verified for Ljubljana).
 
 ## 4. Helicopter emergency medical service (HNMP)
 
@@ -133,11 +134,11 @@ Sources: Slovenija-transplant pages (donor network, transplantation, statistics,
 ## 8. Gaps (not found)
 
 1. Who owns or leases ambulances in Ljubljana
-2. Route calculation and live vehicle tracking in dispatch
+2. The routing software used by dispatch (live GPS tracking is now confirmed as a rulebook requirement)
 3. Road transport of organs and its organisation
 4. Time limits per organ
 5. Night helicopter operations today
-6. Current number of ambulances in Ljubljana
+6. Current (2025-26) number of ambulances in Ljubljana (2018 and 2022 counts found)
 7. Hospital admission capacity data
 8. The Maribor base details (operator, hours)
 

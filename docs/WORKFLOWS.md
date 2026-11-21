@@ -57,7 +57,7 @@ flowchart TD
 | ReCO regional centre | Caller location and spoken description | 13 regional centres; road-accident rule: alerts fire and police at the same time | Call passed to DCZ; parallel alerts | [S] |
 | DCZ medical dispatch | Address, symptoms, caller answers to key questions | Law: Pravilnik o dispečerski službi zdravstva (OJ 58/2017); only some regions have joined so far | Urgency category and chosen team | [S] |
 | Triage | Answers mapped to the Slovenian Index for Emergency medical help (based on the Norwegian index) | Index protocol | Response type: doctor team, rescuer ambulance, home visit, advice | [S] |
-| Pick the team | Which units are free and where they are | Unit status. Live GPS is **not confirmed**. Sources only say the nearest suitable team is sent and one screen lists the nearest responders | Dispatched unit | [S]/[?] for GPS |
+| Pick the team | Which units are free and where they are | Unit status and live position. The dispatch rulebook requires GPS in every vehicle (updates within 10 s); the nearest suitable team is sent. See [LJUBLJANA_FLEET_AND_TEAMS.md](LJUBLJANA_FLEET_AND_TEAMS.md) | Dispatched unit | [S] |
 | Team drives to scene | Origin, destination, road network, traffic, closures | Routing method is **unknown**. Vehicles use sirens and form a rescue corridor | Arrival time | [?] |
 | On scene | Patient condition, access, hazards | Team skills (doctor vs rescuer) | Treat on site, or decide to transport or call a helicopter | [S] |
 | Transport to hospital | Right hospital = one that can finally treat this condition (for example heart attack needs a cath lab, severe head injury needs a neurosurgeon) | Hospital capability and capacity; hospital admission agreement | Patient handed over at the emergency department | [S] |
@@ -328,7 +328,7 @@ flowchart TD
 | Data item | Used in workflow step | Owner or source | Public or synthetic for the hackathon | Tag |
 |---|---|---|---|---|
 | Caller location | 1: ReCO, DCZ | Mobile operators | Synthetic | [S] |
-| Unit locations and status | 1: pick the team | DCZ and ambulance station | Synthetic (live GPS not confirmed) | [?] |
+| Unit locations and status | 1: pick the team | DCZ and ambulance station (GPS every about 10 s by rule) | Synthetic | [S] |
 | Road travel time | 1, 2, 5, 6 | OSRM on OpenStreetMap (in `research/samples`) | Public | [S] |
 | Helicopter travel time | 2, 6 | Straight line at 200 km/h (challenge rule) | Computed | [S] |
 | Sunrise and sunset | 2: daylight window | Astronomical, rounded to the half hour | Computed | [S] |
