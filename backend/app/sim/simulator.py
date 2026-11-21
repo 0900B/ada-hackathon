@@ -6,7 +6,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from ..engine.doctors import stand_down_reserve
-from ..engine.projection import LOAD_MIN, UNLOAD_MIN
+from ..engine.service_times import HANDOVER_MIN, after_dropoff_min, on_scene_min, turnout_min
 from ..models import Vehicle
 from ..roads import ROADS, key, nearest_fraction, point_along
 from ..geo import haversine_km
@@ -80,7 +80,7 @@ def _advance_doctor(state: WorldState, v: Vehicle, dt_min: float) -> None:
     if _move_towards(state, v, dest.lat, dest.lon, dt_min, True):
         v.current_trip_id = None
         v.status = "returning"
-        v.busy_until = state.sim_time + timedelta(minutes=UNLOAD_MIN)  # handover with the crew
+        v.busy_until = state.sim_time + timedelta(minutes=HANDOVER_MIN)  # the doctor hands over with the crew
 
 
 def _account_distance(state: WorldState, v: Vehicle, before: tuple[float, float]) -> None:
@@ -157,9 +157,13 @@ def _advance(state: WorldState, v: Vehicle, dt_min: float) -> None:
 
     if v.current_trip_id is None and v.status != "with_patient":
         if v.queue:
+            turnout = turnout_min(v)  # from rest at its base: the crew gets going first
             v.current_trip_id = v.queue.pop(0)
             state.trips[v.current_trip_id].status = "en_route_pickup"
             v.status = "to_pickup"
+            if turnout:
+                v.busy_until = state.sim_time + timedelta(minutes=turnout)
+                return
         elif v.status != "idle":
             v.status = "returning"
 
@@ -183,8 +187,8 @@ def _advance(state: WorldState, v: Vehicle, dt_min: float) -> None:
             return
         trip.status = "onboard"
         trip.eta_pickup = state.sim_time
-        v.status = "loading"
-        v.busy_until = state.sim_time + timedelta(minutes=LOAD_MIN)
+        v.status = "loading"  # on scene: assessment, treatment, loading
+        v.busy_until = state.sim_time + timedelta(minutes=on_scene_min(trip, v.type))
     elif v.status == "with_patient" and trip:
         trip.status = "completed"
         trip.eta_dropoff = state.sim_time
@@ -193,7 +197,7 @@ def _advance(state: WorldState, v: Vehicle, dt_min: float) -> None:
         if dest.capacity is not None and trip.kind == "patient":
             dest.capacity = max(0, dest.capacity - 1)  # one admission used
         v.current_trip_id = None
-        v.status = "returning"
-        v.busy_until = state.sim_time + timedelta(minutes=UNLOAD_MIN)
+        v.status = "returning"  # handover, then cleaning and restocking: not available until busy_until
+        v.busy_until = state.sim_time + timedelta(minutes=after_dropoff_min(trip, v.type))
     elif v.status == "returning":
         v.status = "idle"

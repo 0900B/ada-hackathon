@@ -25,10 +25,10 @@ from ..roads import ROADS, remaining_points
 from ..routing import flies, leg_route, points_hit, travel_minutes
 from .actions import LJ, ActionError, assign_trip, can_serve, detach_trip, level
 from .doctors import release as release_doctor, send_doctor
-from .severity import DEFAULT_SEVERITY, SEVERITY_PRIORITY, SEVERITY_RANK, call_label, grade
+from .service_times import on_scene_for, on_scene_min
+from .severity import DEFAULT_SEVERITY, SEVERITY_PRIORITY, SEVERITY_RANK, call_label, grade, severity_for
 from .projection import (
     DONE,
-    LOAD_MIN,
     PRIORITY_ORDER,
     incoming_patients,
     kpis,
@@ -204,7 +204,8 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
             pickup_id=pickup.id,
             dropoff_id=dropoff.id,
             pickup_after=state.sim_time,
-            due_by=state.sim_time + timedelta(minutes=direct + LOAD_MIN + slack),
+            due_by=state.sim_time
+            + timedelta(minutes=direct + on_scene_for("patient", severity_for(ev.priority, ev.severity, ev.condition), ev.condition) + slack),
             note=ev.note,
             severity=ev.severity,
             condition=ev.condition,
@@ -304,7 +305,7 @@ def _book_task(state: WorldState, ev: TaskRequestEvent, created: list[str]) -> s
     due = (
         state.sim_time + timedelta(minutes=ev.due_in_min)
         if ev.due_in_min is not None
-        else ready + timedelta(minutes=direct + LOAD_MIN + BOOKING_SLACK_MIN)
+        else ready + timedelta(minutes=direct + on_scene_for("equipment" if equipment else "patient", "urgent", None, "transport") + BOOKING_SLACK_MIN)
     )
     if due <= ready:
         raise EventError("The deadline must be after the ready time")
@@ -467,7 +468,7 @@ def _priority_change(state: WorldState, ev: PriorityChangeEvent, affected: list[
                 trip.pickup_after = min(trip.pickup_after, state.sim_time)
             start = max(state.sim_time, trip.pickup_after)
             pickup = state.places[trip.pickup_id]
-            direct = travel_minutes(state, pickup.lat, pickup.lon, dropoff.lat, dropoff.lon, "ambulance", True) + LOAD_MIN
+            direct = travel_minutes(state, pickup.lat, pickup.lon, dropoff.lat, dropoff.lon, "ambulance", True) + on_scene_min(trip)
         target = start + timedelta(minutes=direct + slack)
         if target < trip.due_by:
             earlier = (trip.due_by - target).total_seconds() / 60

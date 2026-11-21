@@ -20,7 +20,8 @@ from zoneinfo import ZoneInfo
 
 from ..models import Trip, Vehicle
 from ..routing import flies, travel_minutes, vehicle_leg_minutes
-from .severity import DOCTOR_TARGET_MIN, RED_REFERENCE_MIN
+from .service_times import turnout_min
+from .severity import BUSY_UNIT_MIN_GAIN_MIN, DOCTOR_TARGET_MIN, RED_REFERENCE_MIN
 
 if TYPE_CHECKING:
     from ..state import WorldState
@@ -48,7 +49,8 @@ def is_doctor_free(v: Vehicle) -> bool:
 def doctor_arrival(state: WorldState, v: Vehicle, trip: Trip) -> datetime:
     """When doctor car v would reach the patient of trip, leaving now (or when its handover ends)."""
     p = state.places[trip.pickup_id]
-    start = max(state.sim_time, v.busy_until) if v.busy_until else state.sim_time
+    start = max(state.sim_time, v.busy_until) if v.busy_until else state.sim_time  # handover, or turnout under way
+    start += timedelta(minutes=turnout_min(v))  # from rest at its base (5 min for a doctor car)
     if v.current_trip_id == trip.id and v.status == "to_pickup":
         minutes = vehicle_leg_minutes(state, v, p.lat, p.lon, True)
     else:
@@ -95,7 +97,10 @@ def send_doctor(state: WorldState, trip: Trip, unit_id: str | None = None, unit_
         return f"; {why}: consider the helicopter (doctor on board)"
     best = min(free, key=lambda v: doctor_arrival(state, v, trip))
     at = doctor_arrival(state, best, trip)
+    turnout = turnout_min(best)
     best.current_trip_id, best.queue, best.status, best.waiting_until = trip.id, [], "to_pickup", None
+    if turnout:
+        best.busy_until = max(best.busy_until or state.sim_time, state.sim_time) + timedelta(minutes=turnout)
     trip.doctor_vehicle_id, trip.doctor_eta = best.id, at
     if reach is None:
         rel = ""
@@ -204,8 +209,8 @@ def reserve_options(state: WorldState) -> list[dict]:
             d = result["step_details"][0]
             reach = d["pickup_at"]
             wait = _mins(max(reach, trip.pickup_after), trip.pickup_after)
-            if wait >= now_wait - 1:
-                continue  # no faster than what is already sent
+            if wait > now_wait - BUSY_UNIT_MIN_GAIN_MIN:
+                continue  # not clearly faster than what is already sent
             where = reserve_area(state, r)
             out.append(
                 {

@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from ..models import Alert, Severity, Trip, Vehicle
+from .service_times import after_dropoff_min, on_scene_min, turnout_min
 from .severity import RED_REFERENCE_MIN, SEVERITY_RANK
 from ..roads import ROADS, key
 from ..sim.fleet_details import CRITICAL_FUEL_PCT, LOW_FUEL_PCT
@@ -19,8 +20,6 @@ from ..routing import flies, resolve_route, travel_minutes, vehicle_leg_minutes
 if TYPE_CHECKING:
     from ..state import WorldState
 
-LOAD_MIN = 5.0
-UNLOAD_MIN = 3.0
 LATE_ALERT_MIN = 5.0
 DONE = ("completed", "cancelled")
 SEVERITY_ORDER: dict[Severity, int] = {"critical": 0, "high": 1, "medium": 2, "low": 3}
@@ -57,7 +56,8 @@ def project_route(
         return []  # a doctor car's job is a call it supports, not a route of its own (see doctors.py)
     t = state.sim_time
     if v.busy_until and v.busy_until > t:
-        t = v.busy_until
+        t = v.busy_until  # on scene, handing over, cleaning, or held up
+    t += _td(turnout_min(v))  # from rest at its base: the crew gets going first
     lat, lon = v.lat, v.lon
     first = True  # the first leg starts from wherever the vehicle is, possibly mid-road
 
@@ -92,11 +92,11 @@ def project_route(
         else:
             t += leg(pickup.lat, pickup.lon, emergency)
             eta_pickup = t
-            t = max(t, trip.pickup_after) + _td(LOAD_MIN)
+            t = max(t, trip.pickup_after) + _td(on_scene_min(trip, v.type))
         t += leg(dropoff.lat, dropoff.lon, emergency)
         delay = max(0.0, (t - trip.due_by).total_seconds() / 60)
         legs.append(Leg(tid, eta_pickup, t, round(delay, 1)))
-        t += _td(UNLOAD_MIN)
+        t += _td(after_dropoff_min(trip, v.type))  # handover (or unloading), then cleaning
     if prefetch and v.status != "out_of_service":
         base = state.places.get(v.base_id)
         if base:
@@ -220,7 +220,7 @@ def compute_alerts(state: WorldState) -> list[Alert]:
                     id=f"red_response_over_15_min:{trip.id}",
                     kind="red_response_over_15_min",
                     severity="critical",
-                    message=f"Red call {trip.id} ({what}) reached only after {wait:.0f} min "
+                    message=f"Red call {trip.id} ({what}) reached only after {math.ceil(wait)} min "
                     f"(reference for red calls: {RED_REFERENCE_MIN:.0f} min): ask a neighbouring station",
                     trip_id=trip.id,
                     vehicle_id=trip.vehicle_id,
@@ -238,7 +238,7 @@ def compute_alerts(state: WorldState) -> list[Alert]:
                     kind="doctor_response_over_15_min",
                     severity="high",
                     message=(
-                        f"Doctor for {trip.id} ({what}) on scene only after {doctor_wait:.0f} min ({who})"
+                        f"Doctor for {trip.id} ({what}) on scene only after {math.ceil(doctor_wait)} min ({who})"
                         if who
                         else f"No doctor for {trip.id} ({what}): no doctor car free"
                     )

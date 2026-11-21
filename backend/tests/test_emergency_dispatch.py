@@ -125,10 +125,12 @@ def test_severity_fields_and_defaults():
 
 
 def _finishing_at_ukc() -> Trip:
-    """A1 has a serious patient on board and is about to hand over at UKC."""
+    """A1 has handed over a serious patient at UKC and is finishing cleaning (ready in at most 3 min).
+    (With a patient still on board it would need the 15-min handover and 10-min cleaning first.)"""
     t = job("X1", "A1", "home_bezigrad", "serious", "breathing_difficulty")
-    assert run(30, until=lambda: t.status == "onboard" and W.vehicles["A1"].status == "with_patient"
-               and t.eta_dropoff is not None and (t.eta_dropoff - W.sim_time).total_seconds() <= 150)
+    a1 = W.vehicles["A1"]
+    assert run(90, until=lambda: t.status == "completed" and a1.busy_until is not None
+               and 0 < (a1.busy_until - W.sim_time).total_seconds() <= 180)
     return t
 
 
@@ -137,9 +139,19 @@ def test_case_b_unit_finishing_nearby_goes_when_clearly_sooner():
     _finishing_at_ukc()
     park("A3", "home_medvode")  # the free one is far away
     rec, t = call(*near("zd_center"), "serious", "breathing_difficulty")
-    assert t.vehicle_id == "A1" and "available soon: drops off at UKC Ljubljana" in rec.summary, rec.summary
+    assert t.vehicle_id == "A1" and "available soon: ready" in rec.summary and "after handover and cleaning" in rec.summary, rec.summary
     assert "sooner than A3" in rec.summary and "may deteriorate quickly" in rec.summary
-    assert route_trip_ids(W.vehicles["A1"])[1] == t.id, "after the drop-off, never diverted with a patient on board"
+    assert route_trip_ids(W.vehicles["A1"]) == [t.id]
+
+
+def test_case_b_unit_with_a_patient_on_board_finishes_handover_and_cleaning_first():
+    fresh(("A1", "A3"))
+    x = job("X1", "A1", "home_bezigrad", "serious", "breathing_difficulty")
+    assert run(30, until=lambda: x.status == "onboard" and W.vehicles["A1"].status == "with_patient")
+    park("A3", "home_medvode")
+    rec, t = call(*near("zd_center"), "serious", "breathing_difficulty")
+    assert t.vehicle_id == "A3", rec.summary  # A1 needs drop-off + 15 min handover + 10 min cleaning
+    assert W.vehicles["A1"].current_trip_id == x.id and x.status == "onboard", "never diverted with a patient on board"
 
 
 def test_case_b_free_unit_goes_when_the_busy_one_is_not_clearly_sooner():
@@ -177,13 +189,28 @@ def test_case_c_life_threatening_call_overrides_and_displaced_call_stays_within_
 
 def test_case_c_no_override_when_the_displaced_patient_would_miss_their_target():
     fresh(("A1", "A3"))
-    park("A3", "home_medvode")
+    park("A3", "zd_vic")  # reaches the arrest within its 8-min target, A1 would still be clearly sooner
     fall = _a1_heading_to_fall()
     fall.response_target_min = 5.0  # (hypothetical) a target nobody else could meet
     a1 = W.vehicles["A1"]
     rec, t = call(round(a1.lat + 0.003, 5), round(a1.lon + 0.004, 5), "critical", "cardiac_arrest")
     assert t.vehicle_id == "A3" and "diverted" not in rec.summary, rec.summary
     assert W.vehicles["A1"].current_trip_id == fall.id and fall.times_displaced == 0
+    assert (max(t.eta_pickup, t.pickup_after) - t.pickup_after) <= timedelta(minutes=8)
+
+
+def test_case_c_higher_level_first_when_nothing_else_reaches_it_in_time():
+    """The same, but the only other unit is far away: the arrest would miss its target, so the higher
+    level goes first and the displaced call is re-dispatched even though it misses its own target."""
+    fresh(("A1", "A3"))
+    park("A3", "home_medvode")
+    fall = _a1_heading_to_fall()
+    fall.response_target_min = 5.0
+    a1 = W.vehicles["A1"]
+    rec, t = call(round(a1.lat + 0.003, 5), round(a1.lon + 0.004, 5), "critical", "cardiac_arrest")
+    assert t.vehicle_id == "A1" and f"diverted from {fall.id}" in rec.summary, rec.summary
+    assert "after its 5-min target: no unit can reach it sooner" in rec.summary, rec.summary
+    assert fall.vehicle_id and fall.times_displaced == 1
 
 
 def test_no_call_is_displaced_twice():

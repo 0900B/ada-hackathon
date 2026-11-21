@@ -38,7 +38,7 @@ Two worlds read them:
 ## Operating mode: live calls (default) or a scheduled day
 
 - **Live calls** (default for both worlds): no pre-planned trips; every unit starts idle at its base.
-  `app/sim/calls.py` generates calls (`CALLS_PER_HOUR`, default 8 per world hour, exponential gaps of
+  `app/sim/calls.py` generates calls (`CALLS_PER_HOUR`, default 5 per world hour, exponential gaps of
   2–25 min, its own seeded RNG per world): emergencies at street addresses around Ljubljana (to UKC),
   sometimes a remote one (Kamniška Bistrica, Krvavec, Sava valley: the helicopter), urgent field calls,
   urgent patient transports (health centre or GP referral to UKC, urgent discharges, inter-hospital

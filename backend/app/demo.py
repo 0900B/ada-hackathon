@@ -16,7 +16,8 @@ from .agent import runner as agent
 from .engine.actions import assign_trip
 from .engine.doctors import send_doctor
 from .engine.events import EMERGENCY_SLACK_MIN, URGENT_SLACK_MIN, apply_event
-from .engine.projection import LOAD_MIN, project_all
+from .engine.projection import project_all
+from .engine.service_times import on_scene_for
 from .engine.severity import grade
 from .models import (
     BreakdownEvent,
@@ -88,6 +89,9 @@ def _job(
     else:
         slack = BOOKED_SLACK_MIN  # an urgent transport or equipment run (van)
     ready = state.sim_time + timedelta(minutes=ready_min)
+    unit_type = state.vehicles[vehicle_id].type if vehicle_id else ("ambulance" if emergency else "transport")
+    level = severity or ("serious" if emergency else "urgent")
+    on_scene = on_scene_for("equipment" if cargo else "patient", level, condition, unit_type)
     trip = Trip(
         id=f"TR-{len(state.trips) + 1:03d}",
         kind="equipment" if cargo else "patient",
@@ -98,7 +102,7 @@ def _job(
         pickup_id=pickup,
         dropoff_id=dropoff,
         pickup_after=ready,
-        due_by=(ready + timedelta(minutes=direct + LOAD_MIN + slack)).replace(microsecond=0),
+        due_by=(ready + timedelta(minutes=direct + on_scene + slack)).replace(microsecond=0),
         note=note,
         severity=severity,  # type: ignore[arg-type]
         condition=condition or ("equipment" if cargo else ("transfer" if priority == "urgent" and vehicle_id and vehicle_id.startswith("T") else None)),
@@ -201,18 +205,21 @@ def _hospital_full(state: WorldState) -> list[EventRecord]:
 
 
 def _stroke_rush_hour(state: WorldState) -> list[EventRecord]:
-    """Available soon (rule 1): a stroke in Polje while Zaloška is closed. A2 is about to hand over a
-    patient at UKC, the only free ambulance (A3) is driving back from a transfer to Novo mesto and H1 is out on a
-    mountain call. The engine sends A2 at once: drop-off, handover, then Polje, and it compares arrival
-    at UKC (the stroke centre). The loaded leg goes around the closure."""
-    _helicopter_on_remote_job(state)
+    """Available soon (rule 1): a stroke in Polje while Zaloška is closed. A2 has handed over a patient
+    at UKC and is finishing cleaning (ready in a few minutes), the only free ambulance (A3) is driving
+    back from a transfer to Novo mesto and H1 is out on a mountain call. The engine sends A2 at once:
+    it finishes, then drives to Polje, and it compares arrival at UKC (the stroke centre). The loaded
+    leg goes around the closure."""
     a2_job = _job(state, "A2", _near(state, "home_bezigrad", 0.001, -0.002, "Bežigrad (call)"), priority="emergency",
-                  needs="stretcher", severity="serious", condition="breathing_difficulty", note="severe breathing difficulty")
+                  needs="stretcher", severity="serious", condition="sepsis", note="high fever, confused, low blood pressure")
+    _job(state, "T5", "zd_center", needs="seated", note="referred to the UKC emergency department")
+    _fast_forward(state, 25)  # A2 is on its way to UKC with the patient when H1 and A1 get their calls
+    _helicopter_on_remote_job(state)
     _job(state, "A1", _near(state, "home_vic", 0.003, -0.004, "Vič (call)"), priority="emergency", needs="stretcher",
          severity="serious", condition="sepsis", note="high fever, confused, low blood pressure")
-    _job(state, "T5", "zd_center", needs="seated", note="referred to the UKC emergency department")
-    _fast_forward(state, 20, until=lambda: a2_job.status == "onboard" and state.vehicles["A2"].status == "with_patient"
-                  and a2_job.eta_dropoff is not None and (a2_job.eta_dropoff - state.sim_time).total_seconds() <= 150)
+    a2 = state.vehicles["A2"]
+    _fast_forward(state, 90, until=lambda: a2_job.status == "completed" and a2.busy_until is not None
+                  and 0 < (a2.busy_until - state.sim_time).total_seconds() <= 60)
     # The only free ambulance is far away, driving back from a transfer to Novo mesto, so the unit
     # finishing at UKC is clearly sooner with real road times too, even through the Zaloška closure
     # (from Medvode or Vrhnika the motorway made A3 about as fast as A2).
@@ -374,16 +381,15 @@ def _loaded(state: WorldState, vehicle_id: str, trip: Trip) -> None:
 
 
 def _doctor_rendezvous(state: WorldState) -> list[EventRecord]:
-    """Ambulance and doctor from different places (Slovenian VUZ, Metelko's D02): a suspected heart
-    attack in Bežigrad needs both. The ambulance comes from the Center base; D2 is with another crew
-    in Vič, so D1, driving back from an earlier call in Rudnik, goes: two units, two routes, one
-    patient. The doctor joins the crew on scene and rides along to UKC; the doctor car follows."""
-    _park(state, "D1", "home_rudnik")  # driving back from an earlier call: not the nearest to Vič
-    _job(state, "A3", _near(state, "home_vic", 0.002, 0.003, "Vič (call)"), priority="emergency", needs="stretcher",
+    """Ambulance and doctor from different places (Slovenian VUZ, docs/DISPATCH_SCENARIOS.md D02): a
+    suspected heart attack in Bežigrad needs both. The ambulance comes from the Center base; D2 is
+    with another crew in Šiška, so D1, driving back from an earlier call in Rudnik, goes: two units,
+    two routes, one patient. The doctor joins the crew on scene and rides along to UKC; the car follows."""
+    _job(state, "A3", _near(state, "home_siska", 0.002, 0.003, "Šiška (call)"), priority="emergency", needs="stretcher",
          severity="serious", condition="breathing_difficulty", note="severe breathing difficulty")  # D2 joins A3
-    _job(state, "T3", "zd_siska", needs="wheelchair", note="referred to the UKC emergency department")
+    _job(state, "T3", "zd_vic", needs="wheelchair", note="referred to the UKC emergency department")
     _fast_forward(state, 1)
-    _park(state, "D1", "home_rudnik")
+    _park(state, "D1", "home_rudnik")  # driving back from an earlier call
     return [
         apply_event(
             state,

@@ -78,6 +78,7 @@ class Option:
     displaced_pickup: datetime | None = None
     displaced_wait: float | None = None  # minutes from that call until it is reached
     displaced_ok: bool = True
+    displaced_late: bool = False  # re-dispatched, but only after its own target (see _best)
     why_not: str | None = None
 
     @property
@@ -101,6 +102,8 @@ def _kind(state: WorldState, cand: dict[str, Any]) -> str:
     current = state.trips.get(v.current_trip_id) if v.current_trip_id else None
     if current is not None and current.status == "onboard":
         return "soon"
+    if current is None and v.busy_until and v.busy_until > state.sim_time and not v.queue:
+        return "soon"  # handing over or cleaning after its last patient
     if cand["step"]["interrupt_current"] and current is not None:
         return "override"
     return "queued"
@@ -151,7 +154,8 @@ def _override(state: WorldState, opt: Option) -> None:
     target = displaced.response_target_min
     opt.displaced_ok = (opt.displaced_wait <= target) if target else (d.delay_min or 0) < LATE_ALERT_MIN
     if not opt.displaced_ok:
-        opt.why_not = f"{displaced.id} would be reached only after {opt.displaced_wait:.0f} min (target {target:.0f})"
+        opt.displaced_late = True
+        opt.why_not = f"{displaced.id} would be reached only after {opt.displaced_wait:.0f} min (target {target or 0:.0f})"
 
 
 def decide(state: WorldState, trip: Trip) -> Decision:
@@ -227,8 +231,12 @@ def _best(trip: Trip, options: list[Option], competitor: Option | None = None) -
     alternatives = eligible + ([competitor] if competitor else [])
     best_alt = min(alternatives, key=lambda o: o.rank) if alternatives else None
     saving_needed = OVERRIDE_MIN_SAVING_MIN.get(lvl)
+    # Higher level first: if nothing else reaches this call within its own target, an override may
+    # leave the displaced (lower-level) call over its target too, rather than this one waiting.
+    target = trip.response_target_min
+    alt_misses = best_alt is None or (target is not None and _mins(best_alt.reach, trip.pickup_after) > target)
     for o in options:
-        if o.kind != "override" or not o.displaced_ok:
+        if o.kind != "override" or not (o.displaced_ok or (o.displaced_late and alt_misses)):
             continue
         if saving_needed is None or o.displaced is None or level(o.displaced) <= level(trip):
             o.why_not = "only a higher-level call overrides another"
@@ -331,9 +339,12 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
         clause = f"; dispatched {v.id} (nearest free ambulance): {when}"
     elif o.kind == "soon":
         cur = state.trips[v.current_trip_id] if v.current_trip_id else None
-        drop = (
-            f"drops off at {state.places[cur.dropoff_id].name} {_hhmm(cur.eta_dropoff)}, " if cur and cur.status == "onboard" else ""
-        )
+        if cur and cur.status == "onboard":
+            drop = f"drops off at {state.places[cur.dropoff_id].name} {_hhmm(cur.eta_dropoff)}, "
+        elif v.busy_until and v.busy_until > state.sim_time:
+            drop = f"ready {_hhmm(v.busy_until)} after handover and cleaning, "
+        else:
+            drop = ""
         clause = f"; dispatched {v.id} ({'' if free else 'no unit free; '}available soon: {drop}{when}{sooner})"
     elif o.kind == "override" and o.displaced is not None:
         clause = (
@@ -352,9 +363,12 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
         dsp = o.displaced
         dsp.times_displaced += 1
         dsp.dispatched_at = state.sim_time
-        target = (
-            f"within its {dsp.response_target_min:.0f}-min target" if dsp.response_target_min else "on time"
-        )
+        if not dsp.response_target_min:
+            target = "on time"
+        elif (o.displaced_wait or 0) <= dsp.response_target_min:
+            target = f"within its {dsp.response_target_min:.0f}-min target"
+        else:
+            target = f"after its {dsp.response_target_min:.0f}-min target: no unit can reach it sooner"
         if o.displaced_to:
             clause += f"; {dsp.id} taken over by {o.displaced_to} (at {_who(dsp)} {_hhmm(o.displaced_pickup)}, {target})"
         else:

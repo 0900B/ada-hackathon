@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -335,7 +336,7 @@ def _engine_recommendation(
         (t, w) for t in state.trips.values() if (w := red_wait_min(t)) is not None and w > RED_REFERENCE_MIN
     ]
     if slow_red:  # Slovenian reference: a unit at a red call within 15 min
-        red = "; ".join(f"{t.id} ({t.condition_label or t.severity}) reached after {w:.0f} min" for t, w in slow_red[:3])
+        red = "; ".join(f"{t.id} ({t.condition_label or t.severity}) reached after {math.ceil(w)} min" for t, w in slow_red[:3])
         escalation = " ".join(filter(None, [escalation, f"Red calls over the {RED_REFERENCE_MIN:.0f}-min reference: {red}. "
                                             "Ask a neighbouring station for an ambulance (mutual aid)."]))
     late = (

@@ -28,7 +28,7 @@ CITY_RADIUS_KM = 10.0  # "in the city" = within this distance of UKC
 # critical city target is tighter (8 min); a red call predicted over 15 min raises an alert and the
 # engine fallback escalates (ask a neighbouring station). See docs/DISPATCH_PRIORITIES.md.
 RED_REFERENCE_MIN = 15.0
-HANDOVER_MAX_MIN = 15.0  # handover at the hospital (our unloading, projection.UNLOAD_MIN, stays below)
+HANDOVER_MAX_MIN = 15.0  # Slovenian rule: handover at the hospital within 15 min (service_times.HANDOVER_MIN uses it)
 
 # condition code -> (label, level, time-sensitivity weight, one-sentence clinical reason)
 CONDITIONS: dict[str, tuple[str, CallSeverity, float, str]] = {

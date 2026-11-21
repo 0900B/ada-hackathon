@@ -168,8 +168,9 @@ def test_urgent_city_call_does_not_fly_but_a_remote_one_does():
 
 def test_remote_emergency_scenario_helicopter_flies_lands_and_delivers():
     """Live-calls scenario: H1 is flying to an urgent skier when the hiker (serious, major trauma, 45 min
-    by road) is reported: the engine turns H1 around at once (doctrine rules 2 and 6); the skier stays
-    with H1, next, still within its 60-min target."""
+    by road) is reported: the engine turns H1 around at once (doctrine rules 2 and 6); the skier is
+    taken over by whichever unit reaches it first (with the real on-scene and handover times, a road
+    ambulance rather than H1 after the hiker), still within its 60-min target."""
     records = demo.prepare(W, "remote_emergency")
     W.auto_analyze = False
     t = W.trips[records[0].affected_trip_ids[0]]
@@ -193,7 +194,7 @@ def test_remote_emergency_scenario_helicopter_flies_lands_and_delivers():
     flying = [s for s in seen if s[0] == "to_pickup"]
     assert len({(s[2], s[3]) for s in flying}) > 3, "it moves across the map while flying"
     assert t.delay_min == 0
-    assert skier.vehicle_id == "H1" and skier.status in ("assigned", "en_route_pickup"), "the skier is next, not lost"
+    assert skier.vehicle_id and skier.status != "unassigned", "the skier is served, not lost"
 
 
 def test_fog_released_emergency_goes_to_an_ambulance_at_once():

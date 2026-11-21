@@ -44,12 +44,14 @@ def spends_helicopter(state: WorldState, vehicle_type: VehicleType, trip: Trip) 
 
 
 def is_free(state: WorldState, v: Vehicle) -> bool:
-    """Available right now: in service, not grounded, no job and nothing queued (idle or driving home)."""
+    """Available right now: in service, not grounded, no job and nothing queued (idle or driving home),
+    and not still handing over, cleaning or held up (busy_until)."""
     return (
         v.status in ("idle", "returning")
         and v.current_trip_id is None
         and not v.queue
         and v.grounded_until is None
+        and not (v.busy_until and v.busy_until > state.sim_time)
     )
 
 

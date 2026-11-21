@@ -31,7 +31,9 @@ RANDOM_SEED = int(os.getenv("RANDOM_SEED", "42"))
 SCHEDULED_DAY = os.getenv("SCHEDULED_DAY", "0") == "1"
 # Live-calls mode: the call generator (emergencies, urgent transports, urgent equipment runs).
 CALLS_ENABLED = os.getenv("CALLS_ENABLED", "1") == "1"
-CALLS_PER_HOUR = _float("CALLS_PER_HOUR", 8.0)  # in world (sim) time: about one call every 7-8 min
+# In world (sim) time: one call every 12 min. With the researched service times (docs/SERVICE_TIMES.md)
+# this keeps the three ambulances about 50-65 % busy (measured over 8 world-hours); 8/h overloads them.
+CALLS_PER_HOUR = _float("CALLS_PER_HOUR", 5.0)
 # MET Norway asks API clients to identify themselves; add a contact address here if you like.
 HTTP_USER_AGENT = os.getenv("HTTP_USER_AGENT", "adahack-transport-backend/0.1")
 
