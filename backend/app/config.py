@@ -25,6 +25,13 @@ TOMTOM_DAILY_TILE_CAP = int(os.getenv("TOMTOM_DAILY_TILE_CAP", "3000"))
 # NAP / promet.si (when NAP_USERNAME + NAP_PASSWORD are set); NAP updates events about every minute.
 NAP_INTERVAL_S = _float("NAP_INTERVAL_S", 120)
 RANDOM_SEED = int(os.getenv("RANDOM_SEED", "42"))
+# Operating mode of both worlds after start/reset (POST /{world}/admin/reset {"scheduled_day": ...}
+# switches one world). 0 = live calls (default): no pre-planned day, calls come in and are
+# dispatched at once. 1 = scheduled day: the vans start with a pre-planned list of booked trips.
+SCHEDULED_DAY = os.getenv("SCHEDULED_DAY", "0") == "1"
+# Live-calls mode: the call generator (emergencies, urgent transports, urgent equipment runs).
+CALLS_ENABLED = os.getenv("CALLS_ENABLED", "1") == "1"
+CALLS_PER_HOUR = _float("CALLS_PER_HOUR", 8.0)  # in world (sim) time: about one call every 7-8 min
 # MET Norway asks API clients to identify themselves; add a contact address here if you like.
 HTTP_USER_AGENT = os.getenv("HTTP_USER_AGENT", "adahack-transport-backend/0.1")
 

@@ -9,13 +9,14 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 import anthropic
 
 from .. import config
 from ..audit import AUDIT
-from ..engine.candidates import greedy_plan
+from ..engine.candidates import HELICOPTER_MIN_GAIN_MIN, find_candidates, greedy_plan, is_free
 from ..engine.plans import simulate_plan
 from ..engine.projection import kpis, project_all
 from ..models import AgentRun, EventRecord, Plan, PlanStep, Recommendation, RecommendationOption, utcnow
@@ -202,6 +203,72 @@ def _situation(focus: EventRecord | None, question: str | None) -> str:
     return "Operator requested a review."
 
 
+FASTER_UNIT_MIN_GAIN = 5.0  # offer another unit for a dispatched emergency if it gets there this much sooner
+FASTER_UNIT_WINDOW_MIN = 20.0  # ... for emergencies the engine dispatched within this many minutes
+
+
+def _faster_unit_options(state: WorldState, skip: set[str]) -> list[RecommendationOption]:
+    """The engine dispatches a call to a *free* unit. A busy one (driving to a less urgent job, or
+    the helicopter) may reach the patient much sooner: offer that, with the first unit taking over
+    the displaced job."""
+    options = []
+    recent = [
+        t
+        for t in state.trips.values()
+        if t.priority == "emergency"
+        and t.id not in skip
+        and t.dispatched_at
+        and t.status in ("assigned", "en_route_pickup")
+        and t.eta_pickup
+        and state.sim_time - t.dispatched_at <= timedelta(minutes=FASTER_UNIT_WINDOW_MIN)
+    ]
+    any_ambulance_free = any(v.type == "ambulance" and is_free(state, v) for v in state.vehicles.values())
+    for t in recent[:2]:
+        now_at = max(t.eta_pickup, t.pickup_after)  # type: ignore[type-var]
+        best: dict[str, tuple[float, dict]] = {}  # best alternative per kind: a road unit, the helicopter
+        for c in find_candidates(state, t.id, limit=50):
+            if c["vehicle_id"] == t.vehicle_id or not c["trip_eta_pickup"] or c["vehicle_type"] == "transport":
+                continue
+            gain = (now_at - c["trip_eta_pickup"]).total_seconds() / 60
+            kind = "air" if c["vehicle_type"] == "helicopter" else "road"
+            needed = (
+                FASTER_UNIT_MIN_GAIN
+                if kind == "road" or not any_ambulance_free
+                else HELICOPTER_MIN_GAIN_MIN  # in the city the helicopter only when clearly faster
+            )
+            if gain >= needed and (kind not in best or gain > best[kind][0]):
+                best[kind] = (gain, c)
+        for gain, c in [best[k] for k in ("road", "air") if k in best]:
+            options.extend(_faster_unit_option(state, t, gain, c))
+    return options[:3]
+
+
+def _faster_unit_option(state: WorldState, t, gain: float, c: dict) -> list[RecommendationOption]:
+    """Send unit c to trip t instead; the unit first sent takes over the job c turns away from."""
+    steps = [PlanStep(**c["step"])]
+    other = state.vehicles[c["vehicle_id"]]
+    displaced = other.current_trip_id if c["step"]["interrupt_current"] else None
+    if displaced:
+        steps.append(PlanStep(trip_id=displaced, vehicle_id=t.vehicle_id))
+    result = simulate_plan(state, Plan(steps=steps))
+    if not result["feasible"] and len(steps) > 1:
+        steps, displaced = steps[:1], None
+        result = simulate_plan(state, Plan(steps=steps))
+    if not result["feasible"]:
+        return []
+    return [
+        RecommendationOption(
+            title=f"Faster unit for {t.id}: {c['vehicle_id']} instead of {t.vehicle_id}",
+            summary="; ".join(d["text"] for d in result["step_details"]) + ".",
+            steps=steps,
+            pros=[f"{t.label} is reached {gain:.0f} min sooner"],
+            cons=[
+                f"{displaced} is taken over by {t.vehicle_id}" if displaced else f"{c['vehicle_id']} is no longer free"
+            ],
+        )
+    ]
+
+
 def _engine_recommendation(
     state: WorldState, focus: EventRecord | None, reason: str, question: str | None = None
 ) -> Recommendation:
@@ -222,6 +289,7 @@ def _engine_recommendation(
                 cons=["No AI trade-off reasoning or notification drafts"],
             )
         )
+    options += _faster_unit_options(state, skip={s.trip_id for s in plan.steps} if plan else set())
     escalation = (
         f"No suitable vehicle for {', '.join(unresolved)}: request help from a neighbouring station."
         if unresolved
@@ -234,7 +302,13 @@ def _engine_recommendation(
         if k["late_trips"]
         else ""
     )
-    dispatched = [t for t in state.trips.values() if t.dispatched_at and t.status in ("assigned", "en_route_pickup")]
+    dispatched = [
+        t
+        for t in state.trips.values()
+        if t.dispatched_at
+        and t.status in ("assigned", "en_route_pickup")
+        and state.sim_time - t.dispatched_at <= timedelta(minutes=FASTER_UNIT_WINDOW_MIN)
+    ][-5:]
     sent = (
         " Already dispatched by the engine: " + ", ".join(f"{t.id} → {t.vehicle_id}" for t in dispatched) + "."
         if dispatched

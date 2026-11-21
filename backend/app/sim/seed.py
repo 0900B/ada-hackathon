@@ -1,4 +1,6 @@
-"""Seed a plausible morning for a Ljubljana patient-transport fleet.
+"""Seed a Ljubljana EMS fleet: places, vehicles and crews, plus (scheduled-day mode only) a
+pre-planned day of booked trips. In live-calls mode (the default) the day starts empty and calls
+come from sim/calls.py.
 
 All coordinates are approximate and all patients are synthetic. Replace with
 Epilog's data if they provide it.
@@ -73,8 +75,14 @@ EQUIPMENT = [
 ]
 
 
-def seed_world(state: WorldState, seed: int, n_trips: int = 24) -> None:
-    rng = random.Random(seed)
+def seed_world(state: WorldState, seed: int, n_trips: int = 24, scheduled_day: bool | None = None) -> None:
+    """Places, fleet and crews; every unit idle at its base.
+
+    scheduled_day (None = keep the world's current mode): True also books and pre-plans a day of
+    scheduled trips on the vans (the brief's "initial plan"); False = live calls, no trips at all.
+    """
+    if scheduled_day is not None:
+        state.scheduled_day = scheduled_day
     state.reset_simulation()
 
     for pid, name, kind, lat, lon in PLACES:
@@ -83,7 +91,16 @@ def seed_world(state: WorldState, seed: int, n_trips: int = 24) -> None:
         b = state.places[base]
         state.vehicles[vid] = Vehicle(id=vid, name=name, type=vtype, base_id=base, lat=b.lat, lon=b.lon)  # type: ignore[arg-type]
     equip_fleet(state, seed)  # crew, fuel, shift (own RNG: trips stay identical)
+    if state.scheduled_day:
+        _scheduled_day(state, random.Random(seed), n_trips)
+    state.calls.reset(seed, state.name, state.sim_time)
 
+    project_all(state)
+    state.bump()
+
+
+def _scheduled_day(state: WorldState, rng: random.Random, n_trips: int) -> None:
+    """Book n_trips scheduled patient trips and the equipment runs, and pre-plan them on the vans."""
     homes = [p for p in state.places.values() if p.kind == "residential"]
     trips: list[Trip] = []
     for i in range(n_trips):
@@ -154,9 +171,6 @@ def seed_world(state: WorldState, seed: int, n_trips: int = 24) -> None:
             v.queue.append(trip.id)
             trip.vehicle_id, trip.status = v.id, "assigned"
     _improve_day(state, [v for v in state.vehicles.values() if v.type == "transport"])
-
-    project_all(state)
-    state.bump()
 
 
 def _better(gain: tuple) -> bool:

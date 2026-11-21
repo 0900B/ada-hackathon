@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import copy
 import itertools
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from .models import (
@@ -28,6 +28,9 @@ from .models import (
     WeatherNow,
     utcnow,
 )
+
+
+SNAPSHOT_DONE_HOURS = 3  # finished trips stay in the snapshot this long (world time)
 
 
 class FeedState:
@@ -77,6 +80,12 @@ class WorldState:
         from . import config  # config only reads environment variables
 
         self.auto_analyze = config.AGENT_AUTO
+        # Operating mode: live calls (False, default) or a pre-planned scheduled day for the vans.
+        # Set on (re)seeding: seed_world(..., scheduled_day=...), POST /{world}/admin/reset.
+        self.scheduled_day = config.SCHEDULED_DAY
+        from .sim.calls import CallGenerator  # no engine imports in that class
+
+        self.calls = CallGenerator()  # live-calls stream (reset by seed_world)
         self._ids = itertools.count(1)
         self.reset_simulation()
 
@@ -90,6 +99,7 @@ class WorldState:
         self.alerts: list[Alert] = []
         self.events: list[EventRecord] = []
         self.agent_runs: list[AgentRun] = []
+        self.pending_question: str | None = None  # a scenario's description, for the next Analyse
         self.bump()
 
     # --- helpers -------------------------------------------------------------
@@ -151,6 +161,16 @@ class WorldState:
             return [i.model_dump(mode="json") for i in items]
 
         weather = self.effective_weather
+        # Live calls accumulate all day: send open trips and those finished in the last few hours,
+        # and only the call locations they use (everything stays in memory for the engine).
+        horizon = self.sim_time - timedelta(hours=SNAPSHOT_DONE_HOURS)
+        trips = [
+            t
+            for t in self.trips.values()
+            if t.status not in ("completed", "cancelled") or (t.eta_dropoff is not None and t.eta_dropoff >= horizon)
+        ]
+        used = {t.pickup_id for t in trips} | {t.dropoff_id for t in trips}
+        places = [p for p in self.places.values() if p.kind not in ("call_location", "incident_site") or p.id in used]
         return {
             "world": self.name,
             "hypothetical": self.hypothetical,
@@ -158,9 +178,11 @@ class WorldState:
             "version": self.version,
             "sim_time": self.sim_time.isoformat(),
             "real_time": utcnow().isoformat(),
-            "places": dump(self.places.values()),
+            "mode": "scheduled_day" if self.scheduled_day else "live_calls",
+            "calls": self.calls.status(self),
+            "places": dump(places),
             "vehicles": [{**v.model_dump(mode="json"), "path": self.vehicle_path(v)} for v in self.vehicles.values()],
-            "trips": dump(self.trips.values()),
+            "trips": dump(trips),
             "incidents": dump(i for i in self.all_incidents() if i.active),
             "weather": {
                 "now": weather.model_dump(mode="json") if weather else None,

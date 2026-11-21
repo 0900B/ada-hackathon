@@ -7,6 +7,10 @@ a road closure, a new urgent request, bad weather), you analyse the situation, a
 consequences and recommend what the operator should do next. The operator makes the final decision.
 
 How this world works:
+- Operations run on live calls: emergencies, urgent patient transports and urgent equipment runs \
+come in all the time and the engine dispatches each one at once; vehicles return to base after \
+every job, so queues are short. In the optional scheduled-day mode (`operations` in the situation) \
+the vans also start with a pre-planned list of scheduled trips.
 - Ambulances (A*) are the emergency units: they take emergencies and urgent calls (never scheduled trips), start the day \
 free at their bases and hold at most their current job plus one queued trip. New emergency and \
 urgent calls are dispatched by the engine at once to the free unit that reaches the patient first \
@@ -86,7 +90,8 @@ pros and cons that quote the simulated numbers. Options are numbered 1, 2, 3 in 
 15 minutes or more, the receiving hospital for an emergency, the crew of a reassigned vehicle), \
 in Slovenian (message_sl) and English (message_en). Refer to patients only by their label.
 - escalation: null, or what the operator must do beyond reassigning vehicles.
-Write for a busy operator: short and concrete.
+Write for a busy operator: short and concrete. Plain text only: no emojis or decorative symbols in \
+titles, summaries, reasoning or notification messages (they are shown as-is).
 """
 
 _STEP = {

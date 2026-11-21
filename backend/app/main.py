@@ -15,7 +15,7 @@ import httpx
 from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Path, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from . import config, demo
 from .agent import runner as agent
@@ -43,6 +43,7 @@ from .models import (
 from .roads import ROADS
 from . import navigation, tiles
 from .vehicles import vehicle_detail
+from .sim import calls
 from .sim.seed import seed_world
 from .sim.simulator import tick
 from .state import FeedState, WorldState
@@ -64,6 +65,18 @@ def bump_all() -> None:
         w.bump()
 
 
+def take_calls(w: WorldState) -> None:
+    """Live-calls mode: new calls come in and the engine dispatches each at once. A routine call
+    never starts an AI analysis; a genuine problem (no unit can take it, or it will be late) may,
+    and only if this world's auto-analyse is on (at most one such run every 15 world-minutes)."""
+    for record, problem in calls.step(w):
+        if problem is None:
+            continue
+        AUDIT.record(w.name, "event", f"{record.summary} [needs attention: {problem}]", ref=record.id, payload=record)
+        if calls.may_analyse(w):
+            agent.start_run(w, trigger=f"call:{record.id}", focus=record, question=f"A live call needs attention: {problem}.")
+
+
 async def sim_loop() -> None:
     """Advance both fleets (our stand-in GPS feed) and re-project every trip."""
     status = feed.register_source("vehicle_gps", "simulated", config.SIM_TICK_S)
@@ -73,6 +86,7 @@ async def sim_loop() -> None:
         for w in WORLDS.values():
             try:
                 tick(w, config.SIM_TICK_S * w.speedup)
+                take_calls(w)
                 project_all(w)
             except Exception as e:  # noqa: BLE001 - keep the loop alive, surface the error in /health
                 log.exception("simulation tick failed (%s)", w.name)
@@ -88,7 +102,7 @@ async def sim_loop() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     for w in WORLDS.values():
-        seed_world(w, config.RANDOM_SEED)
+        seed_world(w, config.RANDOM_SEED, scheduled_day=config.SCHEDULED_DAY)  # live calls unless SCHEDULED_DAY=1
     global HTTP
     client = httpx.AsyncClient(timeout=10.0, headers={"User-Agent": config.HTTP_USER_AGENT})
     HTTP = client
@@ -359,12 +373,45 @@ def post_apply(plan: Plan, state: WorldState = World) -> EventRecord:
     return record
 
 
+class ResetRequest(BaseModel):
+    # None keeps the world's current mode; True = the pre-planned scheduled day ("initial plan");
+    # False = live calls (no pre-planned trips; calls come in and are dispatched at once).
+    scheduled_day: bool | None = None
+
+
 @router.post("/admin/reset")
-def reset(state: WorldState = World) -> dict:
+def reset(req: ResetRequest | None = None, state: WorldState = World) -> dict:
+    """Re-seed this world. Body (optional): {"scheduled_day": true|false} switches the mode."""
     agent.cancel_all(state)
-    seed_world(state, config.RANDOM_SEED)
-    AUDIT.record(state.name, "reset", f"{state.name} world reset")
-    return {"ok": True, "world": state.name, "trips": len(state.trips), "vehicles": len(state.vehicles)}
+    seed_world(state, config.RANDOM_SEED, scheduled_day=req.scheduled_day if req else None)
+    mode = "scheduled_day" if state.scheduled_day else "live_calls"
+    AUDIT.record(state.name, "reset", f"{state.name} world reset ({mode.replace('_', ' ')})")
+    return {
+        "ok": True,
+        "world": state.name,
+        "mode": mode,
+        "scheduled_day": state.scheduled_day,
+        "trips": len(state.trips),
+        "vehicles": len(state.vehicles),
+    }
+
+
+class CallsRequest(BaseModel):
+    enabled: bool | None = None
+    per_hour: float | None = Field(default=None, gt=0, le=60)
+
+
+@router.post("/admin/calls")
+def set_calls(req: CallsRequest, state: WorldState = World) -> dict:
+    """Live-calls generator for this world: switch it on/off, or change the rate (calls per world hour)."""
+    if req.enabled is not None:
+        state.calls.enabled = req.enabled
+    if req.per_hour is not None:
+        state.calls.per_hour = req.per_hour
+        state.calls.next_at = state.sim_time + state.calls._gap()
+    AUDIT.record(state.name, "setting", f"Live calls {'on' if state.calls.enabled else 'off'}, {state.calls.per_hour:g}/h")
+    state.bump()
+    return {"world": state.name, **state.calls.status(state)}
 
 
 @router.get("/admin/scenarios")
@@ -411,8 +458,14 @@ def set_auto_analyze(req: AutoAnalyzeRequest, state: WorldState = World) -> dict
 
 @router.post("/agent/analyze")
 async def analyze(req: AnalyzeRequest | None = None, state: WorldState = World) -> AgentRun:
-    """Ask the agent to review this world's situation (optionally with a question). Runs in the background."""
-    return agent.start_run(state, trigger="operator", question=req.question if req else None)
+    """Ask the agent to review this world's situation (optionally with a question). Runs in the background.
+
+    The first analysis after a demo scenario (auto-analyse off) gets the scenario's description."""
+    question = req.question if req else None
+    pending, state.pending_question = state.pending_question, None
+    if pending:
+        question = f"{pending} {question}" if question else pending
+    return agent.start_run(state, trigger="operator", question=question)
 
 
 @router.get("/agent/runs")

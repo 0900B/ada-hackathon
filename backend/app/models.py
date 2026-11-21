@@ -199,6 +199,7 @@ class EventRecord(BaseModel):
     affected_trip_ids: list[str]
     kpis_before: dict[str, Any]
     kpis_after: dict[str, Any]
+    generated: bool = False  # True for a call from the live-calls generator (not an operator report)
 
 
 # --- Operator events (injected via POST /events) ------------------------------
@@ -250,6 +251,9 @@ class TaskRequestEvent(BaseModel):
     label: str | None = None  # patient label (pseudonymous) or cargo description for equipment
     note: str | None = None
     auto_assign: bool = True
+    # If no vehicle can take it on time: "leave" it unassigned for the AI/dispatcher, or put it on
+    # the vehicle that can collect it "soonest" (late; used for live calls, which must be served).
+    if_late: Literal["leave", "soonest"] = "leave"
 
 
 class UrgentRequestEvent(BaseModel):

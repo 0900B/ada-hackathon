@@ -39,7 +39,7 @@ AMBULANCES = ("A1", "A2", "A3")
 
 
 def fresh() -> None:
-    seed_world(W, config.RANDOM_SEED)
+    seed_world(W, config.RANDOM_SEED, scheduled_day=True)  # these tests plan around a pre-planned day
     W.auto_analyze = False
 
 
@@ -166,17 +166,24 @@ def test_urgent_city_call_does_not_fly_but_a_remote_one_does():
 
 
 def test_remote_emergency_scenario_helicopter_flies_lands_and_delivers():
-    fresh()
-    records = demo.SCENARIOS["remote_emergency"][1](W)
+    """Live-calls scenario: H1 is flying to an urgent skier when the hiker emergency comes in; the
+    engine sends a free ambulance (45 min by road) and the plan turns H1 around for the hiker."""
+    records = demo.prepare(W, "remote_emergency")
+    W.auto_analyze = False
     t = W.trips[records[0].affected_trip_ids[0]]
     h = W.vehicles["H1"]
-    assert t.vehicle_id == "H1", records[0].summary
+    skier = W.trips[h.current_trip_id]
+    assert t.vehicle_id in AMBULANCES and skier.priority == "urgent" and h.status == "to_pickup", records[0].summary
+    plan, _ = greedy_plan(W)
+    step0 = next(s for s in plan.steps if s.trip_id == t.id)
+    assert step0.vehicle_id == "H1" and step0.interrupt_current, plan.steps
+    assert client.post("/sim/plans/apply", json={"steps": [s.model_dump() for s in plan.steps]}).status_code == 200
     site, ukc = W.places[t.pickup_id], W.places["ukc"]
     seen = []
 
     def step():
         seen.append((h.status, t.status, round(h.lat, 4), round(h.lon, 4)))
-        return t.status == "completed" and h.status == "idle"
+        return t.status == "completed"
 
     assert run_until(step, 60)
     statuses = [s[0] for s in seen]
@@ -187,6 +194,7 @@ def test_remote_emergency_scenario_helicopter_flies_lands_and_delivers():
     flying = [s for s in seen if s[0] == "to_pickup"]
     assert len({(s[2], s[3]) for s in flying}) > 3, "it moves across the map while flying"
     assert t.delay_min == 0
+    assert skier.vehicle_id == "H1" and skier.status in ("assigned", "en_route_pickup"), "the skier is next, not lost"
 
 
 def test_fog_released_emergency_goes_to_an_ambulance_at_once():

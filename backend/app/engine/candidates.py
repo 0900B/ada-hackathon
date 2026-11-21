@@ -26,6 +26,8 @@ HELICOPTER_MIN_GAIN_URGENT_MIN = 15.0  # urgent (non-emergency) trips: only when
 # The engine offers an ambulance for a scheduled trip only if the patient is ready within this many
 # minutes: an emergency unit is never tied up waiting for a routine pickup hours ahead.
 AMBULANCE_ROUTINE_HORIZON_MIN = 30.0
+# An urgent (non-emergency) trip goes to an ambulance only if it is at least this much sooner than a van.
+AMBULANCE_URGENT_PENALTY_MIN = 5.0
 
 
 def spends_helicopter(state: WorldState, vehicle_type: VehicleType, trip: Trip) -> bool:
@@ -156,10 +158,15 @@ def find_candidates(
 
     def score(c: dict[str, Any]):
         k = c["kpis_after"]
-        if urgent:  # get the patient fastest, then protect other priority trips
-            gain = HELICOPTER_MIN_GAIN_MIN if trip.priority == "emergency" else HELICOPTER_MIN_GAIN_URGENT_MIN
-            reserve = gain if flies(c["vehicle_type"]) else 0.0
+        if trip.priority == "emergency":  # get the patient fastest, then protect other priority trips
+            reserve = HELICOPTER_MIN_GAIN_MIN if flies(c["vehicle_type"]) else 0.0
             return ((c["pickup_in_min"] or 0) + reserve, k["late_non_scheduled"], k["total_delay_min"])
+        if urgent:  # soon, without making other urgent work late or pushing it back, ambulances kept free
+            reserve = HELICOPTER_MIN_GAIN_URGENT_MIN if flies(c["vehicle_type"]) else 0.0
+            if c["vehicle_type"] == "ambulance":
+                reserve += AMBULANCE_URGENT_PENALTY_MIN
+            cost = (c["pickup_in_min"] or 0) + reserve + max(0.0, c["pushes_others_min"])
+            return (k["late_non_scheduled"], c["takes_last_free_ambulance"], cost, k["total_delay_min"])
         # Scheduled trip: no new lateness for emergency/urgent trips; never the last free ambulance
         # (kept for the next emergency); then no new lateness; then vans before ambulances
         # (ambulances only if no van can do it on time); then the smallest delay. The helicopter
@@ -208,9 +215,10 @@ def best_redirect(state: WorldState, trip: Trip) -> PlanStep | None:
     return best[1] if best else None
 
 
-LATE_REPAIR_MIN = 15.0  # the fallback tries to move trips predicted at least this late
+LATE_REPAIR_MIN = 15.0  # the fallback tries to move scheduled trips predicted at least this late
+LATE_REPAIR_URGENT_MIN = 5.0  # ... and emergency/urgent ones at least this late
 LATE_REPAIR_MAX_MOVES = 5
-LATE_REPAIR_MIN_GAIN = 10.0  # a move must cut the total delay by at least this many minutes
+LATE_REPAIR_MIN_GAIN = 10.0  # a move must cut the total delay by this much (or by most of the trip's own delay)
 
 
 def _repair_late(sim: WorldState, steps: list[PlanStep]) -> None:
@@ -227,8 +235,7 @@ def _repair_late(sim: WorldState, steps: list[PlanStep]) -> None:
                 t
                 for t in sim.trips.values()
                 if t.status in ("assigned", "en_route_pickup")
-                and t.priority != "emergency"
-                and (t.delay_min or 0) >= LATE_REPAIR_MIN
+                and (t.delay_min or 0) >= (LATE_REPAIR_MIN if t.priority == "scheduled" else LATE_REPAIR_URGENT_MIN)
                 and t.id not in tried
             ),
             key=lambda t: -(t.delay_min or 0),
@@ -238,13 +245,14 @@ def _repair_late(sim: WorldState, steps: list[PlanStep]) -> None:
         trip = late[0]
         tried.add(trip.id)
         base = kpis(sim)
+        need = min(LATE_REPAIR_MIN_GAIN, 0.8 * (trip.delay_min or 0))
         for c in find_candidates(sim, trip.id, limit=50):
             k = c["kpis_after"]
             if (
                 c["takes_last_free_ambulance"]
                 or k["late_non_scheduled"] > base["late_non_scheduled"]
                 or k["late_trips"] > base["late_trips"]
-                or k["total_delay_min"] > base["total_delay_min"] - LATE_REPAIR_MIN_GAIN
+                or k["total_delay_min"] > base["total_delay_min"] - need
                 or (c["trip_delay_min"] or 0) >= (trip.delay_min or 0)  # the moved trip itself must gain
             ):
                 continue

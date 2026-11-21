@@ -38,7 +38,7 @@ W = main.sim
 
 
 def fresh() -> None:
-    seed_world(W, config.RANDOM_SEED)
+    seed_world(W, config.RANDOM_SEED, scheduled_day=True)  # these tests plan around a pre-planned day
     W.auto_analyze = False
 
 

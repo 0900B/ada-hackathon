@@ -22,7 +22,7 @@ from ..models import (
     WeatherOverrideEvent,
 )
 from ..roads import ROADS, remaining_points
-from ..routing import flies, leg_route, points_hit, travel_minutes
+from ..routing import flies, haversine_km, leg_route, points_hit, travel_minutes
 from .actions import EMERGENCY_UNITS, LJ, ActionError, assign_trip, can_serve, detach_trip
 from .projection import (
     DONE,
@@ -196,7 +196,7 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
         )
         state.trips[trip.id] = trip
         created.append(trip.id)
-        return f"New {ev.priority} request {trip.id}: {pickup.name} -> {dropoff.name}" + dispatch_call(state, trip)
+        return f"New {ev.priority} request {trip.id}: {pickup.name} → {dropoff.name}" + dispatch_call(state, trip)
 
     if isinstance(ev, TaskRequestEvent):
         return _book_task(state, ev, created)
@@ -249,12 +249,16 @@ def _hhmm(dt) -> str:
     return dt.astimezone(LJ).strftime("%H:%M") if dt else "?"
 
 
+HELICOPTER_REMOTE_KM = 15.0  # the engine dispatches the helicopter by itself only to calls this far from its base
+
+
 def dispatch_call(state: WorldState, trip: Trip) -> str:
     """Engine dispatch for a call that should not wait for an analysis: a new emergency or urgent
     call, or an emergency that lost its vehicle. Picks the unit that reaches the patient first.
 
-    - Emergency units only (ambulances; the helicopter only when it is HELICOPTER_MIN_GAIN_MIN
-      minutes faster, see find_candidates), free units first (idle or driving home, nothing queued).
+    - Emergency units only: ambulances; the helicopter only for a remote call (HELICOPTER_REMOTE_KM
+      from its base) where it is clearly faster (HELICOPTER_MIN_GAIN_MIN, see find_candidates), or
+      when no ambulance can take the call at all. Free units first (idle or driving home, nothing queued).
     - An emergency with no free unit takes a busy ambulance: one driving to a less urgent pickup
       turns around; one with a patient on board finishes that job first. Never a van.
     - An urgent call with no free unit is queued on whichever vehicle (van or ambulance) reaches it
@@ -264,7 +268,14 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
     from .candidates import find_candidates  # local import: candidates imports this package's modules
 
     cands = find_candidates(state, trip.id, limit=100)  # emergency/urgent: ranked by arrival at the patient
-    units = [c for c in cands if c["vehicle_type"] in EMERGENCY_UNITS]
+    pickup = state.places[trip.pickup_id]
+
+    def remote_for(c) -> bool:  # the engine sends the helicopter by itself only to remote calls
+        base = state.places[state.vehicles[c["vehicle_id"]].base_id]
+        return haversine_km(base.lat, base.lon, pickup.lat, pickup.lon) >= HELICOPTER_REMOTE_KM
+
+    road = [c for c in cands if c["vehicle_type"] == "ambulance"]
+    units = [c for c in cands if c["vehicle_type"] == "ambulance" or (flies(c["vehicle_type"]) and (remote_for(c) or not road))]
     free = [c for c in units if c["vehicle_free"]]
     if free:
         pool = free
@@ -282,10 +293,10 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
     trip.dispatched_at = state.sim_time
     v = state.vehicles[step["vehicle_id"]]
     if flies(v.type):
-        road = next((c for c in units if c["vehicle_type"] == "ambulance"), None)
+        nearest = road[0] if road else None
         why = (
-            f"helicopter, {road['pickup_in_min'] - best['pickup_in_min']:.0f} min sooner than {road['vehicle_id']} by road"
-            if road
+            f"helicopter, {nearest['pickup_in_min'] - best['pickup_in_min']:.0f} min sooner than {nearest['vehicle_id']} by road"
+            if nearest
             else "helicopter; no ambulance can take it"
         )
     elif best["vehicle_free"]:
@@ -345,33 +356,44 @@ def _book_task(state: WorldState, ev: TaskRequestEvent, created: list[str]) -> s
     )
     state.trips[trip.id] = trip
     created.append(trip.id)
-    what = f"Booked {trip.id} ({trip.label}, {trip.priority}): {pickup.name} -> {dropoff.name}"
+    what = f"Booked {trip.id} ({trip.label}, {trip.priority}): {pickup.name} → {dropoff.name}"
     if not ev.auto_assign:
         return what + "; waiting for the dispatcher"
     late_now = kpis(state)["late_trips"]
     # A booking never diverts a vehicle from the trip it is on, never flies, fits without making
     # any trip late and pushes no booked patient back by more than BOOKING_MAX_PUSH_MIN. Vans first;
     # an ambulance only if no van fits, only a free one and never the last free one.
-    fits = [
+    usable = [  # never diverts a vehicle, never flies; an ambulance only if free and not the last free one
         c
         for c in find_candidates(state, trip.id, limit=200, all_positions=True)
         if not c["step"]["interrupt_current"]
         and not flies(c["vehicle_type"])
-        and c["kpis_after"]["late_trips"] <= late_now
+        and (c["vehicle_type"] != "ambulance" or (c["vehicle_free"] and not c["takes_last_free_ambulance"]))
+    ]
+    fits = [
+        c
+        for c in usable
+        if c["kpis_after"]["late_trips"] <= late_now
         and (c["trip_delay_min"] or 0) <= 0
         and c["pushes_others_min"] <= BOOKING_MAX_PUSH_MIN
     ]
     vans = [c for c in fits if c["vehicle_type"] == "transport"]
-    ambulances = [
-        c for c in fits if c["vehicle_type"] == "ambulance" and c["vehicle_free"] and not c["takes_last_free_ambulance"]
-    ]
+    ambulances = [c for c in fits if c["vehicle_type"] == "ambulance"]
     best = (vans or ambulances or [None])[0]
+    late = ""
+    if best is None and ev.if_late == "soonest" and usable:
+        # Must be served (a live call): the vehicle that delivers it least late, not making others late.
+        best = min(
+            usable,
+            key=lambda c: (c["kpis_after"]["late_trips"] - late_now > 1, c["trip_delay_min"] or 0, c["pickup_in_min"] or 0),
+        )
+        late = f", {best['trip_delay_min']:.0f} min late (no vehicle could take it on time)" if best["trip_delay_min"] else ""
     if best is None:
         return what + "; no vehicle can take it without a late trip, so it is left for the AI to replan"
     step = best["step"]
     assign_trip(state, trip.id, step["vehicle_id"], step["position"], step["interrupt_current"])
     eta = best["trip_eta_dropoff"].astimezone(LJ).strftime("%H:%M") if best["trip_eta_dropoff"] else "?"
-    return what + f"; placed on {step['vehicle_id']} ({best['insertion']}), arrives {eta}"
+    return what + f"; placed on {step['vehicle_id']} ({best['insertion']}), arrives {eta}{late}"
 
 
 def _ground_helicopters(state: WorldState, ev: FogEvent) -> str:
@@ -430,7 +452,7 @@ def _priority_change(state: WorldState, ev: PriorityChangeEvent, affected: list[
         raise EventError(f"Trip {trip.id} is already {old}")
     trip.priority = ev.priority
     affected.append(trip.id)
-    parts = [f"{trip.id} ({trip.label}) priority {old} -> {ev.priority}"]
+    parts = [f"{trip.id} ({trip.label}) priority {old} → {ev.priority}"]
 
     v = state.vehicles.get(trip.vehicle_id) if trip.vehicle_id else None
     if PRIORITY_ORDER[ev.priority] < PRIORITY_ORDER[old]:  # raised

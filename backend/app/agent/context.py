@@ -70,6 +70,7 @@ def build_situation(state: WorldState) -> dict[str, Any]:
     places = state.places
     return {
         "mode": "live (real conditions)" if not state.hypothetical else "simulation (hypothetical scenario for training/demo)",
+        "operations": "scheduled day (vans have pre-planned trips)" if state.scheduled_day else "live calls",
         "now": hhmm(state.sim_time),
         "weather": None
         if w is None

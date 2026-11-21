@@ -40,7 +40,7 @@ W = main.sim
 
 
 def fresh() -> None:
-    seed_world(W, config.RANDOM_SEED)
+    seed_world(W, config.RANDOM_SEED, scheduled_day=True)  # these tests plan around a pre-planned day
 
 
 def post_event(ev: dict, status: int = 200) -> dict:
@@ -441,8 +441,9 @@ def test_engine_fallback_resolves_over_capacity():
 
 
 def test_hospital_full_scenario_engine_plan():
-    fresh()
-    records = demo._hospital_full(W)
+    """The live-calls scenario: five patients heading to UKC, one becomes an emergency, UKC admits two more."""
+    records = demo.prepare(W, "hospital_full")
+    assert not W.scheduled_day
     escalated = records[0].affected_trip_ids[0]
     t = W.trips[escalated]
     # New dispatch model: the emergency is released from its van and an ambulance is sent at once.
@@ -457,11 +458,15 @@ def test_hospital_full_scenario_engine_plan():
     assert {s.trip_id for s in plan.steps if s.dropoff_id} == overflow
     k = simulate([s.model_dump() for s in plan.steps])["kpis_after"]
     assert k["over_capacity"] == 0 and sum(k["unassigned"].values()) == 0
-    # Ambulances never take scheduled trips, so the redirected (scheduled) patients ride in vans whose
-    # day is full: the distant hospital costs those patients lateness, but no emergency/urgent trip is
-    # late and only the redirected patients themselves are affected.
-    assert k["late_non_scheduled"] == 0 and k["late_trips"] <= len(overflow), k
-    assert all(W.vehicles[s.vehicle_id].type == "transport" for s in plan.steps), "scheduled redirects go by van"
+    # A distant general hospital costs the redirected (urgent) patients some lateness, but only them,
+    # and nobody is parked for hours at the end of a queue.
+    assert k["late_trips"] <= len(overflow) and k["max_delay_min"] < 90, k
+    assert W.trips[escalated].dropoff_id == "ukc", "the emergency keeps its UKC admission"
+    # Scheduled redirects go by van; in live calls the redirected patients are urgent, so an urgent
+    # long-distance redirect may also fly (H1) or take a free ambulance.
+    assert all(
+        W.trips[s.trip_id].priority != "scheduled" or W.vehicles[s.vehicle_id].type == "transport" for s in plan.steps
+    ), "scheduled redirects go by van"
 
 
 # --- Agent plumbing -------------------------------------------------------------------------
@@ -535,11 +540,12 @@ def test_existing_events_unchanged():
 
 
 def test_demo_scenarios_build():
-    for name, (_title, build) in demo.SCENARIOS.items():
-        fresh()
-        records = build(W)
-        if name == "equipment_en_route":  # preparation only: no events, but a van now carries equipment
-            assert records == [] and demo._loaded_with_equipment(W) is not None
+    for name in demo.SCENARIOS:
+        records = demo.prepare(W, name)  # scenarios run in live-calls mode
+        assert not W.scheduled_day, name
+        if name == "equipment_en_route":  # preparation only: no events, but T1 now carries equipment
+            v = demo._loaded_with_equipment(W)
+            assert records == [] and v is not None and v.id == "T1", v
             continue
         assert records, name
         if name == "stranded_patient":
@@ -551,6 +557,7 @@ def test_demo_scenarios_build():
 def test_end_to_end_with_lifespan_and_engine_fallback():
     """Starts the real app (seeding, simulation loop), runs a scenario and approves the engine's plan."""
     with TestClient(main.app) as c:
+        assert c.get("/sim/state").json()["mode"] == "live_calls", "live calls by default"
         r = c.post("/sim/admin/scenario/hospital_full")
         assert r.status_code == 200, r.text
         assert r.json()["run_id"] is None, "auto-analyse is off by default: no tokens spent"
