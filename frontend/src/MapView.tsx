@@ -38,6 +38,12 @@ export function MapView({ state, mode, onMapClick }: Props) {
     modeRef.current = mode;
   });
 
+  // Toggle the class directly: if React owned className, every re-render would wipe the classes
+  // Leaflet adds to this element (leaflet-container etc.), which is what clips the map.
+  useEffect(() => {
+    el.current?.classList.toggle("picking", mode !== null);
+  }, [mode]);
+
   // Create the map once.
   useEffect(() => {
     if (!el.current) return;
@@ -56,7 +62,12 @@ export function MapView({ state, mode, onMapClick }: Props) {
     map.on("click", (e: L.LeafletMouseEvent) => {
       if (modeRef.current) clickRef.current(e.latlng.lat, e.latlng.lng);
     });
+    // Leaflet only tracks window resizes; re-measure whenever the map's own box changes size
+    // (header wrapping, grid changes), otherwise tiles and markers are placed for the old size.
+    const resize = new ResizeObserver(() => map.invalidateSize({ pan: false }));
+    resize.observe(el.current);
     return () => {
+      resize.disconnect();
       map.remove();
       layers.current = null;
     };
@@ -116,5 +127,5 @@ export function MapView({ state, mode, onMapClick }: Props) {
     }
   }, [state]);
 
-  return <div ref={el} className={`map${mode ? " picking" : ""}`} />;
+  return <div ref={el} className="map" />; // constant on purpose, see the classList effect above
 }
