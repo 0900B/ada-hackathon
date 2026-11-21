@@ -46,6 +46,7 @@ to everyone else. The brief calls it *kaos na terenu*, and asks for *a new plan*
 - **Human in the loop:** the AI proposes; the dispatcher approves with one key.
 - **No invented numbers:** the engine re-simulates every option before it's shown.
 - **Always works:** without the AI, the engine's own plan appears. If a data feed fails, the system falls back and says so.
+- **Every data source has a backup** (say this sentence): *"Weather comes from two providers, traffic from TomTom with promet.si and a time-of-day model behind it, routing from OSRM and TomTom. If the AI is down, our engine still plans. In production it runs on private servers, twice, in two data centres, with login, encryption and a full audit trail."* Details for jury questions: `docs/RELIABILITY_AND_SECURITY.md`.
 - **Accountable:** the **Audit** page logs every message, recommendation and decision, stored in Postgres.
 
 **2:40–3:00 · Close.** "Helicopters with fog grounding, equipment, hospital capacity and priority
