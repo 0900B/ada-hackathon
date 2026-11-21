@@ -145,8 +145,16 @@ export default function App() {
   const action = useAction(setMessage, setBusy)
 
   const mapProps    = state ? liveToMapProps(state) : mockToMapProps()
-  const run         = state?.agent?.runs?.[0] ?? null
-  const showCard    = run?.status === 'done' && !!run?.recommendation
+
+  // Sort runs newest-first so runs[0] is always the latest, regardless of backend ordering
+  const runsArr     = state?.agent?.runs ?? []
+  const run         = runsArr.length > 0
+    ? [...runsArr].sort((a, b) => new Date(b.started_at) - new Date(a.started_at))[0]
+    : null
+
+  const showCard    = run?.status === 'done'
+    && !!run?.recommendation
+    && (run.recommendation.options?.length ?? 0) > 0
   const affectedIds = getAffectedVehicleIds(run, state)
 
   // Reset minimised whenever a new decision arrives
@@ -235,7 +243,7 @@ export default function App() {
           />
           <AlertsSection alerts={state?.alerts} />
           {run?.recommendation && !cardOpen && <SituationSection rec={run.recommendation} />}
-          <DecisionLogSection runs={state?.agent?.runs ?? []} />
+          <DecisionLogSection runs={runsArr} />
         </div>
 
         {/* ── Scenarios: fixed at base of panel ── */}
@@ -255,11 +263,11 @@ export default function App() {
 
 function DecisionCard({ run, busy, action, onMinimise }) {
   const rec = run.recommendation
-  const [selectedIdx, setSelectedIdx] = useState(rec.recommended_index)
+  const [selectedIdx, setSelectedIdx] = useState(rec.recommended_index ?? 0)
   const [detailsOpen, setDetailsOpen] = useState(false)
 
   useEffect(() => {
-    setSelectedIdx(rec.recommended_index)
+    setSelectedIdx(rec.recommended_index ?? 0)
     setDetailsOpen(false)
   }, [run.id])
 
