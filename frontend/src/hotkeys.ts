@@ -26,7 +26,7 @@ export const HOTKEYS: HotkeyInfo[] = [
   { key: "n", label: "Reject the recommendation", group: "AI dispatcher" },
   { key: "m", label: "Voice input on / off", group: "Message from the field" },
   { key: "Ctrl+Enter", label: "Send the message (in the message box)", group: "Message from the field" },
-  { key: "b", label: "Breakdown of the selected vehicle", group: "Events" },
+  { key: "b", label: "Breakdown of the selected vehicle (click its marker, chip or trip row first)", group: "Events" },
   { key: "d", label: "Delay the selected vehicle 10 min", group: "Events" },
   { key: "f", label: "Fog: ground helicopters 1 h", group: "Events" },
   { key: "e", label: "Emergency call (then click the map)", group: "Events" },

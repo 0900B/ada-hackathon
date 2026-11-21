@@ -1,5 +1,5 @@
-import type { VehicleDetail } from "./api";
-import { fmtTime, humanize } from "./format";
+import type { VehicleDetail, WorldSnapshot } from "./api";
+import { flightTarget, fmtTime, vehicleStatusText } from "./format";
 
 type Send = (event: Record<string, unknown>) => Promise<void>;
 
@@ -8,12 +8,14 @@ const STOP_ICON = { pickup: "⬆", dropoff: "⬇", base: "🏠" } as const;
 /** Floating card for the selected vehicle: crew, fuel, current job, upcoming stops, quick actions. */
 export function VehicleCard({
   detail,
+  state,
   onClose,
   onCenter,
   send,
   busy,
 }: {
   detail: VehicleDetail;
+  state: WorldSnapshot;
   onClose: () => void;
   onCenter: () => void;
   send: Send;
@@ -23,17 +25,31 @@ export function VehicleCard({
   const t = detail.current_trip;
   const fuelClass = detail.fuel.pct < 10 ? "bad" : detail.fuel.low ? "warn" : "ok";
   const down = v.status === "out_of_service";
+  const heli = v.type === "helicopter";
+  const flight = heli
+    ? flightTarget(v, t ?? undefined, new Map(state.places.map((p) => [p.id, p])))
+    : null;
 
   return (
     <div className="vehicle-card-float">
       <div className="vc-head">
-        <span className={`veh veh-${v.type}`}>{v.id}</span>
+        <span className={heli ? "veh veh-helicopter" : `veh veh-${v.type}`}>{heli ? `🚁 ${v.id}` : v.id}</span>
         <strong>{v.name}</strong>
-        <span className="muted">· {humanize(v.status)}</span>
+        <span className="muted">· {vehicleStatusText(v, state.trips)}</span>
         <button className="link vc-close" onClick={onClose} title="Close (Esc)">
           ✕
         </button>
       </div>
+
+      {heli && (
+        <div className={`vc-flight${v.grounded_until ? " grounded" : ""}`}>
+          {v.grounded_until
+            ? `🌫 Grounded by fog until ${fmtTime(v.grounded_until)}: no new flights${flight ? ` (finishing: ${flight.kind} ${flight.place.name})` : ""}`
+            : flight
+              ? `✈ ${v.busy_until ? "On the ground, next" : "Flying"} to ${flight.kind === "base" ? "base" : flight.kind}: ${flight.place.name} · straight line, 200 km/h`
+              : "✈ Parked at base, ready to fly (straight line, 200 km/h)"}
+        </div>
+      )}
 
       <div className="vc-fuel">
         <div className="vc-fuel-label">
@@ -45,7 +61,6 @@ export function VehicleCard({
         <div className="muted">
           {v.km_today.toFixed(1)} km today · base {detail.base}
           {v.shift_end ? ` · shift until ${fmtTime(v.shift_end)}` : ""}
-          {v.grounded_until ? ` · 🌫 grounded until ${fmtTime(v.grounded_until)}` : ""}
         </div>
       </div>
 
@@ -92,10 +107,18 @@ export function VehicleCard({
 
       <div className="row vc-actions">
         <button onClick={onCenter}>🎯 Center</button>
-        <button disabled={busy || down} onClick={() => send({ type: "delay", vehicle_id: v.id, minutes: 10, note: "reported from vehicle card" })}>
+        <button
+          disabled={busy || down}
+          title="Delay this vehicle by 10 minutes (hotkey D)"
+          onClick={() => send({ type: "delay", vehicle_id: v.id, minutes: 10, note: "reported from vehicle card" })}
+        >
           ⏱ +10 min
         </button>
-        <button disabled={busy || down} onClick={() => send({ type: "breakdown", vehicle_id: v.id, note: "reported from vehicle card" })}>
+        <button
+          disabled={busy || down}
+          title="Report a breakdown of this vehicle (hotkey B)"
+          onClick={() => send({ type: "breakdown", vehicle_id: v.id, note: "reported from vehicle card" })}
+        >
           🔧 Breakdown
         </button>
       </div>

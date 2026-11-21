@@ -184,7 +184,7 @@ export interface AgentRun {
   steps: AgentStep[];
   recommendation: Recommendation | null;
   error: string | null;
-  decision: { option_index?: number; title?: string; reason?: string | null } | null;
+  decision: { option_index?: number; title?: string; reason?: string | null; at?: string; event_id?: string | null } | null;
   usage: Record<string, number>;
 }
 
@@ -263,6 +263,23 @@ export const approveOption = (world: World, runId: string, optionIndex: number) 
   post<AgentRun>(`/${world}/agent/runs/${runId}/approve`, { option_index: optionIndex });
 export const rejectRun = (world: World, runId: string) =>
   post<AgentRun>(`/${world}/agent/runs/${runId}/reject`, { reason: null });
+/** Turn automatic analysis of events on/off for one world. Older backends answer 404 (no such endpoint). */
+export async function setAgentAuto(world: World, enabled: boolean): Promise<{ world: World; auto: boolean } | "unsupported"> {
+  const res = await fetch(`${API_URL}/${world}/agent/auto`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ enabled }),
+  });
+  if (res.status === 404 || res.status === 405) return "unsupported";
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const detail = (data as { detail?: unknown }).detail;
+    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail ?? res.statusText));
+  }
+  return data as { world: World; auto: boolean };
+}
+/** Numeric part of a world-scoped id (EV-0012, RUN-0013): events and runs share one counter per world. */
+export const idSeq = (id: string | null | undefined) => Number(/(\d+)$/.exec(id ?? "")?.[1] ?? -1);
 export interface VehicleStop {
   kind: "pickup" | "dropoff" | "base";
   trip_id: string | null;

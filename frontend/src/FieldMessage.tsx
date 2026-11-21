@@ -63,9 +63,10 @@ export function FieldMessage({
   }, [micToggleRef, speech.toggle]);
 
   return (
-    <div className="field-message">
-      <div className="row">
-        <select value={sender} onChange={(e) => setSender(e.target.value)} title="Who is sending the message">
+    <section className="panel panel-field">
+      <div className="panel-head">
+        <h2 className="panel-title">Message from the field</h2>
+        <select className="sender" value={sender} onChange={(e) => setSender(e.target.value)} title="Who is sending the message" aria-label="Sender">
           <option value="">From: dispatcher</option>
           {state.vehicles.map((v) => (
             <option key={v.id} value={v.id}>
@@ -74,77 +75,92 @@ export function FieldMessage({
           ))}
         </select>
       </div>
-
-      {speech.supported ? (
-        <div className="voice-row">
-          <button
-            type="button"
-            className={`mic-btn${speech.listening ? " listening" : ""}`}
-            title="Click to start/stop, or hold to talk and release (hotkey M)"
-            aria-pressed={speech.listening}
-            {...ptt}
-          >
-            🎤 {speech.listening ? "Listening…" : "Speak"}
-          </button>
-          <span className="lang-toggle" role="group" aria-label="Speech language">
-            {SPEECH_LANGS.map((l) => (
+      <div className="field-message">
+        <textarea
+          rows={2}
+          placeholder="Sporočilo s terena (SL/EN), npr. »Vozilo je obstalo. Oprema je še v njem.« · Ctrl+Enter pošlje"
+          aria-label="Field message"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && text.trim().length > 1) void submit();
+          }}
+        />
+        {speech.listening && <div className="voice-interim">{speech.interim || "Listening… speak now"}</div>}
+        <div className="fm-actions">
+          {speech.supported && (
+            <>
               <button
-                key={l.code}
                 type="button"
-                aria-pressed={speech.lang === l.code}
-                onClick={() => speech.setLang(l.code)}
-                title={`Recognise ${l.code}`}
+                className={`mic-btn${speech.listening ? " listening" : ""}`}
+                title="Click to start/stop, or hold to talk and release (hotkey M)"
+                aria-pressed={speech.listening}
+                {...ptt}
               >
-                {l.label}
+                🎤 {speech.listening ? "Listening…" : "Speak"}
               </button>
+              <span className="lang-toggle" role="group" aria-label="Speech language">
+                {SPEECH_LANGS.map((l) => (
+                  <button
+                    key={l.code}
+                    type="button"
+                    aria-pressed={speech.lang === l.code}
+                    onClick={() => speech.setLang(l.code)}
+                    title={`Recognise ${l.code}`}
+                  >
+                    {l.label}
+                  </button>
+                ))}
+              </span>
+            </>
+          )}
+          <select
+            className="examples-pick"
+            aria-label="Insert an example message"
+            value=""
+            onChange={(e) => e.target.value && setText(e.target.value)}
+          >
+            <option value="">Example…</option>
+            {EXAMPLES.map((ex) => (
+              <option key={ex} value={ex}>
+                {ex}
+              </option>
             ))}
-          </span>
+          </select>
+          <button className="primary send" disabled={busy || text.trim().length < 2} onClick={() => void submit()} title="Ctrl+Enter">
+            {busy ? "Interpreting…" : "Send to AI"}
+          </button>
+        </div>
+        {speech.supported ? (
           <label className="auto-send" title="Send to the AI as soon as you stop speaking">
             <input type="checkbox" checked={autoSend} onChange={(e) => setAutoSend(e.target.checked)} />
-            auto-send after speaking
+            send automatically after speaking
+            {!speechSecureContext() && <span className="warn-text"> · voice needs HTTPS (or localhost)</span>}
           </label>
-        </div>
-      ) : (
-        <p className="muted">🎤 Voice input needs Chrome or Edge.</p>
-      )}
-      {speech.supported && !speechSecureContext() && <p className="muted">🎤 Voice input needs HTTPS (or localhost).</p>}
-      {speech.listening && <div className="voice-interim">{speech.interim || "Listening… speak now"}</div>}
-      {speech.error && <div className="message error">{speech.error}</div>}
-
-      <textarea
-        rows={2}
-        placeholder="Sporočilo s terena (SL/EN), npr. »Vozilo je obstalo. Oprema je še v njem.«"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && text.trim().length > 1) void submit();
-        }}
-      />
-      <div className="examples">
-        {EXAMPLES.map((ex) => (
-          <button key={ex} className="example" onClick={() => setText(ex)} title="Use this example">
-            {ex}
-          </button>
-        ))}
+        ) : (
+          <p className="muted small">🎤 Voice input needs Chrome or Edge.</p>
+        )}
+        {speech.error && <div className="message error">{speech.error}</div>}
+        {error && <div className="message error">{error}</div>}
+        {result && (
+          <div className="parsed">
+            <div>🇸🇮 {result.understood_sl}</div>
+            <div className="muted">🇬🇧 {result.understood_en}</div>
+            {result.needs_clarification && <div className="warn-box">❓ {result.needs_clarification}</div>}
+            {result.applied.map((a) => (
+              <div key={a.id} className="applied">
+                ✓ {a.summary}
+              </div>
+            ))}
+            {result.error && <div className="message error">{result.error}</div>}
+            {result.run_id ? (
+              <div className="muted">The AI dispatcher is replanning ({result.run_id})…</div>
+            ) : (
+              result.applied.length > 0 && !state.agent.auto && <div className="muted">Applied. Press A to analyse.</div>
+            )}
+          </div>
+        )}
       </div>
-      <button className="primary" disabled={busy || text.trim().length < 2} onClick={() => void submit()}>
-        {busy ? "Interpreting…" : "Send to AI (Ctrl+Enter)"}
-      </button>
-      {error && <div className="message error">{error}</div>}
-      {result && (
-        <div className="parsed">
-          <div>🇸🇮 {result.understood_sl}</div>
-          <div className="muted">🇬🇧 {result.understood_en}</div>
-          {result.needs_clarification && <div className="warn-box">❓ {result.needs_clarification}</div>}
-          {result.applied.map((a) => (
-            <div key={a.id} className="applied">
-              ✓ {a.summary}
-            </div>
-          ))}
-          {result.error && <div className="message error">{result.error}</div>}
-          {result.run_id && <div className="muted">The AI dispatcher is replanning ({result.run_id})…</div>}
-        </div>
-      )}
-    </div>
+    </section>
   );
 }
