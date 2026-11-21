@@ -56,10 +56,11 @@ modify: backend/app/state.py, backend/app/main.py   (seam, Task 7 only)
 
 **Files:** none changed (`backend/.venv` is already in `.gitignore`).
 
-- [ ] **Step 1:** From `backend/`: `python -m venv .venv`, then `.venv/Scripts/python.exe -m pip install -r requirements.txt pytest`.
-- [ ] **Step 2:** Run `.venv/Scripts/python.exe -m pytest tests -q` on the untouched tree. Save the full output to `C:\Users\telki\AppData\Local\Temp\claude\91650a5436204d05\8575dcd5-1990-4b44-9501-73b0b4ad42f4\scratchpad\baseline.txt`.
-  Expected: the five existing files run. Record the pass/fail counts. A failure here is a baseline failure, reported as such, never "fixed".
-- [ ] **Step 3:** Confirm `git status` shows no tracked changes. No commit.
+- [ ] **Step 1: Rebase onto current `main`.** `main` has moved since the branch was cut (16 commits at plan time; none touched `state.py` or `main.py`). Run `git fetch origin`, then `git rebase origin/main` (the branch holds only docs commits and was never pushed, so there is nothing to conflict). Then `git diff --stat <old-base>..origin/main -- backend/app/state.py backend/app/main.py` must still be empty, where `<old-base>` is `2af1e48`; if upstream changed either seam file, stop and tell the user before continuing.
+- [ ] **Step 2:** From `backend/`: `python -m venv .venv`, then `.venv/Scripts/python.exe -m pip install -r requirements.txt pytest`.
+- [ ] **Step 3:** Run `.venv/Scripts/python.exe -m pytest tests -q` on the untouched tree. Save the full output to `C:\Users\telki\AppData\Local\Temp\claude\91650a5436204d05\8575dcd5-1990-4b44-9501-73b0b4ad42f4\scratchpad\baseline.txt`.
+  Expected: every existing test file runs (five at plan time; more after the rebase). Record the pass/fail counts per file. A failure here is a baseline failure, reported as such, never "fixed".
+- [ ] **Step 4:** Confirm `git status` shows no tracked changes. No commit.
 
 ---
 
@@ -286,7 +287,7 @@ def test_live_and_sim_logs_are_independent():  # an entry posted to /sim/... is 
 ```
 - [ ] **Step 2:** Run `tests/test_clinical_integration.py`. Expected: FAIL.
 - [ ] **Step 3:** Seam edits, nothing else: in `reset_simulation` add `from .clinical.store import ClinicalLog  # local import: avoids a cycle` and `self.clinical = ClinicalLog()`; in `snapshot()` add `from .clinical.projection import snapshot_extra` beside the existing local imports and `**snapshot_extra(self),` as the last item of the returned dict; in `main.py` add `from .clinical import api as clinical_api` with the other imports and `clinical_api.mount(app, WORLDS)` directly after `app.include_router(router)`.
-- [ ] **Step 4:** Run the new file, then the whole suite: `.venv/Scripts/python.exe -m pytest tests -q`. Expected: new tests PASS; the original five files give exactly the counts saved in `baseline.txt`.
+- [ ] **Step 4:** Run the new file, then the whole suite: `.venv/Scripts/python.exe -m pytest tests -q`. Expected: new tests PASS; every pre-existing test file gives exactly the counts saved in `baseline.txt`.
 - [ ] **Step 5:** Two commits, seam first: `git add app/state.py app/main.py && git commit -m "seam: clinical section in the snapshot and clinical routes (additive, CLINICAL_ENABLED=0 disables)"`, then `git add tests/test_clinical_integration.py && git commit -m "clinical: integration tests (snapshot compatibility, fail-safe, kill switch, sync)"`. Verify `git show --stat HEAD~1` lists only `state.py` and `main.py` with a handful of added lines.
 
 ---
@@ -354,9 +355,9 @@ def test_alerts_never_write_to_the_log(): n = len(get_log(w)); board(w); assert 
 
 ### Task 10: Final verification (no new code)
 
-- [ ] **Step 1:** Full suite: `.venv/Scripts/python.exe -m pytest tests -q`. Expected: original five files match `baseline.txt` exactly; all `test_clinical_*` pass.
-- [ ] **Step 2: Diff guard.** `git diff --stat origin/main..HEAD` must list only: `backend/app/state.py`, `backend/app/main.py`, files under `backend/app/clinical/`, `backend/tools/`, `backend/tests/clinical_helpers.py`, `backend/tests/test_clinical_*.py`, and `docs/superpowers/`. Anything else means stop and investigate.
-- [ ] **Step 3:** `git diff origin/main..HEAD -- backend/app/state.py backend/app/main.py` shows only added lines (no deletions), at most about ten.
+- [ ] **Step 1:** Full suite: `.venv/Scripts/python.exe -m pytest tests -q`. Expected: every pre-existing test file matches `baseline.txt` exactly; all `test_clinical_*` pass.
+- [ ] **Step 2: Diff guard.** Use the three-dot form, which compares against the merge base so a moving `main` cannot cause false alarms: `git diff --stat origin/main...HEAD` must list only: `backend/app/state.py`, `backend/app/main.py`, files under `backend/app/clinical/`, `backend/tools/`, `backend/tests/clinical_helpers.py`, `backend/tests/test_clinical_*.py`, and `docs/superpowers/`. Anything else means stop and investigate.
+- [ ] **Step 3:** `git diff origin/main...HEAD -- backend/app/state.py backend/app/main.py` shows only added lines (no deletions), at most about ten.
 - [ ] **Step 4: Live check.** Start `.venv/Scripts/python.exe -m app` in `backend/` with `CALLS_PER_HOUR=30`; in a second shell run `python tools/crew_sim.py --world sim`; then `curl -s http://localhost:8000/sim/er/board` shows cards with vitals and stages, and `curl -s -N --max-time 4 http://localhost:8000/sim/stream` shows a first event whose JSON contains the same `clinical` section. Stop both processes.
 - [ ] **Step 5: Kill switch live.** Restart with `CLINICAL_ENABLED=0`: `/sim/state` has no `clinical` key and `/sim/er/board` returns 404.
 - [ ] **Step 6:** Report results honestly (counts, anything skipped). Nothing is pushed.
