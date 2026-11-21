@@ -1,8 +1,8 @@
 """Traffic speed factor.
 
-For now this is a time-of-day profile for Ljubljana (marked "fallback" in /health).
-To go live, replace update_traffic with a call to TomTom/HERE traffic flow, and keep
-this profile as the fallback when that call fails.
+Without TOMTOM_API_KEY this time-of-day profile for Ljubljana is the traffic source
+(marked "fallback" in /health). With a key, fetchers/tomtom.py provides live data and
+falls back to this profile whenever TomTom is unavailable.
 """
 from __future__ import annotations
 
@@ -29,3 +29,5 @@ def profile_factor(dt: datetime) -> float:
 
 async def update_traffic(state: WorldState) -> None:
     state.traffic_factor = profile_factor(state.sim_time)
+    state.traffic_source = "time-of-day profile"
+    state.traffic_samples = []

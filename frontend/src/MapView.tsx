@@ -79,7 +79,8 @@ export function MapView({ state, mode, onMapClick }: Props) {
     }
 
     for (const inc of state.incidents) {
-      L.circle([inc.lat, inc.lon], { radius: inc.radius_m, color: "#ff4d4f", fillColor: "#ff4d4f", fillOpacity: 0.2 })
+      const color = inc.kind === "congestion" ? "#fab005" : "#ff4d4f";
+      L.circle([inc.lat, inc.lon], { radius: inc.radius_m, color, fillColor: color, fillOpacity: 0.2, dashArray: inc.source === "live" ? "4 4" : undefined })
         .bindTooltip(`${inc.id}: ${inc.description}`)
         .addTo(ls.incidents);
     }

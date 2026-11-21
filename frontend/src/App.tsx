@@ -115,7 +115,15 @@ function Header({ state, connected }: { state: WorldSnapshot; connected: boolean
             {w.precipitation_mm} mm · {state.weather.overridden ? "demo override" : w.source}
           </span>
         )}
-        <span className="chip">Traffic ×{state.traffic.factor.toFixed(2)}</span>
+        <span
+          className="chip"
+          title={
+            state.traffic.samples.map((s) => `${s.road}: ${s.current_kmh}/${s.free_flow_kmh} km/h`).join("\n") ||
+            state.traffic.source
+          }
+        >
+          🚗 Traffic ×{state.traffic.factor.toFixed(2)} · {state.traffic.source === "tomtom" ? "TomTom live" : "profile"}
+        </span>
         {Object.values(state.sources).map((s) => (
           <span key={s.name} className={`chip src-${s.health}`} title={s.last_error ?? `${s.kind} · ${s.age_s ?? "–"} s old`}>
             {s.name}: {s.health}
@@ -236,11 +244,13 @@ function Alerts({ state, send }: { state: WorldSnapshot; send: Send }) {
   return (
     <ul className="alerts">
       {state.incidents.map((inc) => (
-        <li key={inc.id} className="alert sev-high">
-          ⛔ {inc.description}
-          <button className="link" onClick={() => send({ type: "clear_incident", incident_id: inc.id })}>
-            clear
-          </button>
+        <li key={inc.id} className={`alert ${inc.kind === "congestion" ? "sev-medium" : "sev-high"}`}>
+          {inc.kind === "road_closure" ? "⛔" : inc.kind === "accident" ? "💥" : "🚦"} {inc.description}
+          {inc.source === "injected" && (
+            <button className="link" onClick={() => send({ type: "clear_incident", incident_id: inc.id })}>
+              clear
+            </button>
+          )}
         </li>
       ))}
       {state.alerts.map((a) => (

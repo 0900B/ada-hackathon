@@ -14,7 +14,7 @@ goes wrong, every decision is made from data already in memory; nothing waits on
 | Projection | `app/engine/projection.py` | Predicts every trip's arrival time and delay, including knock-on delays; builds alerts and KPIs |
 | Events | `app/engine/events.py` | Breakdown, delay, road closure, urgent request, weather override |
 | Plans | `app/engine/plans.py` | Simulates a reassignment plan on a copy (what-if), or applies it |
-| Feeds | `app/fetchers/` | Live weather (Open-Meteo); traffic (time-of-day profile for now) |
+| Feeds | `app/fetchers/` | Live weather (Open-Meteo, MET Norway fallback); traffic from TomTom (flow + incidents) when `TOMTOM_API_KEY` is set, else a time-of-day profile |
 
 ## Run locally
 

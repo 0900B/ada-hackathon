@@ -17,6 +17,7 @@ from .engine.actions import ActionError
 from .engine.events import EventError, apply_event
 from .engine.plans import apply_plan, simulate_plan
 from .engine.projection import kpis, project_all
+from .fetchers import tomtom
 from .fetchers.base import run_periodic
 from .fetchers.traffic import update_traffic
 from .fetchers.weather import fetch_weather
@@ -35,6 +36,7 @@ from .sim.simulator import tick
 from .state import WorldState
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logging.getLogger("httpx").setLevel(logging.WARNING)  # its request log prints full URLs, incl. TomTom's ?key=
 log = logging.getLogger("app")
 
 state = WorldState()
@@ -66,11 +68,27 @@ async def lifespan(app: FastAPI):
             run_periodic(state, "weather", "live", config.WEATHER_INTERVAL_S, lambda: fetch_weather(state, client)),
             name="weather",
         ),
-        asyncio.create_task(
-            run_periodic(state, "traffic", "fallback", config.TRAFFIC_INTERVAL_S, lambda: update_traffic(state)),
-            name="traffic",
-        ),
     ]
+    if tomtom.tomtom_key():
+        tasks += [
+            asyncio.create_task(
+                run_periodic(state, "traffic", "live", config.TOMTOM_INTERVAL_S, lambda: tomtom.fetch_flow(state, client)),
+                name="traffic",
+            ),
+            asyncio.create_task(
+                run_periodic(
+                    state, "incidents", "live", config.TOMTOM_INTERVAL_S, lambda: tomtom.fetch_incidents(state, client)
+                ),
+                name="incidents",
+            ),
+        ]
+    else:
+        tasks.append(
+            asyncio.create_task(
+                run_periodic(state, "traffic", "fallback", config.TRAFFIC_INTERVAL_S, lambda: update_traffic(state)),
+                name="traffic",
+            )
+        )
     log.info(
         "backend started: %d vehicles, %d trips, agent %s",
         len(state.vehicles),

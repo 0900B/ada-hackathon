@@ -33,16 +33,19 @@ class WorldState:
         self.weather_now: WeatherNow | None = None
         self.weather_forecast: list[WeatherHour] = []
         self.traffic_factor: float = 1.0  # 1.0 = free flow; <1 = slower
+        self.traffic_source: str = "time-of-day profile"
+        self.traffic_samples: list[dict[str, Any]] = []  # per-road TomTom readings, when live
         self.version = 0
         self._ids = itertools.count(1)
         self.reset_simulation()
 
     def reset_simulation(self) -> None:
+        live = {k: v for k, v in getattr(self, "incidents", {}).items() if v.source == "live"}  # real-world feed
         self.sim_time: datetime = utcnow().replace(microsecond=0)
         self.places: dict[str, Place] = {}
         self.vehicles: dict[str, Vehicle] = {}
         self.trips: dict[str, Trip] = {}
-        self.incidents: dict[str, Incident] = {}
+        self.incidents: dict[str, Incident] = live
         self.weather_override: WeatherNow | None = None
         self.alerts: list[Alert] = []
         self.events: list[EventRecord] = []
@@ -104,7 +107,7 @@ class WorldState:
                 "overridden": self.weather_override is not None,
                 "forecast": dump(self.weather_forecast),
             },
-            "traffic": {"factor": self.traffic_factor},
+            "traffic": {"factor": self.traffic_factor, "source": self.traffic_source, "samples": self.traffic_samples},
             "sources": {k: s.model_dump(mode="json") for k, s in self.sources.items()},
             "alerts": dump(self.alerts),
             "kpis": kpis(self),

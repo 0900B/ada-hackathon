@@ -51,7 +51,11 @@ def build_situation(state: WorldState) -> dict[str, Any]:
             "source": "demo override" if state.weather_override else w.source,
             "speed_factor": weather_factor(w),
         },
-        "traffic_speed_factor": state.traffic_factor,
+        "traffic": {
+            "speed_factor": state.traffic_factor,
+            "source": state.traffic_source,
+            "roads": [f"{s['road']}: {s['current_kmh']}/{s['free_flow_kmh']} km/h" for s in state.traffic_samples],
+        },
         "data_sources": {s.name: f"{s.health} ({s.kind})" for s in state.sources.values()},
         "totals": kpis(state),
         "alerts": [a.message for a in state.alerts[:12]],

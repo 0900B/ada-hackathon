@@ -57,6 +57,7 @@ export interface Incident {
   lon: number;
   radius_m: number;
   active: boolean;
+  source: "live" | "injected";
 }
 
 export interface WeatherNow {
@@ -176,7 +177,11 @@ export interface WorldSnapshot {
   trips: Trip[];
   incidents: Incident[];
   weather: { now: WeatherNow | null; overridden: boolean };
-  traffic: { factor: number };
+  traffic: {
+    factor: number;
+    source: string;
+    samples: { road: string; current_kmh: number; free_flow_kmh: number; ratio: number }[];
+  };
   sources: Record<string, SourceStatus>;
   alerts: Alert[];
   kpis: Kpis;
