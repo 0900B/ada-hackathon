@@ -333,6 +333,7 @@ def run_scenario(state: WorldState, name: str) -> dict[str, Any]:
     )
     if not state.auto_analyze:  # analysis on demand only: the operator presses Analyse
         state.pending_question = question  # the next Analyse gets the scenario's description
+        state.pending_scenario_events = {r.id for r in records}  # ... unless something else happens first
         state.bump()
         note = f"Scenario started: {title}. Auto-analyse is off: press Analyse (A) for the AI's recommendation."
         return {"scenario": name, "title": title, "events": records, "run_id": None, "note": note}

@@ -69,6 +69,7 @@ def start_run(state: WorldState, trigger: str, focus: EventRecord | None = None,
     )
     state.agent_runs.append(run)
     del state.agent_runs[:-20]  # keep the history bounded
+    state.analysed_events = len(state.events)  # everything reported so far has now been looked at
     AUDIT.record(
         state.name,
         "agent_run_started",

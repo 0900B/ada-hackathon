@@ -9,6 +9,7 @@ import asyncio
 import json
 import logging
 from contextlib import asynccontextmanager
+from datetime import timedelta
 from typing import Literal
 
 import httpx
@@ -249,6 +250,7 @@ async def stream(request: Request, state: WorldState = World) -> StreamingRespon
     )
 
 
+ANALYSE_LOOKBACK_MIN = 30  # Analyse looks at operator events from the last 30 world-minutes
 DISRUPTIVE_EVENTS = {
     "breakdown",
     "delay",
@@ -460,12 +462,33 @@ def set_auto_analyze(req: AutoAnalyzeRequest, state: WorldState = World) -> dict
 async def analyze(req: AnalyzeRequest | None = None, state: WorldState = World) -> AgentRun:
     """Ask the agent to review this world's situation (optionally with a question). Runs in the background.
 
-    The first analysis after a demo scenario (auto-analyse off) gets the scenario's description."""
-    question = req.question if req else None
+    It focuses on what happened since the last analysis: one new event becomes the run's focus, several
+    are listed together. A demo scenario's description is used only if nothing else happened after it."""
+    extra = req.question if req else None
     pending, state.pending_question = state.pending_question, None
-    if pending:
-        question = f"{pending} {question}" if question else pending
-    return agent.start_run(state, trigger="operator", question=question)
+    scenario_ids, state.pending_scenario_events = state.pending_scenario_events, set()
+    recent_after = state.sim_time - timedelta(minutes=ANALYSE_LOOKBACK_MIN)
+    new = [
+        e
+        for e in state.events[state.analysed_events :]
+        if not e.generated and e.type != "plan_applied" and e.sim_time >= recent_after
+    ]
+    focus, question = None, None
+    if pending and new and all(e.id in scenario_ids for e in new):
+        question = pending  # nothing else happened since the scenario: analyse the scenario
+    elif len(new) == 1:
+        focus = new[0]
+        question = "Focus on this event: what it affects and what the dispatcher should do now."
+    elif new:
+        focus = new[-1]  # the operator's latest report is what they want answered
+        earlier = "; ".join(f"({i + 1}) {e.summary}" for i, e in enumerate(new[-6:-1]))
+        question = (
+            "Focus on the newest event: what it affects and what the dispatcher should do now. "
+            f"Also not yet analysed: {earlier}. Mention those only where they interact with it."
+        )
+    if extra:
+        question = f"{question} {extra}" if question else extra
+    return agent.start_run(state, trigger="operator", focus=focus, question=question)
 
 
 @router.get("/agent/runs")

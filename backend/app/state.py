@@ -100,6 +100,8 @@ class WorldState:
         self.events: list[EventRecord] = []
         self.agent_runs: list[AgentRun] = []
         self.pending_question: str | None = None  # a scenario's description, for the next Analyse
+        self.pending_scenario_events: set[str] = set()  # the scenario's own event ids
+        self.analysed_events = 0  # state.events[:analysed_events] have been seen by an analysis
         self.bump()
 
     # --- helpers -------------------------------------------------------------
