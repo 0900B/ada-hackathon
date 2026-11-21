@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import Map from './Map'
+import MapView from './Map'
 import { API_URL, fetchState, runScenario, resetSimulation, approveOption, rejectRun } from './api'
 import { ambulances, hospitals, activeCalls } from './mockData'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-// Find the closest place to a lat/lon — used for incident location labels
 function nearestPlace(lat, lon, places) {
   let best = null, bestDist = Infinity
   for (const p of places) {
@@ -23,16 +22,25 @@ function incidentKindLabel(kind) {
   return kind.replace(/_/g, ' ')
 }
 
-// Vehicles shown with a dark ring while run is active (running = analysis in progress, done = awaiting decision).
-// During 'running' we can only identify broken-down vehicles; steps arrive once the recommendation is ready.
+// WMO weather code → short description
+function wxDesc(code) {
+  if (code == null) return ''
+  if (code === 0)   return 'Clear'
+  if (code <= 3)    return 'Cloudy'
+  if (code <= 48)   return 'Fog'
+  if (code <= 67)   return 'Rain'
+  if (code <= 77)   return 'Snow'
+  if (code <= 82)   return 'Showers'
+  return 'Storm'
+}
+
+// Vehicles shown with a dark ring while run is active
 function getAffectedVehicleIds(run, state) {
   if (!run || (run.status !== 'running' && run.status !== 'done')) return new Set()
   const ids = new Set()
-  // Broken-down vehicles are always identifiable from live state
   for (const v of (state?.vehicles ?? [])) {
     if (v.status === 'out_of_service') ids.add(v.id)
   }
-  // Once recommendation is ready, also include every vehicle mentioned in an option's steps
   if (run.status === 'done') {
     for (const opt of (run.recommendation?.options ?? [])) {
       for (const step of (opt.steps ?? [])) {
@@ -85,9 +93,6 @@ function useWorldState() {
     return () => es.close()
   }, [])
 
-  // If SSE delivers nothing within 8s, start polling /state as a fallback.
-  // When state arrives (from SSE or poll), the effect re-runs: cleanup fires first,
-  // clearing both the timeout and any running interval before the early-return branch exits.
   useEffect(() => {
     if (state) return
     let pollId = null
@@ -123,8 +128,6 @@ function useAction(setMessage, setBusy) {
     }
   }
 }
-
-// ── Shared delta helper ───────────────────────────────────────────────────────
 
 function deltaClass(before, after) {
   if (after < before) return 'better'
@@ -165,14 +168,15 @@ export default function App() {
   }, [showCard, cardMinimised])
 
   const cardOpen           = showCard && !cardMinimised
-  // Ring shown on affected vehicles while a run is active (running or awaiting decision)
   const highlightIds       = [...affectedIds]
   const highlightIncidents = cardOpen
+
+  const wx = state?.weather?.now ?? null
 
   return (
     <div className="layout">
       <div className="map-container">
-        <Map {...mapProps} highlightIds={highlightIds} highlightIncidents={highlightIncidents} />
+        <MapView {...mapProps} highlightIds={highlightIds} highlightIncidents={highlightIncidents} />
         {showCard && !cardMinimised && (
           <DecisionCard
             run={run}
@@ -187,40 +191,60 @@ export default function App() {
       </div>
 
       <aside className="side-panel">
+
+        {/* ── Header: brand · sim time · weather ── */}
         <div className="panel-header">
-          <div className="brand">
-            {/* Dispatch mark: framed chevron — routing/movement in a bounded area */}
-            <svg className="brand-mark" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <rect x="0.75" y="0.75" width="14.5" height="14.5" stroke="currentColor" strokeWidth="1.5"/>
-              <path d="M5.5 5.5L10.5 8L5.5 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
-            </svg>
-            <span className="brand-wordmark">DISPATCH</span>
+          <div className="ph-row">
+            <div className="brand">
+              <svg className="brand-mark" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <rect x="0.75" y="0.75" width="14.5" height="14.5" stroke="currentColor" strokeWidth="1.5"/>
+                <path d="M5.5 5.5L10.5 8L5.5 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+              </svg>
+              <span className="brand-wordmark">DISPATCH</span>
+            </div>
+            {state?.sim_time && (
+              <span className="ph-simtime">{fmtSimTime(state.sim_time)}</span>
+            )}
           </div>
-          <span className="panel-city">Ljubljana</span>
+          <div className="ph-row ph-row--sub">
+            <span className="panel-city">Ljubljana</span>
+            {wx && (
+              <span className="ph-weather">
+                {Math.round(wx.temperature_c)}°C
+                {wx.weather_code != null && ` · ${wxDesc(wx.weather_code)}`}
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="panel-body">
-          {offline && (
-            <p className="offline-notice" style={{ padding: '8px 20px' }}>
-              OFFLINE — showing demo data
-            </p>
-          )}
-          {message && (
-            <p className={`inline-msg ${message.kind}`}>{message.text}</p>
-          )}
+        {/* ── Fleet overview: all vehicles, status at a glance ── */}
+        <FleetSection vehicles={state?.vehicles ?? []} />
 
-          <ScenariosSection busy={busy || run?.status === 'running'} action={action} />
-          <StatusSection run={run} />
+        {/* ── KPI strip: late, pending, delay ── */}
+        <KpiBar kpis={state?.kpis} />
+
+        {/* ── Events zone: fills remaining height; overflow hidden — no scroll ── */}
+        <div className="events-zone">
+          {offline && <p className="offline-notice">OFFLINE — demo data</p>}
+          {message && <p className={`inline-msg ${message.kind}`}>{message.text}</p>}
           <EventSection
             incidents={state?.incidents?.filter(i => i.active !== false) ?? []}
             trips={state?.trips ?? []}
             places={state?.places ?? []}
             events={state?.events ?? []}
           />
+          <AlertsSection alerts={state?.alerts} />
           {run?.recommendation && <SituationSection rec={run.recommendation} />}
           <DecisionLogSection runs={state?.agent?.runs ?? []} />
         </div>
 
+        {/* ── Scenarios: fixed at base of panel ── */}
+        <ScenariosSection busy={busy || run?.status === 'running'} action={action} />
+
+        {/* ── Status: current agent + run state ── */}
+        <StatusSection run={run} />
+
+        {/* ── Legend ── */}
         <Legend />
       </aside>
     </div>
@@ -337,6 +361,123 @@ function DecisionBar({ onShow }) {
   )
 }
 
+// ── Fleet overview ────────────────────────────────────────────────────────────
+
+function chipCategory(status) {
+  if (status === 'idle') return 'free'
+  if (status === 'out_of_service') return 'oos'
+  return 'call'
+}
+
+function chipLabel(status) {
+  const map = {
+    idle:          'FREE',
+    to_pickup:     'DISPATCH',
+    loading:       'LOAD',
+    with_patient:  'EN ROUTE',
+    returning:     'RTB',
+    out_of_service:'OOS',
+  }
+  return map[status] ?? status.replace(/_/g, ' ').toUpperCase()
+}
+
+function VehicleChip({ v }) {
+  const cat = chipCategory(v.status)
+  return (
+    <div className={`fleet-chip fleet-chip--${cat}`}>
+      <span className="chip-id">{v.id}</span>
+      <span className="chip-status">{chipLabel(v.status)}</span>
+    </div>
+  )
+}
+
+function FleetSection({ vehicles }) {
+  const free    = vehicles.filter(v => v.status === 'idle').length
+  const onCall  = vehicles.filter(v => v.status !== 'idle' && v.status !== 'out_of_service').length
+  const oos     = vehicles.filter(v => v.status === 'out_of_service').length
+
+  return (
+    <div className="panel-section fleet-section">
+      <div className="fleet-header">
+        <span className="section-label" style={{ marginBottom: 0 }}>FLEET</span>
+        <span className="fleet-summary">
+          {free > 0    && <span className="fs-free">{free} free</span>}
+          {onCall > 0  && <span className="fs-call">{onCall} call</span>}
+          {oos > 0     && <span className="fs-oos">{oos} oos</span>}
+        </span>
+      </div>
+      <div className="fleet-grid">
+        {vehicles.map(v => <VehicleChip key={v.id} v={v} />)}
+      </div>
+    </div>
+  )
+}
+
+// ── KPI strip ─────────────────────────────────────────────────────────────────
+
+function KpiBar({ kpis }) {
+  if (!kpis) return null
+
+  const late      = kpis.late_trips ?? 0
+  const lateCrit  = kpis.late_non_scheduled ?? 0
+  const unassEm   = (kpis.unassigned?.emergency ?? 0) + (kpis.unassigned?.urgent ?? 0)
+  const unassAll  = unassEm + (kpis.unassigned?.scheduled ?? 0)
+  const delay     = kpis.total_delay_min ?? 0
+  const inService = kpis.vehicles_in_service ?? null
+
+  return (
+    <div className="kpi-bar">
+      <div className="kpi-item">
+        <span className={`kpi-value${lateCrit > 0 ? ' kpi-crit' : late > 0 ? ' kpi-warn' : ''}`}>
+          {late}
+        </span>
+        <span className="kpi-label">LATE</span>
+      </div>
+      <div className="kpi-item">
+        <span className={`kpi-value${unassEm > 0 ? ' kpi-crit' : unassAll > 0 ? ' kpi-warn' : ''}`}>
+          {unassAll}
+        </span>
+        <span className="kpi-label">PENDING</span>
+      </div>
+      <div className="kpi-item">
+        <span className="kpi-value">
+          {Math.round(delay)}<span className="kpi-unit">m</span>
+        </span>
+        <span className="kpi-label">DELAY</span>
+      </div>
+      {inService !== null && (
+        <div className="kpi-item">
+          <span className="kpi-value">{inService}</span>
+          <span className="kpi-label">UP</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Alerts ────────────────────────────────────────────────────────────────────
+
+function AlertsSection({ alerts }) {
+  // Show only high/critical alerts; cap at 3 to prevent overflow
+  const active = (alerts ?? [])
+    .filter(a => a.severity === 'critical' || a.severity === 'high')
+    .slice(0, 3)
+  if (active.length === 0) return null
+
+  return (
+    <div className="panel-section alerts-section">
+      <span className="section-label">ALERTS</span>
+      <div className="alerts-list">
+        {active.map(a => (
+          <div key={a.id} className={`alert-line alert-line--${a.severity}`}>
+            <span className="alert-text">{a.message}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Scenarios ─────────────────────────────────────────────────────────────────
 
 const SCENARIOS = [
@@ -377,7 +518,6 @@ function ScenariosSection({ busy, action }) {
 function StatusSection({ run }) {
   const [elapsed, setElapsed] = useState(0)
 
-  // Count up locally while agent is running so the counter is smooth
   useEffect(() => {
     if (!run || run.status !== 'running') { setElapsed(0); return }
     const start = new Date(run.started_at).getTime()
@@ -398,14 +538,14 @@ function StatusSection({ run }) {
   }
 
   return (
-    <div className="panel-section">
+    <div className="panel-section status-section">
       <span className="section-label">STATUS</span>
       <p className={`status-line${run?.status === 'running' ? ' analysing' : ''}${awaiting ? ' awaiting' : ''}`}>{text}</p>
     </div>
   )
 }
 
-// ── Event section — raw incident facts from state, shown before AI finishes ───
+// ── Events ────────────────────────────────────────────────────────────────────
 
 function EventSection({ incidents, trips, places, events }) {
   const placeById = new Map((places ?? []).map(p => [p.id, p]))
@@ -417,11 +557,15 @@ function EventSection({ incidents, trips, places, events }) {
 
   if ((incidents ?? []).length === 0 && urgentTrips.length === 0) return null
 
+  // Cap at 4 items combined to stay within events-zone height
+  const incSlice  = (incidents ?? []).slice(0, 4)
+  const tripSlice = urgentTrips.slice(0, Math.max(0, 4 - incSlice.length))
+
   return (
     <div className="panel-section">
       <span className="section-label">EVENTS</span>
       <div className="event-list">
-        {(incidents ?? []).map(inc => {
+        {incSlice.map(inc => {
           const nearest = nearestPlace(inc.lat, inc.lon, places ?? [])
           const time = fmtSimTime(inc.created_at)
           return (
@@ -433,11 +577,10 @@ function EventSection({ incidents, trips, places, events }) {
             </div>
           )
         })}
-        {urgentTrips.map(t => {
+        {tripSlice.map(t => {
           const pickup  = placeById.get(t.pickup_id)
           const dropoff = placeById.get(t.dropoff_id)
           const label   = t.priority === 'emergency' ? 'Emergency patient' : 'Urgent patient'
-          // prefer the event timestamp when available
           const ev   = (events ?? []).find(e => e.affected_trip_ids?.includes(t.id))
           const time = fmtSimTime(ev?.sim_time ?? t.pickup_after)
           const route = [pickup?.name, dropoff?.name].filter(Boolean).join(' → ')
@@ -453,7 +596,7 @@ function EventSection({ incidents, trips, places, events }) {
   )
 }
 
-// ── Situation (panel: AI analysis, shown once recommendation is ready) ─────────
+// ── Situation ─────────────────────────────────────────────────────────────────
 
 function SituationSection({ rec }) {
   const dot    = rec.situation.indexOf('. ')
@@ -519,14 +662,14 @@ function Legend() {
   return (
     <div className="legend">
       <span className="legend-title">LEGEND</span>
-      <div className="legend-items">
-        <LegendItem shape="dot"    color="#2f7d4f" label="Free" />
-        <LegendItem shape="dot"    color="#b26b00" label="On mission" />
-        <LegendItem shape="dot"    color="#9e9e9e" label="Out of service" />
-        <LegendItem shape="square" color="#1f3a5f" label="Hospital" />
-        <LegendItem shape="ring"   color="#555"    label="Base" />
-        <LegendItem shape="dot"    color="#b3261e" label="High priority" />
-        <LegendItem shape="dot"    color="#8a7a00" label="Medium" />
+      <div className="legend-grid">
+        <LegendItem shape="dot"    color="var(--op-free)"    label="Free" />
+        <LegendItem shape="dot"    color="var(--op-high)"    label="High pri" />
+        <LegendItem shape="dot"    color="var(--op-mission)" label="On call" />
+        <LegendItem shape="dot"    color="var(--op-medium)"  label="Medium pri" />
+        <LegendItem shape="dot"    color="#9e9e9e"           label="OOS" />
+        <LegendItem shape="square" color="var(--op-hospital)"label="Hospital" />
+        <LegendItem shape="ring"   color="#555"              label="Base" />
       </div>
     </div>
   )

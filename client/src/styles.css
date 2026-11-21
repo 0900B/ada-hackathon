@@ -144,27 +144,28 @@ html, body, #root {
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    LAYOUT
+   Panel is fixed-width so it has equal visual presence to the map.
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 .layout {
   display: flex;
   height: 100%;
+  overflow: hidden;
 }
 
 .map-container {
-  flex: 7;
+  flex: 1;
   min-width: 0;
   position: relative;
 }
 
 .side-panel {
-  flex: 3;
-  min-width: 260px;
-  max-width: 400px;
+  flex: 0 0 480px;
   display: flex;
   flex-direction: column;
+  height: 100%;
+  overflow: hidden;
   background: var(--bg-panel);
   box-shadow: var(--shadow-panel);
-  /* sits visually above the map */
   position: relative;
   z-index: 10;
 }
@@ -172,26 +173,50 @@ html, body, #root {
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    BRANDING & PANEL HEADER
-   The header is a Gunmetal color-block — the boldest surface in the composition.
-   Almond Silk text, Teal accent on the brand mark and city name.
+   Two-row header: brand + sim_time on row 1; city + weather on row 2.
+   Gunmetal surface, Teal data accents.
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 .panel-header {
   background: var(--bg-header);
-  padding: var(--sp-4) var(--sp-5);
+  padding: var(--sp-3) var(--sp-5) var(--sp-3);
   flex-shrink: 0;
+}
+
+/* Two-row header layout */
+.ph-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ph-row--sub {
+  margin-top: 5px;
+}
+
+.ph-simtime {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--p-teal);
+  letter-spacing: 0.06em;
+}
+
+.ph-weather {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--tx-on-dark-sub);
+  letter-spacing: 0.03em;
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  margin-bottom: var(--sp-1);
 }
 
 /* Framed chevron — routing/movement in a bounded area */
 .brand-mark {
   flex-shrink: 0;
-  color: var(--p-teal);     /* Teal mark inside the dark header */
+  color: var(--p-teal);
 }
 
 .brand-wordmark {
@@ -205,26 +230,36 @@ html, body, #root {
 .panel-city {
   font-size: var(--fs-sm);
   font-weight: var(--fw-regular);
-  color: var(--p-teal);     /* Teal city name — data/location accent */
-  /* Indent to align with wordmark text, past the mark width */
+  color: var(--p-teal);
+  /* Indent to align past brand mark */
   margin-left: 24px;
 }
 
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   PANEL BODY & SECTIONS
+   PANEL SECTIONS
+   .panel-body kept for compatibility but no longer used as the scroll wrapper.
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 .panel-body {
   flex: 1;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  /* Subtle scrollbar styling */
   scrollbar-width: thin;
   scrollbar-color: var(--bd-mid) transparent;
 }
 
+/* Events zone absorbs remaining height between fleet/kpi and scenarios */
+.events-zone {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 .panel-section {
+  flex-shrink: 0;
   padding: var(--sp-3) var(--sp-5);
   border-bottom: var(--bw-thin) solid var(--bd-mid);
 }
@@ -751,13 +786,181 @@ html, body, #root {
 
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   LEGEND
-   Slightly warmer base separates it from the panel body above.
+   FLEET SECTION — 4-column grid showing all vehicles at a glance
+   Border-left color encodes status: Teal = free, Amber = on call, Grey = OOS
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.fleet-section {
+  /* Inherits flex-shrink: 0 from .panel-section */
+}
+
+.fleet-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--sp-2);
+}
+
+.fleet-summary {
+  display: flex;
+  gap: var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.03em;
+}
+
+.fs-free    { color: var(--op-free); }
+.fs-call    { color: var(--op-mission); }
+.fs-oos     { color: var(--tx-muted); }
+
+.fleet-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.fleet-chip {
+  padding: 5px 7px;
+  border-left: 3px solid var(--bd-mid);
+  background: transparent;
+}
+
+.fleet-chip--free {
+  border-left-color: var(--op-free);
+  background: rgba(61, 138, 116, 0.07);
+}
+
+.fleet-chip--call {
+  border-left-color: var(--op-mission);
+  background: rgba(184, 121, 42, 0.07);
+}
+
+.fleet-chip--oos {
+  border-left-color: var(--bd-mid);
+  opacity: 0.45;
+}
+
+.chip-id {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--tx-primary);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chip-status {
+  display: block;
+  font-size: 8px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--tx-muted);
+  margin-top: 2px;
+}
+
+.fleet-chip--free .chip-status { color: var(--op-free); }
+.fleet-chip--call .chip-status { color: var(--op-mission); }
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   KPI BAR — compact 4-column metric strip with large monospace numerals
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.kpi-bar {
+  display: flex;
+  align-items: stretch;
+  border-bottom: var(--bw-thin) solid var(--bd-mid);
+  flex-shrink: 0;
+  background: var(--p-almond-80);    /* distinct background — separates from sections */
+}
+
+.kpi-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 0;
+  border-right: var(--bw-thin) solid var(--bd-mid);
+}
+.kpi-item:last-child { border-right: none; }
+
+.kpi-value {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: var(--fw-regular);
+  color: var(--tx-primary);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.kpi-unit {
+  font-size: var(--fs-xs);
+  color: var(--tx-muted);
+  margin-left: 2px;
+  letter-spacing: 0;
+}
+
+.kpi-label {
+  font-size: 8px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-widest);
+  text-transform: uppercase;
+  color: var(--tx-muted);
+  margin-top: 4px;
+}
+
+.kpi-warn { color: var(--status-warn); }
+.kpi-crit { color: var(--status-crit); }
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ALERTS — high/critical alerts only; uses Left-border severity encoding
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.alerts-section {
+  /* Inherits flex-shrink: 0 from .panel-section */
+}
+
+.alerts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.alert-line {
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  padding-left: var(--sp-2);
+  border-left: var(--bw-mid) solid var(--bd-mid);
+}
+
+.alert-line--critical { border-left-color: var(--status-crit); }
+.alert-line--high     { border-left-color: var(--op-mission); }
+
+.alert-text {
+  color: var(--tx-secondary);
+}
+
+.alert-line--critical .alert-text { color: var(--status-crit); }
+.alert-line--high .alert-text     { color: var(--op-mission); }
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   STATUS SECTION — compact row at base of panel
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.status-section {
+  background: var(--p-almond-80);
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   LEGEND — compact 2-column grid; warm base closes the panel
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 .legend {
   border-top: var(--bw-thin) solid var(--bd-mid);
-  background: var(--p-almond-80);    /* subtly warmer — visual base of the panel */
-  padding: var(--sp-3) var(--sp-5) var(--sp-4);
+  background: var(--p-almond-80);
+  padding: var(--sp-2) var(--sp-5) var(--sp-3);
   flex-shrink: 0;
 }
 
@@ -771,6 +974,14 @@ html, body, #root {
   margin-bottom: var(--sp-2);
 }
 
+/* 2-column grid replaces the old vertical list */
+.legend-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 16px;
+}
+
+/* Kept for any old references */
 .legend-items {
   display: flex;
   flex-direction: column;
@@ -801,7 +1012,7 @@ html, body, #root {
    MAP TILE FILTER — light layer only; Standard and Satellite untouched
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 .tiles-light .leaflet-tile {
-  filter: grayscale(60%) contrast(0.95) brightness(1.03);
+  filter: grayscale(78%) contrast(0.90) brightness(1.04);
 }
 
 
