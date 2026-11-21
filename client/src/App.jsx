@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import MapView from './Map'
 import { API_URL, fetchState, runScenario, resetSimulation, triggerAnalysis, approveOption, rejectRun } from './api'
-import { ambulances, hospitals, activeCalls } from './mockData'
+import { ambulances, hospitals, activeCalls, MOCK_RUN } from './mockData'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -175,10 +175,13 @@ export default function App() {
   }
 
   // Sort runs newest-first so runs[0] is always the latest, regardless of backend ordering
-  const runsArr     = state?.agent?.runs ?? []
-  const run         = runsArr.length > 0
+  const runsArr   = state?.agent?.runs ?? []
+  const liveRun   = runsArr.length > 0
     ? [...runsArr].sort((a, b) => new Date(b.started_at) - new Date(a.started_at))[0]
     : null
+  // Fall back to mock run when backend is offline so the decision screen is
+  // always visible for demo/presentation purposes without a live connection.
+  const run = liveRun ?? (offline ? MOCK_RUN : null)
 
   const showCard    = run?.status === 'done'
     && !!run?.recommendation
@@ -329,7 +332,9 @@ function DecisionCard({ run, busy, action, onMinimise }) {
     setDetailsOpen(false)
   }, [run.id])
 
-  const trigger     = run.trigger.startsWith('event:') ? run.trigger.slice(6) : run.trigger
+  const trigger     = run.trigger.startsWith('event:') ? run.trigger.slice(6)
+    : run.trigger.startsWith('scenario:') ? run.trigger.slice(9)
+    : run.trigger
   const dot         = rec.situation.indexOf('. ')
   const lead        = dot > -1 ? rec.situation.slice(0, dot + 1) : rec.situation
   const detail      = dot > -1 ? rec.situation.slice(dot + 2).trim() : ''
