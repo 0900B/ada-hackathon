@@ -1529,3 +1529,191 @@ html, body, #root {
 
 /* -- 5. DETAILS toggle ------------------------------------------------------ */
 .dc-body .dc-details-toggle { font-size: 13px; }
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   CREATE EVENT SECTION — side panel type picker
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.create-event-section .ce-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.create-event-section .section-label { margin-bottom: 0; }
+
+.btn-ce-toggle {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border: 1px solid var(--bd-mid);
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: 17px;
+  line-height: 1;
+  color: var(--tx-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-sm);
+  transition: color var(--tr-fast), border-color var(--tr-fast), background var(--tr-fast);
+}
+.btn-ce-toggle:hover {
+  color: var(--tx-primary);
+  border-color: var(--tx-muted);
+  background: var(--bg-hover);
+}
+.btn-ce-cancel { font-size: 20px; }
+
+.ce-body {
+  margin-top: 10px;
+  animation: ce-body-in 140ms ease-out;
+}
+@keyframes ce-body-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+.ce-type-row {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-ce-type {
+  flex: 1;
+  padding: 7px 4px;
+  background: transparent;
+  border: 1px solid var(--bd-mid);
+  border-radius: var(--r-sm);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: var(--fw-medium);
+  color: var(--tx-secondary);
+  cursor: pointer;
+  letter-spacing: 0.01em;
+  text-align: center;
+  transition: border-color var(--tr-fast), background var(--tr-fast), color var(--tr-fast);
+}
+.btn-ce-type:hover {
+  border-color: var(--accent-data);
+  color: var(--accent-data);
+  background: var(--accent-data-bg);
+}
+.btn-ce-type--active {
+  border-color: var(--accent-data);
+  background: var(--accent-data-bg);
+  color: var(--accent-data);
+}
+
+.ce-hint {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--tx-muted);
+  letter-spacing: 0.01em;
+  transition: color var(--tr-mid);
+}
+.ce-hint--active {
+  color: var(--accent-data);
+  font-weight: var(--fw-medium);
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   PLACEMENT BANNER — dark strip at the top of the map during event placement
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.placement-banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-header);
+  padding: 10px var(--sp-5);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  border-bottom: 1px solid rgba(1, 180, 188, 0.50);
+  animation: banner-in 150ms ease-out;
+  pointer-events: none;
+}
+.placement-banner .pb-cancel { pointer-events: auto; }
+
+@keyframes banner-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0);     }
+}
+
+.pb-kind {
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.04em;
+  color: var(--p-cyan);
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+.pb-sep { color: var(--tx-on-dark-muted); }
+
+.pb-hint {
+  color: var(--tx-on-dark-sub);
+  font-size: 12px;
+  letter-spacing: 0.03em;
+}
+
+.pb-cancel {
+  margin-left: auto;
+  background: none;
+  border: 1px solid rgba(232, 234, 235, 0.18);
+  border-radius: var(--r-sm);
+  color: var(--tx-on-dark-muted);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 3px 10px;
+  transition: color var(--tr-fast), border-color var(--tr-fast);
+}
+.pb-cancel:hover {
+  color: var(--tx-on-dark);
+  border-color: rgba(232, 234, 235, 0.40);
+}
+
+.map-placement-mode .leaflet-container,
+.map-placement-mode .leaflet-interactive {
+  cursor: crosshair !important;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   MAP NOTIFICATION — placement confirmation toast
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.map-notification {
+  position: absolute;
+  bottom: 56px;
+  left: 50%;
+  z-index: 1050;
+  background: var(--bg-header);
+  color: var(--p-cyan);
+  padding: 8px 22px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border: 1px solid rgba(1, 180, 188, 0.38);
+  pointer-events: none;
+  animation: notif-life 2600ms ease forwards;
+}
+
+@keyframes notif-life {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(8px);  }
+  10%  { opacity: 1; transform: translateX(-50%) translateY(0);    }
+  80%  { opacity: 1; transform: translateX(-50%) translateY(0);    }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-6px); }
+}

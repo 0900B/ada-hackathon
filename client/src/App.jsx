@@ -135,16 +135,44 @@ function deltaClass(before, after) {
   return 'same'
 }
 
+// ── Event creation ─────────────────────────────────────────────────────────────
+
+const EVENT_KIND_LABELS = {
+  road_closure: 'Road closure',
+  accident:     'Accident',
+  congestion:   'Congestion',
+}
+
 // ── Root component ────────────────────────────────────────────────────────────
 
 export default function App() {
   const { state, offline } = useWorldState()
-  const [busy, setBusy]               = useState(false)
-  const [message, setMessage]         = useState(null)
+  const [busy, setBusy]                   = useState(false)
+  const [message, setMessage]             = useState(null)
   const [cardMinimised, setCardMinimised] = useState(false)
+  const [customEvents, setCustomEvents]   = useState([])
+  const [placementMode, setPlacementMode] = useState(null)   // { kind: string } | null
+  const [notification, setNotification]   = useState(null)   // { id, text } | null
   const action = useAction(setMessage, setBusy)
 
-  const mapProps    = state ? liveToMapProps(state) : mockToMapProps()
+  // Merge live incidents with locally-created custom events
+  const liveMapProps  = state ? liveToMapProps(state) : mockToMapProps()
+  const allIncidents  = [...(liveMapProps.incidents ?? []), ...customEvents]
+  const mapProps      = { ...liveMapProps, incidents: allIncidents }
+
+  function handlePlaceEvent(lat, lon) {
+    const id   = `custom-${Date.now()}`
+    const kind = placementMode.kind
+    setCustomEvents(prev => [...prev, {
+      id, kind, lat, lon,
+      radius_m: 300,
+      description: EVENT_KIND_LABELS[kind],
+      active: true,
+      created_at: new Date().toISOString(),
+    }])
+    setPlacementMode(null)
+    setNotification({ id, text: `${EVENT_KIND_LABELS[kind]} added` })
+  }
 
   // Sort runs newest-first so runs[0] is always the latest, regardless of backend ordering
   const runsArr     = state?.agent?.runs ?? []
@@ -166,14 +194,19 @@ export default function App() {
     }
   }, [run?.id, showCard])
 
-  // Esc minimises the card
+  // Cancel placement mode when a decision card appears
+  useEffect(() => { if (showCard) setPlacementMode(null) }, [showCard])
+
+  // Esc: cancel placement first, then minimise card
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape' && showCard && !cardMinimised) setCardMinimised(true)
+      if (e.key !== 'Escape') return
+      if (placementMode) { setPlacementMode(null); return }
+      if (showCard && !cardMinimised) setCardMinimised(true)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [showCard, cardMinimised])
+  }, [showCard, cardMinimised, placementMode])
 
   const cardOpen           = showCard && !cardMinimised
   const highlightIds       = [...affectedIds]
@@ -183,8 +216,22 @@ export default function App() {
 
   return (
     <div className="layout">
-      <div className="map-container">
-        <MapView {...mapProps} highlightIds={highlightIds} highlightIncidents={highlightIncidents} />
+      <div className={`map-container${placementMode ? ' map-placement-mode' : ''}`}>
+        <MapView
+          {...mapProps}
+          highlightIds={highlightIds}
+          highlightIncidents={highlightIncidents}
+          placementMode={placementMode}
+          onPlaceEvent={handlePlaceEvent}
+        />
+        <PlacementBanner placementMode={placementMode} onCancel={() => setPlacementMode(null)} />
+        {notification && (
+          <MapNotification
+            key={notification.id}
+            text={notification.text}
+            onDone={() => setNotification(null)}
+          />
+        )}
         {showCard && !cardMinimised && (
           <DecisionCard
             run={run}
@@ -236,7 +283,7 @@ export default function App() {
           {offline && <p className="offline-notice">OFFLINE — demo data</p>}
           {message && <p className={`inline-msg ${message.kind}`}>{message.text}</p>}
           <EventSection
-            incidents={state?.incidents?.filter(i => i.active !== false) ?? []}
+            incidents={allIncidents}
             trips={state?.trips ?? []}
             places={state?.places ?? []}
             events={state?.events ?? []}
@@ -246,8 +293,19 @@ export default function App() {
           <DecisionLogSection runs={runsArr} />
         </div>
 
+        {/* ── Add event: type picker + map placement ── */}
+        <CreateEventSection
+          placementMode={placementMode}
+          onSelect={(kind) => setPlacementMode(kind ? { kind } : null)}
+          onCancel={() => setPlacementMode(null)}
+        />
+
         {/* ── Scenarios: fixed at base of panel ── */}
-        <ScenariosSection busy={busy || run?.status === 'running'} action={action} />
+        <ScenariosSection
+          busy={busy || run?.status === 'running'}
+          action={action}
+          onReset={() => { setCustomEvents([]); setPlacementMode(null) }}
+        />
 
         {/* ── Status: current agent + run state ── */}
         <StatusSection run={run} busy={busy} action={action} />
@@ -546,7 +604,7 @@ const SCENARIOS = [
   { name: 'snow_cascade',     label: 'Snow cascade'     },
 ]
 
-function ScenariosSection({ busy, action }) {
+function ScenariosSection({ busy, action, onReset }) {
   return (
     <div className="panel-section">
       <span className="section-label">SCENARIOS</span>
@@ -565,7 +623,7 @@ function ScenariosSection({ busy, action }) {
       <button
         className="btn-reset-link"
         disabled={busy}
-        onClick={() => action(() => resetSimulation())}
+        onClick={() => action(async () => { await resetSimulation(); onReset?.() })}
       >
         Reset simulation
       </button>
@@ -755,4 +813,73 @@ function LegendItem({ shape, color, label }) {
       <span className="legend-label">{label}</span>
     </div>
   )
+}
+
+// ── Create event ──────────────────────────────────────────────────────────────
+
+function CreateEventSection({ placementMode, onSelect, onCancel }) {
+  const [open, setOpen] = useState(false)
+
+  function close() {
+    setOpen(false)
+    onCancel()
+  }
+
+  return (
+    <div className="panel-section create-event-section">
+      <div className="ce-header">
+        <span className="section-label">ADD EVENT</span>
+        {open
+          ? <button className="btn-ce-toggle btn-ce-cancel" onClick={close} aria-label="Cancel">×</button>
+          : <button className="btn-ce-toggle" onClick={() => setOpen(true)} aria-label="Add event">+</button>
+        }
+      </div>
+      {open && (
+        <div className="ce-body">
+          <div className="ce-type-row">
+            {Object.entries(EVENT_KIND_LABELS).map(([kind, label]) => (
+              <button
+                key={kind}
+                className={`btn-ce-type${placementMode?.kind === kind ? ' btn-ce-type--active' : ''}`}
+                onClick={() => onSelect(placementMode?.kind === kind ? null : kind)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className={`ce-hint${placementMode ? ' ce-hint--active' : ''}`}>
+            {placementMode
+              ? `Click on map to place  ·  Esc to cancel`
+              : `Select type, then click on map`
+            }
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Placement banner (map overlay) ───────────────────────────────────────────
+
+function PlacementBanner({ placementMode, onCancel }) {
+  if (!placementMode) return null
+  return (
+    <div className="placement-banner">
+      <span className="pb-kind">{EVENT_KIND_LABELS[placementMode.kind]}</span>
+      <span className="pb-sep">—</span>
+      <span className="pb-hint">click on map to place</span>
+      <button className="pb-cancel" onClick={onCancel}>Cancel</button>
+    </div>
+  )
+}
+
+// ── Map notification (placement confirmation toast) ───────────────────────────
+
+function MapNotification({ text, onDone }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 2600)
+    return () => clearTimeout(t)
+  }, [onDone])
+
+  return <div className="map-notification">{text}</div>
 }

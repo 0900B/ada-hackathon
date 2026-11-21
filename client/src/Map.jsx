@@ -1,6 +1,6 @@
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { Circle, CircleMarker, LayersControl, MapContainer, Marker, Popup, TileLayer, Tooltip } from 'react-leaflet'
+import { Circle, CircleMarker, LayersControl, MapContainer, Marker, Popup, TileLayer, Tooltip, useMapEvents } from 'react-leaflet'
 
 // Meaning-only colours from CLAUDE.md
 const COLOR = {
@@ -56,7 +56,18 @@ function incidentKindLabel(kind) {
   return kind.replace(/_/g, ' ')
 }
 
-export default function Map({ vehicles = [], places = [], incidents = [], highlightIds = [], highlightIncidents = false }) {
+function MapClickHandler({ placementMode, onPlaceEvent }) {
+  useMapEvents({
+    click(e) {
+      if (placementMode && onPlaceEvent) {
+        onPlaceEvent(e.latlng.lat, e.latlng.lng)
+      }
+    },
+  })
+  return null
+}
+
+export default function Map({ vehicles = [], places = [], incidents = [], highlightIds = [], highlightIncidents = false, placementMode = null, onPlaceEvent = null }) {
   const hospitals = places.filter(p => p.kind === 'hospital')
   const bases     = places.filter(p => p.kind === 'base')
   const callSites = places.filter(p => p.kind === 'call_location' || p.kind === 'incident_site')
@@ -67,6 +78,7 @@ export default function Map({ vehicles = [], places = [], incidents = [], highli
       zoom={14}
       style={{ width: '100%', height: '100%' }}
     >
+      <MapClickHandler placementMode={placementMode} onPlaceEvent={onPlaceEvent} />
       <LayersControl position="topright" collapsed={false}>
         <LayersControl.BaseLayer checked name="Light">
           <TileLayer
