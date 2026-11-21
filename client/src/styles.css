@@ -70,7 +70,7 @@ html, body, #root {
 
 /* ── Tile layer: greyscale + slight brightness so colour markers stand out */
 .map-container .leaflet-tile {
-  filter: grayscale(100%) brightness(1.05) contrast(0.9);
+  filter: grayscale(60%) contrast(0.95) brightness(1.03);
 }
 
 /* ── Ambulance ID label (Leaflet permanent tooltip) ─────── */
