@@ -66,7 +66,7 @@ wrong, a new plan in 30 seconds."
 |---|---|---|
 | 📦 Prep: crew demo | Fast-forwards until a van carries equipment; nothing else | Sets up the live crew message |
 | 🚐 Stranded patient | A van breaks down **with a patient on board** | The stranded patient is handled first; ambulances are kept free |
-| 🧠 Stroke + closure | Suspected stroke in Polje plus a closure on Zaloška near UKC | Fastest ambulance, around the closure, hospital pre-alert |
+| 🧠 Stroke + closure | Suspected stroke in Polje plus a closure on Zaloška (Kodeljevo), right on the way to UKC | Fastest ambulance; click it: its route goes **around** the closure (orange); hospital pre-alert |
 | ❄️ Snow cascade | Snowstorm, a van stuck 25 min and a fall on ice | Many late trips at once: the agent prioritises and weighs the reserve ambulance |
 | 🧰 Stranded equipment | A vehicle breaks down with blood products on board | Another vehicle must collect it at the breakdown site first |
 | 🏥 UKC full | A patient becomes an emergency; UKC can admit only one more | The emergency gets the last UKC slot; the others are redirected |

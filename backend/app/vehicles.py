@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from .engine.projection import project_route
-from .roads import ROADS, key
-from .routing import flies, resolve_route
+from .roads import key
+from .routing import flies, is_detour, leg_route, resolve_route
 from .sim.fleet_details import LOW_FUEL_PCT, fuel_rate
 
 if TYPE_CHECKING:
@@ -30,13 +30,13 @@ def _geometry(
     if first and v.path_to is not None and tuple(v.path_to) == key(*b):
         remaining = state.vehicle_path(v)
         if remaining:
-            return remaining, bool(v.path_avoid) and ROADS.detour(*v.path_from, *v.path_to, v.path_avoid) is not None
-    route, is_detour = resolve_route(state, a[0], a[1], b[0], b[1])
+            return remaining, bool(v.path_avoid) and is_detour(leg_route(state, v))
+    route, around = resolve_route(state, a[0], a[1], b[0], b[1])
     if route is None:
         return [list(a), list(b)], False
     step = max(1, len(route.points) // 80)
     pts = route.points[::step] + [route.points[-1]]
-    return [[round(lat, 5), round(lon, 5)] for lat, lon in pts], is_detour
+    return [[round(lat, 5), round(lon, 5)] for lat, lon in pts], around
 
 
 def vehicle_detail(state: WorldState, v: Vehicle) -> dict[str, Any]:

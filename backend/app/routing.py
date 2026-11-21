@@ -10,6 +10,8 @@ from .geo import haversine_km, point_segment_distance_m  # noqa: F401 - re-expor
 from .models import Incident, Vehicle, VehicleType, WeatherNow
 from .roads import MAX_AVOID, ROADS, Avoid, Route, avoid_box, in_box, key, remaining_points
 
+SNAP_MARGIN_M = 150  # a leg starting/ending this close to a closure can't be routed around it
+
 if TYPE_CHECKING:
     from .state import WorldState
 
@@ -110,7 +112,7 @@ def avoidable_closures(
     out = []
     for inc in incidents:
         if inc.active and inc.kind == "road_closure":
-            box = avoid_box(inc.lat, inc.lon, inc.radius_m)
+            box = avoid_box(inc.lat, inc.lon, inc.radius_m + SNAP_MARGIN_M)  # routers snap to nearby roads
             if not in_box(box, alat, alon) and not in_box(box, blat, blon):
                 out.append(inc)
     return out
@@ -148,6 +150,11 @@ def merge_avoid(avoid: Avoid | None, hits: Iterable[Incident]) -> Avoid:
     return tuple(sorted({*(avoid or ()), *(avoid_key(c) for c in hits)}))[:MAX_AVOID]
 
 
+def is_detour(route: Route | None) -> bool:
+    """A real way around the closures (not TomTom's best effort straight through them)."""
+    return route is not None and route.provider == "tomtom-detour"
+
+
 def resolve_route(
     state: WorldState, alat: float, alon: float, blat: float, blon: float, request: bool = False
 ) -> tuple[Route | None, bool]:
@@ -159,13 +166,14 @@ def resolve_route(
     closures = avoidable_closures(state.all_incidents(), alat, alon, blat, blon)
     if not closures:
         return base, False
-    route, avoid, is_detour = base, (), False
+    route, avoid, found = base, (), False
     if route is None:  # e.g. a vehicle re-routed from mid-road: only a detour was ever fetched
         cached = ROADS.detours_for(alat, alon, blat, blon)
         if not cached:
             return None, False
         avoid = max(cached, key=len)
-        route, is_detour = cached[avoid], True
+        route = cached[avoid]
+        found = is_detour(route)
     for _ in range(3):  # a detour may cross another closure: add it and look again
         hits = route_hits(route, closures)
         if not hits:
@@ -178,8 +186,10 @@ def resolve_route(
             if request:
                 ROADS.want_detour(alat, alon, blat, blon, wanted)
             break
-        route, avoid, is_detour = detour, wanted, True
-    return route, is_detour
+        if not is_detour(detour):
+            break  # no way around: keep the route with the closure slowdown
+        route, avoid, found = detour, wanted, True
+    return route, found
 
 
 def leg_route(state: WorldState, v: Vehicle) -> Route | None:
@@ -190,7 +200,8 @@ def leg_route(state: WorldState, v: Vehicle) -> Route | None:
     if v.path_avoid:
         detour = ROADS.detour(a[0], a[1], b[0], b[1], v.path_avoid)
         if detour is not None:
-            return detour
+            # no way around: TomTom's route is still the best road path from a mid-road position
+            return detour if is_detour(detour) else (ROADS.route(a[0], a[1], b[0], b[1]) or detour)
         if ROADS.detours_available():
             return None  # waiting for the detour: drive towards the target meanwhile
     return ROADS.route(a[0], a[1], b[0], b[1])

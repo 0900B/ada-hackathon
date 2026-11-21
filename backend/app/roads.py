@@ -23,7 +23,7 @@ from typing import Any, Callable
 
 import httpx
 
-from .geo import haversine_km
+from .geo import haversine_km, point_segment_distance_m
 
 log = logging.getLogger(__name__)
 
@@ -47,6 +47,15 @@ def avoid_box(lat: float, lon: float, radius_m: float) -> tuple[float, float, fl
 
 def in_box(box: tuple[float, float, float, float], lat: float, lon: float) -> bool:
     return box[0] <= lat <= box[2] and box[1] <= lon <= box[3]
+
+
+def crosses(points: list[tuple[float, float]], avoid: Avoid, tolerance: float = 0.9) -> bool:
+    """True if the polyline passes through any of the closure circles (with a little tolerance)."""
+    for lat, lon, radius in avoid:
+        limit = radius * tolerance
+        if any(point_segment_distance_m(lat, lon, a[0], a[1], b[0], b[1]) <= limit for a, b in zip(points, points[1:])):
+            return True
+    return False
 
 
 def key(lat: float, lon: float) -> Key:
@@ -272,8 +281,14 @@ class RoadNetwork:
         pts = [(p["latitude"], p["longitude"]) for p in best["legs"][0]["points"]]
         s = best["summary"]
         route = make_route(float(s["travelTimeInSeconds"]), float(s["lengthInMeters"]), pts, a, b, "tomtom-detour")
+        if crosses(route.points, avoid):
+            # TomTom found no way around (e.g. the only road, or an endpoint snapped inside the area):
+            # remember that, so the leg keeps the closure slowdown instead of a fake "detour".
+            route.provider = "tomtom-no-way-around"
+            self.stats["no_way_around"] = self.stats.get("no_way_around", 0) + 1
+        else:
+            self.stats["detours"] += 1
         self.detours.setdefault((a, b), {})[avoid] = route
-        self.stats["detours"] += 1
 
     def summary(self) -> dict[str, Any]:
         return {

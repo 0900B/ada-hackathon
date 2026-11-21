@@ -126,8 +126,8 @@ def _stroke_rush_hour(state: WorldState) -> list[EventRecord]:
         apply_event(
             state,
             RoadClosureEvent(
-                type="road_closure", lat=46.0565, lon=14.5300, radius_m=500,
-                description="Zaloška cesta closed after a collision (near UKC)",
+                type="road_closure", lat=46.05615, lon=14.53621, radius_m=250,
+                description="Zaloška cesta closed after a collision (Kodeljevo, on the way to UKC)",
             ),
         ),
         apply_event(
