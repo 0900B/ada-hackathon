@@ -2359,7 +2359,7 @@ tr.row-selected {
 }
 .vchip {
   flex: 1 1 0;
-  min-width: 90px;
+  min-width: 80px; /* 11 units (incl. doctor cars) fit at 1366 px; reserve units may scroll */
   max-width: 230px;
   display: flex;
   flex-direction: column;
