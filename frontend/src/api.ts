@@ -306,7 +306,9 @@ export const sendFieldMessage = (world: World, text: string, senderVehicleId: st
   post<MessageResult>(`/${world}/messages`, { text, sender_vehicle_id: senderVehicleId, apply: true });
 
 export const runScenario = (name: string) =>
-  post<{ scenario: string; title: string; run_id: string }>(`/sim/admin/scenario/${name}`);
+  post<{ scenario: string; title: string; run_id: string | null; note?: string; vehicle_id?: string | null }>(
+    `/sim/admin/scenario/${name}`,
+  );
 
 export const SCENARIOS = [
   { name: "stranded_patient", label: "🚐 Stranded patient", title: "Van breaks down with a patient on board" },
@@ -314,4 +316,9 @@ export const SCENARIOS = [
   { name: "snow_cascade", label: "❄️ Snow cascade", title: "Snowstorm, a delayed van and an emergency at once" },
   { name: "stranded_equipment", label: "🧰 Stranded equipment", title: "Vehicle breaks down with medical equipment on board" },
   { name: "hospital_full", label: "🏥 UKC full", title: "UKC can admit only one more patient as a patient becomes an emergency" },
+  {
+    name: "equipment_en_route",
+    label: "📦 Prep: crew demo",
+    title: "Prepare the live crew demo: fast-forward until a van carries equipment (no AI run)",
+  },
 ];

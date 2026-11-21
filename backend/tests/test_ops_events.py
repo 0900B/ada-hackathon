@@ -519,6 +519,9 @@ def test_demo_scenarios_build():
     for name, (_title, build) in demo.SCENARIOS.items():
         fresh()
         records = build(W)
+        if name == "equipment_en_route":  # preparation only: no events, but a van now carries equipment
+            assert records == [] and demo._loaded_with_equipment(W) is not None
+            continue
         assert records, name
         if name == "stranded_patient":
             assert "patient of" in records[0].summary

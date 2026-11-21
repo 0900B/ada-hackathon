@@ -488,7 +488,7 @@ function Controls({
             onClick={async () => {
               try {
                 const r = await runScenario(s.name);
-                setMessage({ kind: "ok", text: `Scenario started: ${r.title}` });
+                setMessage({ kind: "ok", text: r.note ?? `Scenario started: ${r.title}` });
               } catch (e) {
                 setMessage({ kind: "error", text: e instanceof Error ? e.message : String(e) });
               }

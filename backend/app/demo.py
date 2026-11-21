@@ -64,23 +64,33 @@ def _stranded_patient(state: WorldState) -> list[EventRecord]:
     return [apply_event(state, BreakdownEvent(type="breakdown", vehicle_id=van.id, note="engine failure, patient on board"))]
 
 
-def _stranded_equipment(state: WorldState) -> list[EventRecord]:
-    def loaded_with_equipment() -> Vehicle | None:
-        return next(
-            (
-                v
-                for v in state.vehicles.values()
-                if v.current_trip_id
-                and state.trips[v.current_trip_id].kind == "equipment"
-                and state.trips[v.current_trip_id].status == "onboard"
-            ),
-            None,
-        )
+def _loaded_with_equipment(state: WorldState) -> Vehicle | None:
+    return next(
+        (
+            v
+            for v in state.vehicles.values()
+            if v.current_trip_id
+            and state.trips[v.current_trip_id].kind == "equipment"
+            and state.trips[v.current_trip_id].status == "onboard"
+        ),
+        None,
+    )
 
-    v = _fast_forward(state, MAX_FAST_FORWARD_MIN, until=loaded_with_equipment)
+
+def _stranded_equipment(state: WorldState) -> list[EventRecord]:
+    v = _fast_forward(state, MAX_FAST_FORWARD_MIN, until=lambda: _loaded_with_equipment(state))
     if v is None:
         raise RuntimeError("no vehicle with equipment on board within the fast-forward window")
     return [apply_event(state, BreakdownEvent(type="breakdown", vehicle_id=v.id, note="gearbox failure, equipment on board"))]
+
+
+def _equipment_en_route(state: WorldState) -> list[EventRecord]:
+    """Preparation for the live crew demo: stop when a van is carrying equipment. No events, no AI run:
+    the crew then reports the problem themselves from /crew/<vehicle> ("Vozilo je obstalo. Oprema je še v njem.")."""
+    v = _fast_forward(state, MAX_FAST_FORWARD_MIN, until=lambda: _loaded_with_equipment(state))
+    if v is None:
+        raise RuntimeError("no vehicle with equipment on board within the fast-forward window")
+    return []
 
 
 def _hospital_full(state: WorldState) -> list[EventRecord]:
@@ -155,6 +165,7 @@ SCENARIOS: dict[str, tuple[str, Callable[[WorldState], list[EventRecord]]]] = {
     "snow_cascade": ("Snowstorm, a delayed van and an emergency at once", _snow_cascade),
     "stranded_equipment": ("Vehicle breaks down with medical equipment on board", _stranded_equipment),
     "hospital_full": ("UKC can admit only one more patient as a patient becomes an emergency", _hospital_full),
+    "equipment_en_route": ("Prep for the live crew demo: a van is carrying equipment", _equipment_en_route),
 }
 
 
@@ -165,6 +176,17 @@ def run_scenario(state: WorldState, name: str) -> dict[str, Any]:
     agent.cancel_all(state)
     seed_world(state, config.RANDOM_SEED)
     records = build(state)
+    if not records:  # preparation scenario: nothing happened yet, so no AI run
+        v = _loaded_with_equipment(state)
+        trip = state.trips[v.current_trip_id] if v and v.current_trip_id else None
+        note = (
+            f"{v.id} ({v.name}) is carrying {trip.cargo} to {state.places[trip.dropoff_id].name}. "
+            f"Open /crew/{v.id}?world=sim on the phone and report the problem."
+            if v and trip
+            else "Ready."
+        )
+        state.bump()
+        return {"scenario": name, "title": title, "events": [], "run_id": None, "note": note, "vehicle_id": v.id if v else None}
     question = (
         f"Demo scenario: {title}. These events just happened together: "
         + "; ".join(f"({i + 1}) {r.summary}" for i, r in enumerate(records))
