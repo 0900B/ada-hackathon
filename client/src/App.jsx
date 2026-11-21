@@ -188,7 +188,14 @@ export default function App() {
 
       <aside className="side-panel">
         <div className="panel-header">
-          <span className="panel-title">DISPATCH</span>
+          <div className="brand">
+            {/* Dispatch mark: framed chevron — routing/movement in a bounded area */}
+            <svg className="brand-mark" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <rect x="0.75" y="0.75" width="14.5" height="14.5" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M5.5 5.5L10.5 8L5.5 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+            </svg>
+            <span className="brand-wordmark">DISPATCH</span>
+          </div>
           <span className="panel-city">Ljubljana</span>
         </div>
 
@@ -393,7 +400,7 @@ function StatusSection({ run }) {
   return (
     <div className="panel-section">
       <span className="section-label">STATUS</span>
-      <p className={`status-line${awaiting ? ' awaiting' : ''}`}>{text}</p>
+      <p className={`status-line${run?.status === 'running' ? ' analysing' : ''}${awaiting ? ' awaiting' : ''}`}>{text}</p>
     </div>
   )
 }
