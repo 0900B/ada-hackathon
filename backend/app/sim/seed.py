@@ -12,7 +12,8 @@ from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from ..engine.actions import can_serve
-from ..engine.projection import LATE_ALERT_MIN, LOAD_MIN, project_all, project_route, route_trip_ids
+from ..engine.projection import LATE_ALERT_MIN, project_all, project_route, route_trip_ids
+from ..engine.service_times import EQUIPMENT_PICKUP_MIN, VAN_PATIENT_PICKUP_MIN
 from ..models import Needs, Place, Trip, Vehicle
 from ..routing import travel_minutes
 from .fleet_details import equip_fleet
@@ -45,6 +46,9 @@ PLACES = [
     ("home_vrhnika", "Vrhnika", "residential", 45.9650, 14.2950),
     ("home_grosuplje", "Grosuplje", "residential", 45.9550, 14.6580),
     ("home_skofljica", "Škofljica", "residential", 45.9840, 14.5770),
+    # Bases of the reserve units, outside our own fleet (approximate).
+    ("base_domzale", "Ambulance station Domžale", "base", 46.1393, 14.5952),  # neighbouring region
+    ("base_private", "Private ambulance base Brezovica", "base", 46.0236, 14.4128),
 ]
 
 FLEET = [
@@ -57,9 +61,24 @@ FLEET = [
     ("T4", "Transport 4", "transport", "base_west"),
     ("T5", "Transport 5", "transport", "base_center"),
     ("H1", "Helicopter 1", "helicopter", "ukc"),  # HNMP, based at the hospital
+    # Doctor cars (VUZ, ZD Ljubljana): an emergency physician and a nurse who join the ambulance crew.
+    ("D1", "Doctor car 1", "doctor", "zd_center"),
+    ("D2", "Doctor car 2", "doctor", "zd_siska"),
+]
+# Reserve units: not in the world until the dispatcher requests them (an approved plan step).
+# (id, name, type, base, origin)
+RESERVE = [
+    ("M1", "Mutual aid ambulance (Domžale)", "ambulance", "base_domzale", "mutual_aid"),
+    ("P1", "Private ambulance 1", "ambulance", "base_private", "private"),
 ]
 
 DESTINATIONS = ["ukc", "onko", "zd_center", "zd_siska", "zd_vic"]
+# Scheduled day: booked pickups every 5 min over the next SCHEDULED_WINDOW_SLOTS * 5 min, due at the
+# destination within the direct drive + pickup time + this slack (min). With the service times in
+# engine/service_times.py a 4-hour window left one trip late; over 6 hours the default seed's day starts
+# with none (other seeds may start with one or two: the local search cannot always fix them).
+SCHEDULED_WINDOW_SLOTS = 72
+SCHEDULED_SLACK_MIN = (15, 35)
 NEEDS: list[Needs] = ["seated", "wheelchair", "stretcher"]
 # Specialised hospitals are never chosen as a redirect target for an over-capacity hospital.
 SPECIALTY = {"onko": "oncology", "dialysis": "dialysis"}
@@ -90,6 +109,11 @@ def seed_world(state: WorldState, seed: int, n_trips: int = 24, scheduled_day: b
     for vid, name, vtype, base in FLEET:
         b = state.places[base]
         state.vehicles[vid] = Vehicle(id=vid, name=name, type=vtype, base_id=base, lat=b.lat, lon=b.lon)  # type: ignore[arg-type]
+    for vid, name, vtype, base, origin in RESERVE:
+        b = state.places[base]
+        state.reserve_vehicles[vid] = Vehicle(
+            id=vid, name=name, type=vtype, origin=origin, base_id=base, lat=b.lat, lon=b.lon  # type: ignore[arg-type]
+        )
     equip_fleet(state, seed)  # crew, fuel, shift (own RNG: trips stay identical)
     if state.scheduled_day:
         _scheduled_day(state, random.Random(seed), n_trips)
@@ -115,7 +139,7 @@ def _scheduled_day(state: WorldState, rng: random.Random, n_trips: int) -> None:
         else:
             pickup, dropoff = home, rng.choice(DESTINATIONS)
             needs = rng.choices(NEEDS, weights=[5, 3.5, 1.5])[0]
-        pickup_after = state.sim_time + timedelta(minutes=5 * rng.randint(1, 48))  # next 5 min .. 4 h
+        pickup_after = state.sim_time + timedelta(minutes=5 * rng.randint(1, SCHEDULED_WINDOW_SLOTS))  # next 5 min .. 6 h
         a, b = state.places[pickup], state.places[dropoff]
         direct = travel_minutes(state, a.lat, a.lon, b.lat, b.lon, "transport")
         trips.append(
@@ -127,7 +151,7 @@ def _scheduled_day(state: WorldState, rng: random.Random, n_trips: int) -> None:
                 pickup_id=pickup,
                 dropoff_id=dropoff,
                 pickup_after=pickup_after,
-                due_by=pickup_after + timedelta(minutes=direct + LOAD_MIN + rng.randint(15, 35)),
+                due_by=pickup_after + timedelta(minutes=direct + VAN_PATIENT_PICKUP_MIN + rng.randint(*SCHEDULED_SLACK_MIN)),
                 note=kind,
             )
         )
@@ -145,7 +169,7 @@ def _scheduled_day(state: WorldState, rng: random.Random, n_trips: int) -> None:
                 pickup_id=pickup,
                 dropoff_id=dropoff,
                 pickup_after=pickup_after,
-                due_by=pickup_after + timedelta(minutes=direct + LOAD_MIN + slack_min),
+                due_by=pickup_after + timedelta(minutes=direct + EQUIPMENT_PICKUP_MIN + slack_min),
                 note=note,
             )
         )

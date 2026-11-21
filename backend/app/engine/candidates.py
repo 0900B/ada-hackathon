@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 from ..models import Plan, PlanStep, Trip, Vehicle, VehicleType
 from ..routing import flies, haversine_km
 from .actions import ActionError, assign_trip, can_serve, check_redirect, level
+from .doctors import origin_label
 from .severity import HELICOPTER_GAIN_MIN
 from .plans import simulate_steps, step_details
 from .projection import DONE, PRIORITY_ORDER, kpis, over_capacity, project_all, route_trip_ids
@@ -43,12 +44,14 @@ def spends_helicopter(state: WorldState, vehicle_type: VehicleType, trip: Trip) 
 
 
 def is_free(state: WorldState, v: Vehicle) -> bool:
-    """Available right now: in service, not grounded, no job and nothing queued (idle or driving home)."""
+    """Available right now: in service, not grounded, no job and nothing queued (idle or driving home),
+    and not still handing over, cleaning or held up (busy_until)."""
     return (
         v.status in ("idle", "returning")
         and v.current_trip_id is None
         and not v.queue
         and v.grounded_until is None
+        and not (v.busy_until and v.busy_until > state.sim_time)
     )
 
 
@@ -63,10 +66,17 @@ def _minutes(a, b) -> float:
 
 
 def find_candidates(
-    state: WorldState, trip_id: str, limit: int = 8, dropoff_id: str | None = None, all_positions: bool = False
+    state: WorldState,
+    trip_id: str,
+    limit: int = 8,
+    dropoff_id: str | None = None,
+    all_positions: bool = False,
+    include_reserve: bool = False,
 ) -> list[dict[str, Any]]:
     """dropoff_id: evaluate every candidate as if the trip were redirected to that hospital.
-    all_positions: also try every place in each queue (not only next / at the end), e.g. for bookings."""
+    all_positions: also try every place in each queue (not only next / at the end), e.g. for bookings.
+    include_reserve: for a red call, also the reserve units (mutual aid, private) that a plan step
+    would request; the engine's own dispatch never does (they are the dispatcher's decision)."""
     trip = state.trips.get(trip_id)
     if trip is None:
         raise ActionError(f"Unknown trip {trip_id}")
@@ -81,7 +91,8 @@ def find_candidates(
     free_ambulances = sum(1 for v in state.vehicles.values() if v.type == "ambulance" and is_free(state, v))
     soon = state.sim_time + timedelta(minutes=AMBULANCE_ROUTINE_HORIZON_MIN)
     results = []
-    for v in state.vehicles.values():
+    reserve = list(state.reserve_vehicles.values()) if include_reserve and trip.priority == "emergency" and not redirect else []
+    for v in [*state.vehicles.values(), *reserve]:
         own = trip.vehicle_id == v.id
         if trip.status == "onboard" and not own:
             continue  # a patient on board can only be redirected, not moved to another vehicle
@@ -134,10 +145,15 @@ def find_candidates(
                     "step": step.model_dump(exclude={"before_trip_id"}),
                     "vehicle_id": v.id,
                     "vehicle_type": v.type,
+                    **(
+                        {"vehicle_origin": v.origin, "requires_request": f"approving this step requests {v.id} ({origin_label(state, v)})"}
+                        if v.origin != "own"
+                        else {}
+                    ),
                     "vehicle_status": v.status,
                     "vehicle_free": is_free(state, v),
                     # True if this uses the last ambulance still free for the next emergency
-                    "takes_last_free_ambulance": v.type == "ambulance" and is_free(state, v) and free_ambulances <= 1,
+                    "takes_last_free_ambulance": v.type == "ambulance" and v.origin == "own" and is_free(state, v) and free_ambulances <= 1,
                     "vehicle_near": nearest_place_name(state, v.lat, v.lon),
                     "insertion": ("keeps its place" if own and redirect and step.position is None else details[0]["when"])
                     if details

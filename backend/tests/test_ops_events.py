@@ -27,7 +27,8 @@ from app.agent.prompts import OUTPUT_SCHEMA, TOOLS, _STEP  # noqa: E402
 from app.engine.actions import EQUIPMENT_CARRIERS, assign_trip, can_serve  # noqa: E402
 from app.engine.candidates import greedy_plan  # noqa: E402
 from app.engine.events import EMERGENCY_SLACK_MIN  # noqa: E402
-from app.engine.projection import DONE, LOAD_MIN, over_capacity, project_all  # noqa: E402
+from app.engine.projection import DONE, over_capacity, project_all  # noqa: E402
+from app.engine.service_times import on_scene_min  # noqa: E402
 from app.models import AgentRun, PlanStep, Trip, Vehicle, utcnow  # noqa: E402
 from app.routing import travel_minutes  # noqa: E402
 from app.sim.seed import seed_world  # noqa: E402
@@ -120,7 +121,8 @@ def test_trip_kind_and_needs_stay_consistent():
 def test_can_serve_equipment():
     fresh()
     trip = next(t for t in W.trips.values() if t.kind == "equipment")
-    assert all(can_serve(v, trip)[0] for v in W.vehicles.values() if v.type != "helicopter")  # every van and ambulance
+    assert all(can_serve(v, trip)[0] for v in W.vehicles.values() if v.type in ("ambulance", "transport"))  # every van and ambulance
+    assert not can_serve(W.vehicles["D1"], trip)[0]  # a doctor car never transports
     ok, why = can_serve(W.vehicles["H1"], trip)
     assert not ok and "cannot carry equipment" in why  # equipment goes by road
     trip.priority = "emergency"  # emergencies still need an ambulance (lights and sirens)
@@ -215,7 +217,7 @@ def test_priority_change_to_emergency_releases_a_van_trip():
     assert t.pickup_after <= W.sim_time, "an emergency is collected now"
     pickup, drop = W.places[t.pickup_id], W.places[t.dropoff_id]
     direct = travel_minutes(W, pickup.lat, pickup.lon, drop.lat, drop.lon, "ambulance", True)
-    expected = W.sim_time + timedelta(minutes=direct + LOAD_MIN + EMERGENCY_SLACK_MIN)
+    expected = W.sim_time + timedelta(minutes=direct + on_scene_min(t) + EMERGENCY_SLACK_MIN)
     assert abs((t.due_by - expected).total_seconds()) < 2 and t.due_by < old_due
     assert f"released from {van}" in rec["summary"] and "due-by" in rec["summary"], rec["summary"]
     assert f"dispatched {t.vehicle_id}" in rec["summary"], rec["summary"]

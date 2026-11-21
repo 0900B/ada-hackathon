@@ -32,6 +32,7 @@ from ..geo import haversine_km
 from ..models import Plan, PlanStep, Trip
 from ..routing import flies, travel_minutes
 from .actions import EMERGENCY_UNITS, level, near_current_patient
+from .doctors import origin_label, send_doctor
 from .projection import LATE_ALERT_MIN, route_trip_ids
 from .severity import (
     BUSY_UNIT_MIN_GAIN_MIN,
@@ -77,6 +78,7 @@ class Option:
     displaced_pickup: datetime | None = None
     displaced_wait: float | None = None  # minutes from that call until it is reached
     displaced_ok: bool = True
+    displaced_late: bool = False  # re-dispatched, but only after its own target (see _best)
     why_not: str | None = None
 
     @property
@@ -100,6 +102,8 @@ def _kind(state: WorldState, cand: dict[str, Any]) -> str:
     current = state.trips.get(v.current_trip_id) if v.current_trip_id else None
     if current is not None and current.status == "onboard":
         return "soon"
+    if current is None and v.busy_until and v.busy_until > state.sim_time and not v.queue:
+        return "soon"  # handing over or cleaning after its last patient
     if cand["step"]["interrupt_current"] and current is not None:
         return "override"
     return "queued"
@@ -150,7 +154,8 @@ def _override(state: WorldState, opt: Option) -> None:
     target = displaced.response_target_min
     opt.displaced_ok = (opt.displaced_wait <= target) if target else (d.delay_min or 0) < LATE_ALERT_MIN
     if not opt.displaced_ok:
-        opt.why_not = f"{displaced.id} would be reached only after {opt.displaced_wait:.0f} min (target {target:.0f})"
+        opt.displaced_late = True
+        opt.why_not = f"{displaced.id} would be reached only after {opt.displaced_wait:.0f} min (target {target or 0:.0f})"
 
 
 def decide(state: WorldState, trip: Trip) -> Decision:
@@ -226,8 +231,12 @@ def _best(trip: Trip, options: list[Option], competitor: Option | None = None) -
     alternatives = eligible + ([competitor] if competitor else [])
     best_alt = min(alternatives, key=lambda o: o.rank) if alternatives else None
     saving_needed = OVERRIDE_MIN_SAVING_MIN.get(lvl)
+    # Higher level first: if nothing else reaches this call within its own target, an override may
+    # leave the displaced (lower-level) call over its target too, rather than this one waiting.
+    target = trip.response_target_min
+    alt_misses = best_alt is None or (target is not None and _mins(best_alt.reach, trip.pickup_after) > target)
     for o in options:
-        if o.kind != "override" or not o.displaced_ok:
+        if o.kind != "override" or not (o.displaced_ok or (o.displaced_late and alt_misses)):
             continue
         if saving_needed is None or o.displaced is None or level(o.displaced) <= level(trip):
             o.why_not = "only a higher-level call overrides another"
@@ -285,7 +294,8 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
             )
     if d.chosen is None:
         if trip.priority == "emergency":
-            return "; no ambulance or helicopter can take it: request one from a neighbouring station" + reason
+            doctor = send_doctor(state, trip)  # the doctor car still goes: first on scene
+            return "; no ambulance or helicopter can take it: request one from a neighbouring station" + doctor + reason
         pool = [c for c in find_candidates(state, trip.id, limit=100) if not c["step"]["interrupt_current"]]
         if not pool:
             return "; no vehicle can take it yet: left for the dispatcher to plan"
@@ -313,13 +323,15 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
     when = f"at {who} {_hhmm(o.reach)} (in {_mins(o.reach, state.sim_time):.0f} min), at {dest} {_hhmm(o.cand['trip_eta_dropoff'])}"
     if flies(v.type):
         road = d.best_road
-        gain = _mins(road.reach, o.reach) if road else 0.0
+        # what the decision compared: arrival at UKC for stroke and heart attack, else at the patient
+        gain = (road.rank - o.rank if compare else _mins(road.reach, o.reach)) if road else 0.0
+        at_ukc = " at UKC" if compare else ""
         if road is None:
             why = "helicopter; no ambulance can take it"
         elif trip.severity == "critical":
             why = "helicopter: the closest unit for a critical call" + (f", {gain:.0f} min sooner than {road.vehicle_id}" if gain >= 1 else "")
         else:
-            why = f"helicopter, {gain:.0f} min sooner than {road.vehicle_id} by road"
+            why = f"helicopter, {gain:.0f} min sooner{at_ukc} than {road.vehicle_id} by road"
         if o.kind == "override" and o.displaced is not None:
             why += f"; diverted from {o.displaced.id} ({o.displaced.severity})"
         clause = f"; dispatched {v.id} ({why}): {when}"
@@ -327,9 +339,12 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
         clause = f"; dispatched {v.id} (nearest free ambulance): {when}"
     elif o.kind == "soon":
         cur = state.trips[v.current_trip_id] if v.current_trip_id else None
-        drop = (
-            f"drops off at {state.places[cur.dropoff_id].name} {_hhmm(cur.eta_dropoff)}, " if cur and cur.status == "onboard" else ""
-        )
+        if cur and cur.status == "onboard":
+            drop = f"drops off at {state.places[cur.dropoff_id].name} {_hhmm(cur.eta_dropoff)}, "
+        elif v.busy_until and v.busy_until > state.sim_time:
+            drop = f"ready {_hhmm(v.busy_until)} after handover and cleaning, "
+        else:
+            drop = ""
         clause = f"; dispatched {v.id} ({'' if free else 'no unit free; '}available soon: {drop}{when}{sooner})"
     elif o.kind == "override" and o.displaced is not None:
         clause = (
@@ -338,14 +353,22 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
         )
     else:
         clause = f"; dispatched {v.id} (no unit free; {o.cand['insertion']}): {when}"
+    clause += send_doctor(state, trip, v.id, o.reach)  # " + doctor D1 (ZD Center, at the patient 22:05, ...)"
+    wait = _mins(max(o.reach, trip.pickup_after), trip.pickup_after)
+    if trip.severity in ("critical", "serious") and wait > RED_REFERENCE_MIN and state.reserve_vehicles:
+        names = ", ".join(f"{r.id} ({origin_label(state, r)})" for r in state.reserve_vehicles.values())
+        clause += f"; no own unit within {RED_REFERENCE_MIN:.0f} min: can request {names}"
 
     if o.kind == "override" and o.displaced is not None:
         dsp = o.displaced
         dsp.times_displaced += 1
         dsp.dispatched_at = state.sim_time
-        target = (
-            f"within its {dsp.response_target_min:.0f}-min target" if dsp.response_target_min else "on time"
-        )
+        if not dsp.response_target_min:
+            target = "on time"
+        elif (o.displaced_wait or 0) <= dsp.response_target_min:
+            target = f"within its {dsp.response_target_min:.0f}-min target"
+        else:
+            target = f"after its {dsp.response_target_min:.0f}-min target: no unit can reach it sooner"
         if o.displaced_to:
             clause += f"; {dsp.id} taken over by {o.displaced_to} (at {_who(dsp)} {_hhmm(o.displaced_pickup)}, {target})"
         else:

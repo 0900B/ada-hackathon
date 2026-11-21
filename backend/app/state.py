@@ -93,6 +93,9 @@ class WorldState:
         self.sim_time: datetime = utcnow().replace(microsecond=0)
         self.places: dict[str, Place] = {}
         self.vehicles: dict[str, Vehicle] = {}
+        # Reserve units (a neighbouring station's ambulance, a private one): not part of the world (or
+        # the snapshot) until a dispatcher's approved plan requests one; back here when it is home.
+        self.reserve_vehicles: dict[str, Vehicle] = {}
         self.trips: dict[str, Trip] = {}
         self.incidents: dict[str, Incident] = {}  # this world's operator-reported/injected incidents
         self.weather_override: WeatherNow | None = None
@@ -143,6 +146,7 @@ class WorldState:
         """A what-if copy: vehicles and trips are deep-copied, everything else is shared read-only."""
         clone = copy.copy(self)
         clone.vehicles = {k: v.model_copy(deep=True) for k, v in self.vehicles.items()}
+        clone.reserve_vehicles = {k: v.model_copy(deep=True) for k, v in self.reserve_vehicles.items()}
         clone.trips = {k: t.model_copy(deep=True) for k, t in self.trips.items()}
         clone.places = dict(self.places)
         clone.incidents = dict(self.incidents)

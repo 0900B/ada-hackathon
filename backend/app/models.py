@@ -12,7 +12,10 @@ def utcnow() -> datetime:
 
 
 PlaceKind = Literal["hospital", "health_centre", "residential", "base", "incident_site", "call_location"]
-VehicleType = Literal["ambulance", "transport", "helicopter"]
+VehicleType = Literal["ambulance", "transport", "helicopter", "doctor"]
+# own fleet, a neighbouring station's ambulance (mutual aid) or a private ambulance; the last two exist
+# in the world only after the dispatcher has requested them (approved plan).
+VehicleOrigin = Literal["own", "mutual_aid", "private"]
 VehicleStatus = Literal["idle", "to_pickup", "loading", "with_patient", "returning", "out_of_service"]
 Priority = Literal["emergency", "urgent", "scheduled"]
 CallSeverity = Literal["critical", "serious", "urgent", "routine"]  # see engine/severity.py
@@ -44,8 +47,12 @@ class Vehicle(BaseModel):
     name: str
     # ambulance: emergency unit (emergencies, urgent calls; at most current job + 1 queued);
     # transport: the scheduled day (any non-emergency patient incl. stretcher, equipment);
-    # helicopter: emergencies and urgent trips only (no equipment, no scheduled work).
+    # helicopter: emergencies and urgent trips only (no equipment, no scheduled work);
+    # doctor: a doctor car (VUZ, physician + nurse) that joins the ambulance crew on scene and never
+    # transports a patient. Its current_trip_id is the call it supports (to_pickup = driving to the
+    # scene, loading = on scene with the crew, with_patient = escorting the ambulance to hospital).
     type: VehicleType
+    origin: VehicleOrigin = "own"
     base_id: str
     lat: float
     lon: float
@@ -107,6 +114,11 @@ class Trip(BaseModel):
     modifiers: list[str] = Field(default_factory=list)  # child, multiple_patients, deteriorating, ...
     response_target_min: float | None = None  # minutes from the call to reach the patient (None = by appointment)
     times_displaced: int = 0  # how often a unit was diverted away from this call (at most once)
+    # Doctor on scene (engine.severity.DOCTOR_CONDITIONS): a doctor car, or the helicopter (doctor on board).
+    needs_doctor: bool = False
+    doctor_vehicle_id: str | None = None  # the doctor car supporting this call, or "H1" when the helicopter serves it
+    doctor_eta: datetime | None = None  # when the doctor reaches (or reached) the patient
+    doctor_target_min: float | None = None  # minutes from the call: the 15-min red reference
 
     @model_validator(mode="after")
     def _equipment_consistent(self) -> Trip:
@@ -124,6 +136,10 @@ class Trip(BaseModel):
             self.condition_label = sev.condition_label(self.condition)
         if self.response_target_min is None:
             self.response_target_min = sev.response_target(self.severity)  # type: ignore[arg-type]
+        if sev.needs_doctor(self.kind, self.severity, self.condition):
+            self.needs_doctor = True
+        if self.needs_doctor and self.doctor_target_min is None:
+            self.doctor_target_min = sev.DOCTOR_TARGET_MIN
         return self
 
     @computed_field  # type: ignore[prop-decorator]
@@ -215,6 +231,7 @@ class Alert(BaseModel):
         "hospital_over_capacity",
         "low_fuel",
         "red_response_over_15_min",  # a critical/serious call predicted to be reached after 15 min (Slovenian reference)
+        "doctor_response_over_15_min",  # a call that needs a doctor: none on scene within its doctor_target_min
     ]
     severity: Severity
     message: str

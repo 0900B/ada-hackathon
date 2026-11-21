@@ -212,6 +212,32 @@ def test_approval_replays_the_checked_order_after_the_vehicle_moved_on():
     assert opt.steps[0].before_trip_id == b.id and opt.step_details[0]["after_trip_ids"] == [c.id]
 
 
+def test_keeping_a_dispatch_that_already_happened_is_not_an_error():
+    """Seen on the deployment: 'keep the engine's dispatch: A1 to the cardiac arrest' was recommended,
+    A1 picked the patient up while Claude was still writing (A1 was 1 min away), and the option became
+    infeasible ('TR-004 is onboard and cannot be reassigned'): Approve answered 409. A step that only
+    confirms what the unit already did is satisfied, and the option says so."""
+    fresh()
+    only_in_service("A1", "T5")
+    arrest = new_trip("TX-CA", "emergency", "home_moste", needs="stretcher")
+    fall = new_trip("TX-F", "urgent", "home_bezigrad")
+    assign_trip(W, arrest.id, "A1")
+    assign_trip(W, fall.id, "T5")
+    keep = [step(arrest.id, "A1"), step(fall.id, "T5")]
+    run = checked_run(keep)
+    assert run.recommendation.options[0].feasible
+    tracer = Tracer()
+    assert tracer.run(30, until=lambda: arrest.status == "onboard")  # meanwhile A1 picks the patient up
+    run2 = checked_run(keep)  # the same option checked again now
+    opt = run2.recommendation.options[0]
+    assert opt.feasible, opt.errors
+    detail = next(d for d in opt.step_details if d["trip_id"] == arrest.id)
+    assert detail["action"] == "onboard" and "already has" in detail["text"], detail
+    r = approve(run)  # the option approved as shown earlier
+    assert r.status_code == 200, r.text
+    assert arrest.vehicle_id == "A1" and arrest.status == "onboard" and fall.vehicle_id == "T5"
+
+
 def test_out_of_date_plan_is_refused_with_the_reason():
     """Same plan, but meanwhile T5 has loaded B: it can't turn around any more, so X would be collected
     much later than shown. Old behaviour: approved (200) and X silently waited. Now: 409 with the reason."""

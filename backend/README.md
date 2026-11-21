@@ -38,7 +38,7 @@ Two worlds read them:
 ## Operating mode: live calls (default) or a scheduled day
 
 - **Live calls** (default for both worlds): no pre-planned trips; every unit starts idle at its base.
-  `app/sim/calls.py` generates calls (`CALLS_PER_HOUR`, default 8 per world hour, exponential gaps of
+  `app/sim/calls.py` generates calls (`CALLS_PER_HOUR`, default 5 per world hour, exponential gaps of
   2–25 min, its own seeded RNG per world): emergencies at street addresses around Ljubljana (to UKC),
   sometimes a remote one (Kamniška Bistrica, Krvavec, Sava valley: the helicopter), urgent field calls,
   urgent patient transports (health centre or GP referral to UKC, urgent discharges, inter-hospital
@@ -135,6 +135,27 @@ Severity and dispatch doctrine (`engine/severity.py`, `engine/dispatch.py`, rule
   The event summary says who, why, when, the helicopter check and the clinical reason.
 - Slovenian practice: a red call predicted over 15 min raises `red_response_over_15_min`; the last free
   ambulance of an area is kept for red calls (a van takes the non-urgent call).
+- **Doctor cars** D1 (base `zd_center`) and D2 (`zd_siska`), `type: "doctor"` (VUZ: physician + nurse;
+  `engine/doctors.py`). Red calls whose condition is `cardiac_arrest`, `choking`, `catastrophic_bleeding`,
+  `anaphylaxis`, `stemi`, `breathing_difficulty` or `major_trauma` get `needs_doctor: true` and
+  `doctor_target_min: 15` (set by the backend on every trip). The engine sends the ambulance by the rules
+  above plus the free doctor car that reaches the scene first (never one on a scene); the trip gets
+  `doctor_vehicle_id` and `doctor_eta` (projected while driving, the actual arrival once there); the
+  summary says `+ doctor D1 (Rudnik, at the patient 22:45, 5 min after the ambulance)`. The helicopter
+  has a doctor on board (`doctor_vehicle_id: "H1"`), unless it is over 15 min and a doctor car is
+  sooner (that car stands down when H1 lifts off). Doctor-car statuses: `to_pickup` = to the scene,
+  `loading` = on scene with the crew, `with_patient` = escorting to hospital, then `returning`;
+  `current_trip_id` = the supported trip; `trip.vehicle_id` stays the ambulance. A doctor car never
+  transports and is never a plan step. No doctor within the target: alert `doctor_response_over_15_min`.
+- **Reserve units** M1 (ambulance, `origin: "mutual_aid"`, base `base_domzale`) and P1 (`origin:
+  "private"`, base `base_private`) are not in the snapshot until requested. When no own unit reaches a
+  red call within 15 min, the summary says so, `find_candidates` (agent tool) and the engine fallback
+  offer them ("Request mutual aid: M1 from Domžale, at the patient HH:MM", "Private ambulance P1
+  (Brezovica), ..."); approving such a plan step activates the unit, and it leaves again once home.
+- **Service times** (`engine/service_times.py`, values and sources in `docs/SERVICE_TIMES.md`): turnout
+  from rest (ambulance 1 min, doctor car 5), on scene by severity (critical 20, cardiac arrest 25,
+  serious 15, stroke 12, urgent 12; van pickup 8; equipment 5), handover 15 (van 5, equipment 5),
+  cleaning 10 (van 5). A unit handing over or cleaning is `returning` with `busy_until` and not free.
 - **Vans** do the scheduled day (seated, wheelchair, stretcher, equipment) and urgent non-emergencies;
   never emergencies. Bookings (`task_request`) go to a van; a free ambulance only if no van fits.
 

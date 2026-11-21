@@ -24,10 +24,11 @@ from ..models import (
 from ..roads import ROADS, remaining_points
 from ..routing import flies, leg_route, points_hit, travel_minutes
 from .actions import LJ, ActionError, assign_trip, can_serve, detach_trip, level
-from .severity import DEFAULT_SEVERITY, SEVERITY_PRIORITY, SEVERITY_RANK, call_label, grade
+from .doctors import release as release_doctor, send_doctor
+from .service_times import on_scene_for, on_scene_min
+from .severity import DEFAULT_SEVERITY, SEVERITY_PRIORITY, SEVERITY_RANK, call_label, grade, severity_for
 from .projection import (
     DONE,
-    LOAD_MIN,
     PRIORITY_ORDER,
     incoming_patients,
     kpis,
@@ -95,6 +96,16 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
         v = _vehicle(state, ev.vehicle_id)
         if v.status == "out_of_service":
             raise EventError(f"{v.name} is already out of service")
+        if v.type == "doctor":  # the call keeps its ambulance; it needs another doctor
+            supported = state.trips.get(v.current_trip_id) if v.current_trip_id else None
+            v.current_trip_id, v.queue, v.busy_until, v.status = None, [], None, "out_of_service"
+            v.path_from, v.path_to, v.on_road, v.path_avoid = None, None, False, None
+            extra = ""
+            if supported is not None and supported.doctor_vehicle_id == v.id:
+                supported.doctor_vehicle_id = supported.doctor_eta = None
+                created.append(supported.id)
+                extra = f"; {supported.id} needs another doctor" + (send_doctor(state, supported) or ": none needed")
+            return f"{v.name} broke down{extra}" + (f" ({ev.note})" if ev.note else "")
         stranded = None
         for tid in ([v.current_trip_id] if v.current_trip_id else []) + v.queue:
             trip = state.trips[tid]
@@ -193,7 +204,8 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
             pickup_id=pickup.id,
             dropoff_id=dropoff.id,
             pickup_after=state.sim_time,
-            due_by=state.sim_time + timedelta(minutes=direct + LOAD_MIN + slack),
+            due_by=state.sim_time
+            + timedelta(minutes=direct + on_scene_for("patient", severity_for(ev.priority, ev.severity, ev.condition), ev.condition) + slack),
             note=ev.note,
             severity=ev.severity,
             condition=ev.condition,
@@ -293,7 +305,7 @@ def _book_task(state: WorldState, ev: TaskRequestEvent, created: list[str]) -> s
     due = (
         state.sim_time + timedelta(minutes=ev.due_in_min)
         if ev.due_in_min is not None
-        else ready + timedelta(minutes=direct + LOAD_MIN + BOOKING_SLACK_MIN)
+        else ready + timedelta(minutes=direct + on_scene_for("equipment" if equipment else "patient", "urgent", None, "transport") + BOOKING_SLACK_MIN)
     )
     if due <= ready:
         raise EventError("The deadline must be after the ready time")
@@ -456,7 +468,7 @@ def _priority_change(state: WorldState, ev: PriorityChangeEvent, affected: list[
                 trip.pickup_after = min(trip.pickup_after, state.sim_time)
             start = max(state.sim_time, trip.pickup_after)
             pickup = state.places[trip.pickup_id]
-            direct = travel_minutes(state, pickup.lat, pickup.lon, dropoff.lat, dropoff.lon, "ambulance", True) + LOAD_MIN
+            direct = travel_minutes(state, pickup.lat, pickup.lon, dropoff.lat, dropoff.lon, "ambulance", True) + on_scene_min(trip)
         target = start + timedelta(minutes=direct + slack)
         if target < trip.due_by:
             earlier = (trip.due_by - target).total_seconds() / 60
@@ -485,4 +497,10 @@ def _priority_change(state: WorldState, ev: PriorityChangeEvent, affected: list[
                 parts.append(f"stays #{route_trip_ids(v).index(trip.id) + 1} on {v.id} ({e})")
     if trip.status == "unassigned" and trip.priority == "emergency":
         parts.append(dispatch_call(state, trip).removeprefix("; "))  # an emergency can't wait for an analysis
+    elif trip.needs_doctor and trip.vehicle_id:  # e.g. now a suspected heart attack: the doctor car joins
+        if doctor := send_doctor(state, trip).removeprefix(" + ").removeprefix("; "):
+            parts.append(doctor)
+    if not trip.needs_doctor and (released := release_doctor(state, trip)):
+        trip.doctor_vehicle_id = trip.doctor_eta = None
+        parts.append(f"doctor {released} stood down")
     return "; ".join(parts) + (f" ({ev.note})" if ev.note else "")

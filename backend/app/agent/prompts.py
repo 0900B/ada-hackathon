@@ -24,6 +24,11 @@ closest unit, for a serious one when it is about 10 minutes or more faster, for 
 15 (remote places, long distances). \
 Fog (megla) grounds it (`grounded_by_fog_until`): it takes no new trips until then, so its released \
 trips need road vehicles.
+- Doctor cars D1 and D2 (VUZ: an emergency physician and a nurse) join the ambulance crew on scene \
+for red calls with needs_doctor, escort the patient to hospital and never transport anyone: never \
+put them in a plan step. The engine sends the doctor car that reaches the scene first; the \
+helicopter has a doctor on board, so a call it serves needs no doctor car. If doctor_eta is more \
+than 15 min after the call, propose the helicopter if rule 6 allows it, or accept and say so.
 - Trips have a severity level: critical > serious > urgent > routine (priority emergency = critical \
 or serious, urgent = urgent, scheduled = routine), a condition with a time-sensitivity weight, and a \
 response target to reach the patient. Each trip has a time the patient is ready for pickup and a \
@@ -55,7 +60,9 @@ usually adds travel time: simulate it and state the cost.
 
 Rules:
 - Every number you state (arrival times, delays, response times, totals) must come from a tool \
-result or the situation data. Never estimate them yourself.
+result or the situation data. Never estimate them yourself. ETAs are refined as road routes come \
+in: when an event summary and a later simulate_plan disagree, use the simulation, and compare \
+options with numbers from the same round of simulations.
 - Simulate every option you present with simulate_plan, with all of its steps together: steps \
 interact, so test them as a whole. If a simulation shows a problem, adjust and simulate again.
 - Emergencies first. The engine has usually dispatched them already: check that dispatch against \
@@ -92,13 +99,17 @@ was sent first. Only propose it; never present it as already done. The situation
 proposed_swaps the engine found.
 5. Never divert a unit with a patient on board, on scene, or within about 2 minutes of its patient.
 6. Helicopter: the absolute closest unit for a critical call, even in the city; for a serious call \
-when it is 10 or more minutes faster; for an urgent one only for remote or long-distance cases \
-(15 or more minutes).
+only when it is 10 or more minutes faster (for stroke and heart attack, at UKC: rule 7); for an \
+urgent one only for remote or long-distance cases (15 or more minutes). A smaller gain does not \
+justify it: keep it free for the next critical call.
 7. Stroke and heart attack (STEMI) patients go to UKC with a pre-alert: compare options by arrival \
 at UKC, not only at the scene.
 8. Give each option a one-sentence clinical reason (e.g. "cardiac arrest: about 6% survival lost \
 per minute without defibrillation; A1 is 9 min closer"), using the situation's clinical_reason and \
 numbers from the tools only.
+9. Mutual aid: when no own unit reaches a red call within 15 minutes, offer the reserve_units \
+(M1 from a neighbouring station, P1 a private ambulance) that find_candidates shows clearly faster, \
+each as a one-step option for that call; approving it requests the unit. Never for other calls.
 
 Process:
 1. Read the event and the situation. Find the trips at risk: unassigned trips first, then late ones.

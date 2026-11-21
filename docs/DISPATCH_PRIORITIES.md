@@ -59,6 +59,10 @@ If a call is reported as better (e.g. the patient is breathing again), the dispa
    clear: ≥ 3 min for critical, ≥ 5 min for serious. The displaced patient must still be reached
    within their own level's target by another unit. This follows the "clear and obvious time
    saving, no unnecessary risk to the lower-priority patient" rule used in dispatch policies.
+   Exception: when no other unit reaches the higher-level call within its own target, the higher
+   level goes first even if the displaced call then misses its target (the summary says so); with
+   realistic on-scene and handover times ([SERVICE_TIMES.md](SERVICE_TIMES.md)) the strict rule
+   could otherwise leave a serious call waiting hours.
 3. **No call is displaced twice.** A unit is not diverted away from the same lower-level call a
    second time.
 4. **Same level.** The higher time-sensitivity weight goes first. If the weights are comparable,
@@ -79,9 +83,10 @@ If a call is reported as better (e.g. the patient is breathing again), the dispa
 
 ## 4. Slovenian practice adopted
 
-Our teammate's research on Slovenian EMS dispatch (branch `Metelko`, `docs/AGENTIC_DISPATCH_DESIGN.md`
-sections 5.2 to 5.10, with `DISPATCH_SCENARIOS.md` and `LJUBLJANA_FLEET_AND_TEAMS.md`, citing the 2026
-rulebook) agrees with the rules above and adds four points that Plan B now follows:
+Our teammate's research on Slovenian EMS dispatch ([AGENTIC_DISPATCH_DESIGN.md](AGENTIC_DISPATCH_DESIGN.md)
+sections 5.2 to 5.10, with [DISPATCH_SCENARIOS.md](DISPATCH_SCENARIOS.md) and
+[LJUBLJANA_FLEET_AND_TEAMS.md](LJUBLJANA_FLEET_AND_TEAMS.md), citing the 2026 rulebook) agrees with the
+rules above and adds these points that Plan B now follows:
 
 - **15-minute reference for red calls.** Critical and serious calls are both "red" (I. prioriteta).
   Plan B keeps its tighter critical city target (8 min), and additionally flags any red call whose
@@ -94,7 +99,16 @@ rulebook) agrees with the rules above and adds four points that Plan B now follo
   every dispatch summary for a red call says when H1 would arrive and why it was or was not sent
   (rule 6).
 - **Handover at the hospital takes at most 15 minutes**, after which the crew reports free. Plan B
-  models 3 minutes and reports the unit free right after.
+  models a 15-minute handover, then 10 minutes of cleaning ("returning, unavailable"), and a 1-minute
+  turnout for ambulances (5 for doctor cars): see [SERVICE_TIMES.md](SERVICE_TIMES.md).
+- **Doctor cars (VUZ).** The nurse-and-rescuer ambulance goes first; a doctor car (physician and nurse)
+  joins on scene for red calls that need a doctor (cardiac arrest, choking, catastrophic bleeding,
+  anaphylaxis, suspected heart attack, severe breathing difficulty, major trauma; not stroke, where the
+  stroke centre matters more). About a quarter of red calls, in line with the 10 to 30 % reported in
+  [LJUBLJANA_FLEET_AND_TEAMS.md](LJUBLJANA_FLEET_AND_TEAMS.md). The helicopter has a doctor on board.
+- **Mutual aid and private ambulances.** When no own unit reaches a red call within 15 minutes, the
+  dispatcher is offered a neighbouring station's ambulance or a private one (scenario D11 in
+  [DISPATCH_SCENARIOS.md](DISPATCH_SCENARIOS.md)); they join only when the dispatcher approves.
 
 Where his document differs, Plan B keeps the rules above: for two red calls competing for one unit he
 minimises the total response time and asks the dispatcher when triage gives no clinical order. Plan B
@@ -115,12 +129,16 @@ which matches his rule.
 | 6. Helicopter per level | `engine/dispatch.py: decide` | `HELICOPTER_GAIN_MIN` = 0 / 10 / 15 |
 | 7. Stroke and STEMI judged at UKC | `engine/dispatch.py: decide` | `DEFINITIVE_CARE_CONDITIONS` |
 | 8. Clinical reason | `engine/severity.py: clinical_reason` | |
+| Doctor cars, mutual aid, private ambulances | `engine/doctors.py` | `DOCTOR_CONDITIONS`, `DOCTOR_TARGET_MIN` = 15 |
+| Turnout, on scene, handover, cleaning | `engine/service_times.py` | see [SERVICE_TIMES.md](SERVICE_TIMES.md) |
 
 ## Sources
 
-- Slovenian dispatch practice as used in section 4: team research on branch `Metelko`,
-  `docs/AGENTIC_DISPATCH_DESIGN.md` (unit selection 5.2, several calls 5.3, helicopter 5.5, handover
-  5.8, statuses 5.10), `docs/DISPATCH_SCENARIOS.md`, `docs/LJUBLJANA_FLEET_AND_TEAMS.md`.
+- Slovenian dispatch practice as used in section 4: team research (Metelko),
+  [AGENTIC_DISPATCH_DESIGN.md](AGENTIC_DISPATCH_DESIGN.md) (unit selection 5.2, several calls 5.3,
+  helicopter 5.5, handover 5.8, statuses 5.10), [DISPATCH_SCENARIOS.md](DISPATCH_SCENARIOS.md),
+  [LJUBLJANA_FLEET_AND_TEAMS.md](LJUBLJANA_FLEET_AND_TEAMS.md), [DATA_FRESHNESS.md](DATA_FRESHNESS.md).
+- Service times (turnout, on scene, handover, cleaning): [SERVICE_TIMES.md](SERVICE_TIMES.md).
 
 - Slovenia, severity levels (SloIn NMP, red and yellow priorities): [Pravilnik o službi nujne medicinske pomoči in prevozih pacientov (consolidated text, 3 June 2026)](https://www.tax-fin-lex.si/Dokument/Podrobnosti/b509dd37-3d66-492d-893f-61191c3dec52); [gov.si: Nujna medicinska pomoč](https://www.gov.si/teme/nujna-medicinska-pomoc/)
 - UK Ambulance Response Programme categories and standards: [NHS England ARP board paper](https://www.england.nhs.uk/wp-content/uploads/2019/07/02-CB-30-03-2017-ARP.pdf), [NEAS: Ambulance Response Programme](https://www.neas.nhs.uk/your-service/999/ambulance-response-programme), [GSS: summary of ambulance response time data](https://analysisfunction.civilservice.gov.uk/government-statistical-service-and-statistician-group/user-facing-pages/health-and-care-statistics/summary-of-ambulance-response-time-data-in-the-uk). The Category 1 mean (7 min) and Category 3 (120 min) figures are the published ARP standards and were not re-checked in this research.

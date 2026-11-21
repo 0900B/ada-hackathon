@@ -46,7 +46,10 @@ REMOTE = [
 # Emergencies: about 10% critical (life-threatening now), the rest serious (docs/DISPATCH_PRIORITIES.md).
 CRITICAL_SHARE = 0.10
 CRITICAL_CONDITIONS = [("cardiac_arrest", 4), ("choking", 2), ("catastrophic_bleeding", 2), ("anaphylaxis", 2)]
-SERIOUS_CONDITIONS = [("stroke", 3), ("stemi", 3), ("breathing_difficulty", 3), ("major_trauma", 2), ("seizure", 2), ("sepsis", 1)]
+# Serious calls: most do not need a doctor on scene, so that about 25 % of all red calls get a doctor
+# car (critical ones always do), in line with Slovenian dispatch, where a doctor is really needed in
+# 10 to 30 % of top-priority interventions (engine.severity.DOCTOR_CONDITIONS).
+SERIOUS_CONDITIONS = [("stroke", 4), ("seizure", 3), ("sepsis", 3), ("stemi", 0.75), ("breathing_difficulty", 0.25), ("major_trauma", 0.25)]
 EMERGENCY_NOTES = {
     "cardiac_arrest": "unconscious, not breathing; caller instructed in CPR",
     "choking": "choking, cannot speak",
