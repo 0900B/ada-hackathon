@@ -163,6 +163,7 @@ html, body, #root {
   flex: 1;
   min-width: 0;
   position: relative;
+  overflow: hidden;
 }
 
 .side-panel {
@@ -1316,6 +1317,22 @@ html, body, #root {
     scrollbar-width: thin;
     scrollbar-color: var(--bd-mid) transparent;
   }
+
+  /* Decision card: compress typography and padding so all sections fit without
+     scrolling past Approve/Reject on ~1366×768 and similar short viewports */
+  .dc-header                        { padding: 10px 20px; }
+  .dc-body .dc-section              { padding: 14px 20px; }
+  .dc-body .dc-rec-section          { padding: 16px 20px 16px 17px; }
+  .dc-body .dc-label                { margin-bottom: 6px; }
+  .dc-situation-lead                { font-size: 19px; line-height: 1.35; }
+  .dc-rec-title                     { font-size: 20px; }
+  .dc-rec-summary                   { font-size: 13px; margin-bottom: 12px; }
+  .dc-rec-delta                     { margin-bottom: 14px; }
+  .dc-body .btn-approve,
+  .dc-body .btn-reject              { padding: 10px 16px; }
+  .dc-body .dc-alt-row td           { padding: 7px 8px 7px 0; }
+  .dc-situation-detail              { font-size: 12px; margin-top: 7px; }
+  .dc-vehicles-row                  { padding-top: 12px; padding-bottom: 12px; }
 }
 
 
