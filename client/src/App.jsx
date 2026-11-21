@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import Map from './Map'
-import { API_URL, fetchState, runScenario, resetSimulation } from './api'
+import { API_URL, fetchState, runScenario, resetSimulation, approveOption, rejectRun } from './api'
 import { ambulances, hospitals, activeCalls } from './mockData'
 
 // ── Data conversion ────────────────────────────────────────────────────────────
@@ -127,7 +127,11 @@ export default function App() {
             </>
           )}
 
-          {/* Part 3 (approve/reject + log) will be added here */}
+          {run?.status === 'done' && run?.recommendation && (
+            <ActionsSection run={run} busy={busy} action={action} />
+          )}
+
+          <DecisionLogSection runs={state?.agent?.runs ?? []} />
         </div>
 
         <Legend />
@@ -288,6 +292,70 @@ function RecommendationSection({ run }) {
       <span className="section-label">RECOMMENDATION</span>
       <p className="rec-title">Option {rec.recommended_index + 1} — {opt.title}</p>
       <p className="rec-reasoning">{rec.reasoning}</p>
+    </div>
+  )
+}
+
+// ── Approve / Reject ──────────────────────────────────────────────────────────
+
+function ActionsSection({ run, busy, action }) {
+  const rec = run.recommendation
+  const recIdx = rec?.recommended_index ?? 0
+
+  return (
+    <div className="action-row">
+      <button
+        className="btn-approve"
+        disabled={busy}
+        onClick={() => action(() => approveOption(run.id, recIdx))}
+      >
+        Approve
+      </button>
+      <button
+        className="btn-reject"
+        disabled={busy}
+        onClick={() => action(() => rejectRun(run.id))}
+      >
+        Reject
+      </button>
+    </div>
+  )
+}
+
+// ── Decision log ──────────────────────────────────────────────────────────────
+
+function fmtSimTime(iso) {
+  if (!iso) return '--:--'
+  try {
+    return new Date(iso).toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return iso.slice(11, 16)
+  }
+}
+
+function DecisionLogSection({ runs }) {
+  const decided = runs.filter(r => r.status === 'approved' || r.status === 'rejected')
+  if (decided.length === 0) return null
+
+  return (
+    <div className="panel-section">
+      <span className="section-label">DECISION LOG</span>
+      <div className="log-lines">
+        {decided.map(r => {
+          const time    = fmtSimTime(r.finished_at)
+          const trigger = r.trigger.startsWith('event:') ? r.trigger.slice(6) : r.trigger
+          const verdict = r.status.toUpperCase()
+          const optPart = r.status === 'approved' && r.decision?.option_index != null
+            ? `  Option ${r.decision.option_index + 1}`
+            : ''
+          return (
+            <div key={r.id} className="log-line">
+              {time}{'  '}{trigger}{optPart}{'  '}
+              <span className={`log-verdict ${r.status}`}>{verdict}</span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
