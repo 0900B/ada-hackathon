@@ -5,6 +5,8 @@ cache; a miss falls back to the straight-line estimate and queues a background f
 - One OSRM "table" request gives free-flow times between ALL known places (used when the
   engine evaluates candidate assignments, so speculative legs need no extra requests).
 - OSRM "route" requests give the road geometry for legs vehicles actually drive.
+- Detours: when a route crosses an active road closure, TomTom Calculate Route with avoidAreas
+  gives a route around it (cached per leg + set of closures avoided).
 Live traffic, weather and incidents are applied on top by routing.travel_minutes.
 """
 from __future__ import annotations
@@ -13,6 +15,7 @@ import asyncio
 import bisect
 import itertools
 import logging
+import math
 import os
 import time
 from dataclasses import dataclass
@@ -30,6 +33,20 @@ RETRY_AFTER_FAILURE_S = 300
 MAX_POINTS = 120
 
 Key = tuple[float, float]
+Avoid = tuple[tuple[float, float, int], ...]  # closures to route around: (lat, lon, radius_m), sorted
+MAX_AVOID = 10  # TomTom accepts at most ten avoid rectangles per request
+DETOUR_PAUSE_AFTER_FAILURE_S = 300
+
+
+def avoid_box(lat: float, lon: float, radius_m: float) -> tuple[float, float, float, float]:
+    """The square around a closure circle: (south, west, north, east) in degrees."""
+    dlat = radius_m / 111_320
+    dlon = radius_m / (111_320 * max(0.2, math.cos(math.radians(lat))))
+    return lat - dlat, lon - dlon, lat + dlat, lon + dlon
+
+
+def in_box(box: tuple[float, float, float, float], lat: float, lon: float) -> bool:
+    return box[0] <= lat <= box[2] and box[1] <= lon <= box[3]
 
 
 def key(lat: float, lon: float) -> Key:
@@ -85,13 +102,15 @@ def remaining_points(route: Route, fraction: float) -> list[tuple[float, float]]
 class RoadNetwork:
     def __init__(self) -> None:
         self.routes: dict[tuple[Key, Key], Route] = {}
+        self.detours: dict[tuple[Key, Key], dict[Avoid, Route]] = {}  # leg -> closures avoided -> route
+        self.detour_pause_until = 0.0
         self.matrix: dict[tuple[Key, Key], float] = {}  # free-flow seconds between places
         self.matrix_keys: frozenset[Key] = frozenset()
         self.queue: asyncio.PriorityQueue | None = None
         self.pending: set[Any] = set()
         self.failed_until: dict[Any, float] = {}
         self._seq = itertools.count()
-        self.stats: dict[str, Any] = {"osrm": 0, "tomtom": 0, "failed": 0, "last_error": None}
+        self.stats: dict[str, Any] = {"osrm": 0, "tomtom": 0, "detours": 0, "failed": 0, "last_error": None}
 
     @property
     def enabled(self) -> bool:
@@ -106,6 +125,21 @@ class RoadNetwork:
         k = (key(alat, alon), key(blat, blon))
         r = self.routes.get(k)
         return r.duration_s if r is not None else self.matrix.get(k)
+
+    def matrix_s(self, alat: float, alon: float, blat: float, blon: float) -> float | None:
+        return self.matrix.get((key(alat, alon), key(blat, blon)))
+
+    def detour(self, alat: float, alon: float, blat: float, blon: float, avoid: Avoid) -> Route | None:
+        return self.detours.get((key(alat, alon), key(blat, blon)), {}).get(avoid)
+
+    def detours_for(self, alat: float, alon: float, blat: float, blon: float) -> dict[Avoid, Route]:
+        return self.detours.get((key(alat, alon), key(blat, blon)), {})
+
+    def detours_available(self) -> bool:
+        """Detours need TomTom (OSRM's public server can't avoid areas); paused for a while after a failure."""
+        from .fetchers.tomtom import tomtom_key  # local import: tomtom depends on models only
+
+        return self.enabled and bool(tomtom_key()) and time.monotonic() >= self.detour_pause_until
 
     # --- requests: only queue work ------------------------------------------------------
 
@@ -122,6 +156,11 @@ class RoadNetwork:
         if ka != kb and (ka, kb) not in self.routes:
             self._enqueue(1, ("route", ka, kb))
 
+    def want_detour(self, alat: float, alon: float, blat: float, blon: float, avoid: Avoid) -> None:
+        ka, kb = key(alat, alon), key(blat, blon)
+        if ka != kb and avoid and self.detours_available() and avoid not in self.detours.get((ka, kb), {}):
+            self._enqueue(0, ("detour", ka, kb, avoid))  # a vehicle may be waiting for it
+
     def want_matrix(self, points: list[tuple[float, float]]) -> None:
         keys = frozenset(key(lat, lon) for lat, lon in points)
         if len(keys) >= 2 and not keys <= self.matrix_keys:
@@ -136,6 +175,8 @@ class RoadNetwork:
             try:
                 if job_id[0] == "matrix":
                     await self._fetch_matrix(client, job_id[1])
+                elif job_id[0] == "detour":
+                    await self._fetch_detour(client, job_id[1], job_id[2], job_id[3])
                 else:
                     await self._fetch_route(client, job_id[1], job_id[2])
                 on_update()
@@ -145,6 +186,8 @@ class RoadNetwork:
                 self.stats["failed"] += 1
                 self.stats["last_error"] = f"{type(e).__name__}: {e}"[:200]
                 self.failed_until[job_id] = time.monotonic() + RETRY_AFTER_FAILURE_S
+                if job_id[0] == "detour":  # quota or TomTom trouble: fall back to slowdowns for a while
+                    self.detour_pause_until = time.monotonic() + DETOUR_PAUSE_AFTER_FAILURE_S
                 log.warning("road routing job %s failed: %s", job_id[0], self.stats["last_error"])
             finally:
                 self.pending.discard(job_id)
@@ -206,10 +249,38 @@ class RoadNetwork:
         s = best["summary"]
         return make_route(float(s["travelTimeInSeconds"]), float(s["lengthInMeters"]), pts, a, b, "tomtom")
 
+    async def _fetch_detour(self, client: httpx.AsyncClient, a: Key, b: Key, avoid: Avoid) -> None:
+        from .fetchers import tomtom  # local import: tomtom depends on models only
+
+        tomtom.spend("routing", 1)
+        rectangles = []
+        for lat, lon, radius in avoid:
+            s, w, n, e = avoid_box(lat, lon, radius)
+            rectangles.append(
+                {
+                    "southWestCorner": {"latitude": round(s, 6), "longitude": round(w, 6)},
+                    "northEastCorner": {"latitude": round(n, 6), "longitude": round(e, 6)},
+                }
+            )
+        data = await tomtom.post(
+            client,
+            f"https://api.tomtom.com/routing/1/calculateRoute/{a[0]},{a[1]}:{b[0]},{b[1]}/json",
+            {"traffic": "false", "travelMode": "car", "routeType": "fastest"},
+            {"avoidAreas": {"rectangles": rectangles}},
+        )
+        best = data["routes"][0]
+        pts = [(p["latitude"], p["longitude"]) for p in best["legs"][0]["points"]]
+        s = best["summary"]
+        route = make_route(float(s["travelTimeInSeconds"]), float(s["lengthInMeters"]), pts, a, b, "tomtom-detour")
+        self.detours.setdefault((a, b), {})[avoid] = route
+        self.stats["detours"] += 1
+
     def summary(self) -> dict[str, Any]:
         return {
             "enabled": self.enabled,
             "routes_cached": len(self.routes),
+            "detours_cached": sum(len(d) for d in self.detours.values()),
+            "detours_available": self.detours_available(),
             "matrix_places": len(self.matrix_keys),
             "pending": len(self.pending),
             **self.stats,

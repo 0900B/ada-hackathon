@@ -283,6 +283,7 @@ export interface VehicleDetail {
   current_trip: Trip | null;
   stops: VehicleStop[];
   legs: [number, number][][];
+  detour_legs?: number[]; // indexes into legs that go around a road closure
 }
 
 export async function fetchVehicle(world: World, id: string): Promise<VehicleDetail> {

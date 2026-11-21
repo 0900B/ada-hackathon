@@ -16,6 +16,7 @@ const PLACE_STYLE: Record<string, { r: number; color: string }> = {
 };
 
 const HIGHLIGHT = "#ffd43b";
+const DETOUR = "#ff922b"; // highlighted legs that go around a road closure
 
 interface Layers {
   places: L.LayerGroup;
@@ -141,11 +142,16 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       for (const leg of detail.legs) {
         if (leg.length > 1) L.polyline(leg, { color: "#000", weight: 9, opacity: 0.35 }).addTo(ls.highlight); // halo
       }
+      const detours = new Set(detail.detour_legs ?? []);
       detail.legs.forEach((leg, i) => {
         if (leg.length > 1) {
-          L.polyline(leg, { color: HIGHLIGHT, weight: 5, opacity: i === 0 ? 1 : 0.75, dashArray: i === 0 ? undefined : "8 6" }).addTo(
-            ls.highlight,
-          );
+          const line = L.polyline(leg, {
+            color: detours.has(i) ? DETOUR : HIGHLIGHT,
+            weight: 5,
+            opacity: i === 0 ? 1 : 0.75,
+            dashArray: i === 0 ? undefined : "8 6",
+          }).addTo(ls.highlight);
+          if (detours.has(i)) line.bindTooltip("Detour around a road closure");
         }
       });
       detail.stops.forEach((s, i) => {

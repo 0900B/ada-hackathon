@@ -57,6 +57,8 @@ class Vehicle(BaseModel):
     path_to: tuple[float, float] | None = Field(default=None, exclude=True)
     path_progress: float = 0.0
     on_road: bool = False  # True while following real road geometry (False = straight-line fallback)
+    # Road closures this leg is routed around: ((lat, lon, radius_m), ...); None = the normal route.
+    path_avoid: tuple[tuple[float, float, int], ...] | None = Field(default=None, exclude=True)
     # Operational details for the vehicle card (synthetic crew; fuel falls with distance driven).
     crew: list[CrewMember] = Field(default_factory=list)
     fuel_pct: float = 100.0

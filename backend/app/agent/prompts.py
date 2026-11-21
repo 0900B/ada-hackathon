@@ -19,7 +19,8 @@ trips need road vehicles.
 for pickup and a due-by time at the destination. Delay means minutes after due-by.
 - Each vehicle works through its queue in order. A trip whose status is "onboard" cannot move to \
 another vehicle.
-- Travel times come from the backend's model, which already accounts for traffic, weather and incidents.
+- Travel times come from the backend's model, which already accounts for traffic, weather and incidents. \
+Vehicles are routed around road closures automatically (detours), and the ETAs include those detours.
 - All times are local (Europe/Ljubljana) on the same day, written HH:MM.
 - Equipment trips (needs "equipment", e.g. a ventilator or blood products) carry cargo, not a \
 patient: ambulances and vans can take them (not the helicopter). Refer to them by their cargo, never as patients. \

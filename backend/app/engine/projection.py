@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 from ..models import Alert, Severity, Trip, Vehicle
 from ..roads import ROADS, key
 from ..sim.fleet_details import CRITICAL_FUEL_PCT, LOW_FUEL_PCT
-from ..routing import flies, travel_minutes, vehicle_leg_minutes
+from ..routing import flies, resolve_route, travel_minutes, vehicle_leg_minutes
 
 if TYPE_CHECKING:
     from ..state import WorldState
@@ -63,10 +63,12 @@ def project_route(
         if prefetch:
             if not first:
                 ROADS.want_route(lat, lon, blat, blon)  # place -> place
+                resolve_route(state, lat, lon, blat, blon, request=True)  # and around closures
             elif v.path_from is not None and v.path_to is not None and tuple(v.path_to) == key(blat, blon):
                 ROADS.want_route(v.path_from[0], v.path_from[1], blat, blon)  # the leg it is driving
             elif v.path_to is None or v.path_progress >= 1.0:
                 ROADS.want_route(lat, lon, blat, blon)  # parked at a place
+                resolve_route(state, lat, lon, blat, blon, request=True)
             # else: mid-road towards another target; never request routes from moving positions
         minutes = (
             vehicle_leg_minutes(state, v, blat, blon, emergency)

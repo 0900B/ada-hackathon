@@ -21,7 +21,8 @@ from ..models import (
     WeatherNow,
     WeatherOverrideEvent,
 )
-from ..routing import flies, travel_minutes
+from ..roads import ROADS, remaining_points
+from ..routing import flies, leg_route, points_hit, travel_minutes
 from .actions import LJ, assign_trip, can_serve, detach_trip
 from .projection import (
     DONE,
@@ -121,7 +122,7 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
             trip.status = "unassigned"
             trip.vehicle_id = None
         v.current_trip_id, v.queue, v.busy_until = None, [], None
-        v.path_from, v.path_to, v.on_road = None, None, False
+        v.path_from, v.path_to, v.on_road, v.path_avoid = None, None, False, None
         v.status = "out_of_service"
         extra = ""
         if stranded and stranded.kind == "equipment":
@@ -147,7 +148,14 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
             created_at=state.sim_time,
         )
         state.incidents[inc.id] = inc
-        return f"{ev.kind.replace('_', ' ').capitalize()}: {ev.description}"
+        what = f"{ev.kind.replace('_', ' ').capitalize()}: {ev.description}"
+        if inc.kind != "road_closure":
+            return what
+        crossing = [v.id for v in state.vehicles.values() if _drives_through(state, v, inc)]
+        if not crossing:
+            return what
+        how = "rerouting around it" if ROADS.detours_available() else "slower until it clears (no detour service)"
+        return what + f"; on the route of {', '.join(crossing)}: {how}"
 
     if isinstance(ev, ClearIncidentEvent):
         inc = state.incidents.get(ev.incident_id)
@@ -233,6 +241,14 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
         )
 
     raise EventError(f"Unsupported event type {getattr(ev, 'type', '?')}")
+
+
+def _drives_through(state: WorldState, v, inc: Incident) -> bool:
+    """True if the rest of the leg v is driving passes through the incident."""
+    if v.status == "out_of_service" or flies(v.type):
+        return False
+    route = leg_route(state, v)
+    return route is not None and bool(points_hit(remaining_points(route, v.path_progress), [inc]))
 
 
 BOOKING_SLACK_MIN = 30  # default deadline: ready + direct travel + loading + this

@@ -68,6 +68,11 @@ export function VehicleCard({
         ) : (
           <div className="muted">{down ? "Out of service" : "No active job"}</div>
         )}
+        {(detail.detour_legs?.length ?? 0) > 0 && (
+          <div className="vc-detour">
+            ↪ {detail.detour_legs?.includes(0) ? "Rerouted" : "Will be rerouted"} around a road closure (orange on the map)
+          </div>
+        )}
       </div>
 
       {detail.stops.length > 0 && (

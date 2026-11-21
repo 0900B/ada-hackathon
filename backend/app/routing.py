@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Iterable
 
 from .geo import haversine_km, point_segment_distance_m  # noqa: F401 - re-exported for other modules
 from .models import Incident, Vehicle, VehicleType, WeatherNow
-from .roads import ROADS, Route, key
+from .roads import MAX_AVOID, ROADS, Avoid, Route, avoid_box, in_box, key, remaining_points
 
 if TYPE_CHECKING:
     from .state import WorldState
@@ -94,6 +94,140 @@ def route_incident_factor(route: Route, incidents: Iterable[Incident]) -> float:
     return factor
 
 
+# --- Detours around road closures ---------------------------------------------------------
+# A road closure is avoidable on a leg unless the leg starts or ends inside it. A route that
+# crosses one is swapped for a cached TomTom detour (avoidAreas); until that arrives, or if
+# TomTom is unavailable, the route keeps the road_closure slowdown factor above.
+
+
+def avoid_key(inc: Incident) -> tuple[float, float, int]:
+    return (round(inc.lat, 4), round(inc.lon, 4), int(round(inc.radius_m)))
+
+
+def avoidable_closures(
+    incidents: Iterable[Incident], alat: float, alon: float, blat: float, blon: float
+) -> list[Incident]:
+    out = []
+    for inc in incidents:
+        if inc.active and inc.kind == "road_closure":
+            box = avoid_box(inc.lat, inc.lon, inc.radius_m)
+            if not in_box(box, alat, alon) and not in_box(box, blat, blon):
+                out.append(inc)
+    return out
+
+
+def points_hit(points: list[tuple[float, float]], closures: Iterable[Incident]) -> list[Incident]:
+    """The closures a polyline passes through."""
+    if len(points) < 2:
+        return []
+    lats = [p[0] for p in points]
+    lons = [p[1] for p in points]
+    hits = []
+    for inc in closures:
+        pad = inc.radius_m / 111_000 * 1.5
+        if not (min(lats) - pad <= inc.lat <= max(lats) + pad and min(lons) - pad * 1.5 <= inc.lon <= max(lons) + pad * 1.5):
+            continue
+        if any(point_segment_distance_m(inc.lat, inc.lon, a[0], a[1], b[0], b[1]) <= inc.radius_m for a, b in zip(points, points[1:])):
+            hits.append(inc)
+    return hits
+
+
+_route_hits_memo: dict[tuple, list[Incident]] = {}
+
+
+def route_hits(route: Route, closures: list[Incident]) -> list[Incident]:
+    memo_key = (id(route), tuple(sorted(avoid_key(c) for c in closures)))
+    if memo_key not in _route_hits_memo:
+        if len(_route_hits_memo) > 5000:
+            _route_hits_memo.clear()
+        _route_hits_memo[memo_key] = points_hit(route.points, closures)
+    return _route_hits_memo[memo_key]
+
+
+def merge_avoid(avoid: Avoid | None, hits: Iterable[Incident]) -> Avoid:
+    return tuple(sorted({*(avoid or ()), *(avoid_key(c) for c in hits)}))[:MAX_AVOID]
+
+
+def resolve_route(
+    state: WorldState, alat: float, alon: float, blat: float, blon: float, request: bool = False
+) -> tuple[Route | None, bool]:
+    """The road route for a -> b with closures taken into account: (route, is_detour).
+
+    request=True (real state only) asks TomTom for a detour when the cached route crosses a closure.
+    """
+    base = ROADS.route(alat, alon, blat, blon)
+    closures = avoidable_closures(state.all_incidents(), alat, alon, blat, blon)
+    if not closures:
+        return base, False
+    route, avoid, is_detour = base, (), False
+    if route is None:  # e.g. a vehicle re-routed from mid-road: only a detour was ever fetched
+        cached = ROADS.detours_for(alat, alon, blat, blon)
+        if not cached:
+            return None, False
+        avoid = max(cached, key=len)
+        route, is_detour = cached[avoid], True
+    for _ in range(3):  # a detour may cross another closure: add it and look again
+        hits = route_hits(route, closures)
+        if not hits:
+            break
+        wanted = merge_avoid(avoid, hits)
+        if wanted == avoid:
+            break  # TomTom found no way around: keep the slowdown
+        detour = ROADS.detour(alat, alon, blat, blon, wanted)
+        if detour is None:
+            if request:
+                ROADS.want_detour(alat, alon, blat, blon, wanted)
+            break
+        route, avoid, is_detour = detour, wanted, True
+    return route, is_detour
+
+
+def leg_route(state: WorldState, v: Vehicle) -> Route | None:
+    """The road geometry v follows on the leg it is driving: its detour if it has one, else the route."""
+    if v.path_from is None or v.path_to is None:
+        return None
+    a, b = v.path_from, v.path_to
+    if v.path_avoid:
+        detour = ROADS.detour(a[0], a[1], b[0], b[1], v.path_avoid)
+        if detour is not None:
+            return detour
+        if ROADS.detours_available():
+            return None  # waiting for the detour: drive towards the target meanwhile
+    return ROADS.route(a[0], a[1], b[0], b[1])
+
+
+def reroute_if_blocked(state: WorldState, v: Vehicle) -> bool:
+    """If the rest of v's leg crosses a closure, re-plan the leg from where v is now, around it.
+
+    Returns True when v was rerouted. The new leg starts at v's position (so it never jumps);
+    the detour is requested from TomTom and v snaps onto it when it arrives.
+    """
+    if flies(v.type) or v.path_from is None or v.path_to is None or not ROADS.detours_available():
+        return False
+    closures = avoidable_closures(state.all_incidents(), v.lat, v.lon, v.path_to[0], v.path_to[1])
+    if not closures:
+        return False
+    rerouted = False
+    for _ in range(3):
+        route = leg_route(state, v)
+        if route is None:
+            break
+        rest = route.points if v.path_progress <= 0 else remaining_points(route, v.path_progress)
+        hits = points_hit(rest, closures)
+        if not hits:
+            break
+        wanted = merge_avoid(v.path_avoid, hits)
+        if wanted == v.path_avoid:
+            break  # already avoiding these and still crossing: TomTom found no way around
+        if v.path_progress > 0:
+            v.path_from, v.path_progress = (v.lat, v.lon), 0.0
+        v.path_avoid = wanted
+        ROADS.want_detour(v.path_from[0], v.path_from[1], v.path_to[0], v.path_to[1], wanted)
+        v.on_road = leg_route(state, v) is not None
+        rerouted = True
+    return rerouted
+
+
 def travel_minutes(
     state: WorldState,
     alat: float,
@@ -110,10 +244,13 @@ def travel_minutes(
         return 0.0
     conditions = state.traffic_factor * weather_factor(state.effective_weather) * (EMERGENCY_BONUS if emergency else 1.0)
     incidents = state.all_incidents()
-    free_flow_s = ROADS.duration_s(alat, alon, blat, blon)
+    route, _ = resolve_route(state, alat, alon, blat, blon)
+    if route is not None:
+        inc = route_incident_factor(route, incidents)
+        return route.duration_s / 60 * ROUTE_TYPE_FACTOR[vehicle_type] / conditions * inc
+    free_flow_s = ROADS.matrix_s(alat, alon, blat, blon)
     if free_flow_s is not None:
-        route = ROADS.route(alat, alon, blat, blon)
-        inc = route_incident_factor(route, incidents) if route else incident_factor(incidents, alat, alon, blat, blon)[0]
+        inc = incident_factor(incidents, alat, alon, blat, blon)[0]
         return free_flow_s / 60 * ROUTE_TYPE_FACTOR[vehicle_type] / conditions * inc
     km = straight_km * ROAD_FACTOR
     inc = incident_factor(incidents, alat, alon, blat, blon)[0]

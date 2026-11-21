@@ -88,6 +88,17 @@ async def get(client: httpx.AsyncClient, url: str, params: dict[str, Any]) -> di
     return r.json()
 
 
+async def post(client: httpx.AsyncClient, url: str, params: dict[str, Any], body: dict[str, Any]) -> dict[str, Any]:
+    """POST with a JSON body (e.g. Calculate Route with avoidAreas); errors never include the URL."""
+    try:
+        r = await client.post(url, params={**params, "key": tomtom_key()}, json=body, headers={"Accept-Encoding": "gzip"})
+    except httpx.HTTPError as e:
+        raise RuntimeError(f"TomTom request failed ({type(e).__name__})") from None
+    if r.status_code != 200:
+        raise RuntimeError(f"TomTom returned HTTP {r.status_code}")  # no URL: it contains the key
+    return r.json()
+
+
 async def fetch_flow(state: WorldState, client: httpx.AsyncClient) -> None:
     """Weighted average of current/free-flow speed across the sample points -> state.traffic_factor."""
     try:

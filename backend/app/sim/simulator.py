@@ -9,7 +9,7 @@ from ..models import Vehicle
 from ..roads import ROADS, key, point_along
 from ..geo import haversine_km
 from .fleet_details import fuel_rate
-from ..routing import flies, travel_minutes
+from ..routing import flies, leg_route, reroute_if_blocked, travel_minutes
 
 if TYPE_CHECKING:
     from ..state import WorldState
@@ -50,22 +50,28 @@ def _move_towards(state: WorldState, v: Vehicle, lat: float, lon: float, dt_min:
     target = key(lat, lon)
     flying = flies(v.type)  # helicopters fly straight and never use (or request) road routes
     if v.path_to is None or tuple(v.path_to) != target:  # a new leg starts here
-        v.path_from, v.path_to, v.path_progress = (v.lat, v.lon), target, 0.0
+        v.path_from, v.path_to, v.path_progress, v.path_avoid = (v.lat, v.lon), target, 0.0, None
         v.on_road = not flying and ROADS.route(v.lat, v.lon, lat, lon) is not None
         if not v.on_road and not flying:
             ROADS.want_route(v.lat, v.lon, lat, lon)  # later legs on this pair will follow the road
     if v.path_progress >= 1.0:
         return True
     assert v.path_from is not None
-    if not v.on_road and not flying and ROADS.route(v.path_from[0], v.path_from[1], lat, lon) is not None:
-        v.on_road = True  # the road route arrived mid-leg: snap onto it
+    if not flying:
+        reroute_if_blocked(state, v)  # a closure ahead: re-plan the rest of the leg around it
+        if not v.on_road:
+            if leg_route(state, v) is not None:
+                v.on_road = True  # the road route (or detour) arrived mid-leg: snap onto it
+            elif v.path_avoid and not ROADS.detours_available():
+                ROADS.want_route(v.path_from[0], v.path_from[1], lat, lon)  # no detour possible: plain route
     total = travel_minutes(state, v.path_from[0], v.path_from[1], lat, lon, v.type, emergency)
     v.path_progress = 1.0 if total <= dt_min else min(1.0, v.path_progress + dt_min / total)
     if v.path_progress >= 1.0:
         v.lat, v.lon = lat, lon
         v.on_road = False
+        v.path_avoid = None
         return True
-    route = ROADS.route(v.path_from[0], v.path_from[1], lat, lon) if v.on_road else None
+    route = leg_route(state, v) if v.on_road else None
     if route is not None:
         v.lat, v.lon = point_along(route, v.path_progress)
     else:

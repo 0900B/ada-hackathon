@@ -109,11 +109,12 @@ class WorldState:
 
     def vehicle_path(self, v: Vehicle) -> list[list[float]] | None:
         """Remaining road geometry of the leg v is driving, for the map (None = no road route)."""
-        from .roads import ROADS, remaining_points
+        from .roads import remaining_points
+        from .routing import leg_route
 
         if not v.on_road or v.path_from is None or v.path_to is None:
             return None
-        route = ROADS.route(v.path_from[0], v.path_from[1], v.path_to[0], v.path_to[1])
+        route = leg_route(self, v)
         if route is None:
             return None
         pts = remaining_points(route, v.path_progress)
