@@ -235,7 +235,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
   // B/D act on the vehicle selected on the map (marker or trip row), never on some other vehicle
   const selectedVehicle = selectedId ? state.vehicles.find((v) => v.id === selectedId) : undefined;
   const onSelected = (what: string, fn: (id: string) => void) => {
-    if (!selectedVehicle) notify("error", `Select a vehicle first (click its marker or a trip row), then press the key to ${what}.`);
+    if (!selectedVehicle) notify("error", `Select a vehicle first (its marker, its chip above the map or a trip row), then press the key to ${what}.`);
     else if (selectedVehicle.status === "out_of_service") notify("error", `${selectedVehicle.name} is already out of service.`);
     else fn(selectedVehicle.id);
   };
@@ -257,9 +257,9 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
       setTab("dispatch");
       agentKeys.current?.reject();
     },
-    b: () => onSelected("report a breakdown", (id) => void send({ type: "breakdown", vehicle_id: id, note: "reported by operator (hotkey)" })),
+    b: () => onSelected("report a breakdown", (id) => void send({ type: "breakdown", vehicle_id: id, note: "reported by the operator, hotkey" })),
     d: () =>
-      onSelected("delay it 10 min", (id) => void send({ type: "delay", vehicle_id: id, minutes: 10, note: "reported by operator (hotkey)" })),
+      onSelected("delay it 10 min", (id) => void send({ type: "delay", vehicle_id: id, minutes: 10, note: "reported by the operator, hotkey" })),
     f: () => void send({ type: "fog", duration_min: 60 }),
     e: () => setMode((m) => (m === "emergency" ? null : "emergency")),
     c: () => setMode((m) => (m === "closure" ? null : "closure")),

@@ -611,10 +611,15 @@ export function AgentPanel({
                   </>
                 ) : (
                   <>
-                    <Check /> {(rec?.situation ?? "Analysis finished").replace(/[.\s]+$/, "")}: no action needed
+                    <Check /> No action needed
                   </>
                 )}
               </div>
+              {run.status === "done" &&
+                rec?.situation &&
+                rec.situation !== state.events.find((e) => e.id === run.event_id)?.summary && (
+                  <p className="muted small">{rec.situation}</p>
+                )}
               {approvedOption && approvedOption.steps.length > 0 && (
                 <ul className="plan-steps">
                   {approvedOption.steps.map((s, i) => (
