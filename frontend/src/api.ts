@@ -231,3 +231,11 @@ export const analyzeNow = (question?: string) => post<AgentRun>("/agent/analyze"
 export const approveOption = (runId: string, optionIndex: number) =>
   post<AgentRun>(`/agent/runs/${runId}/approve`, { option_index: optionIndex });
 export const rejectRun = (runId: string) => post<AgentRun>(`/agent/runs/${runId}/reject`, { reason: null });
+export const runScenario = (name: string) =>
+  post<{ scenario: string; title: string; run_id: string }>(`/admin/scenario/${name}`);
+
+export const SCENARIOS = [
+  { name: "stranded_patient", label: "🚐 Stranded patient", title: "Van breaks down with a patient on board" },
+  { name: "stroke_rush_hour", label: "🧠 Stroke + closure", title: "Stroke emergency with a road closure near UKC" },
+  { name: "snow_cascade", label: "❄️ Snow cascade", title: "Snowstorm, a delayed van and an emergency at once" },
+];

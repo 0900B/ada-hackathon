@@ -282,6 +282,10 @@ button.link {
   padding: 0 4px;
   flex: 0;
 }
+.scenario-label {
+  margin-top: 6px;
+  font-size: 12px;
+}
 .message {
   margin-top: 8px;
   font-size: 13px;

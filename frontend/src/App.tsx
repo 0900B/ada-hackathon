@@ -4,6 +4,8 @@ import {
   API_URL,
   postEvent,
   resetSimulation,
+  runScenario,
+  SCENARIOS,
   useWorldState,
   type EventRecord,
   type Kpis,
@@ -259,6 +261,26 @@ function Controls({
         <button className="ghost" disabled={busy} onClick={reset}>
           ↺ Reset simulation
         </button>
+      </div>
+      <div className="scenario-label muted">🎬 Demo scenarios (reset + several events + one AI analysis)</div>
+      <div className="row">
+        {SCENARIOS.map((s) => (
+          <button
+            key={s.name}
+            title={s.title}
+            disabled={busy}
+            onClick={async () => {
+              try {
+                const r = await runScenario(s.name);
+                setMessage({ kind: "ok", text: `Scenario started: ${r.title}` });
+              } catch (e) {
+                setMessage({ kind: "error", text: e instanceof Error ? e.message : String(e) });
+              }
+            }}
+          >
+            {s.label}
+          </button>
+        ))}
       </div>
     </div>
   );

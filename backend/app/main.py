@@ -11,7 +11,7 @@ from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from . import config
+from . import config, demo
 from .agent import runner as agent
 from .engine.actions import ActionError
 from .engine.events import EventError, apply_event
@@ -194,6 +194,22 @@ def reset() -> dict:
     agent.cancel_all()
     seed_world(state, config.RANDOM_SEED)
     return {"ok": True, "trips": len(state.trips), "vehicles": len(state.vehicles)}
+
+
+@app.get("/admin/scenarios")
+def list_scenarios() -> list[dict]:
+    return [{"name": k, "title": title} for k, (title, _) in demo.SCENARIOS.items()]
+
+
+@app.post("/admin/scenario/{name}")
+async def run_scenario(name: str) -> dict:
+    """Reset, fast-forward to the scenario's moment, apply its events, start one agent analysis."""
+    try:
+        return demo.run_scenario(state, name)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=f"Unknown scenario {name}") from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
 
 
 # --- Agent ---------------------------------------------------------------------------
