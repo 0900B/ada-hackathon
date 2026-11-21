@@ -12,6 +12,7 @@ import sys
 import time
 import traceback
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
@@ -77,10 +78,20 @@ def test_superseded_ids_follow_the_chain():
 
 def test_get_log_attaches_and_reuses():
     w = fresh_world()
-    assert not hasattr(w, "clinical")  # until the later state.py seam adds it, get_log attaches lazily
     assert get_log(w) is get_log(w) is w.clinical
     assert isinstance(w.clinical, ClinicalLog)
     assert get_log(fresh_world()) is not get_log(w)  # one log per world
+
+
+def test_get_log_creates_the_log_on_an_object_that_has_none():
+    # A bare namespace stays attribute-less whatever WorldState later declares, so this keeps
+    # exercising the lazy-attach path after the state.py seam gives every world its own log.
+    ns = SimpleNamespace()
+    assert not hasattr(ns, "clinical")
+    log = get_log(ns)
+    assert isinstance(log, ClinicalLog)
+    assert ns.clinical is log
+    assert get_log(ns) is log
 
 
 def test_a_caller_cannot_rewrite_history_through_the_returned_lists():
