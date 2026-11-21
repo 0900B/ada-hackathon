@@ -63,6 +63,74 @@ function along(line: [number, number][], m: number): [number, number] | null {
   return line.length > 1 ? line[line.length - 1] : null;
 }
 
+type LL = [number, number];
+const metres = (a: LL, b: LL) => Math.hypot((b[0] - a[0]) * 111_320, (b[1] - a[1]) * 111_320 * Math.cos(toRad(a[0])));
+const lengthOf = (line: LL[]) => line.reduce((sum, p, i) => (i ? sum + metres(line[i - 1], p) : 0), 0);
+
+/** Where p projects onto a polyline: distance along it and how far off it p is (metres). */
+function project(line: LL[], p: LL): { d: number; off: number } {
+  const kx = 111_320 * Math.cos(toRad(p[0]));
+  let best = { d: 0, off: Infinity };
+  let acc = 0;
+  for (let i = 1; i < line.length; i++) {
+    const ax = (line[i - 1][1] - p[1]) * kx;
+    const ay = (line[i - 1][0] - p[0]) * 111_320;
+    const dx = (line[i][1] - p[1]) * kx - ax;
+    const dy = (line[i][0] - p[0]) * 111_320 - ay;
+    const len2 = dx * dx + dy * dy;
+    const t = len2 > 0 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / len2)) : 0;
+    const off = Math.hypot(ax + t * dx, ay + t * dy);
+    if (off < best.off) best = { d: acc + t * Math.sqrt(len2), off };
+    acc += Math.sqrt(len2);
+  }
+  return best;
+}
+
+/** The part of a polyline between distances a and b along it. */
+function slice(line: LL[], a: number, b: number): LL[] {
+  const out: LL[] = [];
+  const start = along(line, a);
+  if (start) out.push(start);
+  let acc = 0;
+  for (let i = 1; i < line.length; i++) {
+    acc += metres(line[i - 1], line[i]);
+    if (acc >= b) break;
+    if (acc > a) out.push(line[i]);
+  }
+  const end = along(line, b);
+  if (end) out.push(end);
+  return out;
+}
+
+/** The polylines joined end to end, from `m` metres along onwards (its first point is the point at m). */
+function tail(lines: LL[][], m: number): LL[] {
+  const out: LL[] = [];
+  let left = m;
+  let last: LL | null = null;
+  for (const line of lines) {
+    for (let i = 1; i < line.length; i++) {
+      if (out.length) {
+        out.push(line[i]);
+        continue;
+      }
+      const d = metres(line[i - 1], line[i]);
+      if (d > 0 && d >= left) {
+        const f = left / d;
+        out.push([line[i - 1][0] + (line[i][0] - line[i - 1][0]) * f, line[i - 1][1] + (line[i][1] - line[i - 1][1]) * f], line[i]);
+      } else left -= d;
+    }
+    if (line.length) last = line[line.length - 1];
+  }
+  return out.length ? out : last ? [last] : [];
+}
+
+/** Map centre that puts the vehicle in the middle (north-up) or in the lower third (heading-up) at `zoom`. */
+function followCentre(map: L.Map, s: { pos: LL; view: NavView; shownHeading: number }, zoom: number): LL {
+  if (s.view !== "heading") return s.pos;
+  const mpp = (40_075_016.686 * Math.cos(toRad(s.pos[0]))) / 2 ** (zoom + 8);
+  return offset(s.pos, s.shownHeading, (map.getSize().y / 6) * mpp);
+}
+
 /** The point `m` metres from p in direction `deg`. */
 function offset(p: [number, number], deg: number, m: number): [number, number] {
   return [p[0] + (m * Math.cos(toRad(deg))) / 111_320, p[1] + (m * Math.sin(toRad(deg))) / (111_320 * Math.cos(toRad(p[0])))];
@@ -80,7 +148,13 @@ function offset(p: [number, number], deg: number, m: number): [number, number] {
 export function NavMap({ vehicle, detail, nav, incidents }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const layers = useRef<{ route: L.LayerGroup; incidents: L.LayerGroup; marker: L.Marker | null; markerKey: string } | null>(null);
+  const layers = useRef<{
+    route: L.LayerGroup;
+    incidents: L.LayerGroup;
+    marker: L.Marker | null;
+    markerKey: string;
+    driven: L.Polyline[] | null; // casing and line of the leg being driven (or the flight line)
+  } | null>(null);
   const heli = vehicle.type === "helicopter";
 
   const [view, setViewState] = useState<NavView>(savedView);
@@ -93,9 +167,15 @@ export function NavMap({ vehicle, detail, nav, incidents }: Props) {
   const live = useRef({
     view,
     follow,
-    from: [vehicle.lat, vehicle.lon] as [number, number],
-    to: [vehicle.lat, vehicle.lon] as [number, number],
+    to: [vehicle.lat, vehicle.lon] as LL, // the latest reported position
+    pos: [vehicle.lat, vehicle.lon] as LL, // where the marker is drawn
+    glide: [[vehicle.lat, vehicle.lon]] as LL[], // how the marker gets there: along the road it was on
+    glideLen: 0,
     t0: 0,
+    road: [] as LL[], // the road ahead from `to` (the snapshot's path) while driving
+    moving: false,
+    target: null as LL | null, // helicopter: where it flies
+    lastTrim: 0,
     heading: 0, // target heading of the vehicle (deg)
     shownHeading: 0,
     shownBearing: 0, // map bearing as shown (deg)
@@ -159,7 +239,7 @@ export function NavMap({ vehicle, detail, nav, incidents }: Props) {
         { position: "topright" },
       )
       .addTo(map);
-    layers.current = { route: L.layerGroup().addTo(map), incidents: L.layerGroup().addTo(map), marker: null, markerKey: "" };
+    layers.current = { route: L.layerGroup().addTo(map), incidents: L.layerGroup().addTo(map), marker: null, markerKey: "", driven: null };
     // Panning by hand pauses following; zooming by hand stops auto-zoom (both until Re-centre)
     map.on("dragstart", () => setFollow(false));
     map.on("zoomstart", () => {
@@ -183,28 +263,40 @@ export function NavMap({ vehicle, detail, nav, incidents }: Props) {
   useEffect(() => {
     const s = live.current;
     const now = performance.now();
-    // glide from wherever the vehicle is drawn now to the new position
-    const f = Math.min(1, (now - s.t0) / GLIDE_MS);
-    s.from = [s.from[0] + (s.to[0] - s.from[0]) * f, s.from[1] + (s.to[1] - s.from[1]) * f];
-    s.to = [vehicle.lat, vehicle.lon];
-    s.t0 = now;
-    // heading: the road ahead (or the flight target); kept while standing still
-    const pos: [number, number] = [vehicle.lat, vehicle.lon];
+    const to: LL = [vehicle.lat, vehicle.lon];
     const moving =
       ["to_pickup", "with_patient", "returning"].includes(vehicle.status) && !vehicle.busy_until && !vehicle.waiting_until;
-    let ahead: [number, number] | null = null;
-    if (heli && nav?.target) ahead = [nav.target.lat, nav.target.lon];
-    else if (moving && vehicle.path && vehicle.path.length > 1) ahead = along(vehicle.path, LOOKAHEAD_M);
-    else if (moving && detail?.legs[0] && detail.legs[0].length > 1) ahead = along([pos, ...detail.legs[0].slice(1)], LOOKAHEAD_M);
-    else if (!s.hasHeading && nav?.target) ahead = [nav.target.lat, nav.target.lon]; // standing still: face the next stop
-    if (ahead && Math.hypot((ahead[0] - pos[0]) * 111_320, (ahead[1] - pos[1]) * 78_000) > 8) {
-      s.heading = bearing(pos, ahead);
-      if (!s.hasHeading) {
-        s.shownHeading = s.heading;
+    const leg = detail?.vehicle.id === vehicle.id ? detail.legs[0] : undefined;
+    const road: LL[] =
+      heli || !moving ? [] : vehicle.path && vehicle.path.length > 1 ? vehicle.path : leg && leg.length > 1 ? [to, ...leg.slice(1)] : [];
+    if (to[0] !== s.to[0] || to[1] !== s.to[1]) {
+      // Glide from where the marker is drawn now to the new position, along the road it was driving
+      // (a straight line would cut corners at bends); a long jump (reset, new world) is not animated.
+      const shown = tail([s.glide, s.road], Math.min(1, (now - s.t0) / GLIDE_MS) * s.glideLen)[0] ?? s.to;
+      let glide: LL[] = [shown, to];
+      if (metres(shown, to) > 3000) glide = [to];
+      else if (s.road.length > 1) {
+        const a = project(s.road, shown);
+        const b = project(s.road, to);
+        if (a.off < 40 && b.off < 40 && b.d >= a.d) glide = [shown, ...slice(s.road, a.d, b.d), to];
+      }
+      s.glide = glide;
+      s.glideLen = lengthOf(glide);
+      s.t0 = now;
+      s.to = to;
+    }
+    s.road = road;
+    s.moving = moving;
+    s.target = heli && nav?.target ? [nav.target.lat, nav.target.lon] : null;
+    // Before it first moves: face the road ahead or the next stop (afterwards a stop keeps the last heading)
+    if (!s.hasHeading) {
+      const ahead = road.length > 1 ? along(road, LOOKAHEAD_M) : nav?.target ? ([nav.target.lat, nav.target.lon] as LL) : null;
+      if (ahead && metres(to, ahead) > 8) {
+        s.heading = s.shownHeading = bearing(to, ahead);
         s.hasHeading = true;
       }
     }
-  }, [vehicle.lat, vehicle.lon, vehicle.path, vehicle.status, vehicle.busy_until, vehicle.waiting_until, heli, nav?.target, detail]);
+  }, [vehicle.lat, vehicle.lon, vehicle.path, vehicle.status, vehicle.busy_until, vehicle.waiting_until, vehicle.id, heli, nav?.target, detail]);
 
   // --- the vehicle marker (upright; the arrow is turned by the animation loop) ----------------
   useEffect(() => {
@@ -240,19 +332,38 @@ export function NavMap({ vehicle, detail, nav, incidents }: Props) {
       if (!map || !marker) return;
       const s = live.current;
       const f = Math.min(1, (now - s.t0) / GLIDE_MS);
-      const pos: [number, number] = [s.from[0] + (s.to[0] - s.from[0]) * f, s.from[1] + (s.to[1] - s.from[1]) * f];
+      // the rest of the way from where the marker is now: the remaining glide, then the road ahead
+      const rest = tail([s.glide, s.road], f * s.glideLen);
+      const pos: LL = rest[0] ?? s.to;
+      s.pos = pos;
+      const zooming = Boolean((map as unknown as { _animatingZoom?: boolean })._animatingZoom);
       const ll = marker.getLatLng();
-      if (Math.abs(ll.lat - pos[0]) > 1e-7 || Math.abs(ll.lng - pos[1]) > 1e-7) marker.setLatLng(pos);
+      // (not during a zoom animation: the marker is placed for the new zoom until it ends)
+      if (!zooming && (Math.abs(ll.lat - pos[0]) > 1e-7 || Math.abs(ll.lng - pos[1]) > 1e-7)) marker.setLatLng(pos);
+
+      // heading: the road LOOKAHEAD_M ahead of the drawn position (or the flight target); kept when stopped
+      const ahead = s.target ?? (s.moving && rest.length > 1 ? along(rest, LOOKAHEAD_M) : null);
+      if (ahead && metres(pos, ahead) > 8) {
+        s.heading = bearing(pos, ahead);
+        s.hasHeading = true;
+      }
+
+      // the line being driven starts at the marker (trimmed a few times a second)
+      const driven = layers.current?.driven;
+      if (driven && (s.moving || s.target) && now - s.lastTrim > 120 && !zooming) {
+        s.lastTrim = now;
+        const line = s.target ? [pos, s.target] : rest.length > 1 ? rest : null;
+        if (line) for (const pl of driven) pl.setLatLngs(line);
+      }
 
       // heading eases towards the road ahead (about a second for a 90° turn)
       const dh = turn(s.shownHeading, s.heading);
       if (Math.abs(dh) > 0.05) s.shownHeading = norm(s.shownHeading + dh * 0.08);
 
       // map bearing: heading-up turns the map against the heading; north-up and overview: 0
-      const anim = (map as unknown as { _animatingZoom?: boolean })._animatingZoom;
       const target = s.view === "heading" && s.follow ? norm(-s.shownHeading) : s.view === "heading" ? s.shownBearing : 0;
       const db = turn(s.shownBearing, target);
-      if (Math.abs(db) > 0.05 && !anim) {
+      if (Math.abs(db) > 0.05 && !zooming) {
         s.shownBearing = norm(s.shownBearing + (Math.abs(db) < 0.5 ? db : db * 0.12));
         map.setBearing(s.shownBearing);
       }
@@ -266,14 +377,9 @@ export function NavMap({ vehicle, detail, nav, incidents }: Props) {
       if (arrow) arrow.style.transform = `rotate(${Math.round(norm(s.shownHeading + s.shownBearing) * 10) / 10}deg)`;
 
       // following: keep the vehicle centred (north-up) or in the lower third (heading-up)
-      if (s.follow && s.view !== "overview" && !anim) {
+      if (s.follow && s.view !== "overview" && !zooming) {
         const size = map.getSize();
-        let center = pos;
-        if (s.view === "heading") {
-          const mpp = (40_075_016.686 * Math.cos(toRad(pos[0]))) / 2 ** (map.getZoom() + 8);
-          center = offset(pos, s.shownHeading, (size.y / 6) * mpp);
-        }
-        const p = map.latLngToContainerPoint(center);
+        const p = map.latLngToContainerPoint(followCentre(map, s, map.getZoom()));
         const dx = p.x - size.x / 2;
         const dy = p.y - size.y / 2;
         if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) map.panBy([dx, dy], { animate: false });
@@ -308,7 +414,8 @@ export function NavMap({ vehicle, detail, nav, incidents }: Props) {
     if (want !== map.getZoom() && now - live.current.lastAutoZoom > AUTOZOOM_GAP_MS) {
       live.current.lastAutoZoom = now;
       live.current.programmaticZoom = true;
-      map.setZoom(want, { animate: true });
+      // zoom about the follow position so the vehicle keeps its place on screen
+      map.setView(followCentre(map, live.current, want), want, { animate: true });
     }
   }, [nav, view, follow, manualZoom, heli]);
 
@@ -319,8 +426,9 @@ export function NavMap({ vehicle, detail, nav, incidents }: Props) {
     setFollow(true);
     setManualZoom(false);
     if (map) {
+      const zoom = heli ? 12 : 16;
       live.current.programmaticZoom = true;
-      map.setZoom(heli ? 12 : 16, { animate: true });
+      map.setView(followCentre(map, { ...live.current, view: lastFollowView.current }, zoom), zoom, { animate: true });
     }
   };
 
@@ -346,6 +454,7 @@ export function NavMap({ vehicle, detail, nav, incidents }: Props) {
     const ls = layers.current;
     if (!ls) return;
     ls.route.clearLayers();
+    ls.driven = null;
     const legs = detail?.vehicle.id === vehicle.id ? detail.legs : [];
     const detours = new Set(detail?.detour_legs ?? []);
     // the rest of the day first (dimmed), then the leg being driven on top
@@ -354,18 +463,24 @@ export function NavMap({ vehicle, detail, nav, incidents }: Props) {
         L.polyline(leg, { color: detours.has(i + 1) ? DETOUR : "#9aa6b4", weight: 4, opacity: 0.4, dashArray: "6 8", interactive: false }).addTo(ls.route);
     });
     // The leg being driven: the snapshot's live remaining path (every tick), else the detail's
+    // (the animation loop then keeps its start at the gliding marker)
     const current = vehicle.path && vehicle.path.length > 1 ? vehicle.path : legs[0];
     if (heli && nav?.target) {
       const line: [number, number][] = [
         [vehicle.lat, vehicle.lon],
         [nav.target.lat, nav.target.lon],
       ];
-      L.polyline(line, { color: "#05080c", weight: 9, opacity: 0.5, interactive: false }).addTo(ls.route);
-      L.polyline(line, { color: FLIGHT, weight: 4, dashArray: "10 8", interactive: false }).addTo(ls.route);
+      ls.driven = [
+        L.polyline(line, { color: "#05080c", weight: 9, opacity: 0.5, interactive: false }).addTo(ls.route),
+        L.polyline(line, { color: FLIGHT, weight: 4, dashArray: "10 8", interactive: false }).addTo(ls.route),
+      ];
     } else if (current && current.length > 1) {
-      L.polyline(current, { color: "#05080c", weight: 13, opacity: 0.55, interactive: false }).addTo(ls.route);
-      L.polyline(current, { color: detours.has(0) ? DETOUR : ROUTE, weight: 8, opacity: 1, interactive: false }).addTo(ls.route);
+      ls.driven = [
+        L.polyline(current, { color: "#05080c", weight: 13, opacity: 0.55, interactive: false }).addTo(ls.route),
+        L.polyline(current, { color: detours.has(0) ? DETOUR : ROUTE, weight: 8, opacity: 1, interactive: false }).addTo(ls.route),
+      ];
     }
+    live.current.lastTrim = 0; // trim the new lines on the next frame
     (detail?.vehicle.id === vehicle.id ? detail.stops : []).forEach((s, i) => {
       const icon = L.divIcon({
         className: "",
