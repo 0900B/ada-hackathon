@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { Place, Trip, Vehicle, WorldSnapshot } from "./api";
+import { Crosshair, ExternalLink, IdCard, Smartphone, Tablet, Timer, TriangleAlert, Wrench, X } from "lucide-react";
 import { fmtTime, humanize } from "./format";
+import { VehicleTypeIcon } from "./icons";
 
 type Send = (event: Record<string, unknown>) => Promise<void>;
 
-const TYPE_ICON: Record<Vehicle["type"], string> = { ambulance: "🚑", transport: "🚐", helicopter: "🚁" };
 
 /** Short place names for the chips ("UKC Ljubljana" -> "UKC", "Health centre Šiška" -> "ZD Šiška"). */
 function shortPlace(p: Place | undefined): string {
@@ -140,7 +141,7 @@ export function VehicleStrip({
       <div className="vstrip" ref={strip} onScroll={() => setOpen(null)} role="toolbar" aria-label="Vehicles">
         {state.vehicles.map((veh) => {
           const s = summarize(veh, state, places, trips);
-          const title = `${veh.name} · ${s.status} · ${s.text}${s.warnings.length ? ` · ⚠ ${s.warnings.join(", ")}` : ""}`;
+          const title = `${veh.name} · ${s.status} · ${s.text}${s.warnings.length ? ` · warning: ${s.warnings.join(", ")}` : ""}`;
           return (
             <button
               key={veh.id}
@@ -150,10 +151,16 @@ export function VehicleStrip({
               onClick={(e) => toggle(veh.id, e.currentTarget)}
             >
               <span className="vchip-top">
-                <span className="vchip-icon">{TYPE_ICON[veh.type]}</span>
+                <span className="vchip-icon">
+                  <VehicleTypeIcon type={veh.type} />
+                </span>
                 <strong>{veh.id}</strong>
                 <span className="vchip-status">{s.status}</span>
-                {s.warnings.length > 0 && <span className={`vchip-warn${s.tone === "down" ? " bad" : ""}`}>⚠</span>}
+                {s.warnings.length > 0 && (
+                  <span className={`vchip-warn${s.tone === "down" ? " bad" : ""}`} aria-label="Warning">
+                    <TriangleAlert />
+                  </span>
+                )}
               </span>
               <span className="vchip-text">{s.text}</span>
             </button>
@@ -214,18 +221,20 @@ function VehiclePopover({
   return (
     <div className="vpop" style={{ left }} role="dialog" aria-label={`${v.name} details`}>
       <div className="vpop-head">
-        <span className="vchip-icon">{TYPE_ICON[v.type]}</span>
+        <span className="vchip-icon">
+          <VehicleTypeIcon type={v.type} />
+        </span>
         <strong>
           {v.id} · {v.name}
         </strong>
         <button className="link vc-close" onClick={onClose} aria-label="Close">
-          ✕
+          <X />
         </button>
       </div>
       <div className={`vpop-status tone-${s.tone}`}>
         {humanize(v.status)}
         {v.grounded_until ? ` · grounded by fog until ${fmtTime(v.grounded_until)}` : ""}
-        {v.busy_until && v.status !== "loading" ? ` · held until ${fmtTime(v.busy_until)}` : ""} · ⛽ {Math.round(v.fuel_pct)}%{v.crew.length ? ` · crew of ${v.crew.length}` : ""}
+        {v.busy_until && v.status !== "loading" ? ` · held until ${fmtTime(v.busy_until)}` : ""} · fuel {Math.round(v.fuel_pct)}%{v.crew.length ? ` · crew of ${v.crew.length}` : ""}
       </div>
       {trip ? (
         <div className="vpop-trip">
@@ -249,21 +258,29 @@ function VehiclePopover({
           {next.length > 3 ? "…" : ""}
         </div>
       )}
-      {s.warnings.length > 0 && <div className="vpop-warn">⚠ {s.warnings.join(" · ")}</div>}
+      {s.warnings.length > 0 && (
+        <div className="vpop-warn">
+          <TriangleAlert /> <span>{s.warnings.join(" · ")}</span>
+        </div>
+      )}
       <div className="vpop-actions">
-        <button onClick={onCenter}>🎯 Centre</button>
-        <button onClick={onOpenCard}>🪪 Vehicle card</button>
+        <button onClick={onCenter}>
+          <Crosshair /> Centre
+        </button>
+        <button onClick={onOpenCard}>
+          <IdCard /> Vehicle card
+        </button>
         <button disabled={busy || down} onClick={() => send({ type: "delay", vehicle_id: v.id, minutes: 10, note: "reported from vehicle strip" })}>
-          ⏱ +10 min
+          <Timer /> +10 min
         </button>
         <button disabled={busy || down} onClick={() => send({ type: "breakdown", vehicle_id: v.id, note: "reported from vehicle strip" })}>
-          🔧 Breakdown
+          <Wrench /> Breakdown
         </button>
         <a className="button-link" href={`/crew/${encodeURIComponent(v.id)}?world=${state.world}`} target="_blank" rel="noopener">
-          📱 Crew view ↗
+          <Smartphone /> Crew view <ExternalLink />
         </a>
         <a className="button-link" href={`/vehicle/${encodeURIComponent(v.id)}?world=${state.world}`} target="_blank" rel="noopener">
-          🖥 Tablet view ↗
+          <Tablet /> Tablet view <ExternalLink />
         </a>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { X } from "lucide-react";
 import { HOTKEYS, keyLabel, type HotkeyInfo } from "./hotkeys";
 import "./voice.css";
 
@@ -47,7 +48,7 @@ export function ShortcutsHelp({ open, onClose }: { open: boolean; onClose: () =>
         <div className="kbd-head">
           <h2>Keyboard shortcuts</h2>
           <button className="link" onClick={onClose} aria-label="Close">
-            ✕
+            <X />
           </button>
         </div>
         <div className="kbd-groups">

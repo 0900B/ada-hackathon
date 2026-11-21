@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { RotateCcw } from "lucide-react";
 import { resetWorld, runScenario, SCENARIOS, type World } from "./api";
 
 type Notify = (kind: "ok" | "error", text: string, sticky?: boolean) => void;
@@ -39,7 +40,7 @@ export function ScenariosPanel({ world, notify }: { world: World; notify: Notify
     <div className="scenarios">
       {prep && (
         <button className="scenario scenario-prep" disabled={running !== null} onClick={() => start(prep.name)}>
-          <span className="scenario-label">{running === prep.name ? "⏳ Preparing…" : prep.label}</span>
+          <span className="scenario-label">{running === prep.name ? "Preparing…" : prep.label}</span>
           <span className="scenario-desc">{prep.title}</span>
         </button>
       )}
@@ -47,13 +48,13 @@ export function ScenariosPanel({ world, notify }: { world: World; notify: Notify
       <div className="scenario-grid">
         {SCENARIOS.filter((s) => s.name !== PREP).map((s) => (
           <button key={s.name} className="scenario" disabled={running !== null} onClick={() => start(s.name)}>
-            <span className="scenario-label">{running === s.name ? "⏳ Starting…" : s.label}</span>
+            <span className="scenario-label">{running === s.name ? "Starting…" : s.label}</span>
             <span className="scenario-desc">{s.title}</span>
           </button>
         ))}
       </div>
       <button className="ghost" disabled={running !== null} onClick={reset}>
-        ↺ Reset simulation
+        <RotateCcw /> Reset simulation
       </button>
     </div>
   );

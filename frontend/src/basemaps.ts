@@ -13,11 +13,11 @@ const esri = (service: string) => `https://server.arcgisonline.com/ArcGIS/rest/s
 export function baseMaps(): Record<BaseId, { label: string; layer: L.Layer }> {
   const imagery = () => L.tileLayer(esri("World_Imagery"), { attribution: ESRI_ATTR, maxZoom: 19 });
   return {
-    dark: { label: "🌙 Dark", layer: L.tileLayer(OSM, { attribution: OSM_ATTR, maxZoom: 19, className: "base-layer dark-layer" }) },
-    standard: { label: "🗺 Standard", layer: L.tileLayer(OSM, { attribution: OSM_ATTR, maxZoom: 19, className: "base-layer" }) },
-    satellite: { label: "🛰 Satellite", layer: imagery() },
+    dark: { label: "Dark", layer: L.tileLayer(OSM, { attribution: OSM_ATTR, maxZoom: 19, className: "base-layer dark-layer" }) },
+    standard: { label: "Standard", layer: L.tileLayer(OSM, { attribution: OSM_ATTR, maxZoom: 19, className: "base-layer" }) },
+    satellite: { label: "Satellite", layer: imagery() },
     hybrid: {
-      label: "🛰 Hybrid (satellite + labels)",
+      label: "Hybrid (satellite and labels)",
       layer: L.layerGroup([
         imagery(),
         L.tileLayer(esri("Reference/World_Transportation"), { maxZoom: 19 }),
@@ -25,7 +25,7 @@ export function baseMaps(): Record<BaseId, { label: string; layer: L.Layer }> {
       ]),
     },
     terrain: {
-      label: "⛰ Terrain",
+      label: "Terrain",
       layer: L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
         subdomains: "abc",
         maxNativeZoom: 17,

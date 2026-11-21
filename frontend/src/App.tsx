@@ -14,6 +14,19 @@ import {
 } from "./api";
 import { AgentPanel, type AgentKeys } from "./AgentPanel";
 import { BookingForm } from "./BookingForm";
+import {
+  Car,
+  CircleAlert,
+  CircleCheck,
+  CloudRain,
+  CloudSnow,
+  Construction,
+  Database,
+  Octagon,
+  Sun,
+  TrafficCone,
+  X,
+} from "lucide-react";
 import { BRAND } from "./brand";
 import { EventsPanel } from "./EventsPanel";
 import { FieldMessage } from "./FieldMessage";
@@ -74,13 +87,13 @@ export default function App() {
     <div className="app">
       <header className="header">
         <div className="brand">
-          <h1>🚑 {BRAND.product}</h1>
+          <h1 className="wordmark">{BRAND.product}</h1>
           <span className="brand-sub">
             {BRAND.tagline} · <strong>{BRAND.operator}</strong>
           </span>
         </div>
         <nav className="nav">
-          <NavLink to="/live">● Live</NavLink>
+          <NavLink to="/live">Live</NavLink>
           <NavLink to="/sim">Simulation</NavLink>
           <NavLink to={`/fleet?world=${lastWorld}`}>Fleet</NavLink>
           <NavLink to="/audit">Audit</NavLink>
@@ -270,7 +283,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
   const alertCount = state.alerts.length + state.incidents.filter((i) => i.active).length;
   const critical = state.alerts.some((a) => a.severity === "critical");
   const tabs: { id: Tab; label: string; badge?: string; hot?: boolean }[] = [
-    { id: "dispatch", label: "Dispatch", badge: unseenRun ? "●" : undefined, hot: unseenRun },
+    { id: "dispatch", label: "Dispatch", badge: unseenRun ? "New" : undefined, hot: unseenRun },
     ...(sim ? [{ id: "scenarios" as Tab, label: "Scenarios" }] : []),
     { id: "events", label: sim ? "Events" : "Report" },
     { id: "book", label: "Book" },
@@ -293,6 +306,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
         <div className="map-wrap">
         {mode && (
           <div className="map-hint">
+            {mode === "closure" ? <Construction /> : <CircleAlert />}
             Click the map to place the {mode === "closure" ? "road closure" : "emergency call"} ·{" "}
             <button className="link" onClick={() => setMode(null)}>
               cancel (Esc)
@@ -321,9 +335,10 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
         )}
         {toast && (
           <div className={`toast ${toast.kind}`} role="status" aria-live="polite">
+            {toast.kind === "ok" ? <CircleCheck /> : <CircleAlert />}
             <span>{toast.text}</span>
             <button className="link toast-close" onClick={() => setToast(null)} aria-label="Dismiss">
-              ✕
+              <X />
             </button>
           </div>
         )}
@@ -395,16 +410,22 @@ function MapLegend() {
   return (
     <div className="map-legend" aria-label="Map legend">
       <span>
-        <i className="lg lg-ambulance" /> Ambulance
+        <i className="lg lg-idle" /> Available
       </span>
       <span>
-        <i className="lg lg-transport" /> Transport van
+        <i className="lg lg-moving" /> To pickup
       </span>
       <span>
-        <i className="lg lg-heli">🚁</i> Helicopter (flies straight)
+        <i className="lg lg-loaded" /> Patient on board
       </span>
       <span>
-        <i className="lg lg-closure" /> Closure / incident
+        <i className="lg lg-down" /> Out of service
+      </span>
+      <span>
+        <i className="lg lg-detour" /> Detour
+      </span>
+      <span>
+        <i className="lg lg-closure" /> Closure
       </span>
     </div>
   );
@@ -420,16 +441,18 @@ function StatusBar({ state, connected }: { state: WorldSnapshot; connected: bool
   return (
     <div className={`statusbar ${state.hypothetical ? "is-sim" : "is-live"}`}>
       <span className="mode-badge">
-        {state.hypothetical ? `SIMULATION · hypothetical · ${state.speedup}× speed` : "LIVE · real weather, traffic and incidents"}
+        {state.hypothetical ? `Simulation · hypothetical · ${state.speedup}× speed` : "Live · real weather, traffic and incidents"}
       </span>
       <div className="chips">
-        <span className={`chip ${connected ? "ok" : "bad"}`}>{connected ? "● connected" : "● reconnecting"}</span>
+        <span className={`chip ${connected ? "ok" : "bad"}`}>
+          <i className="dot" /> {connected ? "Connected" : "Reconnecting"}
+        </span>
         <span className="chip chip-strong">
           {state.hypothetical ? "Sim time" : "Time"} {fmtTime(state.sim_time)}
         </span>
         {w && (
           <span className={`chip ${state.weather.overridden ? "warn" : ""}`}>
-            {w.snowfall_cm > 0 ? "❄" : w.precipitation_mm > 0 ? "🌧" : "☀"} {w.temperature_c.toFixed(1)} °C ·{" "}
+            <WeatherIcon w={w} /> {w.temperature_c.toFixed(1)} °C ·{" "}
             {w.precipitation_mm} mm · {state.weather.overridden ? "demo override" : w.source}
           </span>
         )}
@@ -440,19 +463,28 @@ function StatusBar({ state, connected }: { state: WorldSnapshot; connected: bool
             state.traffic.source
           }
         >
-          🚗 Traffic ×{state.traffic.factor.toFixed(2)} · {state.traffic.source === "tomtom" ? "TomTom live" : "profile"}
+          <Car /> Traffic ×{state.traffic.factor.toFixed(2)} · {state.traffic.source === "tomtom" ? "TomTom live" : "profile"}
         </span>
         <span
           className={`chip ${unhealthy.some((s) => s.health === "down") ? "bad" : unhealthy.length ? "warn" : "ok"}`}
           title={sourcesTitle}
         >
+          <Database />
           {unhealthy.length
-            ? `⚠ ${unhealthy.map((s) => `${s.name}: ${s.health}`).join(" · ")}`
-            : `✓ data feeds fresh (${sources.map((s) => s.name).join(", ")})`}
+            ? unhealthy.map((s) => `${s.name}: ${s.health}`).join(" · ")
+            : `Data feeds fresh (${sources.map((s) => s.name).join(", ")})`}
         </span>
       </div>
     </div>
   );
+}
+
+function WeatherIcon({ w }: { w: { snowfall_cm: number; precipitation_mm: number } }) {
+  return w.snowfall_cm > 0 ? <CloudSnow /> : w.precipitation_mm > 0 ? <CloudRain /> : <Sun />;
+}
+
+function IncidentIcon({ kind }: { kind: string }) {
+  return kind === "road_closure" ? <Octagon /> : kind === "accident" ? <CircleAlert /> : <TrafficCone />;
 }
 
 /** Live page: what the real world looks like right now. */
@@ -465,14 +497,14 @@ function Conditions({ state }: { state: WorldSnapshot }) {
       {w && (
         <div>
           <strong>
-            {w.snowfall_cm > 0 ? "❄" : w.precipitation_mm > 0 ? "🌧" : "☀"} {w.temperature_c.toFixed(1)} °C
+            <WeatherIcon w={w} /> {w.temperature_c.toFixed(1)} °C
           </strong>{" "}
           · {w.precipitation_mm} mm · wind {Math.round(w.wind_speed_kmh)} km/h <span className="muted">({w.source})</span>
           {nextHours.length > 0 && (
             <div className="muted">
               Next hours:{" "}
               {nextHours
-                .map((h) => `${fmtTime(h.time)} ${Math.round(h.temperature_c)}° ${h.snowfall_cm > 0 ? "❄" : h.precipitation_mm > 0 ? "🌧" : ""}`)
+                .map((h) => `${fmtTime(h.time)} ${Math.round(h.temperature_c)}°${h.snowfall_cm > 0 ? " snow" : h.precipitation_mm > 0 ? " rain" : ""}`)
                 .join(" · ")}
             </div>
           )}
@@ -495,7 +527,7 @@ function Conditions({ state }: { state: WorldSnapshot }) {
         <strong>{live.length} live incident(s)</strong>
         {live.slice(0, 5).map((i) => (
           <div key={i.id} className="muted">
-            {i.kind === "road_closure" ? "⛔" : i.kind === "accident" ? "💥" : "🚦"} {i.description}
+            <IncidentIcon kind={i.kind} /> {i.description}
           </div>
         ))}
       </div>
@@ -507,9 +539,9 @@ function KpiRow({ kpis }: { kpis: Kpis }) {
   const items: [string, string | number, boolean][] = [
     ["Open trips", kpis.open_trips, false],
     ["Late", kpis.late_trips, kpis.late_trips > 0],
-    ["Total delay", `${Math.round(kpis.total_delay_min)} min`, kpis.total_delay_min >= 15],
+    ["Delay min", Math.round(kpis.total_delay_min), kpis.total_delay_min >= 15],
     ["Unassigned", unassignedTotal(kpis), unassignedTotal(kpis) > 0],
-    ["Vehicles", kpis.vehicles_in_service, false],
+    ["In service", kpis.vehicles_in_service, false],
   ];
   return (
     <div className="kpis">
@@ -540,7 +572,7 @@ function Alerts({ state, send }: { state: WorldSnapshot; send: Send }) {
       {incidents.map((inc) => (
         <li key={inc.id} className={`alert ${inc.kind === "congestion" ? "sev-medium" : "sev-high"}`}>
           <span>
-            {inc.kind === "road_closure" ? "⛔" : inc.kind === "accident" ? "💥" : "🚦"} {inc.description}
+            <IncidentIcon kind={inc.kind} /> {inc.description}
           </span>
           {inc.source === "injected" && (
             <button className="link" onClick={() => send({ type: "clear_incident", incident_id: inc.id })}>
@@ -620,7 +652,7 @@ function TripTable({
               onClick={() => t.vehicle_id && onSelect(t.vehicle_id)}
               title={t.vehicle_id ? `Show ${t.vehicle_id} on the map` : undefined}
             >
-              <td className="mono">{t.id}</td>
+              <td className="id">{t.id}</td>
               <td className="cell-clip" title={t.label ?? t.patient ?? ""}>
                 {t.label ?? t.patient}
               </td>
@@ -631,7 +663,7 @@ function TripTable({
               <td className="cell-clip cell-route" title={route}>
                 {route}
               </td>
-              <td>{t.vehicle_id ?? "—"}</td>
+              <td className={t.vehicle_id ? "id" : "muted"}>{t.vehicle_id ?? "—"}</td>
               <td>{t.status.replace(/_/g, " ")}</td>
               <td>{fmtTime(t.due_by)}</td>
               <td>{fmtTime(t.eta_dropoff)}</td>

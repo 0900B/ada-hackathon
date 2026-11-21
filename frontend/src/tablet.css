@@ -1,17 +1,18 @@
 /* In-vehicle tablet (mobile data terminal): landscape iPad first, big touch targets, night/day. */
 
 .mdt {
-  --m-bg: #05070a;
-  --m-panel: #10151d;
-  --m-panel-2: #171e29;
-  --m-border: #2a3444;
-  --m-text: #f1f3f5;
-  --m-muted: #9aa4b5;
-  --m-accent: #4dabf7;
-  --m-ok: #51cf66;
-  --m-warn: #ffb000;
-  --m-bad: #ff5c5c;
-  --m-banner: #0b2a45;
+  --m-bg: #0b0f14;
+  --m-panel: #11161d;
+  --m-panel-2: #161d26;
+  --m-border: #2c3744;
+  --m-text: #e6ebf1;
+  --m-muted: #9aa6b4;
+  --m-accent: #2563eb;
+  --m-accent-text: #8cb6ff;
+  --m-ok: #3fb950;
+  --m-warn: #d6a23a;
+  --m-bad: #f2555a;
+  --m-banner: #0f2140;
   position: fixed;
   inset: 0;
   display: grid;
@@ -22,24 +23,26 @@
     "map side";
   background: var(--m-bg);
   color: var(--m-text);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font);
   font-size: 16px;
-  line-height: 1.3;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
   -webkit-tap-highlight-color: transparent;
   overflow: hidden;
 }
 .mdt.day {
-  --m-bg: #e9edf2;
+  --m-bg: #eef1f5;
   --m-panel: #ffffff;
-  --m-panel-2: #f3f5f8;
-  --m-border: #c9d1dc;
+  --m-panel-2: #f4f6f9;
+  --m-border: #c6cfda;
   --m-text: #0b1220;
   --m-muted: #4a5568;
-  --m-accent: #1c7ed6;
-  --m-ok: #2b8a3e;
-  --m-warn: #c27c00;
-  --m-bad: #d6336c;
-  --m-banner: #0b4f8a;
+  --m-accent: #1d4ed8;
+  --m-accent-text: #1d4ed8;
+  --m-ok: #1a7f37;
+  --m-warn: #9a6700;
+  --m-bad: #cf222e;
+  --m-banner: #0b3a75;
 }
 @media (orientation: portrait) {
   .mdt {
@@ -75,8 +78,8 @@
 .mdt-btn {
   min-height: 52px;
   padding: 8px 14px;
-  border-radius: 10px;
-  border: 2px solid var(--m-border);
+  border-radius: 6px;
+  border: 1px solid var(--m-border);
   background: var(--m-panel-2);
   color: var(--m-text);
   font: inherit;
@@ -91,8 +94,13 @@
   touch-action: manipulation;
 }
 .mdt-btn:active:not(:disabled) {
-  transform: scale(0.98);
   border-color: var(--m-accent);
+  background: var(--m-panel);
+}
+.mdt-btn svg.lucide {
+  width: 20px;
+  height: 20px;
+  vertical-align: 0;
 }
 .mdt-btn:disabled {
   opacity: 0.45;
@@ -101,7 +109,7 @@
 .mdt-btn.primary {
   background: var(--m-accent);
   border-color: var(--m-accent);
-  color: #06121f;
+  color: #fff;
 }
 .mdt-btn.danger {
   background: var(--m-bad);
@@ -112,6 +120,9 @@
   background: var(--m-warn);
   border-color: var(--m-warn);
   color: #111;
+}
+.mdt.day .mdt-btn.warn {
+  color: #fff;
 }
 .mdt-btn.icon {
   min-width: 52px;
@@ -138,20 +149,19 @@
 .mdt-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  font-size: 20px;
-  font-weight: 800;
-  color: #fff;
-  background: #1971c2;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font: 700 20px/1.2 var(--mono);
+  color: var(--m-text);
+  background: var(--m-panel-2);
+  border: 1px solid var(--m-border);
   white-space: nowrap;
 }
-.mdt-badge.type-ambulance {
-  background: #e03131;
-}
-.mdt-badge.type-helicopter {
-  background: #e8590c;
+.mdt-badge svg.lucide {
+  width: 22px;
+  height: 22px;
+  vertical-align: 0;
 }
 .mdt-name {
   font-size: 18px;
@@ -160,8 +170,11 @@
   text-overflow: ellipsis;
 }
 .mdt-chip {
-  padding: 5px 10px;
-  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 4px;
   border: 1px solid var(--m-border);
   font-size: 14px;
   font-weight: 600;
@@ -181,18 +194,19 @@
 .mdt-chip.live {
   color: var(--m-ok);
 }
-.mdt-chip.st-to_pickup,
+.mdt-chip.st-to_pickup {
+  color: var(--m-accent-text);
+}
 .mdt-chip.st-with_patient,
 .mdt-chip.st-loading {
-  color: var(--m-accent);
+  color: var(--m-ok);
 }
 .mdt-spacer {
   flex: 1;
 }
 .mdt-clock {
   font-size: 24px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
+  font-weight: 700;
 }
 @media (max-width: 1100px) {
   .mdt-name {
@@ -228,8 +242,13 @@
   color: var(--m-text);
 }
 .mdt-banner.down {
-  background: var(--m-bad);
-  color: #fff;
+  background: #4a1418;
+  color: #ffd7d7;
+  gap: 10px;
+}
+.mdt-banner svg.lucide {
+  width: 26px;
+  height: 26px;
 }
 .mdt-turn-icon {
   flex: none;
@@ -237,18 +256,21 @@
   height: 72px;
   display: grid;
   place-items: center;
-  font-size: 44px;
   fill: #fff;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   padding: 8px;
-  transition: transform 0.3s;
+}
+.mdt-turn-icon svg.lucide {
+  width: 44px;
+  height: 44px;
 }
 .mdt-dist {
   font-size: 36px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.05;
-  font-variant-numeric: tabular-nums;
 }
 .mdt-instr {
   font-size: 24px;
@@ -266,8 +288,8 @@
   opacity: 0.75;
 }
 .mdt-detour {
-  color: #ffc078;
-  font-weight: 700;
+  color: #ffb27a;
+  font-weight: 600;
 }
 .mdt-mapbox {
   position: relative;
@@ -310,10 +332,10 @@
   z-index: 1000;
   left: 12px;
   bottom: 28px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
   background: var(--m-accent);
   border-color: var(--m-accent);
-  color: #06121f;
+  color: #fff;
 }
 .mdt-toast {
   position: absolute;
@@ -323,15 +345,16 @@
   transform: translateX(-50%);
   max-width: calc(100% - 24px);
   padding: 10px 14px;
-  border-radius: 10px;
+  border-radius: 6px;
   font-size: 16px;
   font-weight: 600;
   background: var(--m-panel);
-  border: 2px solid var(--m-ok);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--m-border);
+  border-left: 4px solid var(--m-ok);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
 }
 .mdt-toast.bad {
-  border-color: var(--m-bad);
+  border-left-color: var(--m-bad);
 }
 
 /* Map markers */
@@ -345,50 +368,77 @@
 .nav-veh svg {
   width: 40px;
   height: 40px;
-  fill: #4dabf7;
+  fill: #3b82f6;
   stroke: #fff;
   stroke-width: 3;
   stroke-linejoin: round;
 }
 .nav-veh.down svg {
-  fill: #868e96;
+  fill: #6e7a88;
 }
 .nav-veh.heli {
-  border-radius: 50%;
-  background: #e8590c;
-  border: 3px solid #ffd8a8;
-  font-size: 24px;
+  border-radius: 6px;
+  background: #0f141b;
+  border: 2px solid #4f8ff7;
+  color: #fff;
+}
+.nav-veh.heli svg {
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
 }
 .nav-veh.heli.grounded {
-  background: #6c757d;
+  border-color: #d6a23a;
+  border-style: dashed;
 }
 .nav-stop {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
   display: grid;
   place-items: center;
-  font: 800 14px system-ui, sans-serif;
-  color: #111;
-  background: #ffd43b;
-  border: 2px solid #111;
+  font: 700 14px var(--font);
+  color: #0b0f14;
+  background: #e6ebf1;
+  border: 2px solid #0b0f14;
 }
 .nav-stop.next {
-  transform: scale(1.3);
-  box-shadow: 0 0 0 4px rgba(255, 212, 59, 0.45);
+  background: #8cb6ff;
+  outline: 3px solid rgba(140, 182, 255, 0.45);
 }
 .nav-stop-base {
-  background: #9775fa;
-  color: #fff;
+  background: #3a4556;
+  color: #e6ebf1;
+}
+.nav-stop svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
 }
 .nav-incident {
   width: 26px;
   height: 26px;
-  border-radius: 50%;
+  border-radius: 4px;
   display: grid;
   place-items: center;
-  background: rgba(15, 18, 24, 0.85);
-  font-size: 15px;
+  background: #0f141b;
+  border: 1px solid #f2555a;
+  color: #ff9b9b;
+}
+.nav-incident.congestion {
+  border-color: #d6a23a;
+  color: #f2bf5e;
+}
+.nav-incident svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
 }
 
 /* Right panel */
@@ -413,7 +463,7 @@
 .mdt-card {
   background: var(--m-panel);
   border: 1px solid var(--m-border);
-  border-radius: 12px;
+  border-radius: 6px;
   padding: 10px 12px;
 }
 .mdt-section-title {
@@ -434,16 +484,27 @@
   gap: 6px;
 }
 .mdt-alert {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
   padding: 8px 10px;
-  border-radius: 10px;
+  border-radius: 6px;
   font-weight: 600;
-  border-left: 5px solid var(--m-warn);
-  background: rgba(255, 176, 0, 0.14);
+  border: 1px solid var(--m-border);
+  border-left: 4px solid var(--m-warn);
+  background: var(--m-panel);
+}
+.mdt-alert svg.lucide {
+  margin-top: 2px;
+  color: var(--m-warn);
 }
 .mdt-alert.sev-high,
 .mdt-alert.sev-critical {
   border-left-color: var(--m-bad);
-  background: rgba(255, 92, 92, 0.16);
+}
+.mdt-alert.sev-high svg.lucide,
+.mdt-alert.sev-critical svg.lucide {
+  color: var(--m-bad);
 }
 .mdt-job {
   display: flex;
@@ -469,8 +530,8 @@
 }
 .mdt-trip-id {
   font-size: 20px;
-  font-weight: 800;
-  font-family: ui-monospace, Consolas, monospace;
+  font-weight: 700;
+  font-family: var(--mono);
 }
 .mdt-job-who {
   font-size: 20px;
@@ -496,8 +557,8 @@
   gap: 6px;
 }
 .mdt-arrow {
-  color: var(--m-accent);
-  font-weight: 800;
+  color: var(--m-accent-text);
+  font-weight: 700;
 }
 .mdt-job-times {
   display: flex;
@@ -511,10 +572,17 @@
   font-size: 18px;
 }
 .mdt-note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
   font-size: 15px;
   padding: 6px 8px;
-  border-radius: 8px;
+  border-radius: 4px;
   background: var(--m-panel-2);
+}
+.mdt-note svg.lucide {
+  margin-top: 2px;
+  color: var(--m-muted);
 }
 .mdt-stops {
   list-style: none;
@@ -532,27 +600,33 @@
 }
 .mdt-stop-num {
   flex: none;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
   display: grid;
   place-items: center;
-  font-weight: 800;
+  font-weight: 700;
   font-size: 13px;
-  color: #111;
-  background: #ffd43b;
+  color: #0b0f14;
+  background: #e6ebf1;
+  border: 1px solid var(--m-border);
 }
 .mdt-stop-num.stop-base {
-  background: #9775fa;
+  background: #3a4556;
+  color: #e6ebf1;
+}
+.mdt-stop-num svg.lucide {
+  width: 15px;
+  height: 15px;
+  vertical-align: 0;
 }
 .mdt-stop-place {
   flex: 1;
   min-width: 0;
 }
 .mdt-stop-eta {
-  font-weight: 800;
+  font-weight: 700;
   font-size: 17px;
-  font-variant-numeric: tabular-nums;
 }
 .mdt-stops li.late .mdt-stop-eta {
   color: var(--m-bad);
@@ -565,8 +639,8 @@
 }
 .mdt-bar {
   flex: 1;
-  height: 12px;
-  border-radius: 6px;
+  height: 10px;
+  border-radius: 3px;
   background: var(--m-panel-2);
   border: 1px solid var(--m-border);
   overflow: hidden;
@@ -610,8 +684,8 @@
   min-width: 0;
   min-height: 52px;
   padding: 8px 12px;
-  border-radius: 10px;
-  border: 2px solid var(--m-border);
+  border-radius: 6px;
+  border: 1px solid var(--m-border);
   background: var(--m-bg);
   color: var(--m-text);
   font: inherit;
@@ -627,7 +701,6 @@
   background: var(--m-bad);
   border-color: var(--m-bad);
   color: #fff;
-  animation: ptt-pulse 1.2s ease-in-out infinite;
 }
 .mdt .lang-toggle button {
   min-height: 34px;
@@ -644,17 +717,20 @@
   min-height: 56px;
   font-size: 16px;
 }
-.mdt-quick-icon {
-  font-size: 22px;
+.mdt-quick .mdt-btn svg.mdt-quick-icon {
+  width: 22px;
+  height: 22px;
+  color: var(--m-muted);
 }
 .mdt-confirm {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 10px;
-  border-radius: 12px;
-  border: 2px solid var(--m-warn);
-  background: rgba(255, 176, 0, 0.12);
+  border-radius: 6px;
+  border: 1px solid var(--m-warn);
+  border-left: 4px solid var(--m-warn);
+  background: var(--m-panel-2);
 }
 .mdt-confirm-q {
   font-size: 18px;
@@ -687,25 +763,19 @@
   flex-direction: column;
   gap: 10px;
   padding: 18px 20px;
-  border-radius: 16px;
+  border-radius: 8px;
   background: var(--m-panel);
-  border: 3px solid var(--m-accent);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
-  animation: mdt-pop 0.2s ease-out;
-}
-@keyframes mdt-pop {
-  from {
-    transform: scale(0.96);
-    opacity: 0;
-  }
+  border: 1px solid var(--m-border);
+  border-top: 4px solid var(--m-accent);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
 }
 .mdt-dispatch-head {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 18px;
-  font-weight: 800;
-  color: var(--m-accent);
+  font-weight: 700;
+  color: var(--m-accent-text);
 }
 .mdt-dispatch-reason {
   font-size: 16px;
@@ -718,13 +788,14 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 19px;
+  font-weight: 600;
 }
 .mdt-dispatch-crew {
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: 6px;
   background: var(--m-panel-2);
+  border: 1px solid var(--m-border);
   font-size: 18px;
 }
 
@@ -751,8 +822,8 @@
   gap: 12px;
   min-height: 64px;
   padding: 10px 14px;
-  border-radius: 12px;
-  border: 2px solid var(--m-border);
+  border-radius: 6px;
+  border: 1px solid var(--m-border);
   background: var(--m-panel);
   color: var(--m-text);
   text-decoration: none;

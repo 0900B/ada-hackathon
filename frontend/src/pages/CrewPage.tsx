@@ -12,7 +12,22 @@ import {
   type World,
   type WorldSnapshot,
 } from "../api";
+import {
+  ArrowRight,
+  Check,
+  CircleAlert,
+  CircleHelp,
+  Construction,
+  Mic,
+  Radio,
+  Send,
+  Siren,
+  Timer,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
 import { fmtTime, humanize, vehicleStatusText } from "../format";
+import { Callsign } from "../icons";
 import { useHotkeys } from "../hotkeys";
 import { SPEECH_LANGS, speechSecureContext, usePushToTalk, useSpeechInput } from "../voice";
 import "../voice.css";
@@ -23,12 +38,12 @@ import "../voice.css";
  * turns it into events and starts an AI replan that the dispatcher sees on the dashboard.
  */
 
-const QUICK = [
-  { key: "1", icon: "🔧", sl: "Vozilo je obstalo.", en: "Vehicle broke down" },
-  { key: "2", icon: "⏱", sl: "Zamujamo 10 minut.", en: "10 min late" },
-  { key: "3", icon: "🚨", sl: "Stanje pacienta se je poslabšalo, potrebujemo nujni prevoz.", en: "Patient worse, urgent transport" },
-  { key: "4", icon: "⛔", sl: "Cesta pred nami je zaprta.", en: "Road ahead closed" },
-  { key: "5", icon: "🆘", sl: "Potrebujemo pomoč na terenu.", en: "Need help on scene" },
+const QUICK: { key: string; icon: LucideIcon; sl: string; en: string }[] = [
+  { key: "1", icon: Wrench, sl: "Vozilo je obstalo.", en: "Vehicle broke down" },
+  { key: "2", icon: Timer, sl: "Zamujamo 10 minut.", en: "10 min late" },
+  { key: "3", icon: Siren, sl: "Stanje pacienta se je poslabšalo, potrebujemo nujni prevoz.", en: "Patient worse, urgent transport" },
+  { key: "4", icon: Construction, sl: "Cesta pred nami je zaprta.", en: "Road ahead closed" },
+  { key: "5", icon: CircleAlert, sl: "Potrebujemo pomoč na terenu.", en: "Need help on scene" },
 ];
 
 export function CrewPage() {
@@ -65,7 +80,7 @@ function VehiclePicker({ state, world, missing }: { state: WorldSnapshot; world:
         {state.vehicles.map((v) => (
           <li key={v.id}>
             <Link to={`/crew/${encodeURIComponent(v.id)}?world=${world}`}>
-              <span className={`veh veh-${v.type}`}>{v.id}</span>
+              <Callsign v={v} />
               <span className="crew-pick-name">{v.name}</span>
               <span className="muted">{humanize(v.status)}</span>
             </Link>
@@ -170,20 +185,22 @@ function CrewConsole({
       <header className="crew-card crew-head">
         <div className="crew-head-top">
           <h1 className="crew-title">
-            <span className={`veh veh-${vehicle.type}`}>{vehicle.id}</span> {vehicle.name}
+            <Callsign v={vehicle} /> {vehicle.name}
           </h1>
           <span className={`crew-world ${world}`}>{world === "sim" ? "SIM" : "LIVE"}</span>
         </div>
         <div className="crew-chips">
           <span className={`chip st-${vehicle.status}`}>{vehicleStatusText(vehicle, state.trips)}</span>
-          <span className={`chip ${connected ? "ok" : "bad"}`}>{connected ? "● online" : "● reconnecting"}</span>
-          {vehicle.grounded_until && <span className="chip warn">🌫 grounded until {fmtTime(vehicle.grounded_until)}</span>}
+          <span className={`chip ${connected ? "ok" : "bad"}`}>
+            <i className="dot" /> {connected ? "Online" : "Reconnecting"}
+          </span>
+          {vehicle.grounded_until && <span className="chip warn">Grounded by fog until {fmtTime(vehicle.grounded_until)}</span>}
         </div>
 
         {trip ? (
           <div className="crew-trip">
             <div className="crew-trip-who">
-              <strong>{trip.kind === "equipment" ? `📦 ${trip.cargo ?? "equipment"}` : trip.patient}</strong>{" "}
+              <strong>{trip.kind === "equipment" ? (trip.cargo ?? "equipment") : trip.patient}</strong>{" "}
               <span className={`prio prio-${trip.priority}`}>{trip.priority}</span>{" "}
               <span className="muted">
                 {trip.kind === "equipment" ? "equipment" : trip.needs} · {trip.id}
@@ -204,7 +221,7 @@ function CrewConsole({
         )}
         {stop && (
           <div className="crew-next">
-            ➜ Next stop: <strong>{stop.label}</strong>
+            <ArrowRight /> Next stop: <strong>{stop.label}</strong>
             {stop.eta && <> · {fmtTime(stop.eta)}</>}
             {vehicle.queue.length > (trip ? 0 : 1) && (
               <span className="muted"> · {vehicle.queue.length - (trip ? 0 : 1)} more queued</span>
@@ -223,7 +240,9 @@ function CrewConsole({
               aria-pressed={speech.listening}
               {...ptt}
             >
-              <span className="ptt-icon">🎤</span>
+              <span className="ptt-icon">
+                <Mic />
+              </span>
               <span>{speech.listening ? "Listening… release to send" : "Hold to talk"}</span>
               <span className="ptt-sub">{speech.listening ? "or tap to stop" : "or tap once and speak"}</span>
             </button>
@@ -247,7 +266,7 @@ function CrewConsole({
             {speech.error && <div className="message error">{speech.error}</div>}
           </>
         ) : (
-          <div className="warn-box">🎤 Voice input needs Chrome or Edge. Use the buttons or type below.</div>
+          <div className="warn-box">Voice input needs Chrome or Edge. Use the buttons or type below.</div>
         )}
       </section>
 
@@ -266,7 +285,7 @@ function CrewConsole({
           aria-label="Message to the dispatcher"
         />
         <button type="submit" className="primary" disabled={busy || draft.trim().length < 2}>
-          Send
+          <Send /> Send
         </button>
       </form>
 
@@ -278,7 +297,7 @@ function CrewConsole({
               <span className="spinner" /> AI is interpreting the message…
             </div>
           )}
-          {error && <div className="message error">⚠ Not delivered: {error}</div>}
+          {error && <div className="message error">Not delivered: {error}</div>}
           {result && <MessageOutcome result={result} run={run} />}
         </section>
       )}
@@ -286,7 +305,9 @@ function CrewConsole({
       <section className="crew-quick" aria-label="Quick status">
         {QUICK.map((q) => (
           <button key={q.key} type="button" disabled={busy} onClick={() => void send(q.sl)} title={`${q.sl} (key ${q.key})`}>
-            <span className="q-icon">{q.icon}</span>
+            <span className="q-icon">
+              <q.icon />
+            </span>
             <span className="q-text">
               <span>{q.sl}</span>
               <span className="muted">{q.en}</span>
@@ -306,7 +327,7 @@ function CrewConsole({
 const RUN_STATUS: Record<AgentRun["status"], string> = {
   running: "AI is replanning…",
   done: "New plan proposed: waiting for the dispatcher's approval",
-  approved: "✓ Dispatcher approved the new plan",
+  approved: "Dispatcher approved the new plan",
   rejected: "Dispatcher rejected the proposal",
   superseded: "Replaced by a newer analysis",
   error: "AI analysis failed; the dispatcher decides manually",
@@ -315,18 +336,28 @@ const RUN_STATUS: Record<AgentRun["status"], string> = {
 function MessageOutcome({ result, run }: { result: MessageResult; run: AgentRun | undefined }) {
   return (
     <>
-      <div>🇸🇮 {result.understood_sl}</div>
-      <div className="muted">🇬🇧 {result.understood_en}</div>
-      {result.needs_clarification && <div className="warn-box">❓ {result.needs_clarification}</div>}
+      <div>
+        <span className="lang-tag">SL</span>
+        {result.understood_sl}
+      </div>
+      <div className="muted">
+        <span className="lang-tag">EN</span>
+        {result.understood_en}
+      </div>
+      {result.needs_clarification && (
+        <div className="warn-box">
+          <CircleHelp /> <span>{result.needs_clarification}</span>
+        </div>
+      )}
       {result.applied.map((a) => (
         <div key={a.id} className="applied">
-          ✓ {a.summary}
+          <Check /> {a.summary}
         </div>
       ))}
       {result.error && <div className="message error">{result.error}</div>}
       {result.run_id || run ? (
         <div className="crew-notified">
-          📡 Dispatcher notified{result.run_id || run?.status === "running" ? ": AI is replanning" : ""}
+          <Radio /> Dispatcher notified{result.run_id || run?.status === "running" ? ": AI is replanning" : ""}
           {run && (
             <div className={`crew-run run-${run.status}`}>
               {run.status === "running" && <span className="spinner" />} {RUN_STATUS[run.status]}
@@ -335,7 +366,9 @@ function MessageOutcome({ result, run }: { result: MessageResult; run: AgentRun 
           )}
         </div>
       ) : result.applied.length > 0 ? (
-        <div className="crew-notified">📡 Dispatcher notified.</div>
+        <div className="crew-notified">
+          <Radio /> Dispatcher notified
+        </div>
       ) : (
         !result.error && <div className="muted">Nothing changed in the plan.</div>
       )}

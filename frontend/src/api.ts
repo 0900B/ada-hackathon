@@ -384,15 +384,15 @@ export const runScenario = (name: string) =>
   );
 
 export const SCENARIOS = [
-  { name: "stranded_patient", label: "🚐 Stranded patient", title: "Van breaks down with a patient on board" },
-  { name: "stroke_rush_hour", label: "🧠 Stroke + closure", title: "Stroke emergency with a road closure near UKC" },
-  { name: "snow_cascade", label: "❄️ Snow cascade", title: "Snowstorm, a delayed van and an emergency at once" },
-  { name: "stranded_equipment", label: "🧰 Stranded equipment", title: "Vehicle breaks down with medical equipment on board" },
-  { name: "hospital_full", label: "🏥 UKC full", title: "UKC can admit only one more patient as a patient becomes an emergency" },
-  { name: "remote_emergency", label: "🚁 Remote emergency", title: "Remote emergency in the mountains: the helicopter flies" },
+  { name: "stranded_patient", label: "Stranded patient", title: "Van breaks down with a patient on board" },
+  { name: "stroke_rush_hour", label: "Stroke and closure", title: "Stroke emergency with a road closure near UKC" },
+  { name: "snow_cascade", label: "Snow cascade", title: "Snowstorm, a delayed van and an emergency at once" },
+  { name: "stranded_equipment", label: "Stranded equipment", title: "Vehicle breaks down with medical equipment on board" },
+  { name: "hospital_full", label: "UKC full", title: "UKC can admit only one more patient as a patient becomes an emergency" },
+  { name: "remote_emergency", label: "Remote emergency", title: "Remote emergency in the mountains: the helicopter flies" },
   {
     name: "equipment_en_route",
-    label: "📦 Prep: crew demo",
+    label: "Prepare crew demo",
     title: "Prepare the live crew demo: fast-forward until a van carries equipment (no AI run)",
   },
 ];

@@ -18,7 +18,32 @@ import {
   type World,
   type WorldSnapshot,
 } from "../api";
+import {
+  ArrowLeftRight,
+  Check,
+  Clock,
+  Construction,
+  Crosshair,
+  Flag,
+  Fuel,
+  House,
+  Mail,
+  Mic,
+  Moon,
+  NotebookText,
+  RotateCw,
+  Send,
+  Siren,
+  Sun,
+  Timer,
+  TriangleAlert,
+  Wrench,
+  X,
+  CornerUpRight,
+  type LucideIcon,
+} from "lucide-react";
 import { fmtTime, humanize, vehicleStatusText } from "../format";
+import { VehicleTypeIcon } from "../icons";
 import { NavMap } from "../NavMap";
 import { SPEECH_LANGS, speechSecureContext, usePushToTalk, useSpeechInput } from "../voice";
 import "../voice.css";
@@ -31,7 +56,6 @@ import "../tablet.css";
  */
 
 const THEME_KEY = "planb.mdtTheme";
-const TYPE_ICON: Record<Vehicle["type"], string> = { ambulance: "🚑", transport: "🚐", helicopter: "🚁" };
 const DONE = ["completed", "cancelled"];
 
 function savedNight(): boolean {
@@ -90,7 +114,7 @@ function TabletPicker({ state, world, missing, night }: { state: WorldSnapshot; 
           <li key={v.id}>
             <Link to={`/vehicle/${encodeURIComponent(v.id)}?world=${world}`}>
               <span className="mdt-badge">
-                {TYPE_ICON[v.type]} {v.id}
+                <VehicleTypeIcon type={v.type} /> {v.id}
               </span>
               <span className="mdt-pick-name">{v.name}</span>
               <span className="mdt-muted">{vehicleStatusText(v, state.trips)}</span>
@@ -160,8 +184,18 @@ function instruction(s: NavStep): string {
 }
 
 function ManeuverIcon({ step, bearing }: { step?: NavStep; bearing?: number }) {
-  if (step?.type === "arrive") return <span className="mdt-turn-icon flag">🏁</span>;
-  if (step && (step.type === "roundabout" || step.type === "rotary")) return <span className="mdt-turn-icon">⟳</span>;
+  if (step?.type === "arrive")
+    return (
+      <span className="mdt-turn-icon">
+        <Flag />
+      </span>
+    );
+  if (step && (step.type === "roundabout" || step.type === "rotary"))
+    return (
+      <span className="mdt-turn-icon">
+        <RotateCw />
+      </span>
+    );
   const angle = bearing ?? TURN_ANGLE[step?.modifier ?? "straight"] ?? 0;
   return (
     <svg className="mdt-turn-icon" viewBox="0 0 48 48" style={{ transform: `rotate(${angle}deg)` }} aria-hidden>
@@ -174,11 +208,18 @@ const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 
 function NavBanner({ nav, vehicle, trip, state }: { nav: Navigation | null; vehicle: Vehicle; trip: Trip | undefined; state: WorldSnapshot }) {
   const kindText = { pickup: "Pickup", dropoff: "Drop-off", base: "Back to base" } as const;
-  if (vehicle.status === "out_of_service") return <div className="mdt-banner down">⚠ Out of service · dispatch is re-planning your trips</div>;
+  if (vehicle.status === "out_of_service")
+    return (
+      <div className="mdt-banner down">
+        <TriangleAlert /> Out of service · dispatch is re-planning your trips
+      </div>
+    );
   if (vehicle.waiting_until && Date.parse(vehicle.waiting_until) > Date.parse(state.sim_time) && trip) {
     return (
       <div className="mdt-banner">
-        <span className="mdt-turn-icon">⏳</span>
+        <span className="mdt-turn-icon">
+          <Clock />
+        </span>
         <div>
           <div className="mdt-instr">Waiting for the patient until {fmtTime(vehicle.waiting_until)}</div>
           <div className="mdt-next-stop">At pickup: {state.places.find((p) => p.id === trip.pickup_id)?.name}</div>
@@ -195,7 +236,12 @@ function NavBanner({ nav, vehicle, trip, state }: { nav: Navigation | null; vehi
     <div className="mdt-next-stop">
       {kindText[nav.target.kind]}: <strong>{nav.target.name}</strong>
       {nav.remaining_m != null && <> · {fmtDist(nav.remaining_m)}</>} · ETA <strong>{eta}</strong>
-      {nav.detour && <span className="mdt-detour"> ↪ detour around a closure</span>}
+      {nav.detour && (
+        <span className="mdt-detour">
+          {" "}
+          <CornerUpRight /> detour around a closure
+        </span>
+      )}
     </div>
   );
   if (nav.status === "arrived") {
@@ -353,7 +399,7 @@ function useDispatchNotes(state: WorldSnapshot, vehicle: Vehicle, chime: () => v
       const run = state.agent.runs.find((r) => r.decision?.event_id === planEvent.id);
       reason = `Dispatcher approved a new plan${run?.decision?.title ? `: ${run.decision.title}` : ""}`;
       const executed = run?.decision?.executed ?? [];
-      lines.push(...executed.filter((x) => mentions(x, vehicle)).map((x) => `▸ ${x}`));
+      lines.push(...executed.filter((x) => mentions(x, vehicle)).map((x) => `· ${x}`));
       for (const n of run?.recommendation?.notifications ?? []) {
         if (mentions(n.recipient, vehicle)) crew.push({ sl: n.message_sl, en: n.message_en });
       }
@@ -426,11 +472,11 @@ function QuickStatus({
     }
   };
 
-  const items: { id: QuickId; icon: string; label: string; disabled: boolean }[] = [
-    { id: "breakdown", icon: "🔧", label: "Breakdown", disabled: down },
-    { id: "delay", icon: "⏱", label: "Delay +10 min", disabled: down },
-    { id: "closure", icon: "⛔", label: "Road ahead closed", disabled: vehicle.type === "helicopter" },
-    { id: "worse", icon: "🚨", label: "Patient worse", disabled: !patientTrip },
+  const items: { id: QuickId; icon: LucideIcon; label: string; disabled: boolean }[] = [
+    { id: "breakdown", icon: Wrench, label: "Breakdown", disabled: down },
+    { id: "delay", icon: Timer, label: "Delay +10 min", disabled: down },
+    { id: "closure", icon: Construction, label: "Road ahead closed", disabled: vehicle.type === "helicopter" },
+    { id: "worse", icon: Siren, label: "Patient worse", disabled: !patientTrip },
   ];
 
   if (confirm) {
@@ -470,11 +516,11 @@ function QuickStatus({
                 )
               }
             >
-              ✓ Yes, send
+              <Check /> Yes, send
             </button>
           )}
           <button className="mdt-btn" disabled={sending} onClick={() => setConfirm(null)}>
-            ✕ Cancel
+            <X /> Cancel
           </button>
         </div>
       </div>
@@ -484,7 +530,7 @@ function QuickStatus({
     <div className="mdt-quick">
       {items.map((q) => (
         <button key={q.id} className="mdt-btn" disabled={q.disabled || sending} onClick={() => setConfirm(q.id)}>
-          <span className="mdt-quick-icon">{q.icon}</span> {q.label}
+          <q.icon className="mdt-quick-icon" /> {q.label}
         </button>
       ))}
     </div>
@@ -550,7 +596,7 @@ function CrewMessage({ world, vehicle, notify }: { world: World; vehicle: Vehicl
             disabled={busy && !speech.listening}
             {...ptt}
           >
-            🎤 {speech.listening ? "Listening…" : "Talk"}
+            <Mic /> {speech.listening ? "Listening…" : "Talk"}
           </button>
         )}
         <input
@@ -562,14 +608,14 @@ function CrewMessage({ world, vehicle, notify }: { world: World; vehicle: Vehicl
           enterKeyHint="send"
         />
         <button type="submit" className="mdt-btn primary" disabled={busy || draft.trim().length < 2}>
-          {busy ? "…" : "Send"}
+          <Send /> {busy ? "…" : "Send"}
         </button>
       </form>
       {speech.supported && !speechSecureContext() && <div className="mdt-muted small">Voice needs HTTPS (or localhost).</div>}
       {speech.error && <div className="mdt-muted small warn">{speech.error}</div>}
       {result?.applied.map((a) => (
         <div key={a.id} className="mdt-muted small ok">
-          ✓ {a.summary}
+          <Check /> {a.summary}
         </div>
       ))}
     </div>
@@ -635,20 +681,22 @@ function TabletConsole({
     <main className={`mdt ${night ? "night" : "day"}`}>
       <header className="mdt-top">
         <span className={`mdt-badge type-${vehicle.type}`}>
-          {TYPE_ICON[vehicle.type]} {vehicle.id}
+          <VehicleTypeIcon type={vehicle.type} /> {vehicle.id}
         </span>
         <strong className="mdt-name">{vehicle.name}</strong>
         <span className={`mdt-chip st-${vehicle.status}`}>{vehicleStatusText(vehicle, state.trips)}</span>
-        {vehicle.grounded_until && <span className="mdt-chip warn">🌫 grounded until {fmtTime(vehicle.grounded_until)}</span>}
+        {vehicle.grounded_until && <span className="mdt-chip warn">Grounded by fog until {fmtTime(vehicle.grounded_until)}</span>}
         <span className="mdt-spacer" />
         <span className={`mdt-chip ${world}`}>{world === "sim" ? "SIM" : "LIVE"}</span>
-        <span className={`mdt-chip ${connected ? "ok" : "bad"}`}>{connected ? "● online" : "● reconnecting"}</span>
+        <span className={`mdt-chip ${connected ? "ok" : "bad"}`}>
+          <i className="dot" /> {connected ? "Online" : "Reconnecting"}
+        </span>
         <span className="mdt-clock">{fmtTime(state.sim_time)}</span>
         <button className="mdt-btn icon" onClick={toggleTheme} aria-label={night ? "Day mode" : "Night mode"} title={night ? "Day mode" : "Night mode"}>
-          {night ? "☀️" : "🌙"}
+          {night ? <Sun /> : <Moon />}
         </button>
         <Link className="mdt-btn icon" to={`/vehicle?world=${world}`} aria-label="Switch vehicle" title="Switch vehicle">
-          ⇄
+          <ArrowLeftRight />
         </Link>
       </header>
 
@@ -658,7 +706,7 @@ function TabletConsole({
           <NavMap vehicle={vehicle} detail={detail} nav={nav} incidents={state.incidents} follow={follow} onUserMove={() => setFollow(false)} />
           {!follow && (
             <button className="mdt-btn mdt-recenter" onClick={() => setFollow(true)}>
-              ◎ Re-centre
+              <Crosshair /> Re-centre
             </button>
           )}
           {toast && <div className={`mdt-toast ${toast.ok ? "ok" : "bad"}`}>{toast.text}</div>}
@@ -671,7 +719,7 @@ function TabletConsole({
             <div className="mdt-alerts">
               {alerts.map((a) => (
                 <div key={a.id} className={`mdt-alert sev-${a.severity}`}>
-                  ⚠ {a.message}
+                  <TriangleAlert /> <span>{a.message}</span>
                 </div>
               ))}
             </div>
@@ -687,7 +735,7 @@ function TabletConsole({
                   <span className="mdt-muted">{job.status === "onboard" ? (job.kind === "equipment" ? "load on board" : "patient on board") : humanize(job.status)}</span>
                 </div>
                 <div className="mdt-job-who">
-                  {job.kind === "equipment" ? `📦 ${job.cargo ?? "equipment"}` : `🧑 ${job.patient ?? job.label}`}
+                  {job.kind === "equipment" ? `Equipment: ${job.cargo ?? "equipment"}` : `Patient ${job.patient ?? job.label}`}
                   {job.kind === "patient" && <span className="mdt-needs">{job.needs}</span>}
                 </div>
                 <div className="mdt-job-route">
@@ -707,7 +755,11 @@ function TabletConsole({
                     {(job.delay_min ?? 0) >= 5 && <span className="late"> +{Math.round(job.delay_min ?? 0)}′</span>}
                   </span>
                 </div>
-                {job.note && <div className="mdt-note">📝 {job.note}</div>}
+                {job.note && (
+                  <div className="mdt-note">
+                    <NotebookText /> <span>{job.note}</span>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="mdt-muted">{vehicle.status === "out_of_service" ? "Out of service." : "No job. Standing by for dispatch."}</div>
@@ -720,7 +772,7 @@ function TabletConsole({
               <ol className="mdt-stops">
                 {detail.stops.slice(0, 6).map((s, i) => (
                   <li key={i} className={(s.delay_min ?? 0) >= 5 ? "late" : ""}>
-                    <span className={`mdt-stop-num stop-${s.kind}`}>{s.kind === "base" ? "🏠" : i + 1}</span>
+                    <span className={`mdt-stop-num stop-${s.kind}`}>{s.kind === "base" ? <House /> : i + 1}</span>
                     <span className="mdt-stop-place">
                       {s.kind === "pickup" ? "Pick up" : s.kind === "dropoff" ? "Drop off" : "Base"} · {s.place}
                       {s.trip_id && <span className="mdt-muted"> · {s.trip_id}</span>}
@@ -736,7 +788,7 @@ function TabletConsole({
           <section className="mdt-card">
             <div className="mdt-section-title">Vehicle</div>
             <div className="mdt-fuel">
-              ⛽ {Math.round(vehicle.fuel_pct)}%
+              <Fuel /> {Math.round(vehicle.fuel_pct)}%
               <div className="mdt-bar">
                 <div className={`mdt-bar-fill ${vehicle.fuel_pct < 10 ? "bad" : vehicle.fuel_pct < 20 ? "warn" : "ok"}`} style={{ width: `${Math.max(2, vehicle.fuel_pct)}%` }} />
               </div>
@@ -763,7 +815,7 @@ function TabletConsole({
         <div className="mdt-note-overlay" role="alertdialog" aria-label="Message from dispatch">
           <div className="mdt-dispatch">
             <div className="mdt-dispatch-head">
-              📨 Message from dispatch <span className="mdt-muted">· {fmtTime(note.at)}</span>
+              <Mail /> Message from dispatch <span className="mdt-muted">· {fmtTime(note.at)}</span>
               {notes.length > 1 && <span className="mdt-chip">+{notes.length - 1} more</span>}
             </div>
             <div className="mdt-dispatch-reason">{note.reason}</div>
@@ -774,12 +826,18 @@ function TabletConsole({
             </ul>
             {note.crew.map((c, i) => (
               <div key={i} className="mdt-dispatch-crew">
-                <div>🇸🇮 {c.sl}</div>
-                <div className="mdt-muted">🇬🇧 {c.en}</div>
+                <div>
+                  <span className="lang-tag">SL</span>
+                  {c.sl}
+                </div>
+                <div className="mdt-muted">
+                  <span className="lang-tag">EN</span>
+                  {c.en}
+                </div>
               </div>
             ))}
             <button className="mdt-btn primary big" onClick={ack}>
-              ✓ Acknowledge
+              <Check /> Acknowledge
             </button>
           </div>
         </div>

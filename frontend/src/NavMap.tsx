@@ -3,6 +3,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { trafficTileUrl, type Incident, type Navigation, type Vehicle, type VehicleDetail } from "./api";
 import { baseMaps, saveBase, savedBase, type BaseId } from "./basemaps";
+import { GLYPH } from "./glyphs";
 
 const ROUTE = "#4dabf7"; // the leg being driven
 const DETOUR = "#ff922b"; // legs that go around a road closure
@@ -83,7 +84,7 @@ export function NavMap({ vehicle, detail, nav, incidents, follow, onUserMove }: 
     L.control
       .layers(
         Object.fromEntries((Object.keys(bases) as BaseId[]).map((k) => [bases[k].label, bases[k].layer])),
-        { "🚦 Traffic (TomTom)": traffic },
+        { "Traffic (TomTom)": traffic },
         { position: "topright" },
       )
       .addTo(map);
@@ -140,7 +141,7 @@ export function NavMap({ vehicle, detail, nav, incidents, follow, onUserMove }: 
     (detail?.vehicle.id === vehicle.id ? detail.stops : []).forEach((s, i) => {
       const icon = L.divIcon({
         className: "",
-        html: `<div class="nav-stop nav-stop-${s.kind}${i === 0 ? " next" : ""}">${s.kind === "base" ? "🏠" : i + 1}</div>`,
+        html: `<div class="nav-stop nav-stop-${s.kind}${i === 0 ? " next" : ""}">${s.kind === "base" ? GLYPH.base : i + 1}</div>`,
         iconSize: [30, 30],
         iconAnchor: [15, 15],
       });
@@ -158,7 +159,7 @@ export function NavMap({ vehicle, detail, nav, incidents, follow, onUserMove }: 
       const color = inc.kind === "congestion" ? "#fab005" : "#ff4d4f";
       L.circle([inc.lat, inc.lon], { radius: inc.radius_m, color, weight: 3, fillColor: color, fillOpacity: 0.25, interactive: false }).addTo(ls.incidents);
       L.marker([inc.lat, inc.lon], {
-        icon: L.divIcon({ className: "", html: `<div class="nav-incident">${inc.kind === "road_closure" ? "⛔" : inc.kind === "accident" ? "💥" : "🚦"}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] }),
+        icon: L.divIcon({ className: "", html: `<div class="nav-incident ${inc.kind}">${inc.kind === "congestion" ? GLYPH.cone : GLYPH.closure}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] }),
         interactive: false,
         keyboard: false,
       }).addTo(ls.incidents);
@@ -178,7 +179,7 @@ export function NavMap({ vehicle, detail, nav, incidents, follow, onUserMove }: 
     if (towards) lastHeading.current = heading(pos, towards);
     const down = vehicle.status === "out_of_service";
     const html = heli
-      ? `<div class="nav-veh heli${vehicle.grounded_until ? " grounded" : ""}"><span>🚁</span></div>`
+      ? `<div class="nav-veh heli${vehicle.grounded_until ? " grounded" : ""}">${GLYPH.helicopter}</div>`
       : `<div class="nav-veh${down ? " down" : ""}" style="transform: rotate(${Math.round(lastHeading.current)}deg)"><svg viewBox="0 0 40 40"><path d="M20 3 L34 35 L20 27 L6 35 Z"/></svg></div>`;
     const key = html;
     if (!ls.marker) {

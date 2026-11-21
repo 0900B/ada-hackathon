@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Hospital, TriangleAlert } from "lucide-react";
 import type { Priority, WorldSnapshot } from "./api";
 
 const PRIORITIES: Priority[] = ["emergency", "urgent", "scheduled"];
@@ -83,7 +84,7 @@ export function OpsControls({
           disabled={busy || !hospital}
           onClick={() => hospital && send({ type: "hospital_capacity", place_id: hospital.id, capacity })}
         >
-          🏥 Set capacity
+          <Hospital /> Set capacity
         </button>
         <button
           className="ghost"
@@ -93,7 +94,11 @@ export function OpsControls({
           No limit
         </button>
       </div>
-      {overCapacity && <p className="ops-warn">⚠ {overCapacity.message}</p>}
+      {overCapacity && (
+        <p className="ops-warn">
+          <TriangleAlert /> <span>{overCapacity.message}</span>
+        </p>
+      )}
     </div>
   );
 }

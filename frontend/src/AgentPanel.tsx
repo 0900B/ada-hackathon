@@ -16,6 +16,29 @@ import {
   type StepDetail,
   type WorldSnapshot,
 } from "./api";
+import {
+  Ban,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  CircleAlert,
+  Clapperboard,
+  Clock,
+  Eye,
+  Info,
+  Lightbulb,
+  MessageSquare,
+  RefreshCw,
+  Search,
+  Siren,
+  Sparkles,
+  Table2,
+  TriangleAlert,
+  User,
+  X,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 import { fmtTime } from "./format";
 
 type Notify = (kind: "ok" | "error", text: string) => void;
@@ -30,13 +53,23 @@ export interface AgentKeys {
 const COLLAPSE_AFTER_MS = 20_000; // a decided run shows its outcome this long, then moves to history
 const STALE_AFTER_MIN = 10; // an undecided plan older than this (world clock) is not offered for approval
 
-const STEP_ICON: Record<AgentStep["kind"], string> = {
-  info: "ℹ",
-  reasoning: "💭",
-  tool_call: "🔎",
-  tool_result: "📊",
-  error: "⚠",
+const STEP_ICON: Record<AgentStep["kind"], LucideIcon> = {
+  info: Info,
+  reasoning: Lightbulb,
+  tool_call: Search,
+  tool_result: Table2,
+  error: TriangleAlert,
 };
+
+function TraceLine({ step, clip }: { step: AgentStep; clip?: number }) {
+  const Icon = STEP_ICON[step.kind];
+  const text = clip && step.kind === "reasoning" && step.text.length > clip ? step.text.slice(0, clip) + "…" : step.text;
+  return (
+    <li className={`trace-${step.kind}`}>
+      <Icon /> <span>{text}</span>
+    </li>
+  );
+}
 
 const unassigned = (k: Kpis) => k.unassigned.emergency + k.unassigned.urgent + k.unassigned.scheduled;
 
@@ -65,18 +98,34 @@ function RunContext({ run, state }: { run: AgentRun; state: WorldSnapshot }) {
     const m = /^Field message: "([\s\S]*)"\. Understood as: ([\s\S]*)$/.exec(run.question);
     return (
       <div className="run-context">
-        💬 <q>{m ? m[1] : run.question}</q>
-        {m && <div className="muted">Understood: {m[2]}</div>}
+        <MessageSquare />
+        <div>
+          <q>{m ? m[1] : run.question}</q>
+          {m && <div className="muted">Understood: {m[2]}</div>}
+        </div>
       </div>
     );
   }
   if (run.trigger.startsWith("scenario:")) {
     const name = run.trigger.slice("scenario:".length);
-    return <div className="run-context">🎬 Scenario: {SCENARIOS.find((s) => s.name === name)?.title ?? name}</div>;
+    return (
+      <div className="run-context">
+        <Clapperboard /> <span>Scenario: {SCENARIOS.find((s) => s.name === name)?.title ?? name}</span>
+      </div>
+    );
   }
   const event = run.event_id ? state.events.find((e) => e.id === run.event_id) : undefined;
-  if (event) return <div className="run-context">⚡ {event.summary}</div>;
-  return <div className="run-context">👤 Operator review{run.question ? `: ${run.question}` : ""}</div>;
+  if (event)
+    return (
+      <div className="run-context">
+        <Zap /> <span>{event.summary}</span>
+      </div>
+    );
+  return (
+    <div className="run-context">
+      <User /> <span>Operator review{run.question ? `: ${run.question}` : ""}</span>
+    </div>
+  );
 }
 
 function StepLine({ step, state, detail }: { step: PlanStep; state: WorldSnapshot; detail?: StepDetail }) {
@@ -115,12 +164,18 @@ function Notifications({ rec, open }: { rec: Recommendation; open?: boolean }) {
   if (rec.notifications.length === 0) return null;
   return (
     <details className="more" open={open}>
-      <summary>📨 Messages to crews and hospitals ({rec.notifications.length})</summary>
+      <summary>Messages to crews and hospitals ({rec.notifications.length})</summary>
       {rec.notifications.map((n, i) => (
         <div key={i} className="notification">
           <strong>{n.recipient}</strong>
-          <div>🇸🇮 {n.message_sl}</div>
-          <div className="muted">🇬🇧 {n.message_en}</div>
+          <div>
+            <span className="lang-tag">SL</span>
+            {n.message_sl}
+          </div>
+          <div className="muted">
+            <span className="lang-tag">EN</span>
+            {n.message_en}
+          </div>
         </div>
       ))}
     </details>
@@ -156,7 +211,11 @@ function OptionCard({
         <span className="option-num">{index + 1}</span>
         <strong className="option-title">{option.title}</strong>
         {recommended && <span className="badge">Recommended</span>}
-        {approved && <span className="badge ok">✓ Approved</span>}
+        {approved && (
+          <span className="badge ok">
+            <Check /> Approved
+          </span>
+        )}
       </div>
       {option.summary && <p className="option-summary">{option.summary}</p>}
       {before && after && (
@@ -198,7 +257,7 @@ function OptionCard({
       )}
       {canApprove && option.feasible !== false && (
         <button className={`approve${recommended ? " primary" : ""}`} disabled={busy} onClick={() => onApprove(index)}>
-          ✓ Approve option {index + 1}
+          <Check /> Approve option {index + 1}
           {recommended && <kbd>Y</kbd>}
         </button>
       )}
@@ -223,9 +282,17 @@ function RecommendationView({
   const rec = run.recommendation!;
   return (
     <div className="rec">
-      {run.engine === "engine_fallback" && <div className="warn-box">⚠ {run.error ?? "Claude unavailable"}: showing the engine's own plan.</div>}
+      {run.engine === "engine_fallback" && (
+        <div className="warn-box">
+          <TriangleAlert /> <span>{run.error ?? "Claude unavailable"}: showing the engine's own plan.</span>
+        </div>
+      )}
       <p className="situation">{rec.situation}</p>
-      {rec.escalation && <div className="escalation">🚨 {rec.escalation}</div>}
+      {rec.escalation && (
+        <div className="escalation">
+          <Siren /> <span>{rec.escalation}</span>
+        </div>
+      )}
       {rec.options.length === 0 && <p className="muted">No action needed.</p>}
       {rec.options.map((o, i) => (
         <OptionCard
@@ -240,15 +307,17 @@ function RecommendationView({
           onApprove={onApprove}
         />
       ))}
-      {rec.reasoning && <p className="reasoning">💡 {rec.reasoning}</p>}
+      {rec.reasoning && (
+        <p className="reasoning">
+          <Lightbulb /> <span>{rec.reasoning}</span>
+        </p>
+      )}
       <Notifications rec={rec} />
       <details className="more">
         <summary>How the agent got here ({run.steps.length} steps)</summary>
         <ul className="trace">
           {run.steps.map((s, i) => (
-            <li key={i} className={`trace-${s.kind}`}>
-              {STEP_ICON[s.kind]} {s.text}
-            </li>
+            <TraceLine key={i} step={s} />
           ))}
         </ul>
       </details>
@@ -401,7 +470,7 @@ export function AgentPanel({
       <div className="panel-head">
         <h2 className="panel-title">AI dispatcher</h2>
         <button className={`analyze${showCta ? " primary" : ""}`} disabled={busy} onClick={() => void analyse()} title="Hotkey A">
-          ✨ Analyse <kbd>A</kbd>
+          <Sparkles /> Analyse <kbd>A</kbd>
         </button>
       </div>
       <div className="agent-meta">
@@ -420,7 +489,7 @@ export function AgentPanel({
       {showCta && (
         <button className="cta" onClick={() => void analyse()} disabled={busy}>
           <span className="cta-title">
-            ⚡ {newEvents.length === 1 ? "New event" : `${newEvents.length} new events`} · Analyse <kbd>A</kbd>
+            <Zap /> {newEvents.length === 1 ? "New event" : `${newEvents.length} new events`} · Analyse <kbd>A</kbd>
           </span>
           <span className="cta-text">{newEvents[newEvents.length - 1].summary}</span>
         </button>
@@ -429,15 +498,15 @@ export function AgentPanel({
       {(!run || collapsed) && (
         <div className="agent-idle">
           <div className="idle-line">
-            👁 Watching {inService} vehicles · {issues.length ? `${issues.join(" · ")} · press A to analyse` : "no open issues"}
+            <Eye /> Watching {inService} vehicles · {issues.length ? `${issues.join(" · ")} · press A to analyse` : "no open issues"}
           </div>
           {run && (
             <button className="link last-run" onClick={() => setShowLast((s) => !s)} aria-expanded={showLast}>
-              {showLast ? "▾" : "▸"}{" "}
+              {showLast ? <ChevronDown /> : <ChevronRight />}
               {run.status === "approved"
-                ? `✓ Approved ${decisionTime}: ${run.decision?.title ?? "plan"}`
+                ? `Approved ${decisionTime}: ${run.decision?.title ?? "plan"}`
                 : run.status === "rejected"
-                  ? `✕ Rejected ${decisionTime}`
+                  ? `Rejected ${decisionTime}`
                   : `Last analysis ${run.id}: ${rec?.options.length ? `${run.status}` : "no action needed"}`}
             </button>
           )}
@@ -459,9 +528,7 @@ export function AgentPanel({
               </div>
               <ul className="trace">
                 {run.steps.slice(-6).map((s, i) => (
-                  <li key={i} className={`trace-${s.kind}`}>
-                    {STEP_ICON[s.kind]} {s.kind === "reasoning" ? s.text.slice(0, 160) + (s.text.length > 160 ? "…" : "") : s.text}
-                  </li>
+                  <TraceLine key={i} step={s} clip={160} />
                 ))}
               </ul>
             </>
@@ -483,16 +550,16 @@ export function AgentPanel({
               </div>
               {stale && (
                 <div className="stale-box">
-                  ⏳ {staleRuns.has(run.id) ? "The fleet has moved on and this plan no longer fits." : `This plan is ${Math.round(ageMin)} min old; the fleet has moved on.`}{" "}
+                  <Clock /> {staleRuns.has(run.id) ? "The fleet has moved on and this plan no longer fits." : `This plan is ${Math.round(ageMin)} min old; the fleet has moved on.`}{" "}
                   Re-analyse for a fresh plan.
                   <button className="primary" disabled={busy} onClick={() => void analyse()}>
-                    ✨ Re-analyse <kbd>A</kbd>
+                    <RefreshCw /> Re-analyse <kbd>A</kbd>
                   </button>
                 </div>
               )}
               <RecommendationView run={run} state={state} busy={busy} canApprove={!stale} onApprove={approve} />
               <button className="ghost reject" disabled={busy} onClick={() => void reject()}>
-                ✕ {stale ? "Dismiss" : "Reject all"} <kbd>N</kbd>
+                <X /> {stale ? "Dismiss" : "Reject all"} <kbd>N</kbd>
               </button>
             </>
           )}
@@ -502,14 +569,20 @@ export function AgentPanel({
               <div className="decision-head">
                 {run.status === "approved" ? (
                   <>
-                    ✓ Approved: option {(run.decision?.option_index ?? 0) + 1} · {run.decision?.title}
+                    <Check /> Approved: option {(run.decision?.option_index ?? 0) + 1} · {run.decision?.title}
                   </>
                 ) : run.status === "rejected" ? (
-                  <>✕ Rejected: the plan stays as it was</>
+                  <>
+                    <Ban /> Rejected: the plan stays as it was
+                  </>
                 ) : run.status === "error" ? (
-                  <>⚠ The analysis failed: {run.error}</>
+                  <>
+                    <CircleAlert /> The analysis failed: {run.error}
+                  </>
                 ) : (
-                  <>✓ {rec?.situation ?? "Analysis finished"}: no action needed</>
+                  <>
+                    <Check /> {(rec?.situation ?? "Analysis finished").replace(/[.\s]+$/, "")}: no action needed
+                  </>
                 )}
               </div>
               {approvedOption && approvedOption.steps.length > 0 && (

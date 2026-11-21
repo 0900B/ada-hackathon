@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CircleAlert, CloudSnow, Construction, Sun, Timer, Wrench } from "lucide-react";
 import type { WorldSnapshot } from "./api";
 import { FogControl } from "./FogControl";
 import type { ClickMode } from "./MapView";
@@ -46,7 +47,7 @@ export function EventsPanel({
           disabled={busy || !vehicleId}
           onClick={() => send({ type: "breakdown", vehicle_id: vehicleId, note: "reported by operator" })}
         >
-          🔧 Breakdown
+          <Wrench /> Breakdown
         </button>
         <input
           type="number"
@@ -58,7 +59,7 @@ export function EventsPanel({
           onChange={(e) => setMinutes(Math.max(1, Math.round(Number(e.target.value) || 1)))}
         />
         <button disabled={busy || !vehicleId} onClick={() => send({ type: "delay", vehicle_id: vehicleId, minutes })}>
-          ⏱ Delay
+          <Timer /> Delay
         </button>
       </div>
 
@@ -70,7 +71,7 @@ export function EventsPanel({
           onClick={() => setMode(mode === "emergency" ? null : "emergency")}
           title="Then click the map where the patient is (hotkey E)"
         >
-          🚨 Emergency (click map)
+          <CircleAlert /> Emergency (click map)
         </button>
         <button
           className={mode === "closure" ? "active" : ""}
@@ -78,7 +79,7 @@ export function EventsPanel({
           onClick={() => setMode(mode === "closure" ? null : "closure")}
           title="Then click the map where the road is closed (hotkey C)"
         >
-          ⛔ Closure (click map)
+          <Construction /> Closure (click map)
         </button>
       </div>
 
@@ -90,7 +91,15 @@ export function EventsPanel({
             disabled={busy}
             onClick={() => send(snowing ? { type: "weather_override", clear: true } : { type: "weather_override", snowfall_cm: 2 })}
           >
-            {snowing ? "☀ End snowstorm" : "❄ Snowstorm"}
+            {snowing ? (
+              <>
+                <Sun /> End snowstorm
+              </>
+            ) : (
+              <>
+                <CloudSnow /> Snowstorm
+              </>
+            )}
           </button>
         )}
       </div>

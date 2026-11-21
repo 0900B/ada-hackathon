@@ -1,5 +1,20 @@
 import { useEffect, useState } from "react";
 import { API_URL } from "../api";
+import {
+  Bot,
+  CircleCheck,
+  CircleX,
+  Clapperboard,
+  Download,
+  Lightbulb,
+  Map,
+  MessageSquare,
+  Power,
+  RotateCcw,
+  Zap,
+  Dot,
+  type LucideIcon,
+} from "lucide-react";
 import { fmtTime } from "../format";
 
 interface AuditEntry {
@@ -30,18 +45,23 @@ const KINDS = [
   "reset",
 ];
 
-const KIND_ICON: Record<string, string> = {
-  event: "⚡",
-  field_message: "💬",
-  agent_run_started: "🤖",
-  recommendation: "💡",
-  decision_approved: "✅",
-  decision_rejected: "✖",
-  plan_applied: "🗺",
-  scenario: "🎬",
-  reset: "↺",
-  startup: "⏻",
+const KIND_ICON: Record<string, LucideIcon> = {
+  event: Zap,
+  field_message: MessageSquare,
+  agent_run_started: Bot,
+  recommendation: Lightbulb,
+  decision_approved: CircleCheck,
+  decision_rejected: CircleX,
+  plan_applied: Map,
+  scenario: Clapperboard,
+  reset: RotateCcw,
+  startup: Power,
 };
+
+function KindIcon({ kind }: { kind: string }) {
+  const Icon = KIND_ICON[kind] ?? Dot;
+  return <Icon aria-hidden />;
+}
 
 /** Every event, AI recommendation and operator decision, newest first (auto-refreshes). */
 export function AuditPage() {
@@ -90,7 +110,7 @@ export function AuditPage() {
           ))}
         </select>
         <a className="button-link" href={`${API_URL}/audit/export${world ? `?world=${world}` : ""}`}>
-          ⬇ Export (JSON lines)
+          <Download /> Export (JSON lines)
         </a>
         {data && (
           <span className="muted">
@@ -118,10 +138,11 @@ export function AuditPage() {
               <td>
                 <span className={`world-tag world-${e.world}`}>{e.world}</span>
               </td>
-              <td>
-                {KIND_ICON[e.kind] ?? "•"} {e.kind.replace(/_/g, " ")}
+              <td className="kind">
+                <KindIcon kind={e.kind} />
+                {e.kind.replace(/_/g, " ")}
               </td>
-              <td className="mono">{e.ref ?? ""}</td>
+              <td className="id">{e.ref ?? ""}</td>
               <td>
                 {e.payload ? (
                   <details>

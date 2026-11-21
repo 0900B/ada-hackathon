@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import type { WorldSnapshot } from "../api";
 import { fmtTime, vehicleStatusText } from "../format";
+import { Callsign } from "../icons";
 
 /** Every vehicle with its current trip and projected queue (Live or Simulation: ?world=). */
 export function FleetPage({ state }: { state: WorldSnapshot }) {
@@ -26,12 +27,12 @@ export function FleetPage({ state }: { state: WorldSnapshot }) {
           return (
             <section key={v.id} className={`panel vehicle-card st-${v.status}`}>
               <h3>
-                <span className={`veh veh-${v.type}`}>{v.type === "helicopter" ? `🚁 ${v.id}` : v.id}</span> {v.name}
+                <Callsign v={v} /> {v.name}
               </h3>
               <p className="muted">
                 {v.type} · {vehicleStatusText(v, state.trips)} · base {place.get(v.base_id) ?? v.base_id}
                 {v.busy_until ? ` · busy until ${fmtTime(v.busy_until)}` : ""}
-                {v.grounded_until ? ` · 🌫 grounded by fog until ${fmtTime(v.grounded_until)}` : ""}
+                {v.grounded_until ? ` · grounded by fog until ${fmtTime(v.grounded_until)}` : ""}
               </p>
               {route.length === 0 ? (
                 <p className="muted">No trips.</p>

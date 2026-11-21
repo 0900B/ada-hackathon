@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Check, Mic, Send, CircleHelp } from "lucide-react";
 import { sendFieldMessage, type MessageResult, type WorldSnapshot } from "./api";
 import { SPEECH_LANGS, speechSecureContext, usePushToTalk, useSpeechInput } from "./voice";
 import "./voice.css";
@@ -97,7 +98,7 @@ export function FieldMessage({
                 aria-pressed={speech.listening}
                 {...ptt}
               >
-                🎤 {speech.listening ? "Listening…" : "Speak"}
+                <Mic /> {speech.listening ? "Listening…" : "Speak"}
               </button>
               <span className="lang-toggle" role="group" aria-label="Speech language">
                 {SPEECH_LANGS.map((l) => (
@@ -128,7 +129,7 @@ export function FieldMessage({
             ))}
           </select>
           <button className="primary send" disabled={busy || text.trim().length < 2} onClick={() => void submit()} title="Ctrl+Enter">
-            {busy ? "Interpreting…" : "Send to AI"}
+            <Send /> {busy ? "Interpreting…" : "Send"}
           </button>
         </div>
         {speech.supported ? (
@@ -138,18 +139,28 @@ export function FieldMessage({
             {!speechSecureContext() && <span className="warn-text"> · voice needs HTTPS (or localhost)</span>}
           </label>
         ) : (
-          <p className="muted small">🎤 Voice input needs Chrome or Edge.</p>
+          <p className="muted small">Voice input needs Chrome or Edge.</p>
         )}
         {speech.error && <div className="message error">{speech.error}</div>}
         {error && <div className="message error">{error}</div>}
         {result && (
           <div className="parsed">
-            <div>🇸🇮 {result.understood_sl}</div>
-            <div className="muted">🇬🇧 {result.understood_en}</div>
-            {result.needs_clarification && <div className="warn-box">❓ {result.needs_clarification}</div>}
+            <div>
+              <span className="lang-tag">SL</span>
+              {result.understood_sl}
+            </div>
+            <div className="muted">
+              <span className="lang-tag">EN</span>
+              {result.understood_en}
+            </div>
+            {result.needs_clarification && (
+              <div className="warn-box">
+                <CircleHelp /> <span>{result.needs_clarification}</span>
+              </div>
+            )}
             {result.applied.map((a) => (
               <div key={a.id} className="applied">
-                ✓ {a.summary}
+                <Check /> {a.summary}
               </div>
             ))}
             {result.error && <div className="message error">{result.error}</div>}

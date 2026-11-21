@@ -4,23 +4,26 @@ import "leaflet/dist/leaflet.css";
 import { trafficTileUrl, type Vehicle, type VehicleDetail, type WorldSnapshot } from "./api";
 import { baseMaps, saveBase, savedBase, type BaseId } from "./basemaps";
 import { flightTarget, fmtTime, vehicleStatusText } from "./format";
+import { GLYPH, vehicleGlyph } from "./glyphs";
 
 export type ClickMode = "closure" | "emergency" | null;
 
-const PLACE_STYLE: Record<string, { r: number; color: string }> = {
-  hospital: { r: 7, color: "#ff6b6b" },
-  health_centre: { r: 5, color: "#ffa94d" },
-  base: { r: 6, color: "#9775fa" },
-  residential: { r: 3, color: "#868e96" },
-  incident_site: { r: 7, color: "#ffd43b" },
-  call_location: { r: 8, color: "#ff0054" },
+// Places: small, restrained markers; red is reserved for hospitals and emergency call locations
+const PLACE_STYLE: Record<string, { r: number; color: string; fill: string }> = {
+  hospital: { r: 6, color: "#f2555a", fill: "#3a1417" },
+  health_centre: { r: 4, color: "#a9b6c6", fill: "#18202a" },
+  base: { r: 5, color: "#8cb6ff", fill: "#132443" },
+  residential: { r: 2.5, color: "#6e7a88", fill: "#6e7a88" },
+  incident_site: { r: 6, color: "#f0883e", fill: "#3a2312" },
+  call_location: { r: 7, color: "#f2555a", fill: "#f2555a" },
 };
 
-const HIGHLIGHT = "#ffd43b";
-const DETOUR = "#ff922b"; // highlighted legs that go around a road closure
-const HELI = "#ff922b";
-const HELI_GROUNDED = "#adb5bd";
-const VEH_W = 34; // vehicle marker width; markers parked on the same spot are fanned out by this much
+const HIGHLIGHT = "#5b9bff"; // the selected vehicle's legs
+const DETOUR = "#f0883e"; // legs that go around a road closure
+const EN_ROUTE = "#4f8ff7"; // to the pickup
+const LOADED = "#3fb950"; // patient or load on board
+const GROUNDED = "#8f9cab";
+const VEH_W = 56; // vehicle marker width; markers parked on the same spot are fanned out by this much
 
 interface Layers {
   places: L.LayerGroup;
@@ -40,15 +43,16 @@ interface Props {
   centerOn: { lat: number; lon: number; n: number } | null; // bump n to re-center
 }
 
-function vehicleHtml(v: Vehicle, cls: string, flying: boolean, grounded: boolean): string {
-  if (v.type !== "helicopter") return `<div class="veh veh-${v.type} st-${v.status}${cls}">${v.id}</div>`;
+/** Map marker: a dark plate with the type glyph and the callsign; the border colour is the status. */
+function vehicleHtml(v: Vehicle, cls: string, flying: boolean, grounded: boolean, held: boolean): string {
+  const tag = grounded ? '<span class="vm-tag">Fog</span>' : flying ? '<span class="vm-tag air">Air</span>' : "";
   return (
-    `<div class="heli st-${v.status}${flying ? " flying" : ""}${grounded ? " grounded" : ""}${cls}">` +
-    `<span class="heli-rotor"></span><span class="heli-body">🚁</span><span class="heli-id">${v.id}</span>` +
-    (grounded ? `<span class="heli-fog">🌫 grounded</span>` : "") +
-    `</div>`
+    `<div class="vm type-${v.type} st-${v.status}${grounded ? " grounded" : ""}${held ? " held" : ""}${cls}">` +
+    `${vehicleGlyph(v.type)}<span class="vm-id">${v.id}</span>${tag}</div>`
   );
 }
+
+const INCIDENT_LABEL: Record<string, string> = { road_closure: "Road closure", accident: "Accident", congestion: "Congestion" };
 
 export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail, centerOn }: Props) {
   const el = useRef<HTMLDivElement>(null);
@@ -108,7 +112,7 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
     L.control
       .layers(
         Object.fromEntries((Object.keys(bases) as BaseId[]).map((k) => [bases[k].label, bases[k].layer])),
-        { "🚦 Traffic flow (TomTom)": traffic, "⚠ Traffic incidents (TomTom)": trafficIncidents },
+        { "Traffic flow (TomTom)": traffic, "Traffic incidents (TomTom)": trafficIncidents },
         { position: "topright" },
       )
       .addTo(map);
@@ -175,7 +179,7 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       for (const p of state.places) {
         const s = PLACE_STYLE[p.kind] ?? PLACE_STYLE.residential;
         const cap = p.kind === "hospital" && p.capacity != null ? ` · can admit ${p.capacity}` : "";
-        L.circleMarker([p.lat, p.lon], { radius: s.r, color: s.color, fillColor: s.color, fillOpacity: 0.8, weight: 1 })
+        L.circleMarker([p.lat, p.lon], { radius: s.r, color: s.color, fillColor: s.fill, fillOpacity: 0.9, weight: 1.5 })
           .bindTooltip(p.name + cap)
           .addTo(ls.places);
       }
@@ -185,9 +189,9 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       drawn.current.incidents = incidentsKey;
       ls.incidents.clearLayers();
       for (const inc of state.incidents) {
-        const color = inc.kind === "congestion" ? "#fab005" : "#ff4d4f";
-        L.circle([inc.lat, inc.lon], { radius: inc.radius_m, color, fillColor: color, fillOpacity: 0.2, dashArray: inc.source === "live" ? "4 4" : undefined })
-          .bindTooltip(`${inc.kind === "road_closure" ? "⛔" : inc.kind === "accident" ? "💥" : "🚦"} ${inc.description}`)
+        const color = inc.kind === "congestion" ? "#d6a23a" : "#f2555a";
+        L.circle([inc.lat, inc.lon], { radius: inc.radius_m, color, weight: 1.5, fillColor: color, fillOpacity: 0.15, dashArray: inc.source === "live" ? "4 4" : undefined })
+          .bindTooltip(`${INCIDENT_LABEL[inc.kind] ?? "Incident"}: ${inc.description}`)
           .addTo(ls.incidents);
       }
     }
@@ -198,16 +202,16 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
     // Selected vehicle: its whole remaining day on real roads, with numbered stops
     if (detail && detail.vehicle.id === selectedId) {
       for (const leg of detail.legs) {
-        if (leg.length > 1) L.polyline(leg, { color: "#000", weight: 9, opacity: 0.35, interactive: false }).addTo(ls.highlight); // halo
+        if (leg.length > 1) L.polyline(leg, { color: "#05080c", weight: 8, opacity: 0.6, interactive: false }).addTo(ls.highlight); // casing
       }
       const detours = new Set(detail.detour_legs ?? []);
       detail.legs.forEach((leg, i) => {
         if (leg.length > 1) {
           const line = L.polyline(leg, {
             color: detours.has(i) ? DETOUR : HIGHLIGHT,
-            weight: 5,
-            opacity: i === 0 ? 1 : 0.75,
-            dashArray: i === 0 ? undefined : "8 6",
+            weight: 4,
+            opacity: i === 0 ? 1 : 0.6,
+            dashArray: i === 0 ? undefined : "6 6",
           }).addTo(ls.highlight);
           if (detours.has(i)) line.bindTooltip("Detour around a road closure");
         }
@@ -215,9 +219,9 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       detail.stops.forEach((s, i) => {
         const icon = L.divIcon({
           className: "",
-          html: `<div class="stop-num stop-${s.kind}">${i + 1}</div>`,
-          iconSize: [20, 20],
-          iconAnchor: [10, 10],
+          html: `<div class="stop-num stop-${s.kind}">${s.kind === "base" ? GLYPH.base : i + 1}</div>`,
+          iconSize: [18, 18],
+          iconAnchor: [9, 9],
         });
         L.marker([s.lat, s.lon], { icon, interactive: true })
           .bindTooltip(`${i + 1}. ${s.kind} · ${s.place}${s.trip_id ? ` · ${s.trip_id}` : ""}${s.eta ? ` · ${fmtTime(s.eta)}` : ""}`)
@@ -237,7 +241,7 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       seen.add(v.id);
       const trip = v.current_trip_id ? tripById.get(v.current_trip_id) : undefined;
       const heli = v.type === "helicopter";
-      const color = v.type === "ambulance" ? "#ff8787" : heli ? HELI : "#74c0fc";
+      const color = v.status === "to_pickup" ? EN_ROUTE : LOADED;
       const grounded = v.grounded_until != null; // the backend clears it when the fog lifts
       const selected = v.id === selectedId;
       const faded = dim && !selected;
@@ -246,30 +250,29 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       const flying = target !== null && !v.busy_until;
 
       if (heli && target && !(detail && selected)) {
-        // Helicopters fly straight (no road path): a moving dotted line to the pickup, drop-off or
-        // base, plus a ring on the landing spot
-        const lineColor = grounded ? HELI_GROUNDED : HELI;
+        // Helicopters fly straight (no road path): a dashed line to the pickup, drop-off or base,
+        // plus a ring on the landing spot
+        const lineColor = grounded ? GROUNDED : v.status === "to_pickup" ? EN_ROUTE : LOADED;
         L.polyline(
           [
             [v.lat, v.lon],
             [target.place.lat, target.place.lon],
           ],
-          { color: "#000", weight: 7, opacity: faded ? 0.1 : 0.35, interactive: false },
+          { color: "#05080c", weight: 6, opacity: faded ? 0.1 : 0.5, interactive: false },
         ).addTo(ls.routes);
         L.polyline(
           [
             [v.lat, v.lon],
             [target.place.lat, target.place.lon],
           ],
-          { color: lineColor, weight: 3, opacity: faded ? 0.25 : 1, dashArray: "2 9", lineCap: "round", className: "flight-line", interactive: false },
+          { color: lineColor, weight: 2.5, opacity: faded ? 0.25 : 1, dashArray: "8 6", className: "flight-line", interactive: false },
         ).addTo(ls.routes);
         L.circleMarker([target.place.lat, target.place.lon], {
-          radius: 11,
+          radius: 9,
           color: lineColor,
-          weight: 2,
+          weight: 1.5,
           fill: false,
           opacity: faded ? 0.25 : 1,
-          dashArray: "3 3",
         })
           .bindTooltip(`${v.id} ${target.kind === "base" ? "flying home to" : `${target.kind}:`} ${target.place.name}`)
           .addTo(ls.routes);
@@ -294,17 +297,18 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       }
 
       const cls = `${selected ? " selected" : ""}${faded ? " faded" : ""}`;
-      const html = vehicleHtml(v, cls, flying, grounded);
+      const held = Boolean(v.busy_until) && v.status !== "loading" && !(v.status === "returning" && !v.current_trip_id);
+      const html = vehicleHtml(v, cls, heli && flying && !grounded, grounded, held);
       const spot = spots.get(`${v.lat.toFixed(4)},${v.lon.toFixed(4)}`) ?? [v.id];
       const shift = spot.length > 1 ? (spot.indexOf(v.id) - (spot.length - 1) / 2) * VEH_W : 0;
-      const size: [number, number] = heli ? [40, 40] : [32, 20];
+      const size: [number, number] = [heli ? 72 : 60, 24];
       const anchor: [number, number] = [size[0] / 2 - shift, size[1] / 2];
       const key = `${html}|${anchor[0]}`;
       const where = target ? ` · ${target.kind === "base" ? "flying home" : `flying to ${target.kind}`}: ${target.place.name}` : "";
-      const groundedText = grounded ? ` · 🌫 grounded by fog until ${fmtTime(v.grounded_until)}` : "";
+      const groundedText = grounded ? ` · grounded by fog until ${fmtTime(v.grounded_until)}` : "";
       const tip = `${v.name} · ${vehicleStatusText(v, state.trips)}${trip ? ` · ${trip.id} (${trip.label})` : ""}${
         heli ? where : ""
-      }${groundedText} · ⛽ ${Math.round(v.fuel_pct ?? 0)}% · click for details`;
+      }${groundedText} · fuel ${Math.round(v.fuel_pct ?? 0)}% · click for details`;
       const z = selected ? 2000 : heli ? 1000 : 0;
 
       const existing = markers.current.get(v.id);
