@@ -40,7 +40,7 @@ from .models import (
     utcnow,
 )
 from .roads import ROADS
-from . import tiles
+from . import navigation, tiles
 from .vehicles import vehicle_detail
 from .sim.seed import seed_world
 from .sim.simulator import tick
@@ -253,6 +253,16 @@ def get_vehicle(vehicle_id: str, state: WorldState = World) -> dict:
     if v is None:
         raise HTTPException(status_code=404, detail=f"Unknown vehicle {vehicle_id}")
     return vehicle_detail(state, v)
+
+
+@router.get("/vehicles/{vehicle_id}/navigation")
+async def get_navigation(vehicle_id: str, state: WorldState = World) -> dict:
+    """In-vehicle tablet: the next manoeuvres (OSRM, cached, fetched in the background) and the
+    distance and time to the next stop. Never waits on OSRM; an empty step list means "not yet"."""
+    v = state.vehicles.get(vehicle_id)
+    if v is None:
+        raise HTTPException(status_code=404, detail=f"Unknown vehicle {vehicle_id}")
+    return navigation.navigation(state, v)
 
 
 @router.post("/events")
