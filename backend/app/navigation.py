@@ -179,10 +179,13 @@ async def _fetch(slot: _Slot, coords: list[tuple[float, float]], start_bearing: 
         slot.pending = False
 
 
-def _request(slot: _Slot, state: WorldState, v: Vehicle, target: Key) -> None:
-    """Queue a fetch from the vehicle's position to the target (via the detour if it drives one)."""
+def _request(slot: _Slot, state: WorldState, v: Vehicle, target: Key, urgent: bool) -> None:
+    """Queue a fetch from the vehicle's position to the target (via the detour if it drives one).
+
+    urgent: a new target or a new detour (fetch now); otherwise (drifted off the route) at most
+    once every REFETCH_MIN_S."""
     now = time.monotonic()
-    if slot.pending or now < slot.failed_until or now - slot.last_fetch < REFETCH_MIN_S:
+    if slot.pending or now < slot.failed_until or (not urgent and now - slot.last_fetch < REFETCH_MIN_S):
         return
     route = leg_route(state, v)
     rest = remaining_points(route, v.path_progress) if route is not None and v.on_road else []
@@ -256,13 +259,16 @@ def navigation(state: WorldState, v: Vehicle) -> dict[str, Any]:
     slot = _slots.setdefault((state.name, v.id), _Slot())
     route = slot.route
     along = off = None
+    detour_now = bool(v.path_avoid) and is_detour(leg_route(state, v))
     if route is not None and route.target == tkey:
         along, off, route.seg = _project(route, v.lat, v.lon)
-        if off > OFF_ROUTE_M:
-            _request(slot, state, v, tkey)  # left the cached route: ask again from here
+        if route.detour != detour_now:
+            _request(slot, state, v, tkey, urgent=True)  # now driving around a closure (or no longer)
+        elif off > OFF_ROUTE_M:
+            _request(slot, state, v, tkey, urgent=False)  # left the cached route: ask again from here
     else:
         route = None
-        _request(slot, state, v, tkey)
+        _request(slot, state, v, tkey, urgent=True)
 
     if route is None or along is None:
         status = "pending" if slot.pending else "unavailable"
