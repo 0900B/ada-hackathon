@@ -55,13 +55,19 @@ def _check_unit(entry: EntryBase, trip: Trip) -> None:
     raise ClinicalError(409, f"Case {trip.id} is assigned to vehicle {trip.vehicle_id}, not {entry.unit}.")
 
 
-def _check_times(entry: EntryBase, trip: Trip, now: datetime) -> None:
+def _check_times(entry: EntryBase, trip: Trip, now: datetime, restating: bool) -> None:
+    """`restating` is a confirm: it repeats an observation the log already holds, so only the upper bound applies.
+
+    The case start can move after an entry was accepted (the default observed_t is `now`, which on an
+    unassigned scheduled trip precedes `pickup_after`; a re-dispatch resets `dispatched_at`), so
+    re-applying the lower bound to a stored time would refuse a legitimate confirm.
+    """
     observed = entry.observed_t
     if observed is not None:
         if observed > now:
             raise ClinicalError(422, f"observed_t {observed.isoformat()} is in the future (world time is {now.isoformat()}).")
         started = case_start(trip)
-        if observed < started:
+        if observed < started and not restating:
             raise ClinicalError(422, f"observed_t {observed.isoformat()} is before case {trip.id} began ({started.isoformat()}).")
     # The onset of a stroke may well precede the call, but it cannot lie ahead of now.
     if isinstance(entry, EventIn) and entry.content.kind == "stroke_onset":
@@ -85,6 +91,10 @@ def _check_supersedes(entry: EntryBase, log: ClinicalLog) -> None:
 
 def record_entry(state: WorldState, entry: EntryBase) -> tuple[ClinicalEntry, bool]:
     """Apply every rule, then store. Returns (stored entry, True), or (the earlier entry, False) for a replay."""
+    return _record(state, entry, restating=False)
+
+
+def _record(state: WorldState, entry: EntryBase, restating: bool) -> tuple[ClinicalEntry, bool]:
     log = get_log(state)
     if entry.client_entry_id is not None:  # a replay of what this unit already sent: nothing else is looked at
         earlier = log.by_client_id(entry.unit, entry.client_entry_id)
@@ -96,7 +106,7 @@ def record_entry(state: WorldState, entry: EntryBase) -> tuple[ClinicalEntry, bo
     if isinstance(entry, ERActionIn) and entry.source != "er_reception":
         raise ClinicalError(422, f"An er_action can only be recorded by er_reception, not {entry.source}.")
     now = state.sim_time
-    _check_times(entry, trip, now)
+    _check_times(entry, trip, now, restating)
     _check_supersedes(entry, log)
 
     dumped = entry.model_dump(mode="json")  # content becomes plain JSON (times as ISO strings), as entered
@@ -132,8 +142,10 @@ def record_entry(state: WorldState, entry: EntryBase) -> tuple[ClinicalEntry, bo
 def confirm_entry(state: WorldState, seq: int, unit: str, source: Source = "crew_tap") -> ClinicalEntry:
     """Record a confirmed copy of entry `seq` that supersedes it (a tap on "heard" or "inferred").
 
-    It is a new entry like any other, so it passes the same rules: `unit` must be the case's vehicle
-    for a crew source, and an entry that was already replaced cannot be confirmed (409).
+    It is a new entry, so it passes the same rules: `unit` must be the case's vehicle for a crew
+    source, and an entry that was already replaced cannot be confirmed (409). The one exception is
+    the case-start lower bound on `observed_t`: the copy restates a time the log already accepted
+    (and keeps it, never moving it to now: card ages use it), so only the upper bound is re-checked.
     """
     original = get_log(state).get(seq)
     if original is None:
@@ -157,5 +169,5 @@ def confirm_entry(state: WorldState, seq: int, unit: str, source: Source = "crew
     except ValidationError as exc:
         first = exc.errors()[0]
         raise ClinicalError(422, f"{'.'.join(str(p) for p in first['loc'])}: {first['msg']}") from exc
-    stored, _ = record_entry(state, copy)
+    stored, _ = _record(state, copy, restating=True)  # same rules, but the observation is not re-bounded
     return stored

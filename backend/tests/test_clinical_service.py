@@ -298,6 +298,32 @@ def test_confirm_goes_through_the_same_rules():
     assert c.source == "dispatcher" and c.unit == "disp-1" and c.state == "confirmed"
 
 
+def test_confirm_works_on_an_unassigned_trip_whose_pickup_is_still_ahead():
+    w = fresh_world()
+    t = unassigned_trip(w)
+    assert t.dispatched_at is None and case_start(t) > w.sim_time  # the default observed_t (now) precedes case_start
+    e, _ = rec(w, t, source="dispatcher", unit="disp-1", type="note", content={"text": "call back the family"})
+    assert e.observed_t == w.sim_time and e.observed_t < case_start(t)
+    c = confirm_entry(w, e.seq, "disp-1", source="dispatcher")
+    assert c.state == "confirmed" and c.supersedes == e.entry_id
+    assert c.observed_t == e.observed_t and c.content == e.content  # the observation is restated, not moved to now
+    assert get_log(w).superseded_ids() == {e.entry_id}
+
+
+def test_confirm_works_after_the_trip_was_dispatched_again_later():
+    w = fresh_world()
+    t = er_trip(w)
+    e, _ = rec(w, t, source="crew_voice")
+    drive(w, 3)
+    t.dispatched_at = w.sim_time  # a re-dispatch (e.g. after a grounding) moves the case start past the entry
+    assert e.observed_t < case_start(t)
+    c = confirm_entry(w, e.seq, t.vehicle_id)
+    assert c.state == "confirmed" and c.supersedes == e.entry_id
+    assert c.observed_t == e.observed_t and c.t == w.sim_time and c.t != c.observed_t
+    # The bound still holds for a NEW observation: only a restated one skips it.
+    assert refused(w, t, observed_t=e.observed_t.isoformat()).status == 422
+
+
 def test_confirm_keeps_a_stored_event_time_intact():
     w = fresh_world()
     t = er_trip(w)
