@@ -15,6 +15,7 @@ from .. import config
 from ..engine.actions import LJ
 from ..engine.candidates import nearest_place_name
 from ..engine.projection import DONE
+from ..engine.severity import CONDITIONS, MODIFIERS, SEVERITIES, SEVERITY_RANK
 from ..models import OperatorEvent
 
 if TYPE_CHECKING:
@@ -41,11 +42,20 @@ a delay (estimate the minutes only if the message gives a number; otherwise use 
 near_place_id for the closest known place, or lat/lon if you are confident about the street.
 - A new urgent patient ("nujno", "sum na kap", "padec", "nezavesten") is an urgent_request: \
 emergency for life-threatening cases, otherwise urgent; stretcher unless the patient can sit.
+- Grade every urgent_request with a severity and a condition: "ne diha", "oživljanje", "oživljajo" \
+= critical cardiac_arrest; "se duši", "zadušitev" = critical choking; "močno krvavi" = critical \
+catastrophic_bleeding; anaphylactic shock = critical anaphylaxis; "sum na kap", "povešen ustni kot" \
+= serious stroke; "bolečina v prsih" = serious stemi; "težko diha" = serious breathing_difficulty; a serious \
+accident or fall from height = serious major_trauma; "krči" = serious seizure; suspected sepsis = \
+serious sepsis; "zlom" = urgent fracture; "padec" without red flags = urgent fall. Modifiers: \
+"otrok" = child, several injured = multiple_patients, "se slabša" = deteriorating, nobody doing CPR \
+= no_bystander_cpr, a stroke whose symptoms started over 3 hours ago = late_stroke_window.
 - Fog ("megla") at the helicopter base or "helikopter ne more vzleteti" is a fog event: it \
 grounds the helicopters, 60 minutes unless the message says otherwise.
 - A patient getting worse ("stanje se je poslabšalo", "pacient je nestabilen") or better is a \
 priority_change of that patient's trip (the sender's current trip if not named): worse means \
-emergency if life-threatening, otherwise urgent.
+emergency if life-threatening, otherwise urgent; give the new severity (one level up when worse: \
+urgent -> serious -> critical) and a condition if the message names one.
 - A hospital that can admit only a few more patients ("UKC ima samo še 2 prosti postelji", \
 "urgenca je polna") is a hospital_capacity event for that hospital (full = 0).
 - A booking or order for a planned, not life-threatening transport ("naročam prevoz", "prosim za \
@@ -93,6 +103,9 @@ EVENT_SCHEMAS = [
             "dropoff_id": _NULLABLE_STR,
             "needs": {"type": "string", "enum": ["stretcher", "wheelchair", "seated"]},
             "priority": {"type": "string", "enum": ["emergency", "urgent"]},
+            "severity": {"anyOf": [{"type": "string", "enum": ["critical", "serious", "urgent"]}, {"type": "null"}]},
+            "condition": {"anyOf": [{"type": "string", "enum": list(CONDITIONS)}, {"type": "null"}]},
+            "modifiers": {"type": "array", "items": {"type": "string", "enum": list(MODIFIERS)}},
             "note": _NULLABLE_STR,
         },
     ),
@@ -102,6 +115,8 @@ EVENT_SCHEMAS = [
         {
             "trip_id": {"type": "string"},
             "priority": {"type": "string", "enum": ["emergency", "urgent", "scheduled"]},
+            "severity": {"anyOf": [{"type": "string", "enum": list(SEVERITIES)}, {"type": "null"}]},
+            "condition": {"anyOf": [{"type": "string", "enum": list(CONDITIONS)}, {"type": "null"}]},
             "note": _NULLABLE_STR,
         },
     ),
@@ -177,7 +192,8 @@ def build_context(state: WorldState, sender_vehicle_id: str | None) -> dict[str,
             for p in state.places.values()
         ],
         "open_trips": [
-            {"id": t.id, "label": t.patient, "priority": t.priority, "vehicle": t.vehicle_id, "status": t.status}
+            {"id": t.id, "label": t.patient, "priority": t.priority, "severity": t.severity, "condition": t.condition,
+             "vehicle": t.vehicle_id, "status": t.status}
             for t in trips.values()
             if t.status not in DONE
         ],
@@ -210,12 +226,73 @@ async def parse_message(state: WorldState, text: str, sender_vehicle_id: str | N
 
 _event_adapter = TypeAdapter(OperatorEvent)
 
+# Keyword grading of field messages (Slovenian, some English): (phrases, condition, level). First match
+# wins, so the most time-critical come first ("padec z višine" before "padec").
+GRADING_KEYWORDS: list[tuple[tuple[str, ...], str, str]] = [
+    (("ne diha", "oživlj", "brez utripa", "srčni zastoj", "zastoj srca", "not breathing", "cardiac arrest"), "cardiac_arrest", "critical"),
+    (("se duši", "zaduši", "dušenje", "choking"), "choking", "critical"),
+    (("močno krvavi", "masivna krvavitev", "huda krvavitev", "bleeding heavily", "heavy bleeding"), "catastrophic_bleeding", "critical"),
+    (("anafilak", "alergijski šok", "anaphyla"), "anaphylaxis", "critical"),
+    (("sum na kap", "možganska kap", "povešen ustni kot", "povešen kot ust", "stroke"), "stroke", "serious"),
+    (("bolečina v prsih", "bolečine v prsih", "boli v prsih", "infarkt", "srčni napad", "chest pain", "heart attack"), "stemi", "serious"),
+    (("težko diha", "težave z dihanjem", "težko dihanje", "difficulty breathing", "short of breath"), "breathing_difficulty", "serious"),
+    (("padec z višine", "prometna nesreča", "huda poškodba", "politravm", "major trauma"), "major_trauma", "serious"),
+    (("krči", "epilept", "seizure"), "seizure", "serious"),
+    (("sepsa", "sepso", "sepsis"), "sepsis", "serious"),
+    (("zlom", "fractur"), "fracture", "urgent"),
+    (("padec", "padel", "padla", "a fall"), "fall", "urgent"),
+]
+MODIFIER_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "child": ("otrok", "deček", "deklica", "dojenček", "child", "baby"),
+    "multiple_patients": ("več poškodovanih", "več oseb", "dva poškodovana", "trije poškodovani", "several injured"),
+    "deteriorating": ("se slabša", "slabša se", "poslabša", "poslabšuje", "getting worse"),
+    "no_bystander_cpr": ("nihče ne oživlja", "brez oživljanja", "no cpr", "nobody is doing cpr"),
+}
 
-def to_operator_events(state: WorldState, parsed: ParsedMessage) -> list[Any]:
-    """Map the parser's events onto the engine's event models, resolving place ids to coordinates."""
+
+def grade_text(text: str) -> tuple[str | None, str | None, list[str]]:
+    """(condition, level, modifiers) from a field message's words; (None, None, []) if nothing matches."""
+    low = text.lower()
+    condition = level = None
+    for phrases, cond, lvl in GRADING_KEYWORDS:
+        if any(p in low for p in phrases):
+            condition, level = cond, lvl
+            break
+    modifiers = [m for m, phrases in MODIFIER_KEYWORDS.items() if any(p in low for p in phrases)]
+    return condition, level, modifiers
+
+
+def _apply_grading(state: WorldState, ev: dict[str, Any], text: str | None) -> None:
+    """Fill in (never weaken) severity, condition and modifiers from the message's own words."""
+    if not text:
+        return
+    condition, lvl, modifiers = grade_text(text)
+    if ev["type"] == "urgent_request":
+        implied = ev.get("severity") or ("serious" if ev.get("priority", "emergency") == "emergency" else "urgent")
+        strong_enough = lvl is not None and SEVERITY_RANK[lvl] <= SEVERITY_RANK[implied]  # never weaken the model's grading
+        if not ev.get("condition") and condition and strong_enough:
+            ev["condition"] = condition
+        if not ev.get("severity") and strong_enough and ev.get("condition") == condition:
+            ev["severity"] = lvl  # e.g. "ne diha": critical; a plain fall never downgrades an emergency
+        ev["modifiers"] = sorted(set(ev.get("modifiers") or []) | set(modifiers))
+    elif ev["type"] == "priority_change" and not ev.get("severity") and "deteriorating" in modifiers:
+        trip = state.trips.get(ev["trip_id"])
+        if trip is not None and trip.severity in SEVERITY_RANK:
+            up = SEVERITIES[max(0, SEVERITY_RANK[trip.severity] - 1)]  # "stanje se je poslabšalo": one level up
+            if lvl and SEVERITY_RANK[lvl] < SEVERITY_RANK[up]:
+                up = lvl  # the message names something even more severe (e.g. "ne diha")
+            ev["severity"] = up
+            if condition and not ev.get("condition"):
+                ev["condition"] = condition
+
+
+def to_operator_events(state: WorldState, parsed: ParsedMessage, text: str | None = None) -> list[Any]:
+    """Map the parser's events onto the engine's event models, resolving place ids to coordinates.
+    With the original message text, the keyword grading fills in what the model left out."""
     out = []
     for raw in parsed.events:
         ev = dict(raw)
+        _apply_grading(state, ev, text)
         if ev["type"] == "road_closure":
             place = state.places.get(ev.pop("near_place_id") or "")
             if place and (ev.get("lat") is None or ev.get("lon") is None):

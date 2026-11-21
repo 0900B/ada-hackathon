@@ -15,6 +15,7 @@ PlaceKind = Literal["hospital", "health_centre", "residential", "base", "inciden
 VehicleType = Literal["ambulance", "transport", "helicopter"]
 VehicleStatus = Literal["idle", "to_pickup", "loading", "with_patient", "returning", "out_of_service"]
 Priority = Literal["emergency", "urgent", "scheduled"]
+CallSeverity = Literal["critical", "serious", "urgent", "routine"]  # see engine/severity.py
 Needs = Literal["stretcher", "wheelchair", "seated", "equipment"]  # "equipment": no patient, cargo only
 TripKind = Literal["patient", "equipment"]
 TripStatus = Literal["unassigned", "assigned", "en_route_pickup", "onboard", "completed", "cancelled"]
@@ -98,13 +99,40 @@ class Trip(BaseModel):
     eta_dropoff: datetime | None = None
     delay_min: float | None = None  # predicted (or final) lateness vs due_by
     dispatched_at: datetime | None = None  # set when the engine dispatched this call itself (sim time)
+    # Severity level (docs/DISPATCH_PRIORITIES.md): critical | serious | urgent | routine. Critical and
+    # serious are priority "emergency", urgent is "urgent", routine is "scheduled". None = from priority.
+    severity: CallSeverity | None = None
+    condition: str | None = None  # e.g. "cardiac_arrest", "stroke", "fracture", "transfer" (engine.severity.CONDITIONS)
+    condition_label: str | None = None  # short English label, e.g. "Cardiac arrest"
+    modifiers: list[str] = Field(default_factory=list)  # child, multiple_patients, deteriorating, ...
+    response_target_min: float | None = None  # minutes from the call to reach the patient (None = by appointment)
+    times_displaced: int = 0  # how often a unit was diverted away from this call (at most once)
 
     @model_validator(mode="after")
     def _equipment_consistent(self) -> Trip:
-        """kind="equipment" and needs="equipment" always go together (either one implies the other)."""
+        """kind="equipment" and needs="equipment" always go together (either one implies the other).
+        severity and priority agree: a given severity sets the priority, else it follows from it."""
         if self.kind == "equipment" or self.needs == "equipment":
             self.kind, self.needs = "equipment", "equipment"
+        from .engine import severity as sev  # no cycle: that module needs only geo
+
+        self.condition = sev.normalise_condition(self.condition)
+        self.modifiers = sev.normalise_modifiers(self.modifiers)
+        self.severity = sev.severity_for(self.priority, self.severity, self.condition)  # type: ignore[assignment]
+        self.priority = sev.SEVERITY_PRIORITY[self.severity]  # type: ignore[assignment,index]
+        if self.condition and not self.condition_label:
+            self.condition_label = sev.condition_label(self.condition)
+        if self.response_target_min is None:
+            self.response_target_min = sev.response_target(self.severity)  # type: ignore[arg-type]
         return self
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def time_weight(self) -> float:
+        """Relative time sensitivity within the level (condition weight plus case modifiers)."""
+        from .engine import severity as sev
+
+        return sev.time_weight(self.severity or "routine", self.condition, self.modifiers)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -186,6 +214,7 @@ class Alert(BaseModel):
         "data_source_down",
         "hospital_over_capacity",
         "low_fuel",
+        "red_response_over_15_min",  # a critical/serious call predicted to be reached after 15 min (Slovenian reference)
     ]
     severity: Severity
     message: str
@@ -257,6 +286,15 @@ class TaskRequestEvent(BaseModel):
     # If no vehicle can take it on time: "leave" it unassigned for the AI/dispatcher, or put it on
     # the vehicle that can collect it "soonest" (late; used for live calls, which must be served).
     if_late: Literal["leave", "soonest"] = "leave"
+    severity: Literal["urgent", "routine"] | None = None  # optional; sets the priority (urgent / scheduled)
+    condition: str | None = None  # e.g. "transfer", "equipment"
+    modifiers: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _severity_sets_priority(self) -> TaskRequestEvent:
+        if self.severity:
+            self.priority = "urgent" if self.severity == "urgent" else "scheduled"
+        return self
 
 
 class UrgentRequestEvent(BaseModel):
@@ -275,6 +313,23 @@ class UrgentRequestEvent(BaseModel):
     needs: Needs = "stretcher"
     priority: Literal["emergency", "urgent"] = "emergency"
     note: str | None = None
+    # Optional grading (docs/DISPATCH_PRIORITIES.md). severity sets the priority (critical/serious =
+    # emergency, urgent = urgent); without it the condition's level, else serious/urgent by priority.
+    severity: Literal["critical", "serious", "urgent"] | None = None
+    condition: str | None = None  # e.g. "cardiac_arrest", "stroke", "stemi", "fracture"
+    modifiers: list[str] = Field(default_factory=list)  # child, multiple_patients, deteriorating, ...
+
+    @model_validator(mode="after")
+    def _severity_sets_priority(self) -> UrgentRequestEvent:
+        from .engine import severity as sev
+
+        self.condition = sev.normalise_condition(self.condition)
+        self.modifiers = sev.normalise_modifiers(self.modifiers)
+        level = sev.severity_for(self.priority, self.severity, self.condition)
+        if level in ("critical", "serious", "urgent"):
+            self.severity = level  # type: ignore[assignment]
+            self.priority = "urgent" if level == "urgent" else "emergency"
+        return self
 
 
 class WeatherOverrideEvent(BaseModel):
@@ -300,12 +355,28 @@ class FogEvent(BaseModel):
 
 
 class PriorityChangeEvent(BaseModel):
-    """Sprememba prioritete: a trip's priority changes (e.g. the patient's condition worsens)."""
+    """Sprememba prioritete: a trip's priority or severity level changes (e.g. the patient gets worse).
+
+    Give priority, or severity (which sets the priority; e.g. serious -> critical keeps "emergency"),
+    optionally a new condition."""
 
     type: Literal["priority_change"]
     trip_id: str
-    priority: Priority
+    priority: Priority | None = None
+    severity: CallSeverity | None = None
+    condition: str | None = None
     note: str | None = None
+
+    @model_validator(mode="after")
+    def _one_given(self) -> PriorityChangeEvent:
+        from .engine import severity as sev
+
+        self.condition = sev.normalise_condition(self.condition)
+        if self.severity:
+            self.priority = sev.SEVERITY_PRIORITY[self.severity]  # type: ignore[assignment]
+        elif self.priority is None:
+            raise ValueError("give priority or severity")
+        return self
 
 
 class HospitalCapacityEvent(BaseModel):

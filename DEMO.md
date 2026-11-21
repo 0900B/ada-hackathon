@@ -16,10 +16,26 @@ API (GPS feed, orders, crew messages, decisions), so it can sit next to an exist
   (blood products, lab samples, a ventilator). The engine dispatches **each call at once**; the event log
   says who was sent and when they arrive. Vehicles return to base after every job, so clicking a vehicle
   shows its current job and at most one more.
-- **Ambulances A1–A3 are emergency units**: emergencies and urgent calls, to the free unit that reaches
-  the patient first. Never more than the current job plus one; never turned away from a patient on board.
-- **Transport vans T1–T5** take urgent patient transports and equipment runs (and bookings). Never emergencies.
-- **Helicopter H1** is sent by the engine to remote calls where it is clearly faster. Fog grounds it.
+- **Every call has a severity level and a condition**: critical (cardiac arrest, choking, catastrophic
+  bleeding, anaphylaxis; reach within 8 min), serious (stroke, heart attack, breathing difficulty, major
+  trauma, seizure, sepsis; 18 min), urgent (falls, fractures, transfers, equipment; 60 min). Within a
+  level, each condition has a time-sensitivity weight (cardiac arrest 10, stroke and heart attack 6,
+  seizure 4, ...). The doctrine and its sources: `docs/DISPATCH_PRIORITIES.md`.
+- **Ambulances A1–A3 are emergency units.** The engine sends the unit that reaches the patient first,
+  including one **finishing a drop-off nearby** (if at least 3 min sooner than the free one). A
+  life-threatening call may **divert** a unit from a less urgent call it has not reached yet, when that
+  saves at least 3 min (critical) or 5 min (serious) and the displaced patient is still reached within
+  their own target by another unit. Never with a patient on board, on scene or within 2 min of its
+  patient; no call is displaced twice. Two calls of the same level are never swapped automatically: the
+  engine proposes a swap (more time-critical first, else the shorter worst wait). Every summary gives
+  the clinical reason ("cardiac arrest: about 6% survival lost per minute without defibrillation").
+- **Transport vans T1–T5** take urgent patient transports and equipment runs (and bookings). Never
+  emergencies. The last free ambulance of an area is kept for red calls: a van takes the non-urgent job.
+- **Helicopter H1**: the closest unit for a critical call even in the city; for a serious call only if
+  10 min faster; urgent calls only when remote. It is checked for every red call (the summary says so).
+  Fog grounds it.
+- A red call predicted to be reached after **15 min** (the Slovenian reference) raises an alert and the
+  engine recommends asking a neighbouring station.
 - A routine call **never** starts an AI analysis (no tokens). Only a genuine problem may (a call no unit
   can take, or one that will be late), and only when Auto-analyse is on.
 - **Approving a plan does exactly what the option says**: each option lists, step by step, which
@@ -93,18 +109,23 @@ wrong, a new plan in 30 seconds."
 ## Scenarios (Simulation tab)
 Every scenario starts from an empty live-calls day, puts the fleet on a few live jobs, fast-forwards to
 the moment and applies its events. New random calls pause for 30 world-minutes. With Auto-analyse off,
-press **A**: the analysis gets the scenario's description. Each one leaves a real decision for the AI
-(even the engine-only fallback has an option to approve).
+press **A**: the analysis gets the scenario's description. Three scenarios show a decision the
+**engine takes by itself** at the moment of dispatch (marked "Automatic": closest unit incl. one
+finishing nearby, override of a less urgent call, the helicopter): point at the event log line, which
+says what happened and the clinical reason. The others leave a decision for the AI (even the
+engine-only fallback has an option to approve or an escalation).
 
 | Button | What happens | The decision when you press A |
 |---|---|---|
 | Prepare crew demo | T1 loads blood products at UKC for the Oncology Institute (one more job queued); A2, T3, T4 busy | Sets up the live crew message ("Vozilo je obstalo. Oprema je še v njem.") |
 | Stranded patient | T2 breaks down **with an urgent patient on board** (one more job queued); A1 and A2 are on emergencies | Who collects the patient at the roadside: a free van (goes now) or A3, the last free ambulance; who takes T2's next job |
-| Stroke and closure | Stroke in Polje, Zaloška closed at Kodeljevo. A1 is on its way to an urgent call near Polje, A2 has a patient on board, so the engine sends the only free ambulance, **A3, from the west** (13 min) | **Turn A1 around** for the stroke (about 8 min sooner) and give A3 A1's urgent call; or H1. The loaded leg to UKC goes **around** the closure (orange) |
-| Remote emergency | H1 is flying to an urgent call (skier, wrist fracture, Krvavec) when a hiker falls at Kamniška Bistrica (suspected spinal injury, 45 min by road): the engine sends the nearest free ambulance | **Turn H1 around** for the hiker (about 30 min sooner); the skier waits for H1 or gets the ambulance. Approve and watch H1 **fly**, land, load and land at UKC. Optional: **F** (fog) while it flies |
-| Call surge | Seven calls in about three minutes: six emergencies and an urgent call, three ambulances. The engine sends the free ones; three emergencies queue behind a patient; the urgent call goes to a van | Who waits; **H1 for a city emergency** (about 10 min sooner); mutual aid from a neighbouring station |
-| Snow cascade | Snowstorm, T1 stuck 25 min with a patient on board and another queued, a fall on ice | The fall gets the nearest ambulance at once; T1's queued patient turns late: move it to a free van; who else waits |
+| Stroke and closure | **Automatic (available soon).** Stroke in Polje, Zaloška closed at Kodeljevo. A2 is handing over a patient at UKC, the only free ambulance (A3) is far away near Medvode, H1 is out on a mountain call | The event log: "dispatched A2 (available soon: drops off at UKC, at the patient ..., 7 min sooner at UKC than A3)". The stroke is judged by arrival at UKC (stroke centre). The loaded leg goes **around** the closure (orange). Over 15 min: the red-call alert and mutual-aid advice |
+| Priority override | **Automatic (override).** A1 is on its way to an urgent fall when a cardiac arrest (no bystander CPR) is reported next to it; A2 has a patient on board, A3 is far away | The event log: "A1 diverted from TR-003 (urgent) to this critical call ... 18 min sooner than A3; TR-003 taken over by T1 (within its 60-min target); Cardiac arrest: about 6% survival lost per minute without defibrillation" |
+| Two serious calls | A1 is on its way to a seizure in Polje when a suspected heart attack is reported right next to it; the engine sends the free A3 (same level: nothing automatic) | Press A: **swap** proposed: A1 takes the heart attack (more time-critical: catheter lab within 90 min), A3 the seizure; approve and A1 turns around |
+| Remote emergency | **Automatic (override, helicopter).** H1 is flying to an urgent skier (wrist fracture, Krvavec) when a hiker falls at Kamniška Bistrica (major trauma, 45 min by road) | The engine turns H1 around at once ("31 min sooner than A3 by road"); the skier stays with H1, next, within target. Watch H1 **fly**, land, load and land at UKC. Optional: **F** (fog) while it flies |
+| Call surge | Seven calls in about three minutes, including a **cardiac arrest** and a child with breathing difficulty; three ambulances | The arrest gets **H1** (the closest unit for a critical call, even in the city); the fall goes to a van; two serious calls wait for units finishing at UKC, over 15 min: red-call alerts. Press A: who waits (time sensitivity), mutual aid from a neighbouring station |
+| Snow cascade | Snowstorm, T1 stuck 25 min with a patient on board and another queued, a fall on ice with a head injury (serious) | The fall gets the nearest ambulance at once; T1's queued patient turns late: move it to a free van; who else waits |
 | Stranded equipment | T1 breaks down with the blood products on board | Who collects them at the breakdown site (the brief's rule) and who takes T1's next job |
-| UKC full | Five patients heading to UKC; one (in a van) becomes an emergency and UKC can admit only two more | The engine sends an ambulance to the emergency at once (it keeps its UKC slot). Which three are redirected, where (Trbovlje / Novo mesto), and by whom (a long transfer: some will be late, the AI should say so) |
+| UKC full | Five patients heading to UKC; one (in a van) gets chest pain (now serious, suspected heart attack) and UKC can admit only two more | The engine sends an ambulance to the heart attack at once (it keeps its UKC slot). Which three are redirected, where (Trbovlje / Novo mesto), and by whom (a long transfer: some will be late, the AI should say so) |
 
 Extra buttons (Events tab): **Fog: ground helicopters 1 h** grounds the helicopter for 1 h (a trip it has not picked up yet goes to the nearest ambulance at once). **Priority & capacity** changes a patient's priority or a hospital's capacity. **Map click (E)**: a new emergency at that spot is dispatched at once.

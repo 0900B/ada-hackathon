@@ -242,6 +242,11 @@ def test_priority_change_keeps_a_compatible_vehicle():
     W.trips[second.id] = second
     assign_trip(W, second.id, amb.id)
     assert amb.queue == [second.id]
+    # Raising a level re-evaluates the dispatch (doctrine): with another ambulance free and closer, that
+    # one would take it. Here amb is the only emergency unit, so the call stays and goes first.
+    for v in W.vehicles.values():
+        if v.type in ("ambulance", "helicopter") and v.id != amb.id:
+            v.status = "out_of_service"
     rec = post_event({"type": "priority_change", "trip_id": second.id, "priority": "emergency"})
     assert W.trips[second.id].vehicle_id == amb.id and W.trips[second.id].status == "assigned"
     assert "released" not in rec["summary"] and f"moved to the front of {amb.id}'s route" in rec["summary"], rec["summary"]

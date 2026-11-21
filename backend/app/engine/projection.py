@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from ..models import Alert, Severity, Trip, Vehicle
+from .severity import RED_REFERENCE_MIN, SEVERITY_RANK
 from ..roads import ROADS, key
 from ..sim.fleet_details import CRITICAL_FUEL_PCT, LOW_FUEL_PCT
 from ..routing import flies, resolve_route, travel_minutes, vehicle_leg_minutes
@@ -149,11 +150,18 @@ def over_capacity(state: WorldState) -> dict[str, list[Trip]]:
             continue
         incoming = sorted(
             incoming_patients(state, p.id),
-            key=lambda t: (PRIORITY_ORDER[t.priority], t.status != "onboard", t.due_by),
+            key=lambda t: (SEVERITY_RANK.get(t.severity or "", 3), -t.time_weight, t.status != "onboard", t.due_by),
         )
         if len(incoming) > p.capacity:
             out[p.id] = incoming[p.capacity :]
     return out
+
+
+def red_wait_min(trip: Trip) -> float | None:
+    """For a critical/serious call not yet reached: predicted minutes from the call until a unit is there."""
+    if trip.severity not in ("critical", "serious") or trip.status in ("onboard", "completed", "cancelled") or not trip.eta_pickup:
+        return None
+    return (max(trip.eta_pickup, trip.pickup_after) - trip.pickup_after).total_seconds() / 60
 
 
 def compute_alerts(state: WorldState) -> list[Alert]:
@@ -180,6 +188,20 @@ def compute_alerts(state: WorldState) -> list[Alert]:
                     kind="trip_late",
                     severity=sev,
                     message=f"Trip {trip.id} ({trip.label}) predicted {trip.delay_min:.0f} min late",
+                    trip_id=trip.id,
+                    vehicle_id=trip.vehicle_id,
+                )
+            )
+        wait = red_wait_min(trip)
+        if wait is not None and wait > RED_REFERENCE_MIN:
+            what = trip.condition_label or trip.severity
+            alerts.append(
+                Alert(
+                    id=f"red_response_over_15_min:{trip.id}",
+                    kind="red_response_over_15_min",
+                    severity="critical",
+                    message=f"Red call {trip.id} ({what}) reached only after {wait:.0f} min "
+                    f"(reference for red calls: {RED_REFERENCE_MIN:.0f} min): ask a neighbouring station",
                     trip_id=trip.id,
                     vehicle_id=trip.vehicle_id,
                 )

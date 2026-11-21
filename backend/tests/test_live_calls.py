@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import sys
 import time
 import traceback
@@ -113,9 +114,14 @@ def test_calls_are_dispatched_at_once_and_queues_stay_short():
         t = W.trips[rec.affected_trip_ids[0]]
         assert t.priority in ("emergency", "urgent") and t.vehicle_id, rec.summary  # every call got a vehicle
         assert not (t.priority == "emergency" and W.vehicles[t.vehicle_id].type == "transport")
-        if t.vehicle_id == "H1":  # the engine flies only remote calls
+        if t.vehicle_id == "H1":  # doctrine rule 6: critical = closest unit; serious 10 min faster; urgent remote
             p, ukc = W.places[t.pickup_id], W.places["ukc"]
-            assert haversine_km(p.lat, p.lon, ukc.lat, ukc.lon) >= 15, rec.summary
+            sooner = re.search(r"helicopter, (\d+) min sooner", rec.summary)
+            assert (
+                t.severity == "critical"
+                or haversine_km(p.lat, p.lon, ukc.lat, ukc.lon) >= 15
+                or (t.severity == "serious" and sooner and int(sooner.group(1)) >= 10)
+            ), rec.summary
     assert max(longest[v] for v in ("A1", "A2", "A3", "H1")) <= 2, longest  # current job + at most one
     assert max(longest[v] for v in ("T1", "T2", "T3", "T4", "T5")) <= 3, longest
     util = {k: busy[k] / samples[0] / (3 if k == "ambulance" else 5) for k in busy}
@@ -168,8 +174,12 @@ def test_every_scenario_builds_in_live_calls_mode_and_leaves_a_decision():
             continue
         question = f"Demo scenario: {title}. These events just happened together: x. Analyse the combined situation"
         rec = runner._engine_recommendation(W, None, "test", question)
-        assert rec.options, f"{name}: the engine fallback has nothing to propose"
         assert title in rec.situation, rec.situation
+        summary = W.events[-1].summary
+        if name in demo.AUTOMATIC:  # the engine decided by itself at dispatch time (doctrine rules 1, 2, 6)
+            assert "diverted from" in summary or "available soon" in summary, (name, summary)
+        else:  # something to decide: options, or an escalation the dispatcher must act on
+            assert rec.options or rec.escalation, f"{name}: the engine fallback has nothing to propose"
         for opt in rec.options:
             assert client.post("/sim/plans/simulate", json={"steps": [s.model_dump() for s in opt.steps]}).json()["feasible"], (name, opt.title)
 

@@ -10,7 +10,8 @@ from typing import TYPE_CHECKING, Any
 
 from ..models import Plan, PlanStep, Trip, Vehicle, VehicleType
 from ..routing import flies, haversine_km
-from .actions import ActionError, assign_trip, can_serve, check_redirect
+from .actions import ActionError, assign_trip, can_serve, check_redirect, level
+from .severity import HELICOPTER_GAIN_MIN
 from .plans import simulate_steps, step_details
 from .projection import DONE, PRIORITY_ORDER, kpis, over_capacity, project_all, route_trip_ids
 
@@ -102,9 +103,9 @@ def find_candidates(
             and current.id != trip_id
             and current.status != "onboard"
             and trip.status != "onboard"
-            and PRIORITY_ORDER[trip.priority] < PRIORITY_ORDER[current.priority]
+            and level(trip) < level(current)
         ):
-            options.add((0, True))  # divert now (only for a more urgent trip), current trip goes back to the queue
+            options.add((0, True))  # divert now (only for a higher-level call), current trip goes back to the queue
 
         seen: set[tuple] = set()
         for position, interrupt in sorted(options, key=lambda o: (o[0] is not None, o[1])):  # least change first
@@ -159,7 +160,8 @@ def find_candidates(
     def score(c: dict[str, Any]):
         k = c["kpis_after"]
         if trip.priority == "emergency":  # get the patient fastest, then protect other priority trips
-            reserve = HELICOPTER_MIN_GAIN_MIN if flies(c["vehicle_type"]) else 0.0
+            # The helicopter: the absolute closest for a critical call, 10 min faster for a serious one.
+            reserve = HELICOPTER_GAIN_MIN.get(trip.severity or "serious", HELICOPTER_MIN_GAIN_MIN) if flies(c["vehicle_type"]) else 0.0
             return ((c["pickup_in_min"] or 0) + reserve, k["late_non_scheduled"], k["total_delay_min"])
         if urgent:  # soon, without making other urgent work late or pushing it back, ambulances kept free
             reserve = HELICOPTER_MIN_GAIN_URGENT_MIN if flies(c["vehicle_type"]) else 0.0
@@ -276,7 +278,7 @@ def greedy_plan(state: WorldState, fix_late: bool = True) -> tuple[Plan | None, 
     overflow = {t.id for trips in over_capacity(sim).values() for t in trips}
     targets = sorted(
         (t for t in sim.trips.values() if t.status == "unassigned" or t.id in overflow),
-        key=lambda t: (PRIORITY_ORDER[t.priority], t.due_by),
+        key=lambda t: (level(t), -t.time_weight, t.due_by),  # highest level first, then most time-critical
     )
     steps: list[PlanStep] = []
     unresolved: list[str] = []

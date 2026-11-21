@@ -77,7 +77,50 @@ If a call is reported as better (e.g. the patient is breathing again), the dispa
    moment of dispatch, because seconds matter. Everything else is a proposal the dispatcher
    approves.
 
+## 4. Slovenian practice adopted
+
+Our teammate's research on Slovenian EMS dispatch (branch `Metelko`, `docs/AGENTIC_DISPATCH_DESIGN.md`
+sections 5.2 to 5.10, with `DISPATCH_SCENARIOS.md` and `LJUBLJANA_FLEET_AND_TEAMS.md`, citing the 2026
+rulebook) agrees with the rules above and adds four points that Plan B now follows:
+
+- **15-minute reference for red calls.** Critical and serious calls are both "red" (I. prioriteta).
+  Plan B keeps its tighter critical city target (8 min), and additionally flags any red call whose
+  predicted arrival is over 15 min (alert `red_response_over_15_min`); the engine fallback then
+  recommends asking a neighbouring station for an ambulance.
+- **Protect cover.** The last free ambulance of an area is not sent to a non-life-threatening call if
+  a red call there would then be reached only after more than 15 min; a van takes the call instead
+  when one can.
+- **The helicopter is evaluated for every red call.** This is a calculation, not an automatic flight:
+  every dispatch summary for a red call says when H1 would arrive and why it was or was not sent
+  (rule 6).
+- **Handover at the hospital takes at most 15 minutes**, after which the crew reports free. Plan B
+  models 3 minutes and reports the unit free right after.
+
+Where his document differs, Plan B keeps the rules above: for two red calls competing for one unit he
+minimises the total response time and asks the dispatcher when triage gives no clinical order. Plan B
+uses the condition weights (rule 4) and, when they are comparable, the worst wait relative to each
+target. In both cases the same-level decision is a **proposal to the dispatcher**, never automatic,
+which matches his rule.
+
+## 5. In the code
+
+| Rule | Where | Constant |
+|---|---|---|
+| Levels, weights, targets, modifiers | `backend/app/engine/severity.py` | `RESPONSE_TARGET_MIN`, `CONDITIONS`, `MODIFIERS`, `RED_REFERENCE_MIN` |
+| 1. Closest unit, available soon | `engine/dispatch.py: decide` | `BUSY_UNIT_MIN_GAIN_MIN` = 3 |
+| 2. Override a lower level, re-dispatch | `engine/dispatch.py: _override` | `OVERRIDE_MIN_SAVING_MIN` = 3 critical / 5 serious |
+| 3. Not displaced twice | `Trip.times_displaced` | |
+| 4. Same level: weight, then worst wait | `engine/actions.py: goes_before`, `engine/dispatch.py: swap_options` | `WEIGHT_CLEARLY_HIGHER` = 1.5, `SWAP_MIN_GAIN_MIN` = 5 |
+| 5. Never divert near or on scene | `engine/actions.py: near_current_patient` | `NEAR_PATIENT_MIN` = 2 |
+| 6. Helicopter per level | `engine/dispatch.py: decide` | `HELICOPTER_GAIN_MIN` = 0 / 10 / 15 |
+| 7. Stroke and STEMI judged at UKC | `engine/dispatch.py: decide` | `DEFINITIVE_CARE_CONDITIONS` |
+| 8. Clinical reason | `engine/severity.py: clinical_reason` | |
+
 ## Sources
+
+- Slovenian dispatch practice as used in section 4: team research on branch `Metelko`,
+  `docs/AGENTIC_DISPATCH_DESIGN.md` (unit selection 5.2, several calls 5.3, helicopter 5.5, handover
+  5.8, statuses 5.10), `docs/DISPATCH_SCENARIOS.md`, `docs/LJUBLJANA_FLEET_AND_TEAMS.md`.
 
 - Slovenia, severity levels (SloIn NMP, red and yellow priorities): [Pravilnik o službi nujne medicinske pomoči in prevozih pacientov (consolidated text, 3 June 2026)](https://www.tax-fin-lex.si/Dokument/Podrobnosti/b509dd37-3d66-492d-893f-61191c3dec52); [gov.si: Nujna medicinska pomoč](https://www.gov.si/teme/nujna-medicinska-pomoc/)
 - UK Ambulance Response Programme categories and standards: [NHS England ARP board paper](https://www.england.nhs.uk/wp-content/uploads/2019/07/02-CB-30-03-2017-ARP.pdf), [NEAS: Ambulance Response Programme](https://www.neas.nhs.uk/your-service/999/ambulance-response-programme), [GSS: summary of ambulance response time data](https://analysisfunction.civilservice.gov.uk/government-statistical-service-and-statistician-group/user-facing-pages/health-and-care-statistics/summary-of-ambulance-response-time-data-in-the-uk). The Category 1 mean (7 min) and Category 3 (120 min) figures are the published ARP standards and were not re-checked in this research.

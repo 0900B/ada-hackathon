@@ -136,7 +136,8 @@ def test_busy_ambulance_turns_around_but_never_with_a_patient_on_board():
     run_until(lambda: W.vehicles["A1"].current_trip_id == call.id, 2)
     rec = post_event({"type": "urgent_request", "pickup_id": "home_bezigrad", "priority": "emergency"})
     e = W.trips[rec["affected_trip_ids"][0]]
-    assert e.vehicle_id == "A1" and "turns around" in rec["summary"], rec["summary"]
+    # Doctrine rule 2: a serious call overrides an urgent one when that saves time (A2 would need 3 h).
+    assert e.vehicle_id == "A1" and f"diverted from {call.id} (urgent)" in rec["summary"], rec["summary"]
     assert W.vehicles["A2"].current_trip_id == far.id and far.status == "onboard", "never diverted with a patient on board"
     assert run_until(lambda: e.status == "onboard", 30)
     assert call.status in ("assigned", "en_route_pickup") and call.vehicle_id == "A1", "the urgent call waits, it is not lost"
@@ -166,18 +167,16 @@ def test_urgent_city_call_does_not_fly_but_a_remote_one_does():
 
 
 def test_remote_emergency_scenario_helicopter_flies_lands_and_delivers():
-    """Live-calls scenario: H1 is flying to an urgent skier when the hiker emergency comes in; the
-    engine sends a free ambulance (45 min by road) and the plan turns H1 around for the hiker."""
+    """Live-calls scenario: H1 is flying to an urgent skier when the hiker (serious, major trauma, 45 min
+    by road) is reported: the engine turns H1 around at once (doctrine rules 2 and 6); the skier stays
+    with H1, next, still within its 60-min target."""
     records = demo.prepare(W, "remote_emergency")
     W.auto_analyze = False
     t = W.trips[records[0].affected_trip_ids[0]]
     h = W.vehicles["H1"]
-    skier = W.trips[h.current_trip_id]
-    assert t.vehicle_id in AMBULANCES and skier.priority == "urgent" and h.status == "to_pickup", records[0].summary
-    plan, _ = greedy_plan(W)
-    step0 = next(s for s in plan.steps if s.trip_id == t.id)
-    assert step0.vehicle_id == "H1" and step0.interrupt_current, plan.steps
-    assert client.post("/sim/plans/apply", json={"steps": [s.model_dump() for s in plan.steps]}).status_code == 200
+    skier = next(x for x in W.trips.values() if x.condition == "fracture")
+    assert t.vehicle_id == "H1" and t.severity == "serious" and f"diverted from {skier.id} (urgent)" in records[0].summary, records[0].summary
+    assert "within its 60-min target" in records[0].summary and skier.times_displaced == 1
     site, ukc = W.places[t.pickup_id], W.places["ukc"]
     seen = []
 

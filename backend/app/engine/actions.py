@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 
 from ..models import Trip, Vehicle
 from .projection import free_capacity
+from .severity import NEAR_PATIENT_MIN, SEVERITY_RANK, WEIGHT_CLEARLY_HIGHER
 
 if TYPE_CHECKING:
     from ..state import WorldState
@@ -80,6 +81,28 @@ def check_redirect(state: WorldState, trip: Trip, dropoff_id: str) -> None:
 
 
 PRIORITY_RANK = {"emergency": 0, "urgent": 1, "scheduled": 2}
+
+
+def level(trip: Trip) -> int:
+    """Severity rank: 0 critical, 1 serious, 2 urgent, 3 routine (see engine/severity.py)."""
+    return SEVERITY_RANK.get(trip.severity or "", PRIORITY_RANK[trip.priority] + 1)
+
+
+def goes_before(a: Trip, b: Trip) -> bool:
+    """a should be served before b: a higher level, or the same level and clearly more time-critical."""
+    return level(a) < level(b) or (level(a) == level(b) and a.time_weight >= b.time_weight + WEIGHT_CLEARLY_HIGHER)
+
+
+def near_current_patient(state: WorldState, v: Vehicle, current: Trip | None) -> float | None:
+    """Minutes v still needs to reach its current (not yet loaded) patient if that is at most
+    NEAR_PATIENT_MIN (0 = on scene, e.g. waiting there); None if it is farther or has no such job."""
+    from ..routing import vehicle_leg_minutes  # local import: routing is heavier and not needed elsewhere here
+
+    if current is None or current.status == "onboard" or v.current_trip_id != current.id or v.status != "to_pickup":
+        return None
+    p = state.places[current.pickup_id]
+    minutes = vehicle_leg_minutes(state, v, p.lat, p.lon, current.priority == "emergency")
+    return minutes if minutes <= NEAR_PATIENT_MIN else None
 
 
 @dataclass
@@ -157,29 +180,36 @@ def assign_trip(
         current = state.trips.get(current_id) if current_id else None
         if before_trip_id is not None:
             position, interrupt_current = _anchor_to_position(state, v, current_id, queue, before_trip_id, position)
-        rank = PRIORITY_RANK[trip.priority]
+        rank = level(trip)
+        near = near_current_patient(state, v, current)
         if trip.priority == "emergency" and not interrupt_current:
-            # Emergencies go first: turn around from a non-emergency pickup, else right after the
-            # current job (with a patient on board it is finished first), behind earlier emergencies.
-            if current and current.status != "onboard" and current.priority != "emergency" and not any(
-                state.trips[t].priority == "emergency" for t in queue
-            ):
+            # Critical and serious calls go first: before every queued trip they rank above (a lower
+            # level, or the same level and clearly less time-critical), turning the unit around from a
+            # lower-level pickup unless it is already at or next to that patient. With a patient on
+            # board the current job is finished first.
+            behind = [goes_before(trip, state.trips[t]) for t in queue]
+            if current and current.status != "onboard" and level(current) > rank and near is None and all(behind):
                 interrupt_current = True
             else:
-                position = next((i for i, t in enumerate(queue) if state.trips[t].priority != "emergency"), len(queue))
+                position = next((i for i, b in enumerate(behind) if b), len(queue))
         if interrupt_current and current:
             if current.status == "onboard":
                 load = "a patient" if current.kind == "patient" else f"equipment ({current.cargo})"
                 raise ActionError(f"{v.name} has {load} on board and cannot be diverted")
-            if current.priority == "emergency" or PRIORITY_RANK[current.priority] < rank:
+            if near is not None:
+                where = "is on scene with" if near < 0.5 else f"is {near:.0f} min from"
+                raise ActionError(f"{v.name} {where} the patient of {current.id} and is not diverted")
+            # A higher-level job is never given up. A same-level one only by an explicit step (a swap:
+            # the plan gives that patient to another unit); the engine never does it by itself.
+            if level(current) < rank:
                 raise ActionError(
-                    f"{v.name} is on its way to {current.priority} trip {current.id} and cannot be diverted "
-                    f"for {trip.priority} trip {trip.id}"
+                    f"{v.name} is on its way to {current.severity} call {current.id} and cannot be diverted "
+                    f"for {trip.severity} call {trip.id}"
                 )
         if interrupt_current and not current:
             interrupt_current, position = False, 0  # nothing to turn away from: simply next
-        # Never ahead of a queued trip with a higher priority.
-        first_ok = 1 + max((i for i, t in enumerate(queue) if PRIORITY_RANK[state.trips[t].priority] < rank), default=-1)
+        # Never ahead of a queued trip with a higher level.
+        first_ok = 1 + max((i for i, t in enumerate(queue) if level(state.trips[t]) < rank), default=-1)
         wanted = 0 if interrupt_current else position
         if wanted is not None and min(wanted, len(queue)) < first_ok:
             blocker = state.trips[queue[first_ok - 1]]

@@ -315,7 +315,7 @@ async def post_message(msg: FieldMessage, state: WorldState = World) -> dict:
         raise HTTPException(status_code=400, detail=f"Unknown vehicle {msg.sender_vehicle_id}")
     try:
         parsed = await parse_message(state, msg.text, msg.sender_vehicle_id)
-        events = to_operator_events(state, parsed)
+        events = to_operator_events(state, parsed, msg.text)
     except MessageError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     except Exception as e:  # noqa: BLE001 - API/network failure: tell the operator, don't crash

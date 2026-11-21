@@ -114,16 +114,33 @@ Example events:
   serve the trip (a van for an emergency) loses it, and the engine dispatches an ambulance at once;
   on an ambulance it moves to the front. Trips on board keep their vehicle.
 
-Dispatch model (`engine/actions.py`, `engine/events.py:dispatch_call`):
-- **Ambulances** are emergency units: no pre-planned work, at most their current job + 1 queued trip.
-  New `urgent_request` calls are dispatched at once to the free unit that reaches the patient first
-  (an emergency with none free takes a busy ambulance, which turns around unless it has a patient on board).
+Severity and dispatch doctrine (`engine/severity.py`, `engine/dispatch.py`, rules and sources in
+`docs/DISPATCH_PRIORITIES.md`):
+- Every trip has `severity` (`critical` | `serious` | `urgent` | `routine`; priority emergency =
+  critical or serious), `condition` (`cardiac_arrest`, `choking`, `catastrophic_bleeding`,
+  `anaphylaxis`, `stroke`, `stemi`, `breathing_difficulty`, `major_trauma`, `seizure`, `sepsis`,
+  `fracture`, `fall`, `transfer`, `equipment`; `breathing` is accepted as an alias), `condition_label`,
+  `modifiers` (`child`, `multiple_patients`, `deteriorating`, `late_stroke_window`, `no_bystander_cpr`),
+  `response_target_min` (critical 8 in the city / 15 outside, serious 18, urgent 60) and `time_weight`
+  (condition weight + modifiers). Response time runs from `pickup_after` (= the call time for
+  emergency and urgent calls) to `eta_pickup`. `urgent_request` and `task_request` accept optional
+  `severity`, `condition`, `modifiers`; `priority_change` accepts `severity` (also critical ↔ serious,
+  which keeps priority "emergency") and `condition`; raising a level re-evaluates the dispatch.
+- New calls are dispatched at once (`dispatch_call`): closest unit by true arrival incl. one finishing
+  a drop-off nearby (3 min margin); a critical/serious call may override a lower-level call en route
+  (3 / 5 min saved, displaced call re-dispatched within its target, never displaced twice); never with a
+  patient on board, on scene or within 2 min; helicopter: closest for critical, 10 min faster for
+  serious, remote 15 min for urgent; stroke/STEMI judged by arrival at UKC. Same-level swaps are only
+  proposed (`swap_options`: engine-fallback options and `proposed_swaps` in the agent's situation).
+  The event summary says who, why, when, the helicopter check and the clinical reason.
+- Slovenian practice: a red call predicted over 15 min raises `red_response_over_15_min`; the last free
+  ambulance of an area is kept for red calls (a van takes the non-urgent call).
 - **Vans** do the scheduled day (seated, wheelchair, stretcher, equipment) and urgent non-emergencies;
   never emergencies. Bookings (`task_request`) go to a van; a free ambulance only if no van fits.
-- **H1** flies emergencies/urgent trips only, when it is clearly faster (10 / 15 min); no scheduled work or cargo.
 
-Plan steps: an emergency always goes first (the vehicle turns around if needed); nothing is queued ahead
-of a higher priority; no vehicle is diverted from an emergency. When the engine checks an option it
+Plan steps: a critical or serious call goes first (before lower levels; the vehicle turns around if
+needed); nothing is queued ahead of a higher level; a vehicle is turned away from a same-level call
+only by an explicit step (a swap). When the engine checks an option it
 stores the steps anchored (`before_trip_id`) plus `step_details` (what each step does); approving
 replays exactly that order and is refused (409, with the reason) if it is now clearly worse than shown.
 - **Hospital capacity**: admissions the hospital can still take (each delivered patient uses one;

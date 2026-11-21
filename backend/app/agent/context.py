@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
 from ..engine.candidates import find_candidates, is_free, nearest_place_name
+from ..engine.dispatch import swap_options
+from ..engine.severity import clinical_reason
 from ..engine.plans import simulate_plan
 from ..engine.projection import DONE, incoming_patients, kpis, over_capacity, project_route
 from ..models import EventRecord, Plan, PlanStep, Trip, Vehicle
@@ -116,6 +118,12 @@ def build_situation(state: WorldState) -> dict[str, Any]:
                 "id": t.id,
                 **_load(t),
                 "priority": t.priority,
+                "severity": t.severity,
+                **({"condition": t.condition_label or t.condition} if t.condition else {}),
+                "time_weight": t.time_weight,
+                **({"response_target_min": t.response_target_min} if t.response_target_min else {}),
+                **({"modifiers": t.modifiers} if t.modifiers else {}),
+                **({"clinical_reason": clinical_reason(t)} if t.severity in ("critical", "serious") else {}),
                 "needs": t.needs,
                 "from": places[t.pickup_id].name,
                 "to": places[t.dropoff_id].name,
@@ -131,6 +139,8 @@ def build_situation(state: WorldState) -> dict[str, Any]:
             for t in state.trips.values()
             if t.status not in DONE
         ],
+        # Same-level swaps the engine found worthwhile (doctrine rule 4: proposals only).
+        **({"proposed_swaps": [{"text": s["text"], "reason": s["reason"], "steps": s["steps"]} for s in swaps]} if (swaps := swap_options(state)) else {}),
     }
 
 

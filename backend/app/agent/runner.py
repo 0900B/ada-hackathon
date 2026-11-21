@@ -17,6 +17,9 @@ import anthropic
 from .. import config
 from ..audit import AUDIT
 from ..engine.candidates import HELICOPTER_MIN_GAIN_MIN, find_candidates, greedy_plan, is_free
+from ..engine.dispatch import swap_options
+from ..engine.projection import red_wait_min
+from ..engine.severity import RED_REFERENCE_MIN, clinical_reason
 from ..engine.plans import simulate_plan
 from ..engine.projection import kpis, project_all
 from ..models import AgentRun, EventRecord, Plan, PlanStep, Recommendation, RecommendationOption, utcnow
@@ -260,9 +263,9 @@ def _faster_unit_option(state: WorldState, t, gain: float, c: dict) -> list[Reco
     return [
         RecommendationOption(
             title=f"Faster unit for {t.id}: {c['vehicle_id']} instead of {t.vehicle_id}",
-            summary="; ".join(d["text"] for d in result["step_details"]) + ".",
+            summary="; ".join(d["text"] for d in result["step_details"]) + f". {clinical_reason(t).capitalize()}.",
             steps=steps,
-            pros=[f"{t.label} is reached {gain:.0f} min sooner"],
+            pros=[f"{t.label} is reached {gain:.0f} min sooner ({clinical_reason(t)})"],
             cons=[
                 f"{displaced} is taken over by {t.vehicle_id}" if displaced else f"{c['vehicle_id']} is no longer free"
             ],
@@ -290,12 +293,37 @@ def _engine_recommendation(
                 cons=["No AI trade-off reasoning or notification drafts"],
             )
         )
-    options += _faster_unit_options(state, skip={s.trip_id for s in plan.steps} if plan else set())
+    planned = {s.trip_id for s in plan.steps} if plan else set()
+    options += _faster_unit_options(state, skip=planned)
+    for sw in swap_options(state):  # same-level swaps: proposed, never automatic (doctrine rule 4)
+        if sw["trip_id"] in planned or sw["other_trip_id"] in planned:
+            continue
+        options.append(
+            RecommendationOption(
+                title=f"Swap {sw['trip_id']} and {sw['other_trip_id']} between {sw['vehicles'][0]} and {sw['vehicles'][1]}",
+                summary=f"{sw['text']}. {sw['reason']}.",
+                steps=[PlanStep(**s) for s in sw["steps"]],
+                pros=[sw["reason"]]
+                + (
+                    [f"Worst wait {sw['worst_wait_before_min']:.0f} → {sw['worst_wait_after_min']:.0f} min"]
+                    if "worst wait" in sw["text"]
+                    else []
+                ),
+                cons=["Both crews change destination; tell them and the callers"],
+            )
+        )
     escalation = (
         f"No suitable vehicle for {', '.join(unresolved)}: request help from a neighbouring station."
         if unresolved
         else None
     )
+    slow_red = [
+        (t, w) for t in state.trips.values() if (w := red_wait_min(t)) is not None and w > RED_REFERENCE_MIN
+    ]
+    if slow_red:  # Slovenian reference: a unit at a red call within 15 min
+        red = "; ".join(f"{t.id} ({t.condition_label or t.severity}) reached after {w:.0f} min" for t, w in slow_red[:3])
+        escalation = " ".join(filter(None, [escalation, f"Red calls over the {RED_REFERENCE_MIN:.0f}-min reference: {red}. "
+                                            "Ask a neighbouring station for an ambulance (mutual aid)."]))
     late = (
         f" {k['late_trips']} trip(s) {'stay' if options else 'are'} predicted late (worst {k['max_delay_min']:.0f} min)"
         f"{' after this plan' if options else ''}: no {'further ' if options else ''}reassignment found that clearly "

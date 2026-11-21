@@ -43,30 +43,52 @@ REMOTE = [
     ("Krvavec (ski area)", 46.2960, 14.5330, "skier collision, head injury"),
     ("Sava valley near Litija", 46.0560, 14.8300, "farm accident, crushed leg"),
 ]
-EMERGENCY_NOTES = [
-    "suspected stroke",
-    "chest pain",
-    "breathing difficulty",
-    "unconscious person",
-    "fall from height",
-    "traffic accident, injured driver",
-    "severe allergic reaction",
-    "seizure",
-]
-FIELD_NOTES = ["fall at home, cannot get up", "high fever, elderly patient", "deep cut, bleeding controlled"]
+# Emergencies: about 10% critical (life-threatening now), the rest serious (docs/DISPATCH_PRIORITIES.md).
+CRITICAL_SHARE = 0.10
+CRITICAL_CONDITIONS = [("cardiac_arrest", 4), ("choking", 2), ("catastrophic_bleeding", 2), ("anaphylaxis", 2)]
+SERIOUS_CONDITIONS = [("stroke", 3), ("stemi", 3), ("breathing_difficulty", 3), ("major_trauma", 2), ("seizure", 2), ("sepsis", 1)]
+EMERGENCY_NOTES = {
+    "cardiac_arrest": "unconscious, not breathing; caller instructed in CPR",
+    "choking": "choking, cannot speak",
+    "catastrophic_bleeding": "heavy bleeding from a leg wound",
+    "anaphylaxis": "bee sting, swelling of the throat",
+    "stroke": "face drooping, slurred speech",
+    "stemi": "crushing chest pain, sweating",
+    "breathing_difficulty": "severe breathing difficulty",
+    "major_trauma": "traffic accident, injured driver",
+    "seizure": "seizure still going on",
+    "sepsis": "high fever, confused, low blood pressure",
+}
+FIELD_NOTES = ["fall at home, cannot get up", "suspected wrist fracture", "fall on the stairs, hip pain"]
+
+
+def _modifiers(rng: random.Random, condition: str) -> list[str]:
+    """Occasional case modifiers that raise a call's weight within its level."""
+    mods = []
+    if condition == "cardiac_arrest" and rng.random() < 0.5:
+        mods.append("no_bystander_cpr")
+    if condition == "stroke" and rng.random() < 0.2:
+        mods.append("late_stroke_window")
+    if condition == "major_trauma" and rng.random() < 0.1:
+        mods.append("multiple_patients")
+    if rng.random() < 0.05:
+        mods.append("child")
+    if rng.random() < 0.05:
+        mods.append("deteriorating")
+    return mods
 
 # (kind, weight). Tuned so that ambulances and vans are typically 50-70 % busy at 8 calls/hour.
 MIX = [
-    ("emergency", 0.34),
-    ("field_urgent", 0.07),
+    ("emergency", 0.38),
+    ("field_urgent", 0.08),
     ("remote", 0.03),
     ("hc_to_ukc", 0.14),
     ("gp_referral", 0.08),
-    ("discharge", 0.08),
-    ("transfer", 0.03),
+    ("discharge", 0.07),
+    ("transfer", 0.02),  # long runs (Trbovlje, Novo mesto): rare, they tie a van up for 2 to 3 hours
     ("blood", 0.09),
-    ("lab", 0.10),
-    ("ventilator", 0.04),
+    ("lab", 0.08),
+    ("ventilator", 0.01),
 ]
 
 
@@ -123,20 +145,29 @@ def build_call(state: WorldState, rng: random.Random, kind: str | None = None):
     from ..models import TaskRequestEvent, UrgentRequestEvent
 
     kind = kind or rng.choices([k for k, _ in MIX], weights=[w for _, w in MIX])[0]
-    if kind in ("emergency", "field_urgent"):
+    if kind == "emergency":
         area, lat, lon = _address(state, rng)
-        emergency = kind == "emergency"
+        critical = rng.random() < CRITICAL_SHARE
+        pool = CRITICAL_CONDITIONS if critical else SERIOUS_CONDITIONS
+        condition = rng.choices([c for c, _ in pool], weights=[w for _, w in pool])[0]
+        return UrgentRequestEvent(
+            type="urgent_request", lat=lat, lon=lon, place_name=f"{area} (call)", dropoff_id="ukc", needs="stretcher",
+            priority="emergency", severity="critical" if critical else "serious", condition=condition,
+            modifiers=_modifiers(rng, condition), note=EMERGENCY_NOTES.get(condition),
+        )
+    if kind == "field_urgent":
+        area, lat, lon = _address(state, rng)
+        condition = rng.choice(["fall", "fall", "fracture"])
         return UrgentRequestEvent(
             type="urgent_request", lat=lat, lon=lon, place_name=f"{area} (call)", dropoff_id="ukc",
-            needs="stretcher" if emergency or rng.random() < 0.6 else "seated",
-            priority="emergency" if emergency else "urgent",
-            note=rng.choice(EMERGENCY_NOTES if emergency else FIELD_NOTES),
+            needs="stretcher" if rng.random() < 0.6 else "seated", priority="urgent", severity="urgent",
+            condition=condition, modifiers=["child"] if rng.random() < 0.05 else [], note=rng.choice(FIELD_NOTES),
         )
     if kind == "remote":
         name, lat, lon, note = rng.choice(REMOTE)
         return UrgentRequestEvent(
             type="urgent_request", lat=lat, lon=lon, place_name=name, dropoff_id="ukc",
-            needs="stretcher", priority="emergency", note=note,
+            needs="stretcher", priority="emergency", severity="serious", condition="major_trauma", note=note,
         )
 
     def booking(pickup: str, dropoff: str, needs: str, note: str, label: str | None = None, ready=(0, 15)):
@@ -144,6 +175,7 @@ def build_call(state: WorldState, rng: random.Random, kind: str | None = None):
             type="task_request", kind="equipment" if needs == "equipment" else "patient",
             pickup_id=pickup, dropoff_id=dropoff, needs=needs, priority="urgent",  # type: ignore[arg-type]
             ready_in_min=rng.randint(*ready), label=label, note=note, if_late="soonest",
+            severity="urgent", condition="equipment" if needs == "equipment" else "transfer",
         )
 
     needs = rng.choices(["seated", "wheelchair", "stretcher"], weights=[4, 3, 3])[0]

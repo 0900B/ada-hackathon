@@ -16,6 +16,7 @@ from .agent import runner as agent
 from .engine.actions import assign_trip
 from .engine.events import EMERGENCY_SLACK_MIN, URGENT_SLACK_MIN, apply_event
 from .engine.projection import LOAD_MIN, project_all
+from .engine.severity import grade
 from .models import (
     BreakdownEvent,
     DelayEvent,
@@ -65,6 +66,9 @@ def _job(
     note: str | None = None,
     cargo: str | None = None,
     ready_min: float = 0,
+    severity: str | None = None,
+    condition: str | None = None,
+    modifiers: list[str] | None = None,
 ) -> Trip:
     """A live job that came in earlier and was dispatched to vehicle_id (None = not yet assigned).
     pickup is a place id, or (lat, lon, name) for a call at a street address."""
@@ -95,7 +99,11 @@ def _job(
         pickup_after=ready,
         due_by=(ready + timedelta(minutes=direct + LOAD_MIN + slack)).replace(microsecond=0),
         note=note,
+        severity=severity,  # type: ignore[arg-type]
+        condition=condition or ("equipment" if cargo else ("transfer" if priority == "urgent" and vehicle_id and vehicle_id.startswith("T") else None)),
+        modifiers=modifiers or [],
     )
+    grade(state, trip)
     state.trips[trip.id] = trip
     if vehicle_id:
         assign_trip(state, trip.id, vehicle_id)
@@ -112,10 +120,22 @@ def _onboard(trip: Trip) -> Callable[[], bool]:
     return lambda: trip.status == "onboard"
 
 
+def _park(state: WorldState, vehicle_id: str, place_id: str, status: str = "returning") -> None:
+    """Put a free unit somewhere (e.g. driving home from a job far away)."""
+    v, p = state.vehicles[vehicle_id], state.places[place_id]
+    v.lat, v.lon, v.status, v.path_from, v.path_to = p.lat, p.lon, status, None, None  # type: ignore[assignment]
+
+
+def _helicopter_on_remote_job(state: WorldState) -> Trip:
+    return _job(state, "H1", (KRVAVEC[0], KRVAVEC[1], "Krvavec (ski area)"), priority="emergency", severity="serious",
+                condition="major_trauma", note="skier collision, head injury")
+
+
 def _blood_run_on_t1(state: WorldState) -> Trip:
     """The crew-demo set-up: background work, and T1 (with one more job queued) loads blood products
     at UKC for the Oncology Institute."""
-    _job(state, "A2", _near(state, "home_bezigrad", 0.002, -0.003, "Bežigrad (call)"), priority="emergency", needs="stretcher", note="chest pain")
+    _job(state, "A2", _near(state, "home_bezigrad", 0.002, -0.003, "Bežigrad (call)"), priority="emergency",
+         needs="stretcher", severity="serious", condition="stemi", note="crushing chest pain, sweating")
     _job(state, "T3", "zd_siska", needs="wheelchair", note="referred to the UKC emergency department")
     _job(state, "T4", "ukc", "home_rudnik", needs="seated", note="urgent discharge: bed needed", ready_min=5)
     blood = _job(state, "T1", "ukc", "onko", cargo="blood products", note="for a transfusion", ready_min=2)
@@ -141,9 +161,11 @@ def _stranded_equipment(state: WorldState) -> list[EventRecord]:
 
 def _stranded_patient(state: WorldState) -> list[EventRecord]:
     """T2 breaks down with an urgent patient on board (and one more job queued). Two ambulances are
-    on emergencies, so collecting the patient fast means using the last free ambulance or a van."""
-    _job(state, "A1", _near(state, "home_vic", 0.002, 0.004, "Vič (call)"), priority="emergency", needs="stretcher", note="breathing difficulty")
-    _job(state, "A2", _near(state, "home_bezigrad", -0.002, 0.003, "Bežigrad (call)"), priority="emergency", needs="stretcher", note="unconscious person")
+    on serious calls, so collecting the patient fast means using the last free ambulance or a van."""
+    _job(state, "A1", _near(state, "home_vic", 0.002, 0.004, "Vič (call)"), priority="emergency", needs="stretcher",
+         severity="serious", condition="breathing_difficulty", note="severe breathing difficulty")
+    _job(state, "A2", _near(state, "home_bezigrad", -0.002, 0.003, "Bežigrad (call)"), priority="emergency",
+         needs="stretcher", severity="serious", condition="seizure", note="seizure still going on")
     _job(state, "T3", "zd_vic", needs="wheelchair", note="referred to the UKC emergency department")
     patient = _job(state, "T2", "zd_siska", needs="wheelchair", note="referred to the UKC emergency department")
     _job(state, "T2", "home_siska", needs="seated", note="GP referral: needs hospital assessment today", ready_min=15)
@@ -154,10 +176,11 @@ def _stranded_patient(state: WorldState) -> list[EventRecord]:
 
 
 def _hospital_full(state: WorldState) -> list[EventRecord]:
-    """Five patients are heading to UKC when one of them (in a van) becomes an emergency and UKC can
-    admit only two more. The engine sends an ambulance to the emergency at once; the AI decides who
-    is redirected where (general hospitals Trbovlje / Novo mesto)."""
-    _job(state, "A1", _near(state, "home_moste", 0.001, 0.003, "Moste (call)"), priority="emergency", needs="stretcher", note="seizure")
+    """Five patients are heading to UKC when one of them (in a van) gets chest pain (now serious,
+    suspected heart attack) and UKC can admit only two more. The engine sends an ambulance to the
+    heart attack at once; the AI decides who is redirected where (Trbovlje / Novo mesto)."""
+    _job(state, "A1", _near(state, "home_moste", 0.001, 0.003, "Moste (call)"), priority="emergency", needs="stretcher",
+         severity="serious", condition="seizure", note="seizure still going on")
     _job(state, "T3", "zd_vic", needs="wheelchair", note="referred to the UKC emergency department")
     worsening = _job(state, "T4", "home_crnuce", needs="seated", note="GP referral: needs hospital assessment today")
     _job(state, "T5", "zd_center", needs="stretcher", note="referred to the UKC emergency department")
@@ -166,20 +189,27 @@ def _hospital_full(state: WorldState) -> list[EventRecord]:
     return [
         apply_event(
             state,
-            PriorityChangeEvent(type="priority_change", trip_id=worsening.id, priority="emergency", note="condition worsened, chest pain"),
+            PriorityChangeEvent(type="priority_change", trip_id=worsening.id, severity="serious", condition="stemi",
+                                note="condition worsened, chest pain"),
         ),
         apply_event(state, HospitalCapacityEvent(type="hospital_capacity", place_id="ukc", capacity=2, note="emergency department full")),
     ]
 
 
 def _stroke_rush_hour(state: WorldState) -> list[EventRecord]:
-    """A stroke in Polje while Zaloška is closed. A1 is on its way to an urgent call near Polje, A2 has
-    a patient on board: the engine sends the only free ambulance, A3, from the west. Decision: turn A1
-    around for the stroke (much sooner) and give A3 the urgent call instead."""
-    a2_job = _job(state, "A2", _near(state, "home_bezigrad", 0.001, -0.002, "Bežigrad (call)"), priority="emergency", needs="stretcher", note="chest pain")
-    _job(state, "A1", _near(state, "home_polje", -0.004, 0.006, "Polje (call)"), priority="urgent", needs="seated", note="fall at home, cannot get up")
+    """Available soon (rule 1): a stroke in Polje while Zaloška is closed. A2 is about to hand over a
+    patient at UKC, the only free ambulance (A3) is driving home from Medvode and H1 is out on a
+    mountain call. The engine sends A2 at once: drop-off, handover, then Polje, and it compares arrival
+    at UKC (the stroke centre). The loaded leg goes around the closure."""
+    _helicopter_on_remote_job(state)
+    a2_job = _job(state, "A2", _near(state, "home_bezigrad", 0.001, -0.002, "Bežigrad (call)"), priority="emergency",
+                  needs="stretcher", severity="serious", condition="breathing_difficulty", note="severe breathing difficulty")
+    _job(state, "A1", _near(state, "home_vic", 0.003, -0.004, "Vič (call)"), priority="emergency", needs="stretcher",
+         severity="serious", condition="sepsis", note="high fever, confused, low blood pressure")
     _job(state, "T5", "zd_center", needs="seated", note="referred to the UKC emergency department")
-    _fast_forward(state, 15, until=_onboard(a2_job))  # A2 has its patient on board; A1 still on its way
+    _fast_forward(state, 20, until=lambda: a2_job.status == "onboard" and state.vehicles["A2"].status == "with_patient"
+                  and a2_job.eta_dropoff is not None and (a2_job.eta_dropoff - state.sim_time).total_seconds() <= 150)
+    _park(state, "A3", "home_medvode")  # the only free ambulance is far away, driving home
     return [
         apply_event(
             state,
@@ -192,19 +222,67 @@ def _stroke_rush_hour(state: WorldState) -> list[EventRecord]:
             state,
             UrgentRequestEvent(
                 type="urgent_request", pickup_id="home_polje", dropoff_id="ukc", needs="stretcher",
-                priority="emergency", note="suspected stroke, FAST positive",
+                priority="emergency", severity="serious", condition="stroke", note="face drooping, slurred speech; FAST positive",
             ),
         ),
     ]
 
 
+def _priority_override(state: WorldState) -> list[EventRecord]:
+    """Override (rule 2): A1 is on its way to an urgent fall in Polje when a cardiac arrest is reported
+    next to it, with no bystander CPR. A2 has a patient on board, the only free ambulance (A3) is
+    driving home from Medvode and H1 is out. The engine diverts A1 at once and gives the fall to A3,
+    still within its 60-min target."""
+    _helicopter_on_remote_job(state)
+    _job(state, "A2", _near(state, "home_bezigrad", 0.001, -0.002, "Bežigrad (call)"), priority="emergency",
+         needs="stretcher", severity="serious", condition="stemi", note="crushing chest pain, sweating")
+    _job(state, "A1", _near(state, "home_polje", -0.002, 0.004, "Polje (call)"), priority="urgent", needs="stretcher",
+         severity="urgent", condition="fall", note="fall at home, cannot get up")
+    _park(state, "A3", "home_medvode")
+    _fast_forward(state, 2)
+    a1 = state.vehicles["A1"]
+    return [
+        apply_event(
+            state,
+            UrgentRequestEvent(
+                type="urgent_request", lat=round(a1.lat + 0.004, 5), lon=round(a1.lon + 0.006, 5), place_name="Moste (call)",
+                dropoff_id="ukc", needs="stretcher", priority="emergency", severity="critical", condition="cardiac_arrest",
+                modifiers=["no_bystander_cpr"], note="unconscious, not breathing; nobody is doing CPR",
+            ),
+        )
+    ]
+
+
+def _same_level(state: WorldState) -> list[EventRecord]:
+    """Same level, different urgency (rule 4): A1 is on its way to a seizure in Polje when a suspected
+    heart attack is reported right next to it; A3 (free, from the west) is sent to the heart attack.
+    Both are serious, so nothing changes automatically. Decision: the heart attack is more
+    time-critical (catheter lab within 90 min): swap, A1 takes it and A3 the seizure."""
+    _job(state, "A2", _near(state, "home_bezigrad", 0.001, -0.002, "Bežigrad (call)"), priority="emergency",
+         needs="stretcher", severity="serious", condition="breathing_difficulty", note="severe breathing difficulty")
+    _job(state, "A1", _near(state, "home_polje", -0.002, 0.004, "Polje (call)"), priority="emergency", needs="stretcher",
+         severity="serious", condition="seizure", note="seizure still going on")
+    _fast_forward(state, 2)
+    a1 = state.vehicles["A1"]
+    return [
+        apply_event(
+            state,
+            UrgentRequestEvent(
+                type="urgent_request", lat=round(a1.lat + 0.003, 5), lon=round(a1.lon + 0.004, 5), place_name="Moste (call)",
+                dropoff_id="ukc", needs="stretcher", priority="emergency", severity="serious", condition="stemi",
+                note="crushing chest pain, sweating",
+            ),
+        )
+    ]
+
+
 def _remote_emergency(state: WorldState) -> list[EventRecord]:
-    """The helicopter is flying to an urgent call (a skier with a wrist fracture on Krvavec) when a hiker
-    falls in Kamniška Bistrica (suspected spinal injury, 45 min by road). The engine sends the nearest
-    free ambulance to the hiker; decision: turn H1 around for the hiker and send the ambulance to the
-    skier. H1 flies, lands, loads and lands at UKC."""
+    """Override with the helicopter (rules 2 and 6): H1 is flying to an urgent call (a skier with a
+    wrist fracture on Krvavec) when a hiker falls in Kamniška Bistrica (major trauma, 45 min by road).
+    The engine turns H1 around at once and gives the skier to the nearest ambulance, still within its
+    target. H1 flies, lands, loads and lands at UKC."""
     _job(state, "H1", (KRVAVEC[0], KRVAVEC[1], "Krvavec (ski area)"), priority="urgent", needs="seated",
-         note="skier, suspected wrist fracture, cannot ski down")
+         severity="urgent", condition="fracture", note="skier, suspected wrist fracture, cannot ski down")
     _job(state, "T3", "zd_vic", needs="wheelchair", note="referred to the UKC emergency department")
     _fast_forward(state, 2)
     return [
@@ -212,7 +290,7 @@ def _remote_emergency(state: WorldState) -> list[EventRecord]:
             state,
             UrgentRequestEvent(
                 type="urgent_request", lat=REMOTE_CALL[0], lon=REMOTE_CALL[1], place_name="Kamniška Bistrica (hiking trail)",
-                dropoff_id="ukc", needs="stretcher", priority="emergency",
+                dropoff_id="ukc", needs="stretcher", priority="emergency", severity="serious", condition="major_trauma",
                 note="hiker fell, suspected spinal injury; 45 min by road",
             ),
         )
@@ -221,9 +299,10 @@ def _remote_emergency(state: WorldState) -> list[EventRecord]:
 
 def _snow_cascade(state: WorldState) -> list[EventRecord]:
     """Snowstorm: every journey takes longer, T1 is stuck behind a jack-knifed truck for 25 min with a
-    patient waiting and another job queued, and a fall on ice comes in. Urgent transports turn late:
-    the AI moves jobs to vans with slack and decides who waits."""
-    _job(state, "A1", _near(state, "home_rudnik", 0.002, -0.002, "Rudnik (call)"), priority="emergency", needs="stretcher", note="traffic accident, injured driver")
+    patient waiting and another job queued, and a fall on ice with a head injury comes in. Urgent
+    transports turn late: the AI moves jobs to vans with slack and decides who waits."""
+    _job(state, "A1", _near(state, "home_rudnik", 0.002, -0.002, "Rudnik (call)"), priority="emergency", needs="stretcher",
+         severity="serious", condition="major_trauma", note="traffic accident, injured driver")
     _job(state, "T1", "zd_center", needs="wheelchair", note="referred to the UKC emergency department", ready_min=3)
     _job(state, "T1", "home_bezigrad", needs="seated", note="GP referral: needs hospital assessment today", ready_min=12)
     _job(state, "T2", "zd_siska", needs="stretcher", note="referred to the UKC emergency department")
@@ -236,36 +315,40 @@ def _snow_cascade(state: WorldState) -> list[EventRecord]:
         apply_event(
             state,
             UrgentRequestEvent(
-                type="urgent_request", pickup_id="home_siska", dropoff_id="ukc", needs="stretcher",
-                priority="emergency", note="fall on ice, suspected hip fracture",
+                type="urgent_request", pickup_id="home_siska", dropoff_id="ukc", needs="stretcher", priority="emergency",
+                severity="serious", condition="major_trauma", note="fall on ice, head injury, drowsy",
             ),
         ),
     ]
 
 
 def _surge(state: WorldState) -> list[EventRecord]:
-    """Seven calls within about three minutes and only three ambulances: the engine sends the free
-    ones; the next emergencies queue behind a patient, the urgent call goes to a van. Decision: who
-    waits, the helicopter for a city emergency, help from a neighbouring station."""
+    """Seven calls within about three minutes, one of them a cardiac arrest, and only three ambulances:
+    the engine sends the free ones, the closest unit (the helicopter if need be) to the arrest; the
+    next serious calls queue behind a patient, the urgent fall goes to a van. Decision: who waits
+    (by time sensitivity), the helicopter, help from a neighbouring station."""
     _job(state, "T4", "zd_vic", needs="wheelchair", note="referred to the UKC emergency department")
     _fast_forward(state, 1)
     calls = [
-        (_near(state, "home_moste", 0.002, 0.004, "Moste (call)"), "emergency", "stretcher", "chest pain"),
-        (_near(state, "home_siska", -0.002, 0.003, "Šiška (call)"), "emergency", "stretcher", "suspected stroke"),
-        (_near(state, "home_vic", 0.003, -0.002, "Vič (call)"), "emergency", "stretcher", "traffic accident, injured cyclist"),
-        (_near(state, "home_bezigrad", 0.002, 0.002, "Bežigrad (call)"), "emergency", "stretcher", "breathing difficulty"),
-        (_near(state, "home_crnuce", -0.003, 0.003, "Črnuče (call)"), "urgent", "seated", "fall at home, cannot get up"),
-        (_near(state, "home_rudnik", 0.002, 0.003, "Rudnik (call)"), "emergency", "stretcher", "unconscious person"),
-        (_near(state, "home_polje", -0.002, -0.004, "Polje (call)"), "emergency", "stretcher", "fall from height"),
+        (_near(state, "home_moste", 0.002, 0.004, "Moste (call)"), "serious", "stemi", [], "crushing chest pain"),
+        (_near(state, "home_siska", -0.002, 0.003, "Šiška (call)"), "serious", "stroke", ["late_stroke_window"], "face drooping since 3 hours"),
+        (_near(state, "home_vic", 0.003, -0.002, "Vič (call)"), "serious", "major_trauma", [], "traffic accident, injured cyclist"),
+        (_near(state, "home_bezigrad", 0.002, 0.002, "Bežigrad (call)"), "critical", "cardiac_arrest", ["no_bystander_cpr"],
+         "unconscious, not breathing"),
+        (_near(state, "home_crnuce", -0.003, 0.003, "Črnuče (call)"), "urgent", "fall", [], "fall at home, cannot get up"),
+        (_near(state, "home_rudnik", 0.002, 0.003, "Rudnik (call)"), "serious", "seizure", [], "seizure still going on"),
+        (_near(state, "home_polje", -0.002, -0.004, "Polje (call)"), "serious", "breathing_difficulty", ["child"], "child, severe breathing difficulty"),
     ]
     records = []
-    for (lat, lon, name), priority, needs, note in calls:
+    for (lat, lon, name), severity, condition, modifiers, note in calls:
         records.append(
             apply_event(
                 state,
                 UrgentRequestEvent(
                     type="urgent_request", lat=lat, lon=lon, place_name=name, dropoff_id="ukc",
-                    needs=needs, priority=priority, note=note,  # type: ignore[arg-type]
+                    needs="seated" if severity == "urgent" else "stretcher",
+                    priority="urgent" if severity == "urgent" else "emergency",
+                    severity=severity, condition=condition, modifiers=modifiers, note=note,  # type: ignore[arg-type]
                 ),
             )
         )
@@ -275,14 +358,18 @@ def _surge(state: WorldState) -> list[EventRecord]:
 
 SCENARIOS: dict[str, tuple[str, Callable[[WorldState], list[EventRecord]]]] = {
     "stranded_patient": ("Van breaks down with an urgent patient on board", _stranded_patient),
-    "stroke_rush_hour": ("Stroke emergency with a road closure near UKC", _stroke_rush_hour),
-    "remote_emergency": ("Remote emergency in the mountains: the helicopter is needed", _remote_emergency),
-    "surge": ("Surge: seven calls at once, three ambulances", _surge),
+    "stroke_rush_hour": ("Stroke near a closure: an ambulance finishing at UKC goes next", _stroke_rush_hour),
+    "priority_override": ("Cardiac arrest next to an ambulance on its way to a fall", _priority_override),
+    "same_level": ("Two serious calls, one close ambulance: heart attack before seizure", _same_level),
+    "remote_emergency": ("Remote emergency in the mountains: the helicopter turns around", _remote_emergency),
+    "surge": ("Surge: seven calls at once, including a cardiac arrest", _surge),
     "snow_cascade": ("Snowstorm, a stuck van and an emergency at once", _snow_cascade),
     "stranded_equipment": ("Van breaks down with blood products on board", _stranded_equipment),
     "hospital_full": ("UKC can admit only two more patients as a patient becomes an emergency", _hospital_full),
     "equipment_en_route": ("Prep for the live crew demo: T1 is carrying blood products", _equipment_en_route),
 }
+# Scenarios whose point is a decision the engine takes by itself at dispatch time (rules 1, 2, 6).
+AUTOMATIC = {"stroke_rush_hour", "priority_override", "remote_emergency"}
 
 
 def _loaded_with_equipment(state: WorldState) -> Vehicle | None:
