@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
-from ..engine.candidates import find_candidates, nearest_place_name
+from ..engine.candidates import find_candidates, is_free, nearest_place_name
 from ..engine.plans import simulate_plan
 from ..engine.projection import DONE, incoming_patients, kpis, over_capacity, project_route
 from ..models import EventRecord, Plan, PlanStep, Trip, Vehicle
@@ -98,10 +98,12 @@ def build_situation(state: WorldState) -> dict[str, Any]:
                 "id": v.id,
                 "type": v.type,
                 "status": _vehicle_status(state, v),
+                "free": is_free(state, v),  # no job and nothing queued
                 "near": nearest_place_name(state, v.lat, v.lon),
                 "current_trip": v.current_trip_id,
                 "queue": v.queue,
                 "busy_until": hhmm(v.busy_until),
+                **({"waiting_at_pickup_until": hhmm(v.waiting_until)} if v.waiting_until else {}),
                 "fuel_pct": round(v.fuel_pct),
                 **({"grounded_by_fog_until": hhmm(v.grounded_until)} if v.grounded_until else {}),
             }
@@ -123,6 +125,7 @@ def build_situation(state: WorldState) -> dict[str, Any]:
                 "eta_dropoff": hhmm(t.eta_dropoff),
                 "delay_min": t.delay_min,
                 "note": t.note,
+                **({"dispatched_by_engine_at": hhmm(t.dispatched_at)} if t.dispatched_at else {}),
             }
             for t in state.trips.values()
             if t.status not in DONE
@@ -175,7 +178,9 @@ def tool_simulate_plan(state: WorldState, steps: list[dict[str, Any]]) -> dict[s
     if not steps:
         return {"feasible": True, "note": "Empty plan: nothing changes.", "kpis": kpis(state)}
     plan = Plan(steps=[PlanStep(**s) for s in steps])
-    return simulate_plan(state, plan)
+    result = simulate_plan(state, plan)
+    result.pop("steps", None)  # the engine's anchored copy of the steps; step_details says what they do
+    return result
 
 
 def tool_vehicle_schedule(state: WorldState, vehicle_id: str) -> dict[str, Any]:

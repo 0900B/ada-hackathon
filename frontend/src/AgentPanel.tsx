@@ -13,6 +13,7 @@ import {
   type PlanStep,
   type Recommendation,
   type RecommendationOption,
+  type StepDetail,
   type WorldSnapshot,
 } from "./api";
 import { fmtTime } from "./format";
@@ -78,9 +79,21 @@ function RunContext({ run, state }: { run: AgentRun; state: WorldSnapshot }) {
   return <div className="run-context">👤 Operator review{run.question ? `: ${run.question}` : ""}</div>;
 }
 
-function StepLine({ step, state }: { step: PlanStep; state: WorldSnapshot }) {
+function StepLine({ step, state, detail }: { step: PlanStep; state: WorldSnapshot; detail?: StepDetail }) {
   const trip = state.trips.find((t) => t.id === step.trip_id);
   const place = (id: string) => state.places.find((p) => p.id === id)?.name ?? id;
+  if (detail) {
+    // The engine's own sentence for what this step does once the whole option is applied
+    const late = (detail.delay_min ?? 0) > 0;
+    return (
+      <li className={late ? "step-late" : undefined}>
+        <span className="step-trip">{step.trip_id}</span> {detail.text}
+        {step.dropoff_id && !detail.text.includes(place(step.dropoff_id)) && (
+          <span className="step-redirect"> · to {place(step.dropoff_id)}</span>
+        )}
+      </li>
+    );
+  }
   const where = step.interrupt_current
     ? "divert now"
     : step.position === null
@@ -159,7 +172,12 @@ function OptionCard({
       {option.steps.length > 0 && (
         <ul className="plan-steps">
           {option.steps.map((s, i) => (
-            <StepLine key={i} step={s} state={state} />
+            <StepLine
+              key={i}
+              step={s}
+              state={state}
+              detail={option.step_details?.find((d) => d.trip_id === s.trip_id && d.vehicle_id === s.vehicle_id)}
+            />
           ))}
         </ul>
       )}

@@ -14,9 +14,24 @@ if TYPE_CHECKING:
     from .state import WorldState
 
 CAPABILITIES = {
-    "ambulance": ["Emergencies", "Stretcher, wheelchair and seated patients", "Equipment transfers"],
-    "transport": ["Seated and wheelchair patients", "Equipment transfers", "No emergencies or stretchers"],
-    "helicopter": ["Emergencies and long transfers", "Stretcher patients", "No equipment transfers", "Grounded by fog"],
+    "ambulance": [
+        "Emergency unit: emergencies and urgent calls",
+        "Dispatched on availability and proximity",
+        "At most its current job plus one queued trip",
+        "Stretcher, wheelchair and seated patients; equipment",
+    ],
+    "transport": [
+        "Scheduled patient transport (the planned day)",
+        "Stretcher, wheelchair and seated patients",
+        "Equipment transfers",
+        "No emergencies",
+    ],
+    "helicopter": [
+        "Emergencies and urgent trips where it is clearly faster",
+        "Remote places and long distances",
+        "No scheduled trips or equipment",
+        "Grounded by fog",
+    ],
 }
 
 
@@ -60,7 +75,8 @@ def vehicle_detail(state: WorldState, v: Vehicle) -> dict[str, Any]:
                 add_leg(_geometry(state, v, cur, (p.lat, p.lon), first))
                 first, cur = False, (p.lat, p.lon)
                 stops.append({"kind": "pickup", "trip_id": trip.id, "label": label, "priority": trip.priority,
-                              "place": p.name, "lat": p.lat, "lon": p.lon, "eta": leg.eta_pickup})
+                              "place": p.name, "lat": p.lat, "lon": p.lon, "eta": leg.eta_pickup,
+                              "ready_at": trip.pickup_after})  # arriving before this = waiting there
             d = places[trip.dropoff_id]
             add_leg(_geometry(state, v, cur, (d.lat, d.lon), first))
             first, cur = False, (d.lat, d.lon)
@@ -81,7 +97,11 @@ def vehicle_detail(state: WorldState, v: Vehicle) -> dict[str, Any]:
         "fuel": {"pct": round(v.fuel_pct, 1), "range_km": round(range_km) if range_km is not None else None,
                  "low": v.fuel_pct < LOW_FUEL_PCT},
         "current_trip": current.model_dump(mode="json") if current else None,
-        "stops": [{**s, "eta": s["eta"].isoformat() if s.get("eta") else None} for s in stops],
+        "stops": [
+            {**s, "eta": s["eta"].isoformat() if s.get("eta") else None,
+             **({"ready_at": s["ready_at"].isoformat()} if s.get("ready_at") else {})}
+            for s in stops
+        ],
         "legs": legs,
         "detour_legs": detour_legs,
     }

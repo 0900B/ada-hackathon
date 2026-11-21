@@ -21,6 +21,7 @@ def tick(state: WorldState, dt_s: float) -> None:
         if v.grounded_until and state.sim_time >= v.grounded_until:
             v.grounded_until = None  # the fog has lifted: the helicopter can fly again
         if v.status == "out_of_service":
+            v.waiting_until = None
             continue
         if v.busy_until and state.sim_time < v.busy_until:
             continue
@@ -81,6 +82,7 @@ def _move_towards(state: WorldState, v: Vehicle, lat: float, lon: float, dt_min:
 
 
 def _advance(state: WorldState, v: Vehicle, dt_min: float) -> None:
+    v.waiting_until = None  # set again below while it stands at a pickup that is not ready yet
     if v.status == "loading":
         v.status = "with_patient"
 
@@ -108,7 +110,8 @@ def _advance(state: WorldState, v: Vehicle, dt_min: float) -> None:
 
     if v.status == "to_pickup" and trip:
         if state.sim_time < trip.pickup_after:
-            return  # early: wait at the pickup
+            v.waiting_until = trip.pickup_after  # early: wait at the pickup (visible on the map/card)
+            return
         trip.status = "onboard"
         trip.eta_pickup = state.sim_time
         v.status = "loading"

@@ -10,7 +10,6 @@ from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from ..engine.actions import can_serve
-from ..engine.candidates import spends_helicopter
 from ..engine.projection import LATE_ALERT_MIN, LOAD_MIN, project_all, project_route, route_trip_ids
 from ..models import Needs, Place, Trip, Vehicle
 from ..routing import travel_minutes
@@ -134,27 +133,101 @@ def seed_world(state: WorldState, seed: int, n_trips: int = 24) -> None:
             )
         )
 
-    # Pre-plan the day greedily, like a dispatcher would: each trip goes to the
-    # compatible vehicle where it would be least late. Ambulances only take stretcher
-    # cases, keeping them free for emergencies. The helicopter only gets a routine trip
-    # when no road vehicle can do it on time.
+    # Pre-plan the day greedily, like a dispatcher would: each booked trip goes to the transport
+    # van where it would be least late. Vans do the whole scheduled day (stretcher patients and
+    # equipment too); ambulances and the helicopter start the day free at their bases, for the
+    # emergencies and urgent calls that come in during the day.
     for trip in sorted(trips, key=lambda t: t.pickup_after):
         state.trips[trip.id] = trip
         best = None
         for v in state.vehicles.values():
             ok, _ = can_serve(v, trip)
-            if not ok or (v.type == "ambulance" and trip.needs != "stretcher"):
+            if not ok or v.type != "transport":
                 continue
             leg = project_route(state, v, route_trip_ids(v) + [trip.id])[-1]
-            keep_free = spends_helicopter(state, v.type, trip)
             late = leg.delay_min >= LATE_ALERT_MIN
-            score = (late or keep_free, leg.delay_min, keep_free, leg.eta_dropoff)
+            score = (late, leg.delay_min, leg.eta_dropoff)
             if best is None or score < best[0]:
                 best = (score, v)
         if best:
             v = best[1]
             v.queue.append(trip.id)
             trip.vehicle_id, trip.status = v.id, "assigned"
+    _improve_day(state, [v for v in state.vehicles.values() if v.type == "transport"])
 
     project_all(state)
     state.bump()
+
+
+def _better(gain: tuple) -> bool:
+    """A move is better if it removes a late trip, or cuts delay, or (no delay added) evens out the load."""
+    late, delay, balance = gain
+    return late > 0 or (late == 0 and delay > 0.5) or (late == 0 and delay > -0.05 and balance > 0)
+
+
+def _improve_day(state: WorldState, vans: list, max_passes: int = 6) -> None:
+    """Local search on the pre-planned day: move single trips to another place (any van, any
+    position), or swap two trips between vans, while that lowers (late trips, total delay) or
+    evens out the vans' load without adding delay. The trips themselves stay the same."""
+
+    def cost(v) -> tuple[int, float, int]:
+        legs = project_route(state, v)
+        late = sum(1 for leg in legs if leg.delay_min >= LATE_ALERT_MIN)
+        return late, sum(leg.delay_min for leg in legs), len(legs) ** 2
+
+    def plus(a: tuple, b: tuple) -> tuple:
+        return tuple(x + y for x, y in zip(a, b))
+
+    def gain_of(before: tuple, after: tuple) -> tuple:
+        return tuple(x - y for x, y in zip(before, after))
+
+    costs = {v.id: cost(v) for v in vans}
+    for _ in range(max_passes):
+        improved = False
+        for src in vans:
+            for tid in list(src.queue):
+                i = src.queue.index(tid)
+                src.queue.pop(i)
+                without = cost(src)
+                best = None
+                for dst in vans:
+                    if not can_serve(dst, state.trips[tid])[0]:
+                        continue
+                    before = costs[src.id] if dst is src else plus(costs[src.id], costs[dst.id])
+                    for pos in range(len(dst.queue) + 1):
+                        if dst is src and pos == i:
+                            continue
+                        dst.queue.insert(pos, tid)
+                        new = cost(dst)
+                        dst.queue.pop(pos)
+                        after = new if dst is src else plus(without, new)
+                        gain = gain_of(before, after)
+                        if _better(gain) and (best is None or gain > best[0]):
+                            best = (gain, dst, pos)
+                if best is None:
+                    src.queue.insert(i, tid)  # no better place: put it back
+                    continue
+                _, dst, pos = best
+                dst.queue.insert(pos, tid)
+                state.trips[tid].vehicle_id = dst.id
+                costs[src.id], costs[dst.id] = cost(src), cost(dst)
+                improved = True
+        # Swaps: exchange two trips between two vans (each takes the other's place).
+        for a_i, a in enumerate(vans):
+            for b in vans[a_i + 1 :]:
+                for i in range(len(a.queue)):
+                    for j in range(len(b.queue)):
+                        ta, tb = a.queue[i], b.queue[j]
+                        if not (can_serve(a, state.trips[tb])[0] and can_serve(b, state.trips[ta])[0]):
+                            continue
+                        a.queue[i], b.queue[j] = tb, ta
+                        ca, cb = cost(a), cost(b)
+                        before, after = plus(costs[a.id], costs[b.id]), plus(ca, cb)
+                        if _better(gain_of(before, after)):
+                            state.trips[tb].vehicle_id, state.trips[ta].vehicle_id = a.id, b.id
+                            costs[a.id], costs[b.id] = ca, cb
+                            improved = True
+                        else:
+                            a.queue[i], b.queue[j] = ta, tb
+        if not improved:
+            break

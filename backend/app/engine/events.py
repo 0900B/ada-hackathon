@@ -23,7 +23,7 @@ from ..models import (
 )
 from ..roads import ROADS, remaining_points
 from ..routing import flies, leg_route, points_hit, travel_minutes
-from .actions import LJ, assign_trip, can_serve, detach_trip
+from .actions import EMERGENCY_UNITS, LJ, ActionError, assign_trip, can_serve, detach_trip
 from .projection import (
     DONE,
     LOAD_MIN,
@@ -56,10 +56,9 @@ def apply_event(state: WorldState, ev: OperatorEvent) -> EventRecord:
     summary = _handle(state, ev, created)
     project_all(state)
 
-    affected: list[str] = []
+    affected: list[str] = list(dict.fromkeys(created))  # the event's own trips first (e.g. the new call)
     for t in state.trips.values():
         if t.id in created:
-            affected.append(t.id)
             continue
         if t.id not in before or t.status in DONE:
             continue
@@ -129,6 +128,8 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
             extra = f"; equipment ({stranded.cargo}) stranded in {v.id}: {stranded.id} must be collected at the breakdown site"
         elif stranded:
             extra = f"; patient of {stranded.id} stranded on board"
+            if stranded.priority == "emergency":  # an emergency patient can't wait for an analysis
+                extra += dispatch_call(state, stranded)
         return f"{v.name} broke down{extra}" + (f" ({ev.note})" if ev.note else "")
 
     if isinstance(ev, DelayEvent):
@@ -172,7 +173,8 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
             if pickup is None:
                 raise EventError(f"Unknown place {ev.pickup_id}")
         elif ev.lat is not None and ev.lon is not None:
-            pickup = Place(id=state.new_id("call"), name="Call location", kind="call_location", lat=ev.lat, lon=ev.lon)
+            name = ev.place_name or "Call location"
+            pickup = Place(id=state.new_id("call"), name=name, kind="call_location", lat=ev.lat, lon=ev.lon)
             state.places[pickup.id] = pickup
         else:
             raise EventError("Give pickup_id, or lat and lon")
@@ -194,7 +196,7 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
         )
         state.trips[trip.id] = trip
         created.append(trip.id)
-        return f"New {ev.priority} request {trip.id}: {pickup.name} -> {dropoff.name}"
+        return f"New {ev.priority} request {trip.id}: {pickup.name} -> {dropoff.name}" + dispatch_call(state, trip)
 
     if isinstance(ev, TaskRequestEvent):
         return _book_task(state, ev, created)
@@ -243,6 +245,60 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
     raise EventError(f"Unsupported event type {getattr(ev, 'type', '?')}")
 
 
+def _hhmm(dt) -> str:
+    return dt.astimezone(LJ).strftime("%H:%M") if dt else "?"
+
+
+def dispatch_call(state: WorldState, trip: Trip) -> str:
+    """Engine dispatch for a call that should not wait for an analysis: a new emergency or urgent
+    call, or an emergency that lost its vehicle. Picks the unit that reaches the patient first.
+
+    - Emergency units only (ambulances; the helicopter only when it is HELICOPTER_MIN_GAIN_MIN
+      minutes faster, see find_candidates), free units first (idle or driving home, nothing queued).
+    - An emergency with no free unit takes a busy ambulance: one driving to a less urgent pickup
+      turns around; one with a patient on board finishes that job first. Never a van.
+    - An urgent call with no free unit is queued on whichever vehicle (van or ambulance) reaches it
+      first without diverting anyone.
+    The AI analysis can still propose a better unit. Returns a clause for the event summary.
+    """
+    from .candidates import find_candidates  # local import: candidates imports this package's modules
+
+    cands = find_candidates(state, trip.id, limit=100)  # emergency/urgent: ranked by arrival at the patient
+    units = [c for c in cands if c["vehicle_type"] in EMERGENCY_UNITS]
+    free = [c for c in units if c["vehicle_free"]]
+    if free:
+        pool = free
+    elif trip.priority == "emergency":
+        pool = units
+    else:
+        pool = [c for c in cands if not c["step"]["interrupt_current"]]
+    if not pool:
+        if trip.priority == "emergency":
+            return "; no ambulance or helicopter can take it: request one from a neighbouring station"
+        return "; no vehicle can take it yet: left for the dispatcher to plan"
+    best = pool[0]
+    step = best["step"]
+    assign_trip(state, trip.id, step["vehicle_id"], step["position"], step["interrupt_current"])
+    trip.dispatched_at = state.sim_time
+    v = state.vehicles[step["vehicle_id"]]
+    if flies(v.type):
+        road = next((c for c in units if c["vehicle_type"] == "ambulance"), None)
+        why = (
+            f"helicopter, {road['pickup_in_min'] - best['pickup_in_min']:.0f} min sooner than {road['vehicle_id']} by road"
+            if road
+            else "helicopter; no ambulance can take it"
+        )
+    elif best["vehicle_free"]:
+        why = "nearest free ambulance" if v.type == "ambulance" else "nearest free unit"
+    else:
+        why = f"no ambulance free; {best['insertion']}"
+    who = "the patient" if trip.kind == "patient" else "the pickup"
+    return (
+        f"; dispatched {v.id} ({why}): at {who} {_hhmm(best['trip_eta_pickup'])} (in {best['pickup_in_min']:.0f} min), "
+        f"at {state.places[trip.dropoff_id].name} {_hhmm(best['trip_eta_dropoff'])}"
+    )
+
+
 def _drives_through(state: WorldState, v, inc: Incident) -> bool:
     """True if the rest of the leg v is driving passes through the incident."""
     if v.status == "out_of_service" or flies(v.type):
@@ -252,6 +308,7 @@ def _drives_through(state: WorldState, v, inc: Incident) -> bool:
 
 
 BOOKING_SLACK_MIN = 30  # default deadline: ready + direct travel + loading + this
+BOOKING_MAX_PUSH_MIN = 10  # a booking may push other booked patients' arrival back by at most this
 
 
 def _book_task(state: WorldState, ev: TaskRequestEvent, created: list[str]) -> str:
@@ -265,8 +322,7 @@ def _book_task(state: WorldState, ev: TaskRequestEvent, created: list[str]) -> s
         raise EventError("Pickup and drop-off are the same place")
     equipment = ev.kind == "equipment" or ev.needs == "equipment"
     ready = state.sim_time + timedelta(minutes=ev.ready_in_min)
-    vehicle_type = "transport" if not equipment and ev.needs != "stretcher" else "ambulance"
-    direct = travel_minutes(state, pickup.lat, pickup.lon, dropoff.lat, dropoff.lon, vehicle_type)
+    direct = travel_minutes(state, pickup.lat, pickup.lon, dropoff.lat, dropoff.lon, "transport")  # bookings go by van
     due = (
         state.sim_time + timedelta(minutes=ev.due_in_min)
         if ev.due_in_min is not None
@@ -293,10 +349,24 @@ def _book_task(state: WorldState, ev: TaskRequestEvent, created: list[str]) -> s
     if not ev.auto_assign:
         return what + "; waiting for the dispatcher"
     late_now = kpis(state)["late_trips"]
-    # A booking never diverts a vehicle from the trip it is on; that is reserved for emergencies.
-    candidates = [c for c in find_candidates(state, trip.id, limit=12) if not c["step"]["interrupt_current"]]
-    best = candidates[0] if candidates else None
-    if best is None or best["kpis_after"]["late_trips"] > late_now or (best["trip_delay_min"] or 0) > 0:
+    # A booking never diverts a vehicle from the trip it is on, never flies, fits without making
+    # any trip late and pushes no booked patient back by more than BOOKING_MAX_PUSH_MIN. Vans first;
+    # an ambulance only if no van fits, only a free one and never the last free one.
+    fits = [
+        c
+        for c in find_candidates(state, trip.id, limit=200, all_positions=True)
+        if not c["step"]["interrupt_current"]
+        and not flies(c["vehicle_type"])
+        and c["kpis_after"]["late_trips"] <= late_now
+        and (c["trip_delay_min"] or 0) <= 0
+        and c["pushes_others_min"] <= BOOKING_MAX_PUSH_MIN
+    ]
+    vans = [c for c in fits if c["vehicle_type"] == "transport"]
+    ambulances = [
+        c for c in fits if c["vehicle_type"] == "ambulance" and c["vehicle_free"] and not c["takes_last_free_ambulance"]
+    ]
+    best = (vans or ambulances or [None])[0]
+    if best is None:
         return what + "; no vehicle can take it without a late trip, so it is left for the AI to replan"
     step = best["step"]
     assign_trip(state, trip.id, step["vehicle_id"], step["position"], step["interrupt_current"])
@@ -332,6 +402,8 @@ def _ground_helicopters(state: WorldState, ev: FogEvent) -> str:
     summary = f"Fog (megla): {names} grounded for {ev.duration_min:.0f} min"
     if released:
         summary += f"; {len(released)} trip(s) released for road vehicles ({', '.join(released)})"
+        for tid in released:  # helicopter jobs are emergency/urgent calls: send a road unit now
+            summary += f"; {tid}" + dispatch_call(state, state.trips[tid]).replace(";", ":", 1)
     if finishing:
         summary += f"; {', '.join(finishing)}"
     return summary + (f" ({ev.note})" if ev.note else "")
@@ -386,7 +458,14 @@ def _priority_change(state: WorldState, ev: PriorityChangeEvent, affected: list[
         if not ok:
             detach_trip(state, trip)
             trip.status = "unassigned"
-            parts.append(f"released from {v.id} for replanning ({why})")
-        elif ev.priority == "emergency" and v.current_trip_id != trip.id and v.queue and v.queue[0] != trip.id:
-            parts.append(f"still #{v.queue.index(trip.id) + 1} in {v.id}'s queue")
+            parts.append(f"released from {v.id} ({why})")
+        elif ev.priority == "emergency" and route_trip_ids(v)[0] != trip.id:
+            try:
+                assign_trip(state, trip.id, v.id)  # an emergency goes first (the vehicle turns around if needed)
+                route = route_trip_ids(v)
+                parts.append(f"moved to the front of {v.id}'s route" if route[0] == trip.id else f"next on {v.id}, after {route[0]}")
+            except ActionError as e:
+                parts.append(f"stays #{route_trip_ids(v).index(trip.id) + 1} on {v.id} ({e})")
+    if trip.status == "unassigned" and trip.priority == "emergency":
+        parts.append(dispatch_call(state, trip).removeprefix("; "))  # an emergency can't wait for an analysis
     return "; ".join(parts) + (f" ({ev.note})" if ev.note else "")

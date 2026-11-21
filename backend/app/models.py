@@ -41,7 +41,10 @@ class Place(BaseModel):
 class Vehicle(BaseModel):
     id: str
     name: str
-    type: VehicleType  # ambulance/helicopter: any patient incl. stretcher/emergency; transport: seated/wheelchair only
+    # ambulance: emergency unit (emergencies, urgent calls; at most current job + 1 queued);
+    # transport: the scheduled day (any non-emergency patient incl. stretcher, equipment);
+    # helicopter: emergencies and urgent trips only (no equipment, no scheduled work).
+    type: VehicleType
     base_id: str
     lat: float
     lon: float
@@ -49,6 +52,9 @@ class Vehicle(BaseModel):
     current_trip_id: str | None = None
     queue: list[str] = Field(default_factory=list)  # upcoming trip ids, in order
     busy_until: datetime | None = None  # loading/unloading, or stuck after an injected delay
+    # Set by the simulator while the vehicle stands at its next pickup before the patient (or cargo)
+    # is ready: it waits there until this time. None when it is not waiting.
+    waiting_until: datetime | None = None
     # Helicopters (HNMP) fly straight, off the road network. Fog grounds them until this time:
     # no new flights; a patient already on board is flown in, then the helicopter goes home.
     grounded_until: datetime | None = None
@@ -88,6 +94,7 @@ class Trip(BaseModel):
     eta_pickup: datetime | None = None
     eta_dropoff: datetime | None = None
     delay_min: float | None = None  # predicted (or final) lateness vs due_by
+    dispatched_at: datetime | None = None  # set when the engine dispatched this call itself (sim time)
 
     @model_validator(mode="after")
     def _equipment_consistent(self) -> Trip:
@@ -246,12 +253,17 @@ class TaskRequestEvent(BaseModel):
 
 
 class UrgentRequestEvent(BaseModel):
-    """A new urgent/emergency transport. Give pickup_id, or lat+lon for an ad-hoc call location."""
+    """A new urgent/emergency call. Give pickup_id, or lat+lon for an ad-hoc call location.
+
+    The engine dispatches it at once: the free emergency unit that reaches the patient first
+    (the helicopter only when it is clearly faster), see engine.events.dispatch_call.
+    """
 
     type: Literal["urgent_request"]
     pickup_id: str | None = None
     lat: float | None = None
     lon: float | None = None
+    place_name: str | None = Field(default=None, max_length=80)  # name for an ad-hoc call location
     dropoff_id: str = "ukc"
     needs: Needs = "stretcher"
     priority: Literal["emergency", "urgent"] = "emergency"
@@ -326,6 +338,10 @@ class PlanStep(BaseModel):
     # Redirect the patient to another hospital (a general one with free capacity). On the trip's own
     # vehicle with position=None the trip keeps its place in the queue (works with the patient on board).
     dropoff_id: str | None = None
+    # Set by the engine when it checks an option: the trip this one must come right before in the
+    # vehicle's route (None = at the end). When set, it replaces position/interrupt_current, so an
+    # approved plan keeps the order it was checked with even if the vehicle moved on meanwhile.
+    before_trip_id: str | None = None
 
 
 class Plan(BaseModel):
@@ -359,6 +375,9 @@ class RecommendationOption(BaseModel):
     errors: list[str] = Field(default_factory=list)
     kpis_after: dict[str, Any] | None = None
     trip_changes: list[dict[str, Any]] = Field(default_factory=list)
+    # What each step really does, in step order (who, which stop of the vehicle's route, after which
+    # trips, predicted pickup/drop-off and a one-line `text`). Approval is checked against these.
+    step_details: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class Recommendation(BaseModel):
@@ -369,6 +388,7 @@ class Recommendation(BaseModel):
     notifications: list[NotificationDraft] = Field(default_factory=list)
     escalation: str | None = None
     kpis_before: dict[str, Any] | None = None  # filled in by the engine
+    checked_at: datetime | None = None  # world (sim) time the engine checked the options
 
 
 class AgentRun(BaseModel):

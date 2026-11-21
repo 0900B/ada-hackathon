@@ -9,6 +9,20 @@ We present an **independent EMS** (a fictional operator, "Ljubljana Demo EMS"), 
 into Slovenia's 112/DCZ system. If the jury asks about integration: every input and output is an
 API (GPS feed, orders, crew messages, decisions), so it can sit next to an existing dispatch centre.
 
+**How the fleet works** (close to how Slovenian EMS works; say it when you click a vehicle):
+- **Ambulances A1–A3 are emergency units.** They start the day free at their bases, with nothing
+  planned. A new emergency or urgent call is dispatched **at once** by the engine to the free unit that
+  reaches the patient first (the event message says who and when). An ambulance never holds more than
+  its current job plus one, and is never turned away from a patient on board.
+- **Transport vans T1–T5 do the planned day**: seated, wheelchair and stretcher patients, equipment.
+  They never take emergencies. New bookings go to a van; an ambulance only helps if no van can.
+- **Helicopter H1** flies emergencies and urgent trips only, when it is clearly faster (remote places,
+  long distances). Fog grounds it.
+- **Approving a plan does exactly what the option says**: each option lists, step by step, which
+  vehicle goes now or next and when it arrives; the vehicles then do that. If the world changed while
+  the option was on screen (e.g. the vehicle has loaded another patient), approval is refused with the
+  reason instead of doing something else.
+
 ## Roles
 - **Presenter (laptop on the projector):** dispatcher dashboard, Simulation tab.
 - **Crew (teammate with an Android phone, Chrome):** Crew view, e.g. `https://<vercel-url>/crew/T1?world=sim`.
@@ -16,6 +30,7 @@ API (GPS feed, orders, crew messages, decisions), so it can sit next to an exist
 ## Before going on stage (10 min before)
 - [ ] Laptop: open the Vercel URL. The status bar shows `● connected`, and the sources show `fresh`, with traffic as "TomTom live".
 - [ ] The AI badge shows `Claude · claude-sonnet-5-5`, not "Engine only".
+- [ ] **Auto-analyse:** it is off by default (saves tokens). Either switch **Auto-analyse on in the Simulation tab** right before going on stage, or remember to press **A** (Analyse) after each event / the crew message. Leave it off during rehearsals.
 - [ ] **Don't push to `main` anymore.** Every push restarts the backend and resets the simulation.
 - [ ] Phone: open the Crew view URL over **HTTPS** (the Vercel URL, never a local IP). Tap the mic once and **allow microphone access**. Set the SL/EN toggle to **SL**.
 - [ ] Dry run: Simulation tab → **📦 Prep: crew demo**. The message shows which vehicle carries equipment (with seed 42 it's **T1**, carrying blood products). Open `/crew/T1?world=sim` on the phone, say the sentence, approve, then **↺ Reset simulation**.
@@ -30,17 +45,19 @@ to everyone else. The brief calls it *kaos na terenu*, and asks for *a new plan*
 
 **0:25–0:50 · Live tab: the initial plan (*začetni plan*).**
 - Show real Ljubljana: the fleet drives real roads, TomTom traffic colours are on, plus real weather and real incidents.
-- Click a vehicle: its crew, fuel, and its whole day highlighted with numbered stops.
-- "Every trip already has a vehicle and an arrival time. The system always knows the facts."
+- Click a **van**: its crew, fuel, and its whole day highlighted with numbered stops.
+- Click an **ambulance**: no stops planned. "Ambulances wait at their base for emergencies; a new call is sent to the nearest free one at once."
+- "Every booked trip already has a vehicle and an arrival time. The system always knows the facts."
 
 **0:50–2:10 · Simulation: the crew speaks, Plan B answers (*popravek plana* + AI).**
 1. Click **📦 Prep: crew demo** (T1 is now carrying blood products).
 2. **Crew on the phone, holding the mic button:** *"Vozilo je obstalo. Oprema je še v njem."*
 3. **Point at the dashboard:**
    - "Understood: T1 broke down, the equipment is still inside." The AI also states its assumption: no vehicle was named, so it took the sender's.
+   - If Auto-analyse is off, press **A** now.
    - The AI dispatcher's live trace: "It's checking which vehicles can reach the breakdown site, and simulating complete plans. **Every number comes from our engine, not the language model.**"
-   - The options appear. Read out the recommended one: who collects the equipment at the breakdown site (the brief's rule), plus the before/after numbers.
-4. Press **Y** (or click Approve). The routes update on the map, and the crew's phone shows "✓ Dispatcher approved".
+   - The options appear. Read out the recommended one: who collects the equipment at the breakdown site (the brief's rule; usually a free ambulance, "goes now"), what happens to T1's other bookings (spread over the vans), plus the before/after numbers. Each step line says who goes now or next and when.
+4. Press **Y** (or click Approve). The vehicles do exactly what the steps said: the routes update on the map, and the crew's phone shows "✓ Dispatcher approved".
 
 **2:10–2:40 · Why you can trust it.**
 - **Human in the loop:** the AI proposes; the dispatcher approves with one key.
@@ -63,13 +80,16 @@ wrong, a new plan in 30 seconds."
 `M` mic · `A` analyse · `Y` approve recommended · `N` reject · `B`/`D` breakdown/delay for the selected vehicle · `F` fog · `E`/`C` emergency/closure on the map · `Esc` cancel · `?` help
 
 ## Scenarios (Simulation tab)
+With Auto-analyse off, a scenario only applies its events; press **A** for the AI's recommendation.
+
 | Button | What happens | What to point out |
 |---|---|---|
-| 📦 Prep: crew demo | Fast-forwards until a van carries equipment; nothing else | Sets up the live crew message |
-| 🚐 Stranded patient | A van breaks down **with a patient on board** | The stranded patient is handled first; ambulances are kept free |
-| 🧠 Stroke + closure | Suspected stroke in Polje plus a closure on Zaloška (Kodeljevo), right on the way to UKC | Fastest ambulance; click it: its route goes **around** the closure (orange); hospital pre-alert |
-| ❄️ Snow cascade | Snowstorm, a van stuck 25 min and a fall on ice | Many late trips at once: the agent prioritises and weighs the reserve ambulance |
-| 🧰 Stranded equipment | A vehicle breaks down with blood products on board | Another vehicle must collect it at the breakdown site first |
-| 🏥 UKC full | A patient becomes an emergency; UKC can admit only one more | The emergency gets the last UKC slot; the others are redirected |
+| 📦 Prep: crew demo | Fast-forwards until a van carries equipment; nothing else (seed 42: **T1** with blood products) | Sets up the live crew message |
+| 🚐 Stranded patient | A van (T3) breaks down **with a patient on board**; its other bookings lose their vehicle | Press A: a free ambulance collects the stranded patient at the roadside ("goes now"); the bookings are spread over the other vans; some become late, so the AI drafts patient notifications. One ambulance stays free |
+| 🧠 Stroke + closure | Suspected stroke in Polje plus a closure on Zaloška (Kodeljevo), right on the way to UKC | The engine sends the nearest free ambulance **at once** (event message: who and when). Click it: its route goes **around** the closure (orange). Press A: the AI checks the knock-on effects on vans that drive through the closure; hospital pre-alert |
+| 🚁 Remote emergency | A hiker falls at Kamniška Bistrica, about 45 min by road | The engine sends **helicopter H1** (about 30 min sooner than the nearest ambulance). Watch it **fly** straight there, land, load the patient and land at UKC (~25 min). Optional: press **F** (fog) while it flies: it finishes the flight with the patient on board, then stays grounded |
+| ❄️ Snow cascade | Snowstorm, a van stuck 25 min and a fall on ice | The fall on ice gets the nearest ambulance at once; many van trips turn late: press A, the agent prioritises, moves late trips and weighs using a free ambulance |
+| 🧰 Stranded equipment | T1 breaks down with blood products on board | Press A: another vehicle (a free ambulance, as it's urgent) must collect it at the breakdown site first; T1's bookings go to other vans |
+| 🏥 UKC full | A patient on a van becomes an emergency; UKC can admit only one more | The van can't take an emergency: the engine sends the nearest ambulance at once. Press A: the emergency keeps the last UKC slot; the other incoming patients are redirected |
 
-Extra buttons: **🌫 Fog** grounds the helicopter for 1 h (its patients are handed to ambulances). **Priority & capacity** changes a patient's priority or a hospital's capacity.
+Extra buttons: **🌫 Fog** grounds the helicopter for 1 h (a trip it has not picked up yet goes to the nearest ambulance at once). **Priority & capacity** changes a patient's priority or a hospital's capacity. **Map click (E)**: a new emergency at that spot is dispatched at once.
