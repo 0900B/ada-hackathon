@@ -234,7 +234,7 @@ export default function App() {
             events={state?.events ?? []}
           />
           <AlertsSection alerts={state?.alerts} />
-          {run?.recommendation && <SituationSection rec={run.recommendation} />}
+          {run?.recommendation && !cardOpen && <SituationSection rec={run.recommendation} />}
           <DecisionLogSection runs={state?.agent?.runs ?? []} />
         </div>
 
@@ -270,81 +270,133 @@ function DecisionCard({ run, busy, action, onMinimise }) {
   const selectedOpt = rec.options[selectedIdx]
   const kpisBefore  = rec.kpis_before
 
+  // Collect every vehicle ID mentioned across all options' steps
+  const mentionedVehicles = [...new Set(
+    (rec.options ?? []).flatMap(opt =>
+      (opt.steps ?? []).map(s => s.vehicle_id).filter(Boolean)
+    )
+  )]
+
+  // KPI delta for the currently selected option
+  const recDiff = selectedOpt?.kpis_after
+    ? Math.round((selectedOpt.kpis_after.total_delay_min ?? 0) - (kpisBefore?.total_delay_min ?? 0))
+    : null
+  const recDeltaCls = recDiff == null ? 'same' : deltaClass(kpisBefore?.total_delay_min ?? 0, selectedOpt.kpis_after.total_delay_min ?? 0)
+
   return (
     <div className="decision-card">
+
+      {/* ── Compact header strip: event tag + name + minimise ── */}
       <div className="dc-header">
-        <span className="dc-event-tag">EVENT</span>
-        <span className="dc-event-name">{trigger.replace(/_/g, ' ')}</span>
-        <span className="dc-event-sep">·</span>
-        <span className="dc-event-lead">{lead}</span>
+        <div className="dc-header-left">
+          <span className="dc-event-tag">EVENT</span>
+          <span className="dc-event-name">{trigger.replace(/_/g, ' ')}</span>
+        </div>
         <button className="dc-minimise" onClick={onMinimise}>Minimise</button>
       </div>
 
-      <div className="dc-section">
-        <span className="dc-label">RECOMMENDED</span>
-        <p className="dc-rec-title">Option {selectedIdx + 1} — {selectedOpt?.title}</p>
-        <div className="dc-action-row">
-          <button
-            className="btn-approve"
-            disabled={busy}
-            onClick={() => action(() => approveOption(run.id, selectedIdx))}
-          >
-            Approve
-          </button>
-          <button
-            className="btn-reject"
-            disabled={busy}
-            onClick={() => action(() => rejectRun(run.id))}
-          >
-            Reject
-          </button>
-        </div>
-      </div>
+      {/* ── Scrollable body ── */}
+      <div className="dc-body">
 
-      {rec.options.length > 1 && (
+        {/* 1 — Situation: opening statement, large and readable */}
         <div className="dc-section">
-          <span className="dc-label">ALTERNATIVES</span>
-          <table className="dc-alt-table">
-            <tbody>
-              {rec.options.map((opt, i) => {
-                if (i === selectedIdx) return null
-                const before = kpisBefore?.total_delay_min ?? 0
-                const after  = opt.kpis_after?.total_delay_min ?? 0
-                const diff   = Math.round(after - before)
-                const cls    = deltaClass(before, after)
-                return (
-                  <tr key={i} className="dc-alt-row" onClick={() => setSelectedIdx(i)}>
-                    <td className="dc-alt-num">{i + 1}</td>
-                    <td className="dc-alt-title">{opt.title}</td>
-                    <td className="dc-alt-delta">
-                      {opt.kpis_after
-                        ? <span className={`opt-delta ${cls}`}>{diff > 0 ? `+${diff}` : diff} min</span>
-                        : <span className="opt-delta same">—</span>
-                      }
-                    </td>
-                    <td className="dc-alt-summary">{opt.summary}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+          <span className="dc-label">SITUATION</span>
+          <p className="dc-situation-lead">{lead}</p>
+          {detail && <p className="dc-situation-detail">{detail}</p>}
         </div>
-      )}
 
-      {(detail || rec.escalation || rec.reasoning) && (
-        <div className="dc-section dc-last-section">
-          <button className="dc-details-toggle" onClick={() => setDetailsOpen(d => !d)}>
-            {detailsOpen ? '▾' : '▸'} Details
-          </button>
-          {detailsOpen && (
-            <div className="dc-details-body">
-              {detail         && <p className="situation-detail">{detail}</p>}
-              {rec.escalation && <p className="situation-detail" style={{ marginTop: 6 }}>{rec.escalation}</p>}
-              {rec.reasoning  && <p className="rec-reasoning"   style={{ marginTop: 6 }}>{rec.reasoning}</p>}
+        {/* 2 — Affected vehicles: Teal chips with monospace IDs */}
+        {mentionedVehicles.length > 0 && (
+          <div className="dc-section dc-vehicles-row">
+            <span className="dc-label">AFFECTED VEHICLES</span>
+            <div className="dc-vehicle-chips">
+              {mentionedVehicles.map(id => (
+                <span key={id} className="dc-vehicle-chip">{id}</span>
+              ))}
             </div>
+          </div>
+        )}
+
+        {/* 3 — Recommended action: visual centerpiece, Teal left border */}
+        <div className="dc-section dc-rec-section">
+          <span className="dc-label">RECOMMENDED — OPTION {selectedIdx + 1}</span>
+          <p className="dc-rec-title">{selectedOpt?.title}</p>
+          {selectedOpt?.summary && (
+            <p className="dc-rec-summary">{selectedOpt.summary}</p>
           )}
+          {recDiff !== null && (
+            <p className="dc-rec-delta">
+              Delay impact:{' '}
+              <span className={`opt-delta ${recDeltaCls}`}>
+                {recDiff > 0 ? `+${recDiff}` : recDiff} min
+              </span>
+            </p>
+          )}
+          <div className="dc-action-row">
+            <button
+              className="btn-approve"
+              disabled={busy}
+              onClick={() => action(() => approveOption(run.id, selectedIdx))}
+            >
+              Approve
+            </button>
+            <button
+              className="btn-reject"
+              disabled={busy}
+              onClick={() => action(() => rejectRun(run.id))}
+            >
+              Reject
+            </button>
+          </div>
         </div>
-      )}
+
+        {/* 4 — Alternatives: visually subordinate; click to swap selection */}
+        {rec.options.length > 1 && (
+          <div className="dc-section">
+            <span className="dc-label">ALTERNATIVES</span>
+            <table className="dc-alt-table">
+              <tbody>
+                {rec.options.map((opt, i) => {
+                  if (i === selectedIdx) return null
+                  const before = kpisBefore?.total_delay_min ?? 0
+                  const after  = opt.kpis_after?.total_delay_min ?? 0
+                  const diff   = Math.round(after - before)
+                  const cls    = deltaClass(before, after)
+                  return (
+                    <tr key={i} className="dc-alt-row" onClick={() => setSelectedIdx(i)}>
+                      <td className="dc-alt-num">{i + 1}</td>
+                      <td className="dc-alt-title">{opt.title}</td>
+                      <td className="dc-alt-delta">
+                        {opt.kpis_after
+                          ? <span className={`opt-delta ${cls}`}>{diff > 0 ? `+${diff}` : diff} min</span>
+                          : <span className="opt-delta same">—</span>
+                        }
+                      </td>
+                      <td className="dc-alt-summary">{opt.summary}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* 5 — Details: escalation notes and reasoning, collapsed by default */}
+        {(rec.escalation || rec.reasoning) && (
+          <div className="dc-section dc-last-section">
+            <button className="dc-details-toggle" onClick={() => setDetailsOpen(d => !d)}>
+              {detailsOpen ? '▾' : '▸'} Details
+            </button>
+            {detailsOpen && (
+              <div className="dc-details-body">
+                {rec.escalation && <p className="situation-detail" style={{ marginTop: 6 }}>{rec.escalation}</p>}
+                {rec.reasoning  && <p className="rec-reasoning"   style={{ marginTop: 6 }}>{rec.reasoning}</p>}
+              </div>
+            )}
+          </div>
+        )}
+
+      </div>
     </div>
   )
 }

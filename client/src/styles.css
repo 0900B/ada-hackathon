@@ -1,70 +1,77 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    DESIGN TOKENS
-   Palette: Gunmetal #393D3F · Almond Silk #D5BBB1 · Muted Teal #9CC4B2 · Old Rose #C98CA7
+   Palette: Green #5FA55A · Cyan #01B4BC · Yellow #F6D51F · Orange #FA8925 · Coral #FA5457
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 :root {
   /* ── Core palette ─────────────────────────────────────────────────────────── */
-  --p-gunmetal:    #393D3F;
-  --p-almond:      #D5BBB1;
-  --p-teal:        #9CC4B2;
-  --p-rose:        #C98CA7;
+  --p-green:   #5FA55A;   /* free vehicles, approve, OK */
+  --p-cyan:    #01B4BC;   /* live data, hospitals, section labels on dark */
+  --p-yellow:  #F6D51F;   /* medium priority */
+  --p-orange:  #FA8925;   /* on mission, warnings */
+  --p-coral:   #FA5457;   /* high priority, critical, reject */
 
-  /* ── Derived neutrals from palette ───────────────────────────────────────── */
-  --p-gunmetal-80: #51575A;   /* lighter gunmetal, secondary text on light */
-  --p-gunmetal-50: #8A9094;   /* mid gunmetal, muted text */
-  --p-gunmetal-20: #CBCDCE;   /* near-white grey tint */
-  --p-almond-80:   #EAE0D9;   /* light almond — section bg, hover states */
-  --p-almond-60:   #F0E8E3;   /* very light almond — panel body bg */
-  --p-almond-30:   #F7F1ED;   /* near-white almond — app bg */
-  --p-teal-dark:   #5A9B88;   /* deep teal — operational "free" color */
-  --p-teal-wash:   rgba(156, 196, 178, 0.14);
-  --p-rose-wash:   rgba(201, 140, 167, 0.14);
+  /* ── Legacy palette names — mapped to new palette ────────────────────────── */
+  --p-gunmetal:    #131516;   /* near-black authority surface */
+  --p-almond:      #E8EAEB;   /* near-white on-dark text base */
+  --p-teal:        #01B4BC;   /* → cyan */
+  --p-rose:        #FA5457;   /* → coral */
+
+  /* ── Derived neutrals ─────────────────────────────────────────────────────── */
+  --p-gunmetal-80: #2D3133;
+  --p-gunmetal-50: #4D5355;
+  --p-gunmetal-20: #DDDFE0;
+  --p-almond-80:   #E5E6E7;
+  --p-almond-60:   #EDEEEE;
+  --p-almond-30:   #F4F5F5;
+  --p-teal-dark:   #008E97;
+  --p-teal-wash:   rgba(1, 180, 188, 0.12);
+  --p-rose-wash:   rgba(250, 84, 87, 0.10);
 
   /* ── Surface hierarchy ────────────────────────────────────────────────────── */
-  --bg-app:        var(--p-almond-30);    /* warm off-white — full app background */
-  --bg-panel:      var(--p-almond-60);    /* panel body — slightly warmer */
-  --bg-header:     var(--p-gunmetal);     /* panel header — dark authority block */
-  --bg-card:       var(--p-gunmetal);     /* decision card — dark authority block */
-  --bg-hover:      rgba(57, 61, 63, 0.04);
-  --bg-active:     var(--p-teal-wash);
+  --bg-app:    #F4F5F5;         /* clean near-white */
+  --bg-panel:  #EDEEEE;         /* slightly off-white panel body */
+  --bg-header: #131516;         /* near-black authority block */
+  --bg-card:   #131516;         /* decision card dark surface */
+  --bg-hover:  rgba(19, 21, 22, 0.05);
+  --bg-active: rgba(1, 180, 188, 0.10);
 
   /* ── Text — light surfaces ────────────────────────────────────────────────── */
-  --tx-primary:    var(--p-gunmetal);
-  --tx-secondary:  var(--p-gunmetal-80);
-  --tx-muted:      var(--p-gunmetal-50);
-  --tx-faint:      var(--p-gunmetal-20);
+  --tx-primary:   #131516;
+  --tx-secondary: #2D3133;
+  --tx-muted:     #5A6063;
+  --tx-faint:     #9AA0A3;
 
-  /* ── Text — dark surfaces (header, decision card) ────────────────────────── */
-  --tx-on-dark:        var(--p-almond);
-  --tx-on-dark-sub:    rgba(213, 187, 177, 0.60);
-  --tx-on-dark-label:  var(--p-teal);             /* Teal for section labels on dark */
-  --tx-on-dark-muted:  rgba(213, 187, 177, 0.35);
+  /* ── Text — dark surfaces ────────────────────────────────────────────────── */
+  --tx-on-dark:        #E8EAEB;
+  --tx-on-dark-sub:    rgba(232, 234, 235, 0.72);
+  --tx-on-dark-label:  #01B4BC;    /* cyan — section labels on near-black */
+  --tx-on-dark-muted:  rgba(232, 234, 235, 0.45);
 
   /* ── Borders ──────────────────────────────────────────────────────────────── */
-  --bd-strong:    var(--p-gunmetal);
-  --bd-mid:       rgba(57, 61, 63, 0.16);
-  --bd-soft:      rgba(57, 61, 63, 0.09);
-  --bd-on-dark:   rgba(213, 187, 177, 0.12);
+  --bd-strong:   #131516;
+  --bd-mid:      rgba(19, 21, 22, 0.14);
+  --bd-soft:     rgba(19, 21, 22, 0.07);
+  --bd-on-dark:  rgba(232, 234, 235, 0.10);
 
-  /* ── Operational colors (map markers + status) ─────────────────────────── */
-  --op-free:      #3D8A74;   /* teal-derived deep green — free vehicles */
-  --op-mission:   #B8792A;   /* warm amber — on mission */
-  --op-oos:       #7A8285;   /* gunmetal-grey — out of service */
-  --op-high:      #B3261E;   /* red — high priority incidents */
-  --op-medium:    #7A6E00;   /* olive — medium priority */
-  --op-hospital:  #1F3A5F;   /* navy — hospitals */
+  /* ── Operational colors (map markers + status) ───────────────────────────── */
+  --op-free:     #5FA55A;   /* green  — free vehicles */
+  --op-mission:  #FA8925;   /* orange — on mission */
+  --op-oos:      #6E7579;   /* grey   — out of service */
+  --op-high:     #FA5457;   /* coral  — high priority */
+  --op-medium:   #F6D51F;   /* yellow — medium priority */
+  --op-hospital: #01B4BC;   /* cyan   — hospital */
 
   /* ── Accent roles ─────────────────────────────────────────────────────────── */
-  --accent-ai:      var(--p-rose);        /* Old Rose — AI agent voice */
-  --accent-ai-bg:   var(--p-rose-wash);
-  --accent-data:    var(--p-teal);        /* Muted Teal — live data indicators */
-  --accent-data-bg: var(--p-teal-wash);
+  --accent-ai:      #FA5457;           /* coral — AI-triggered alerts */
+  --accent-ai-bg:   rgba(250, 84, 87, 0.10);
+  --accent-data:    #01B4BC;           /* cyan — live data indicators */
+  --accent-data-bg: rgba(1, 180, 188, 0.10);
 
   /* ── Status semantic colors ──────────────────────────────────────────────── */
-  --status-ok:      var(--op-free);
-  --status-warn:    var(--op-mission);
-  --status-crit:    var(--op-high);
-  --status-ai:      var(--accent-ai);
+  --status-ok:   #5FA55A;
+  --status-warn: #FA8925;
+  --status-crit: #FA5457;
+  --status-ai:   #FA5457;
 
   /* ── Typography ───────────────────────────────────────────────────────────── */
   --font-ui:   'IBM Plex Sans', system-ui, -apple-system, sans-serif;
@@ -111,9 +118,9 @@
   --r-sm:   2px;
 
   /* ── Shadows ──────────────────────────────────────────────────────────────── */
-  --shadow-panel: -3px 0 16px rgba(57, 61, 63, 0.09);
-  --shadow-card:   0 6px 28px rgba(57, 61, 63, 0.26), 0 2px 6px rgba(57, 61, 63, 0.14);
-  --shadow-bar:    0 -3px 12px rgba(57, 61, 63, 0.18);
+  --shadow-panel: -3px 0 16px rgba(19, 21, 22, 0.12);
+  --shadow-card:   0 6px 28px rgba(19, 21, 22, 0.32), 0 2px 6px rgba(19, 21, 22, 0.16);
+  --shadow-bar:    0 -3px 12px rgba(19, 21, 22, 0.20);
 
   /* ── Transitions ──────────────────────────────────────────────────────────── */
   --tr-fast: 100ms ease;
@@ -640,8 +647,8 @@ html, body, #root {
 .dc-alt-summary { color: var(--tx-on-dark-sub); font-size: var(--fs-xs); }
 
 /* Delta overrides for dark card context */
-.dc-alt-table .opt-delta.better { color: #80C9B2; }  /* lighter teal on dark */
-.dc-alt-table .opt-delta.worse  { color: #E5A8BE; }  /* lighter rose on dark */
+.dc-alt-table .opt-delta.better { color: #81C87D; }  /* lighter green on dark */
+.dc-alt-table .opt-delta.worse  { color: #FC7E80; }  /* lighter coral on dark */
 .dc-alt-table .opt-delta.same   { color: var(--tx-on-dark-muted); }
 
 /* Details toggle */
@@ -686,7 +693,7 @@ html, body, #root {
   cursor: pointer;
   transition: background var(--tr-fast);
 }
-.btn-approve:hover:not(:disabled) { background: #B2D8C6; }
+.btn-approve:hover:not(:disabled) { background: #1ECFD8; }
 .btn-approve:disabled { opacity: 0.35; cursor: default; }
 
 .btn-reject {
@@ -694,7 +701,7 @@ html, body, #root {
   padding: 8px var(--sp-3);
   background: transparent;
   color: var(--tx-on-dark);
-  border: var(--bw-thin) solid rgba(213, 187, 177, 0.28);
+  border: var(--bw-thin) solid rgba(232, 234, 235, 0.25);
   border-radius: var(--r-none);
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
@@ -704,7 +711,7 @@ html, body, #root {
   transition: border-color var(--tr-fast), color var(--tr-fast);
 }
 .btn-reject:hover:not(:disabled) {
-  border-color: rgba(213, 187, 177, 0.60);
+  border-color: rgba(232, 234, 235, 0.55);
   color: var(--tx-on-dark);
 }
 .btn-reject:disabled { opacity: 0.35; cursor: default; }
@@ -758,7 +765,7 @@ html, body, #root {
   text-transform: uppercase;
   transition: color var(--tr-fast);
 }
-.decision-bar-show:hover { color: #B2D8C6; }
+.decision-bar-show:hover { color: #1ECFD8; }
 
 .decision-bar-text { text-transform: uppercase; letter-spacing: var(--ls-widest); }
 
@@ -1047,7 +1054,7 @@ html, body, #root {
    VEHICLE & INCIDENT LABELS (Leaflet permanent tooltips)
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 .amb-label {
-  background: rgba(247, 241, 237, 0.92) !important;  /* almond-30 tinted */
+  background: rgba(244, 245, 245, 0.92) !important;
   border: none !important;
   box-shadow: none !important;
   padding: 1px 4px !important;
@@ -1131,7 +1138,7 @@ html, body, #root {
 /* Labels inside the dark fleet section */
 .fleet-section .section-label { color: var(--tx-on-dark-muted); margin-bottom: 0; }
 .fleet-section .fleet-summary { font-size: 11px; gap: var(--sp-3); }
-.fleet-section .fs-free        { color: var(--p-teal); }
+.fleet-section .fs-free        { color: var(--op-free); }
 .fleet-section .fs-call        { color: var(--op-mission); }
 .fleet-section .fs-oos         { color: var(--tx-on-dark-muted); }
 
@@ -1145,12 +1152,12 @@ html, body, #root {
   border-left-width: 3px;
 }
 .fleet-chip--free {
-  border-left-color: var(--p-teal);
-  background: rgba(156, 196, 178, 0.12);
+  border-left-color: var(--op-free);
+  background: rgba(95, 165, 90, 0.12);
 }
 .fleet-chip--call {
   border-left-color: var(--op-mission);
-  background: rgba(184, 121, 42, 0.09);
+  background: rgba(250, 137, 37, 0.09);
 }
 .fleet-chip--oos {
   border-left-color: rgba(255, 255, 255, 0.10);
@@ -1160,13 +1167,13 @@ html, body, #root {
 
 .chip-id     { font-size: 12px; color: var(--tx-on-dark); }
 .chip-status { font-size: 9px;  color: var(--tx-on-dark-muted); }
-.fleet-chip--free .chip-status { color: var(--p-teal); }
+.fleet-chip--free .chip-status { color: var(--op-free); }
 .fleet-chip--call .chip-status { color: var(--op-mission); }
 
 /* KPI bar: dark block; Teal accent line marks end of authority zone */
 .kpi-bar {
   background: var(--p-gunmetal);
-  border-bottom: 2px solid rgba(156, 196, 178, 0.35);
+  border-bottom: 2px solid rgba(1, 180, 188, 0.40);
 }
 .kpi-item    { padding: 12px 0; border-right-color: rgba(255, 255, 255, 0.07); }
 .kpi-value   { font-size: 32px; color: var(--tx-on-dark); }
@@ -1287,3 +1294,215 @@ html, body, #root {
     scrollbar-color: var(--bd-mid) transparent;
   }
 }
+
+
+/* =============================================================================
+   PHASE 3.3 — DECISION CARD: FULL-HEIGHT ANALYSIS PANEL
+   The card becomes the visual centrepiece when a decision is active.
+   It occupies the left ~60% of the map; the right strip stays visible and
+   continues showing highlighted vehicles. Hierarchy top-to-bottom:
+     Situation (large) -> Affected vehicles -> Recommended (Teal border)
+     -> KPI delta -> Approve/Reject -> Alternatives -> Details
+   ============================================================================= */
+
+/* -- Card: left-panel overlay, full map height ------------------------------ */
+.decision-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  /* ~40vw but capped so the map strip is always ≥ 300px */
+  width: clamp(480px, 40vw, 660px);
+  height: 100%;
+  z-index: 1100;
+  background: var(--p-gunmetal);
+  border: none;
+  border-right: 2px solid rgba(156, 196, 178, 0.28);
+  border-radius: 0;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.28);
+  transform: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: dc-panel-in 180ms ease-out;
+}
+
+@keyframes dc-panel-in {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0);     }
+}
+
+/* -- Compact header strip --------------------------------------------------- */
+.dc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 24px;
+  background: rgba(0, 0, 0, 0.20);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.dc-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Old Rose label signals AI origin */
+.dc-event-tag {
+  font-size: 9px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--p-rose);
+  background: rgba(201, 140, 167, 0.12);
+  border: 1px solid rgba(201, 140, 167, 0.22);
+  padding: 3px 8px;
+  flex-shrink: 0;
+}
+
+.dc-event-name {
+  font-size: 13px;
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--tx-on-dark);
+  font-family: var(--font-ui);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Old inline header elements no longer rendered */
+.dc-event-sep, .dc-event-lead { display: none; }
+
+.dc-minimise {
+  font-size: 10px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgba(213, 187, 177, 0.42);
+  margin-left: 0;
+  padding: 4px 0;
+  flex-shrink: 0;
+}
+.dc-minimise:hover { color: var(--tx-on-dark-sub); }
+
+/* -- Scrollable body -------------------------------------------------------- */
+.dc-body {
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.10) transparent;
+}
+
+/* Sections inside the body get generous padding */
+.dc-body .dc-section {
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.dc-body .dc-last-section { border-bottom: none; }
+
+/* Section labels: Teal, consistent with header style */
+.dc-body .dc-label {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  margin-bottom: 12px;
+}
+
+/* -- 1. SITUATION: opening statement, large and readable -------------------- */
+.dc-situation-lead {
+  font-size: 20px;
+  font-weight: var(--fw-medium);
+  color: var(--tx-on-dark);
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+}
+
+.dc-situation-detail {
+  font-size: 14px;
+  color: var(--tx-on-dark-sub);
+  line-height: 1.6;
+  margin-top: 10px;
+}
+
+/* -- 2. AFFECTED VEHICLES: Teal chips, monospace IDs ----------------------- */
+.dc-vehicles-row { padding-top: 15px; padding-bottom: 15px; }
+
+.dc-vehicle-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dc-vehicle-chip {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--p-teal);
+  background: rgba(156, 196, 178, 0.11);
+  border: 1px solid rgba(156, 196, 178, 0.24);
+  padding: 5px 12px;
+}
+
+/* -- 3. RECOMMENDED: visual centrepiece, Teal left border ------------------ */
+.dc-body .dc-rec-section {
+  background: rgba(0, 0, 0, 0.16);
+  border-left: 3px solid var(--p-teal);
+  padding-left: 21px;  /* 24px - 3px border = same visual inset as other sections */
+}
+
+.dc-rec-title {
+  font-size: 22px;
+  font-weight: var(--fw-medium);
+  color: var(--tx-on-dark);
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  margin-bottom: 10px;
+}
+
+.dc-rec-summary {
+  font-size: 14px;
+  color: var(--tx-on-dark-sub);
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+
+.dc-rec-delta {
+  font-size: 13px;
+  color: var(--tx-on-dark-muted);
+  margin-bottom: 18px;
+}
+
+/* Approve/Reject: larger, full-width stack */
+.dc-body .dc-action-row { gap: 10px; }
+
+.dc-body .btn-approve {
+  flex: 2;
+  padding: 13px 20px;
+  font-size: 14px;
+  letter-spacing: 0.05em;
+}
+
+.dc-body .btn-reject {
+  flex: 1;
+  padding: 13px 20px;
+  font-size: 14px;
+  letter-spacing: 0.05em;
+}
+
+/* -- 4. ALTERNATIVES: visually subordinate rows ----------------------------- */
+.dc-body .dc-alt-table { font-size: 13px; }
+
+.dc-body .dc-alt-row td { padding: 8px 10px 8px 0; }
+
+.dc-body .dc-alt-title   { font-size: 14px; }
+.dc-body .dc-alt-summary { font-size: 12px; }
+.dc-body .dc-alt-delta   { font-size: 13px; }
+
+/* -- 5. DETAILS toggle ------------------------------------------------------ */
+.dc-body .dc-details-toggle { font-size: 13px; }
