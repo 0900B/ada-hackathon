@@ -785,6 +785,20 @@ function TabletConsole({
                   </span>
                 </div>
                 {vehicle.type === "doctor" && <div className="mdt-job-doctor">{doctorJobLine(vehicle, job, place)}</div>}
+                {job.call && (
+                  <div className="mdt-call">
+                    <div className="mdt-call-id">
+                      {job.call.call_id}
+                      {job.call.address && <span> · {job.call.address}</span>}
+                    </div>
+                    {(job.call.text_sl || job.call.text_en) && (
+                      <blockquote className="mdt-words">
+                        {job.call.text_sl && <div>»{job.call.text_sl}«</div>}
+                        {job.call.text_en && job.call.text_en !== job.call.text_sl && <div className="mdt-muted">{job.call.text_en}</div>}
+                      </blockquote>
+                    )}
+                  </div>
+                )}
                 <div className="mdt-job-sev">
                   <SeverityBadge trip={job} size="lg" />
                   <DoctorTag trip={job} vehicles={state.vehicles} now={state.sim_time} size="lg" />

@@ -7,6 +7,7 @@ import { conditionText, LEVEL_LABEL, levelOf } from "./severity";
 import { ResponseLine, SeverityBadge } from "./SeverityBadge";
 import { doctorJob } from "./doctor";
 import { DoctorTag, OriginTag } from "./DoctorTag";
+import { RespondingTo } from "./RespondingTo";
 
 type Send = (event: Record<string, unknown>) => Promise<void>;
 
@@ -128,6 +129,7 @@ export function VehicleStrip({
   onSelect,
   onCenter,
   onOpenCard,
+  onOpenCall,
   send,
   busy,
 }: {
@@ -136,6 +138,7 @@ export function VehicleStrip({
   onSelect: (id: string) => void;
   onCenter: (id: string) => void;
   onOpenCard: (id: string) => void;
+  onOpenCall?: (tripId: string) => void;
   send: Send;
   busy: boolean;
 }) {
@@ -219,6 +222,13 @@ export function VehicleStrip({
             setOpen(null);
             onOpenCard(v.id);
           }}
+          onOpenCall={
+            onOpenCall &&
+            ((tripId: string) => {
+              setOpen(null);
+              onOpenCall(tripId);
+            })
+          }
         />
       )}
     </>
@@ -237,6 +247,7 @@ function VehiclePopover({
   onClose,
   onCenter,
   onOpenCard,
+  onOpenCall,
 }: {
   v: Vehicle;
   s: Summary;
@@ -249,6 +260,7 @@ function VehiclePopover({
   onClose: () => void;
   onCenter: () => void;
   onOpenCard: () => void;
+  onOpenCall?: (tripId: string) => void;
 }) {
   const trip = v.current_trip_id ? trips.get(v.current_trip_id) : undefined;
   const next = v.queue.map((id) => trips.get(id)).filter((t): t is Trip => Boolean(t));
@@ -268,6 +280,7 @@ function VehiclePopover({
           <X />
         </button>
       </div>
+      <RespondingTo v={v} state={state} onOpenCall={onOpenCall} />
       <div className={`vpop-status tone-${s.tone}`}>
         {humanize(v.status)}
         {v.grounded_until ? ` · grounded by fog until ${fmtTime(v.grounded_until)}` : ""}

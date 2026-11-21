@@ -21,6 +21,7 @@ import { levelOf } from "./severity";
 import { ResponseLine, SeverityBadge } from "./SeverityBadge";
 import { doctorJobLine } from "./doctor";
 import { DoctorTag, OriginTag } from "./DoctorTag";
+import { CrewRoles, RespondingTo } from "./RespondingTo";
 
 type Send = (event: Record<string, unknown>) => Promise<void>;
 
@@ -32,6 +33,7 @@ export function VehicleCard({
   state,
   onClose,
   onCenter,
+  onOpenCall,
   send,
   busy,
 }: {
@@ -39,6 +41,7 @@ export function VehicleCard({
   state: WorldSnapshot;
   onClose: () => void;
   onCenter: () => void;
+  onOpenCall?: (tripId: string) => void; // open the call it responds to (Calls tab)
   send: Send;
   busy: boolean;
 }) {
@@ -69,6 +72,7 @@ export function VehicleCard({
           <X />
         </button>
       </div>
+      <RespondingTo v={state.vehicles.find((x) => x.id === v.id) ?? v} state={state} detail={detail} onOpenCall={onOpenCall} />
 
       {heli && (
         <div className={`vc-flight${v.grounded_until ? " grounded" : ""}`}>
@@ -96,12 +100,7 @@ export function VehicleCard({
 
       <div className="vc-section">
         <div className="vc-title">Crew</div>
-        {v.crew.map((c) => (
-          <div key={c.name}>
-            {c.name.replace(" (fictional)", "")} <span className="muted">· {c.role}</span>
-          </div>
-        ))}
-        <div className="muted vc-small">{detail.capabilities.join(" · ")}</div>
+        <CrewRoles crew={v.crew} capabilities={detail.capabilities} />
       </div>
 
       <div className="vc-section">

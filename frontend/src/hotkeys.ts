@@ -31,6 +31,8 @@ export const HOTKEYS: HotkeyInfo[] = [
   { key: "f", label: "Fog: ground helicopters 1 h", group: "Events" },
   { key: "e", label: "Emergency call: click the map, then pick what it is (1 sends Critical · Cardiac arrest; C / S / U level, 1-6 condition, K / W / P case)", group: "Events" },
   { key: "c", label: "Road closure (then click the map)", group: "Events" },
+  { key: "r", label: "Random 112 call (simulation)", group: "Demo" },
+  { key: "x", label: "Random failure: crash, closure, fog, breakdown, delay… (simulation)", group: "Demo" },
   { key: "Escape", label: "Cancel / deselect / close", group: "General" },
   { key: "?", label: "Show / hide this help", group: "General" },
 ];

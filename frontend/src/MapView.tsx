@@ -8,7 +8,7 @@ import { GLYPH, vehicleGlyph } from "./glyphs";
 import { conditionText, LEVEL_LABEL, levelOf, responseOf, responseText } from "./severity";
 import { doctorOf, doctorText, ORIGIN_LABEL } from "./doctor";
 
-export type ClickMode = "closure" | "emergency" | null;
+export type ClickMode = "closure" | "emergency" | "call" | null; // call: where a new 112 call is
 
 // Places: small, restrained markers; red is reserved for hospitals and emergency call locations
 const PLACE_STYLE: Record<string, { r: number; color: string; fill: string }> = {
