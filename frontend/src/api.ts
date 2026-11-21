@@ -30,6 +30,9 @@ export interface Vehicle {
   current_trip_id: string | null;
   queue: string[];
   busy_until: string | null;
+  on_road: boolean;
+  path_progress: number;
+  path: [number, number][] | null; // remaining road geometry of the current leg (null = no road route)
 }
 
 export interface Trip {

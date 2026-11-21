@@ -1,47 +1,23 @@
-"""Travel-time model: straight-line distance x road factor, adjusted for traffic, weather and incidents.
-
-Deliberately simple and deterministic so every number the agent quotes is reproducible.
-Swap in a real road graph (e.g. OSMnx) later without changing the function signatures.
+"""Travel-time model: real road free-flow time (OSRM/TomTom, from the road cache) adjusted for
+live traffic, weather and incidents. Falls back to straight-line distance x road factor when
+a route isn't cached yet, so a decision never waits on a routing service.
 """
 from __future__ import annotations
 
-import math
 from typing import TYPE_CHECKING, Iterable
 
-from .models import Incident, VehicleType, WeatherNow
+from .geo import haversine_km, point_segment_distance_m  # noqa: F401 - re-exported for other modules
+from .models import Incident, Vehicle, VehicleType, WeatherNow
+from .roads import ROADS, Route, key
 
 if TYPE_CHECKING:
     from .state import WorldState
 
-EARTH_R_KM = 6371.0
-ROAD_FACTOR = 1.35  # road distance / straight-line distance in a city
-BASE_SPEED_KMH: dict[VehicleType, float] = {"ambulance": 42.0, "transport": 36.0}
+ROAD_FACTOR = 1.35  # fallback: road distance / straight-line distance in a city
+BASE_SPEED_KMH: dict[VehicleType, float] = {"ambulance": 42.0, "transport": 36.0}  # fallback only
+ROUTE_TYPE_FACTOR: dict[VehicleType, float] = {"ambulance": 1.0, "transport": 1.1}  # vans are a bit slower
 EMERGENCY_BONUS = 1.3  # lights and sirens
 INCIDENT_FACTORS = {"road_closure": 1.6, "accident": 1.35, "congestion": 1.25}  # detour/slowdown multipliers
-
-
-def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    p1, p2 = math.radians(lat1), math.radians(lat2)
-    dp, dl = p2 - p1, math.radians(lon2 - lon1)
-    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
-    return 2 * EARTH_R_KM * math.asin(math.sqrt(a))
-
-
-def _xy_m(lat: float, lon: float, lat0: float) -> tuple[float, float]:
-    """Local equirectangular projection in metres; fine at city scale."""
-    r = EARTH_R_KM * 1000
-    return math.radians(lon) * r * math.cos(math.radians(lat0)), math.radians(lat) * r
-
-
-def point_segment_distance_m(plat: float, plon: float, alat: float, alon: float, blat: float, blon: float) -> float:
-    lat0 = (alat + blat) / 2
-    px, py = _xy_m(plat, plon, lat0)
-    ax, ay = _xy_m(alat, alon, lat0)
-    bx, by = _xy_m(blat, blon, lat0)
-    dx, dy = bx - ax, by - ay
-    seg2 = dx * dx + dy * dy
-    t = 0.0 if seg2 == 0 else max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / seg2))
-    return math.hypot(px - (ax + t * dx), py - (ay + t * dy))
 
 
 def weather_factor(w: WeatherNow | None) -> float:
@@ -67,13 +43,40 @@ def weather_factor(w: WeatherNow | None) -> float:
 def incident_factor(
     incidents: Iterable[Incident], alat: float, alon: float, blat: float, blon: float
 ) -> tuple[float, list[str]]:
-    """Slowdown for a leg passing near active incidents, and which incidents it hits."""
+    """Slowdown for a straight leg passing near active incidents, and which incidents it hits."""
     factor, hits = 1.0, []
     for inc in incidents:
         if inc.active and point_segment_distance_m(inc.lat, inc.lon, alat, alon, blat, blon) <= inc.radius_m:
             factor = max(factor, INCIDENT_FACTORS.get(inc.kind, 1.2))
             hits.append(inc.id)
     return factor, hits
+
+
+_route_incident_memo: dict[tuple, float] = {}
+
+
+def route_incident_factor(route: Route, incidents: Iterable[Incident]) -> float:
+    """Slowdown for a road route passing near active incidents (memoised per route + incident set)."""
+    active = [i for i in incidents if i.active]
+    memo_key = (id(route), tuple(sorted(i.id for i in active)))
+    if memo_key in _route_incident_memo:
+        return _route_incident_memo[memo_key]
+    lats = [p[0] for p in route.points]
+    lons = [p[1] for p in route.points]
+    factor = 1.0
+    for inc in active:
+        pad = inc.radius_m / 111_000 * 1.5  # metres -> degrees, generous
+        if not (min(lats) - pad <= inc.lat <= max(lats) + pad and min(lons) - pad * 1.5 <= inc.lon <= max(lons) + pad * 1.5):
+            continue
+        if any(
+            point_segment_distance_m(inc.lat, inc.lon, a[0], a[1], b[0], b[1]) <= inc.radius_m
+            for a, b in zip(route.points, route.points[1:])
+        ):
+            factor = max(factor, INCIDENT_FACTORS.get(inc.kind, 1.2))
+    if len(_route_incident_memo) > 5000:
+        _route_incident_memo.clear()
+    _route_incident_memo[memo_key] = factor
+    return factor
 
 
 def travel_minutes(
@@ -85,11 +88,26 @@ def travel_minutes(
     vehicle_type: VehicleType,
     emergency: bool = False,
 ) -> float:
-    km = haversine_km(alat, alon, blat, blon) * ROAD_FACTOR
-    if km < 0.01:
+    straight_km = haversine_km(alat, alon, blat, blon)
+    if straight_km < 0.01:
         return 0.0
-    speed = BASE_SPEED_KMH[vehicle_type] * state.traffic_factor * weather_factor(state.effective_weather)
-    if emergency:
-        speed *= EMERGENCY_BONUS
-    inc_factor, _ = incident_factor(state.incidents.values(), alat, alon, blat, blon)
-    return km / speed * 60 * inc_factor
+    conditions = state.traffic_factor * weather_factor(state.effective_weather) * (EMERGENCY_BONUS if emergency else 1.0)
+    incidents = state.all_incidents()
+    free_flow_s = ROADS.duration_s(alat, alon, blat, blon)
+    if free_flow_s is not None:
+        route = ROADS.route(alat, alon, blat, blon)
+        inc = route_incident_factor(route, incidents) if route else incident_factor(incidents, alat, alon, blat, blon)[0]
+        return free_flow_s / 60 * ROUTE_TYPE_FACTOR[vehicle_type] / conditions * inc
+    km = straight_km * ROAD_FACTOR
+    inc = incident_factor(incidents, alat, alon, blat, blon)[0]
+    return km / (BASE_SPEED_KMH[vehicle_type] * conditions) * 60 * inc
+
+
+def vehicle_leg_minutes(
+    state: WorldState, v: Vehicle, blat: float, blon: float, emergency: bool = False
+) -> float:
+    """Time for v to reach (blat, blon) from where it is now, honouring the leg it is driving."""
+    if v.path_to is not None and v.path_from is not None and tuple(v.path_to) == key(blat, blon):
+        full = travel_minutes(state, v.path_from[0], v.path_from[1], blat, blon, v.type, emergency)
+        return full * (1.0 - v.path_progress)
+    return travel_minutes(state, v.lat, v.lon, blat, blon, v.type, emergency)

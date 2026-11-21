@@ -48,33 +48,36 @@ def tomtom_key() -> str | None:
 
 # --- Daily request budget (protects the free plan's monthly quota) ---------------------
 
-_usage: dict[str, Any] = {"day": None, "flow": 0, "incidents": 0}
+_usage: dict[str, Any] = {"day": None, "flow": 0, "incidents": 0, "routing": 0}
 
 
-def usage() -> dict[str, Any]:
+def _caps() -> dict[str, int]:
     from .. import config
 
     return {
-        "day": _usage["day"],
-        "flow": f"{_usage['flow']}/{config.TOMTOM_DAILY_FLOW_CAP}",
-        "incidents": f"{_usage['incidents']}/{config.TOMTOM_DAILY_INCIDENT_CAP}",
+        "flow": config.TOMTOM_DAILY_FLOW_CAP,
+        "incidents": config.TOMTOM_DAILY_INCIDENT_CAP,
+        "routing": config.TOMTOM_DAILY_ROUTING_CAP,
     }
 
 
-def _spend(kind: str, n: int) -> None:
-    """Count n requests against today's cap, or refuse before making them."""
-    from .. import config
+def usage() -> dict[str, Any]:
+    caps = _caps()
+    return {"day": _usage["day"], **{k: f"{_usage[k]}/{cap}" for k, cap in caps.items()}}
 
+
+def spend(kind: str, n: int) -> None:
+    """Count n requests against today's cap, or refuse before making them."""
     today = utcnow().date().isoformat()
     if _usage["day"] != today:
-        _usage.update(day=today, flow=0, incidents=0)
-    cap = config.TOMTOM_DAILY_FLOW_CAP if kind == "flow" else config.TOMTOM_DAILY_INCIDENT_CAP
+        _usage.update(day=today, flow=0, incidents=0, routing=0)
+    cap = _caps()[kind]
     if _usage[kind] + n > cap:
         raise RuntimeError(f"TomTom daily {kind} budget used ({_usage[kind]}/{cap}); using fallback until tomorrow")
     _usage[kind] += n
 
 
-async def _get(client: httpx.AsyncClient, url: str, params: dict[str, Any]) -> dict[str, Any]:
+async def get(client: httpx.AsyncClient, url: str, params: dict[str, Any]) -> dict[str, Any]:
     try:
         r = await client.get(url, params={**params, "key": tomtom_key()}, headers={"Accept-Encoding": "gzip"})
     except httpx.HTTPError as e:
@@ -87,7 +90,7 @@ async def _get(client: httpx.AsyncClient, url: str, params: dict[str, Any]) -> d
 async def fetch_flow(state: WorldState, client: httpx.AsyncClient) -> None:
     """Weighted average of current/free-flow speed across the sample points -> state.traffic_factor."""
     try:
-        _spend("flow", len(FLOW_POINTS))
+        spend("flow", len(FLOW_POINTS))
         results = await asyncio.gather(
             *(_get(client, FLOW_URL, {"point": f"{lat},{lon}", "unit": "kmph"}) for lat, lon in FLOW_POINTS.values()),
             return_exceptions=True,
@@ -126,8 +129,8 @@ async def fetch_flow(state: WorldState, client: httpx.AsyncClient) -> None:
 
 
 async def fetch_incidents(state: WorldState, client: httpx.AsyncClient) -> None:
-    _spend("incidents", 1)
-    data = await _get(
+    spend("incidents", 1)
+    data = await get(
         client,
         INCIDENTS_URL,
         {"bbox": LJUBLJANA_BBOX, "fields": INCIDENT_FIELDS, "language": "en-GB", "timeValidityFilter": "present"},

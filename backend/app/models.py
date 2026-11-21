@@ -45,6 +45,11 @@ class Vehicle(BaseModel):
     current_trip_id: str | None = None
     queue: list[str] = Field(default_factory=list)  # upcoming trip ids, in order
     busy_until: datetime | None = None  # loading/unloading, or stuck after an injected delay
+    # The leg being driven (set by the simulator): where it started, its target, progress 0..1.
+    path_from: tuple[float, float] | None = Field(default=None, exclude=True)
+    path_to: tuple[float, float] | None = Field(default=None, exclude=True)
+    path_progress: float = 0.0
+    on_road: bool = False  # True while following real road geometry (False = straight-line fallback)
 
 
 class Trip(BaseModel):

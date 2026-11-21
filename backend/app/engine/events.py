@@ -102,6 +102,7 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
             trip.status = "unassigned"
             trip.vehicle_id = None
         v.current_trip_id, v.queue, v.busy_until = None, [], None
+        v.path_from, v.path_to, v.on_road = None, None, False
         v.status = "out_of_service"
         extra = f"; patient of {stranded} stranded on board" if stranded else ""
         return f"{v.name} broke down{extra}" + (f" ({ev.note})" if ev.note else "")

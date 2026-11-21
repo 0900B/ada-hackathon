@@ -36,6 +36,7 @@ class WorldState:
         self.traffic_source: str = "time-of-day profile"
         self.traffic_samples: list[dict[str, Any]] = []  # per-road TomTom readings, when live
         self.version = 0
+        self.is_simulation = False  # True on what-if copies: they must not queue route fetches
         self._ids = itertools.count(1)
         self.reset_simulation()
 
@@ -72,6 +73,23 @@ class WorldState:
     def effective_weather(self) -> WeatherNow | None:
         return self.weather_override or self.weather_now
 
+    def all_incidents(self) -> list[Incident]:
+        return list(self.incidents.values())
+
+    def vehicle_path(self, v: Vehicle) -> list[list[float]] | None:
+        """Remaining road geometry of the leg v is driving, for the map (None = no road route)."""
+        from .roads import ROADS, remaining_points
+
+        if not v.on_road or v.path_from is None or v.path_to is None:
+            return None
+        route = ROADS.route(v.path_from[0], v.path_from[1], v.path_to[0], v.path_to[1])
+        if route is None:
+            return None
+        pts = remaining_points(route, v.path_progress)
+        step = max(1, len(pts) // 60)  # keep the stream light
+        thinned = pts[::step] if pts[-1] in pts[::step] else [*pts[::step], pts[-1]]
+        return [[round(lat, 5), round(lon, 5)] for lat, lon in thinned]
+
     def clone_for_simulation(self) -> WorldState:
         """A what-if copy: vehicles and trips are deep-copied, everything else is shared read-only."""
         clone = copy.copy(self)
@@ -82,6 +100,7 @@ class WorldState:
         clone.alerts = []
         clone.events = []
         clone.agent_runs = []
+        clone.is_simulation = True
         return clone
 
     # --- serialisation -------------------------------------------------------
@@ -89,6 +108,7 @@ class WorldState:
     def snapshot(self) -> dict[str, Any]:
         from . import config  # local imports: these modules depend on this one's types
         from .engine.projection import kpis
+        from .roads import ROADS
 
         def dump(items):
             return [i.model_dump(mode="json") for i in items]
@@ -99,7 +119,7 @@ class WorldState:
             "sim_time": self.sim_time.isoformat(),
             "real_time": utcnow().isoformat(),
             "places": dump(self.places.values()),
-            "vehicles": dump(self.vehicles.values()),
+            "vehicles": [{**v.model_dump(mode="json"), "path": self.vehicle_path(v)} for v in self.vehicles.values()],
             "trips": dump(self.trips.values()),
             "incidents": dump(i for i in self.incidents.values() if i.active),
             "weather": {
@@ -108,6 +128,7 @@ class WorldState:
                 "forecast": dump(self.weather_forecast),
             },
             "traffic": {"factor": self.traffic_factor, "source": self.traffic_source, "samples": self.traffic_samples},
+            "roads": ROADS.summary(),
             "sources": {k: s.model_dump(mode="json") for k, s in self.sources.items()},
             "alerts": dump(self.alerts),
             "kpis": kpis(self),

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from ..engine.projection import LOAD_MIN, UNLOAD_MIN
 from ..models import Vehicle
+from ..roads import ROADS, key, point_along
 from ..routing import travel_minutes
 
 if TYPE_CHECKING:
@@ -24,14 +25,34 @@ def tick(state: WorldState, dt_s: float) -> None:
 
 
 def _move_towards(state: WorldState, v: Vehicle, lat: float, lon: float, dt_min: float, emergency: bool) -> bool:
-    """Move v towards (lat, lon); True when it has arrived."""
-    remaining = travel_minutes(state, v.lat, v.lon, lat, lon, v.type, emergency)
-    if remaining <= dt_min:
-        v.lat, v.lon = lat, lon
+    """Drive v towards (lat, lon) along the road route (or a straight line if none is cached yet).
+
+    Progress is a fraction of the leg; the leg's duration is re-evaluated every tick, so changes
+    in traffic, weather or incidents speed the vehicle up or slow it down mid-leg.
+    """
+    target = key(lat, lon)
+    if v.path_to is None or tuple(v.path_to) != target:  # a new leg starts here
+        v.path_from, v.path_to, v.path_progress = (v.lat, v.lon), target, 0.0
+        v.on_road = ROADS.route(v.lat, v.lon, lat, lon) is not None
+        if not v.on_road:
+            ROADS.want_route(v.lat, v.lon, lat, lon)  # later legs on this pair will follow the road
+    if v.path_progress >= 1.0:
         return True
-    frac = dt_min / remaining
-    v.lat += (lat - v.lat) * frac
-    v.lon += (lon - v.lon) * frac
+    assert v.path_from is not None
+    if not v.on_road and ROADS.route(v.path_from[0], v.path_from[1], lat, lon) is not None:
+        v.on_road = True  # the road route arrived mid-leg: snap onto it
+    total = travel_minutes(state, v.path_from[0], v.path_from[1], lat, lon, v.type, emergency)
+    v.path_progress = 1.0 if total <= dt_min else min(1.0, v.path_progress + dt_min / total)
+    if v.path_progress >= 1.0:
+        v.lat, v.lon = lat, lon
+        v.on_road = False
+        return True
+    route = ROADS.route(v.path_from[0], v.path_from[1], lat, lon) if v.on_road else None
+    if route is not None:
+        v.lat, v.lon = point_along(route, v.path_progress)
+    else:
+        v.lat = v.path_from[0] + (lat - v.path_from[0]) * v.path_progress
+        v.lon = v.path_from[1] + (lon - v.path_from[1]) * v.path_progress
     return False
 
 

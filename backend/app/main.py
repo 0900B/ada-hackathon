@@ -21,6 +21,7 @@ from .fetchers import nap, tomtom
 from .fetchers.base import run_periodic
 from .fetchers.traffic import update_traffic
 from .fetchers.weather import fetch_weather
+from .roads import ROADS
 from .models import (
     AgentRun,
     AnalyzeRequest,
@@ -64,6 +65,7 @@ async def lifespan(app: FastAPI):
     client = httpx.AsyncClient(timeout=10.0, headers={"User-Agent": config.HTTP_USER_AGENT})
     tasks = [
         asyncio.create_task(sim_loop(), name="sim"),
+        asyncio.create_task(ROADS.run(client, state.bump), name="roads"),
         asyncio.create_task(
             run_periodic(state, "weather", "live", config.WEATHER_INTERVAL_S, lambda: fetch_weather(state, client)),
             name="weather",

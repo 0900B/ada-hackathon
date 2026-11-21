@@ -10,7 +10,8 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from ..models import Alert, Severity, Vehicle
-from ..routing import travel_minutes
+from ..roads import ROADS, key
+from ..routing import travel_minutes, vehicle_leg_minutes
 
 if TYPE_CHECKING:
     from ..state import WorldState
@@ -38,13 +39,40 @@ def route_trip_ids(v: Vehicle) -> list[str]:
     return ([v.current_trip_id] if v.current_trip_id else []) + list(v.queue)
 
 
-def project_route(state: WorldState, v: Vehicle, trip_ids: list[str] | None = None) -> list[Leg]:
-    """Predict ETAs for the given trips (default: the vehicle's current route), in order."""
+def project_route(
+    state: WorldState, v: Vehicle, trip_ids: list[str] | None = None, prefetch: bool = False
+) -> list[Leg]:
+    """Predict ETAs for the given trips (default: the vehicle's current route), in order.
+
+    prefetch=True asks the road router for the geometry of each leg (real state only, never
+    for what-if copies), so the legs vehicles will actually drive are on real roads.
+    """
     ids = route_trip_ids(v) if trip_ids is None else trip_ids
     t = state.sim_time
     if v.busy_until and v.busy_until > t:
         t = v.busy_until
     lat, lon = v.lat, v.lon
+    first = True  # the first leg starts from wherever the vehicle is, possibly mid-road
+
+    def leg(blat: float, blon: float, emergency: bool) -> timedelta:
+        nonlocal first, lat, lon
+        if prefetch:
+            if not first:
+                ROADS.want_route(lat, lon, blat, blon)  # place -> place
+            elif v.path_from is not None and v.path_to is not None and tuple(v.path_to) == key(blat, blon):
+                ROADS.want_route(v.path_from[0], v.path_from[1], blat, blon)  # the leg it is driving
+            elif v.path_to is None or v.path_progress >= 1.0:
+                ROADS.want_route(lat, lon, blat, blon)  # parked at a place
+            # else: mid-road towards another target; never request routes from moving positions
+        minutes = (
+            vehicle_leg_minutes(state, v, blat, blon, emergency)
+            if first
+            else travel_minutes(state, lat, lon, blat, blon, v.type, emergency)
+        )
+        first = False
+        lat, lon = blat, blon
+        return _td(minutes)
+
     legs: list[Leg] = []
     for tid in ids:
         trip = state.trips[tid]
@@ -53,27 +81,32 @@ def project_route(state: WorldState, v: Vehicle, trip_ids: list[str] | None = No
         if trip.status == "onboard" and trip.vehicle_id == v.id:
             eta_pickup = trip.eta_pickup  # already picked up
         else:
-            t += _td(travel_minutes(state, lat, lon, pickup.lat, pickup.lon, v.type, emergency))
+            t += leg(pickup.lat, pickup.lon, emergency)
             eta_pickup = t
             t = max(t, trip.pickup_after) + _td(LOAD_MIN)
-            lat, lon = pickup.lat, pickup.lon
-        t += _td(travel_minutes(state, lat, lon, dropoff.lat, dropoff.lon, v.type, emergency))
+        t += leg(dropoff.lat, dropoff.lon, emergency)
         delay = max(0.0, (t - trip.due_by).total_seconds() / 60)
         legs.append(Leg(tid, eta_pickup, t, round(delay, 1)))
         t += _td(UNLOAD_MIN)
-        lat, lon = dropoff.lat, dropoff.lon
+    if prefetch and v.status != "out_of_service":
+        base = state.places.get(v.base_id)
+        if base:
+            ROADS.want_route(lat, lon, base.lat, base.lon)  # the drive home after the last trip
     return legs
 
 
 def project_all(state: WorldState) -> None:
     """Refresh ETAs/delays on every open trip, then recompute alerts."""
+    real = not state.is_simulation
+    if real:
+        ROADS.want_matrix([(p.lat, p.lon) for p in state.places.values()])
     for trip in state.trips.values():
         if trip.status == "unassigned":
             trip.eta_pickup = trip.eta_dropoff = trip.delay_min = None
     for v in state.vehicles.values():
         if v.status == "out_of_service":
             continue
-        for leg in project_route(state, v):
+        for leg in project_route(state, v, prefetch=real):
             trip = state.trips[leg.trip_id]
             trip.eta_pickup, trip.eta_dropoff, trip.delay_min = leg.eta_pickup, leg.eta_dropoff, leg.delay_min
     state.alerts = compute_alerts(state)

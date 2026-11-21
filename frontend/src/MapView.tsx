@@ -98,7 +98,13 @@ export function MapView({ state, mode, onMapClick }: Props) {
 
     for (const v of state.vehicles) {
       const trip = v.current_trip_id ? tripById.get(v.current_trip_id) : undefined;
-      if (trip) {
+      const color = v.type === "ambulance" ? "#ff8787" : "#74c0fc";
+      const dash = v.status === "to_pickup" ? "6 6" : undefined;
+      if (v.path && v.path.length > 1) {
+        // Real road route still to drive
+        L.polyline(v.path, { color, weight: 3, opacity: 0.85, dashArray: dash }).addTo(ls.routes);
+      } else if (trip) {
+        // No road route cached yet: thin straight line to the target
         const target = placeById.get(v.status === "to_pickup" ? trip.pickup_id : trip.dropoff_id);
         if (target) {
           L.polyline(
@@ -106,12 +112,7 @@ export function MapView({ state, mode, onMapClick }: Props) {
               [v.lat, v.lon],
               [target.lat, target.lon],
             ],
-            {
-              color: v.type === "ambulance" ? "#ff8787" : "#74c0fc",
-              weight: 2,
-              opacity: 0.8,
-              dashArray: v.status === "to_pickup" ? "6 6" : undefined,
-            },
+            { color, weight: 1, opacity: 0.5, dashArray: "2 6" },
           ).addTo(ls.routes);
         }
       }
