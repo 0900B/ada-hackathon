@@ -1,3 +1,15 @@
+<<<<<<< HEAD
 node_modules/
 dist/
 .env
+=======
+.venv/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+node_modules/
+dist/
+.playwright-mcp/
+.vercel/
+>>>>>>> 162fda6ddc0e34ce41701de2670910c9aab70d9b
