@@ -42,6 +42,15 @@ near_place_id for the closest known place, or lat/lon if you are confident about
 emergency for life-threatening cases, otherwise urgent; stretcher unless the patient can sit.
 - Fog ("megla") at the helicopter base or "helikopter ne more vzleteti" is a fog event: it \
 grounds the helicopters, 60 minutes unless the message says otherwise.
+- A patient getting worse ("stanje se je poslabšalo", "pacient je nestabilen") or better is a \
+priority_change of that patient's trip (the sender's current trip if not named): worse means \
+emergency if life-threatening, otherwise urgent.
+- A hospital that can admit only a few more patients ("UKC ima samo še 2 prosti postelji", \
+"urgenca je polna") is a hospital_capacity event for that hospital (full = 0).
+- A booking or order for a planned, not life-threatening transport ("naročam prevoz", "prosim za \
+prevoz", "potrebujemo prevoz opreme") is a task_request: kind equipment for cargo (put the cargo \
+in label), otherwise patient; ready_in_min from the time mentioned (0 if "zdaj"); priority urgent \
+only if the message says so. Life-threatening cases stay urgent_request.
 - Put what was said about cargo (patient, equipment) in the event's note.
 - understood_sl and understood_en: one short sentence each, saying what you understood and any \
 assumption you made. Be factual.
@@ -95,6 +104,19 @@ EVENT_SCHEMAS = [
         },
     ),
     _event("hospital_capacity", {"place_id": {"type": "string"}, "capacity": {"type": "integer"}, "note": _NULLABLE_STR}),
+    _event(
+        "task_request",
+        {
+            "kind": {"type": "string", "enum": ["patient", "equipment"]},
+            "pickup_place_id": {"type": "string"},
+            "dropoff_id": {"type": "string"},
+            "needs": {"type": "string", "enum": ["stretcher", "wheelchair", "seated", "equipment"]},
+            "priority": {"type": "string", "enum": ["scheduled", "urgent"]},
+            "ready_in_min": {"type": "integer"},
+            "label": _NULLABLE_STR,
+            "note": _NULLABLE_STR,
+        },
+    ),
 ]
 
 PARSE_SCHEMA = {
@@ -207,6 +229,11 @@ def to_operator_events(state: WorldState, parsed: ParsedMessage) -> list[Any]:
                 ev.pop("dropoff_id", None)  # model default: UKC
         elif ev["type"] in ("breakdown", "delay") and ev["vehicle_id"] not in state.vehicles:
             raise MessageError(f"Unknown vehicle {ev['vehicle_id']}")
+        elif ev["type"] == "task_request":
+            ev["pickup_id"] = ev.pop("pickup_place_id")
+            for key_ in ("pickup_id", "dropoff_id"):
+                if ev[key_] not in state.places:
+                    raise MessageError(f"Unknown place {ev[key_]}")
         elif ev["type"] == "priority_change" and ev["trip_id"] not in state.trips:
             raise MessageError(f"Unknown trip {ev['trip_id']}")
         elif ev["type"] == "hospital_capacity" and ev["place_id"] not in state.places:

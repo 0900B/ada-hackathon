@@ -19,6 +19,7 @@ import {
   type WorldSnapshot,
 } from "./api";
 import { AgentPanel } from "./AgentPanel";
+import { BookingForm } from "./BookingForm";
 import { BRAND } from "./brand";
 import { FieldMessage } from "./FieldMessage";
 import { useHotkeys } from "./hotkeys";
@@ -253,6 +254,9 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
           </Panel>
           <Panel title="AI dispatcher">
             <AgentPanel state={state} notify={setMessage} />
+          </Panel>
+          <Panel title="Book transport">
+            <BookingForm state={state} />
           </Panel>
           <Panel title={state.hypothetical ? "Inject event (hypothetical)" : "Report event"}>
             <Controls

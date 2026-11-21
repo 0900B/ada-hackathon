@@ -266,7 +266,10 @@ async def post_event(event: OperatorEvent = Body(...), state: WorldState = World
         raise HTTPException(status_code=400, detail=str(e)) from e
     AUDIT.record(state.name, "event", record.summary, ref=record.id, payload=record)
     clearing = getattr(event, "clear", False)
-    if config.AGENT_AUTO and event.type in DISRUPTIVE_EVENTS and not clearing:
+    unplaced_booking = event.type == "task_request" and any(
+        state.trips[t].status == "unassigned" for t in record.affected_trip_ids if t in state.trips
+    )
+    if config.AGENT_AUTO and ((event.type in DISRUPTIVE_EVENTS and not clearing) or unplaced_booking):
         agent.start_run(state, trigger=f"event:{record.id}", focus=record)
     return record
 

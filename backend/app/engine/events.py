@@ -11,6 +11,7 @@ from ..models import (
     EventRecord,
     FogEvent,
     HospitalCapacityEvent,
+    TaskRequestEvent,
     Incident,
     Place,
     PriorityChangeEvent,
@@ -21,7 +22,7 @@ from ..models import (
     WeatherOverrideEvent,
 )
 from ..routing import flies, travel_minutes
-from .actions import can_serve, detach_trip
+from .actions import LJ, assign_trip, can_serve, detach_trip
 from .projection import (
     DONE,
     LOAD_MIN,
@@ -187,6 +188,9 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
         created.append(trip.id)
         return f"New {ev.priority} request {trip.id}: {pickup.name} -> {dropoff.name}"
 
+    if isinstance(ev, TaskRequestEvent):
+        return _book_task(state, ev, created)
+
     if isinstance(ev, WeatherOverrideEvent):
         if not state.hypothetical:
             raise EventError("Live mode always uses real weather; use Simulation for hypothetical weather")
@@ -229,6 +233,59 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
         )
 
     raise EventError(f"Unsupported event type {getattr(ev, 'type', '?')}")
+
+
+BOOKING_SLACK_MIN = 30  # default deadline: ready + direct travel + loading + this
+
+
+def _book_task(state: WorldState, ev: TaskRequestEvent, created: list[str]) -> str:
+    """Create the booked trip and place it into the plan where the engine's simulation says it fits best."""
+    from .candidates import find_candidates  # local import: candidates imports this package's modules
+
+    pickup, dropoff = state.places.get(ev.pickup_id), state.places.get(ev.dropoff_id)
+    if pickup is None or dropoff is None:
+        raise EventError(f"Unknown place {ev.pickup_id if pickup is None else ev.dropoff_id}")
+    if pickup.id == dropoff.id:
+        raise EventError("Pickup and drop-off are the same place")
+    equipment = ev.kind == "equipment" or ev.needs == "equipment"
+    ready = state.sim_time + timedelta(minutes=ev.ready_in_min)
+    vehicle_type = "transport" if not equipment and ev.needs != "stretcher" else "ambulance"
+    direct = travel_minutes(state, pickup.lat, pickup.lon, dropoff.lat, dropoff.lon, vehicle_type)
+    due = (
+        state.sim_time + timedelta(minutes=ev.due_in_min)
+        if ev.due_in_min is not None
+        else ready + timedelta(minutes=direct + LOAD_MIN + BOOKING_SLACK_MIN)
+    )
+    if due <= ready:
+        raise EventError("The deadline must be after the ready time")
+    trip = Trip(
+        id=f"TR-{len(state.trips) + 1:03d}",
+        kind="equipment" if equipment else "patient",
+        patient=None if equipment else (ev.label or f"P-{len(state.trips) + 100}"),
+        cargo=(ev.label or "equipment") if equipment else None,
+        priority=ev.priority,
+        needs="equipment" if equipment else ev.needs,
+        pickup_id=pickup.id,
+        dropoff_id=dropoff.id,
+        pickup_after=ready.replace(microsecond=0),
+        due_by=due.replace(microsecond=0),
+        note=ev.note,
+    )
+    state.trips[trip.id] = trip
+    created.append(trip.id)
+    what = f"Booked {trip.id} ({trip.label}, {trip.priority}): {pickup.name} -> {dropoff.name}"
+    if not ev.auto_assign:
+        return what + "; waiting for the dispatcher"
+    late_now = kpis(state)["late_trips"]
+    # A booking never diverts a vehicle from the trip it is on; that is reserved for emergencies.
+    candidates = [c for c in find_candidates(state, trip.id, limit=12) if not c["step"]["interrupt_current"]]
+    best = candidates[0] if candidates else None
+    if best is None or best["kpis_after"]["late_trips"] > late_now or (best["trip_delay_min"] or 0) > 0:
+        return what + "; no vehicle can take it without a late trip, so it is left for the AI to replan"
+    step = best["step"]
+    assign_trip(state, trip.id, step["vehicle_id"], step["position"], step["interrupt_current"])
+    eta = best["trip_eta_dropoff"].astimezone(LJ).strftime("%H:%M") if best["trip_eta_dropoff"] else "?"
+    return what + f"; placed on {step['vehicle_id']} ({best['insertion']}), arrives {eta}"
 
 
 def _ground_helicopters(state: WorldState, ev: FogEvent) -> str:

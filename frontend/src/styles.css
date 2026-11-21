@@ -862,3 +862,24 @@ tr.clickable:hover {
 tr.row-selected {
   background: rgba(255, 212, 59, 0.12) !important;
 }
+
+/* Book transport (task intake) */
+.booking {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.booking input {
+  min-width: 0;
+}
+.booking-times label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.booking-times input {
+  width: 64px;
+  flex: 0 0 64px;
+}

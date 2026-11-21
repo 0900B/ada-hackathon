@@ -222,6 +222,27 @@ class ClearIncidentEvent(BaseModel):
     incident_id: str
 
 
+class TaskRequestEvent(BaseModel):
+    """A booked transport order (Part 1 of the brief: the plan is built from incoming orders).
+
+    A hospital or the dispatcher books a patient or equipment transfer; the engine places it into the
+    live plan (best vehicle and position by simulation). If no vehicle can take it without making a
+    trip late, it stays unassigned and the AI is asked to replan. Emergencies use urgent_request.
+    """
+
+    type: Literal["task_request"]
+    kind: TripKind = "patient"
+    pickup_id: str
+    dropoff_id: str
+    needs: Needs = "seated"
+    priority: Literal["scheduled", "urgent"] = "scheduled"
+    ready_in_min: float = Field(default=15, ge=0, le=1440)  # patient/cargo ready this many minutes from now
+    due_in_min: float | None = Field(default=None, gt=0, le=2880)  # deadline from now; None = sensible default
+    label: str | None = None  # patient label (pseudonymous) or cargo description for equipment
+    note: str | None = None
+    auto_assign: bool = True
+
+
 class UrgentRequestEvent(BaseModel):
     """A new urgent/emergency transport. Give pickup_id, or lat+lon for an ad-hoc call location."""
 
@@ -282,6 +303,7 @@ OperatorEvent = Annotated[
         RoadClosureEvent,
         ClearIncidentEvent,
         UrgentRequestEvent,
+        TaskRequestEvent,
         WeatherOverrideEvent,
         FogEvent,
         PriorityChangeEvent,
