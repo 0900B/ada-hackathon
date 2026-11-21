@@ -1,0 +1,1251 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns:kazipot="http://www.promet.si" xmlns="http://www.w3.org/2005/Atom">
+  <title>Stanje na cestah - Dogodki, 21. 11. 2026 14:56:01</title>
+  <subtitle>Dogodki</subtitle>
+  <updated>2026-11-21T13:55:50.58Z</updated>
+  <link href="http://www.promet.si" />
+  <author>
+    <name>DARS d.d.</name>
+    <email>info@promet.si</email>
+  </author>
+  <id>urn:uuid:3d8f9119-d796-4727-b29c-ce795d81e66c</id>
+  <entry>
+    <title>A2-E61, Karavanke - Ljubljana: Okvara vozila</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/890210</id>
+    <updated>2026-11-21T13:51:18.307Z</updated>
+    <content>A2, Karavanke - Ljubljana, priključek Brnik - priključek Vodice v smeri Ljubljane, okvara vozila, oviran promet.</content>
+    <category term="Okvara vozila" />
+  </entry>
+  <entry>
+    <title>A1-E70, Ljubljana - juž. obvoznica: Zastoj</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/890209</id>
+    <updated>2026-11-21T13:55:49.273Z</updated>
+    <content>A1, Ljubljana - južna obvoznica, priključek Ljubljana jug - razcep Malence v smeri Malenc, zastoj, zamuda: 5 min, dolžina: 800 m.</content>
+    <category term="Zastoj" />
+  </entry>
+  <entry>
+    <title>G2-106, Ljubljana  (Rudnik)  - Škofljica: Zastoj</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/890208</id>
+    <updated>2026-11-21T13:55:49.867Z</updated>
+    <content>G2-106, Ljubljana (Rudnik) - Škofljica, zastoj, dolžina: 2 km.</content>
+    <category term="Zastoj" />
+  </entry>
+  <entry>
+    <title>A1-E61, E70, Koper - Ljubljana: Okvara vozila</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/890198</id>
+    <updated>2026-11-21T11:10:07.98Z</updated>
+    <content>A1, Koper - Ljubljana, pred uvozom Dragomer v smeri Ljubljane, okvara vozila, oviran promet.</content>
+    <category term="Okvara vozila" />
+  </entry>
+  <entry>
+    <title>A3-E70, E61, razcep Gabrk - Fernetiči: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/890194</id>
+    <updated>2026-11-21T10:43:06.297Z</updated>
+    <content>A3, razcep Gabrk - Fernetiči, uvoz Sežana vzhod v smeri Fernetičev, Italije, dela, oviran promet.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>A2-E61, Ljubljana - Karavanke: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/890186</id>
+    <updated>2026-11-21T09:56:21.447Z</updated>
+    <content>A2, Ljubljana - Karavanke, priključek Kranj vzhod - priključek Kranj zahod v smeri Karavank, Avstrije, dela, oviran promet.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>A2-E70, Ljubljana - Obrežje: Zastoj</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/890169</id>
+    <updated>2026-11-21T13:55:50.203Z</updated>
+    <content>A2, Ljubljana - Obrežje, predor Debeli hrib - predor Mali Vrh v smeri Novega mesta, zastoj, zamuda: 18 min, dolžina: 2 km in 700 m.</content>
+    <category term="Zastoj" />
+  </entry>
+  <entry>
+    <title>A2-E61, Ljubljana - zah. obvoznica: Zastoj</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/890159</id>
+    <updated>2026-11-21T13:55:49.59Z</updated>
+    <content>A2, Ljubljana - zahodna obvoznica, razcep Kozarje iz smeri Brda proti Brezovici, zastoj, zamuda: 2 min, dolžina: 400 m.</content>
+    <category term="Zastoj" />
+  </entry>
+  <entry>
+    <title>G1-5, Impoljca - Brestanica: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/890148</id>
+    <updated>2026-11-21T05:29:04.19Z</updated>
+    <content>G1-5, Celje - Krško, popolna zapora, obsekovanje dreves na brežini, do 22. 11. 2026, med 7. in 16. uro. Obvoz: na relaciji HE Blanca - Arto – Blanca – Rožno – Brestanica – Gunte in obratno.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>A1-E70, Ljubljana - juž. obvoznica: Zastoj</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/890150</id>
+    <updated>2026-11-21T13:55:48.9Z</updated>
+    <content>A1, Ljubljana - južna obvoznica, priključek Ljubljana center - razcep Kozarje v smeri Kozarij, območje zastojev, zamuda: 27 min, dolžina: 3 km in 800 m.</content>
+    <category term="Zastoj" />
+  </entry>
+  <entry>
+    <title>A1-E61, E70, Ljubljana - Koper: Zastoj</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/890151</id>
+    <updated>2026-11-21T13:55:50.58Z</updated>
+    <content>A1, Ljubljana - Koper, razcep Kozarje - priključek Brezovica v smeri Kopra, zastoj, zamuda: 10 min, dolžina: 1 km in 300 m.</content>
+    <category term="Zastoj" />
+  </entry>
+  <entry>
+    <title>R1-225, Soteska - Šentrupert: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/890143</id>
+    <updated>2026-11-21T04:50:50.723Z</updated>
+    <content>R1-225, Soteska - Šentrupert, popolna zapora, izvedba obrabne asfaltne plasti, do 22. 11. 2026. Obvoz: po državnih cestah na relaciji Letuš – Rečica ob Paki – Šmartno ob Paki –Gorenje – Soteska – Letuš in obratno.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>A2-E70, Ljubljana - Obrežje: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/890141</id>
+    <updated>2026-11-21T04:38:52.497Z</updated>
+    <content>A2, Ljubljana - Obrežje, priključek Ivančna Gorica - priključek Bič v smeri Novega mesta, dela, zaprt vozni pas.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>A1-E61, E70, Ljubljana - Koper: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/890139</id>
+    <updated>2026-11-20T23:50:56.61Z</updated>
+    <content>A1, Ljubljana - Koper, razcep Kozarje - priključek Brezovica v smeri Kopra, dela, zaprta vozni in počasni pas.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>A2-E70, Ljubljana - Obrežje: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/890122</id>
+    <updated>2026-11-20T19:52:37.98Z</updated>
+    <content>A2, Ljubljana - Obrežje, predor Debeli hrib - predor Mali Vrh v smeri Novega mesta, dela, zaprt vozni pas.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G2-108, Šentjakob - Ribče: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/889966</id>
+    <updated>2026-11-20T07:40:36.073Z</updated>
+    <content>G2-108, Litija - Ljubljana, most čez Kamniško Bistrico, dela, popolna zapora, do 23. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>A1-E57, E59, Maribor - Šentilj: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/890033</id>
+    <updated>2026-11-20T13:12:09.467Z</updated>
+    <content>A1, Maribor - Šentilj, krožišče Pesnica - prehod Šentilj v smeri Šentilja, Avstrije, dela, zaprt vozni pas.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G2-102, Kobarid - Idrsko: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/890019</id>
+    <updated>2026-11-20T12:07:31.64Z</updated>
+    <content>G2-102, Kobarid - Tolmin, v Kobaridu, izmenično enosmerni promet, sanacija kanalizacijskih jaškov, do 23. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-212, Cerknica - Bloška Polica: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/889972</id>
+    <updated>2026-11-20T07:51:18.663Z</updated>
+    <content>R1-212, Cerknica - Bloška Polica, v Cerknici, izmenično enosmerni promet, zamenjava pokrova in popravilo jaška, do 23. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-686, Tepanje - Žiče: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/889950</id>
+    <updated>2026-11-20T06:55:44.87Z</updated>
+    <content>R3-686, Tepanje - Žiče, med krožiščem v Tepanju in nadvozom nad avtocesto, oviran promet, rekonstrukcija priključka, do 21. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G1-5, Impoljca - Brestanica: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/889936</id>
+    <updated>2026-11-20T06:38:49.24Z</updated>
+    <content>G1-5, Celje - Krško, pri Spodnjem Pijavškem, izmenično enosmerni promet, obrezovanje rastlinja, do 23. 11. 2026, med 7. in 15. uro.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G1-7, Podgrad - Obrov: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/889791</id>
+    <updated>2026-11-19T11:21:49.8Z</updated>
+    <content>G1-7, Podgrad - Obrov, pri Obrovu, izmenično enosmerni promet, ureditev odvodnjavanja, do 26. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-644, Šentjakob - Domžale: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/889567</id>
+    <updated>2026-11-18T08:01:51.86Z</updated>
+    <content>R3-644, Šentjakob - Domžale, pri Dragomlju, izmenično enosmerni promet, ureditev pločnika, prehoda in cestne razsvetljave, do 24. 12. 2026, dnevno, med 7.30 in 16. uro.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-220, Krško - Brežice: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/889335</id>
+    <updated>2026-11-17T08:13:26.043Z</updated>
+    <content>R1-220, Krško - Brežice, pri Spodnji Libni, na dveh odsekih, izmenično enosmerni promet, obnova priključka na državno cesto, do 24. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>NK-435, Maribor - Ruše: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/889331</id>
+    <updated>2026-11-17T08:05:14.203Z</updated>
+    <content>R2-435, Maribor - Ruše, v Rušah, izmenično enosmerni promet, gradnja pločnika in zamenjava tranzitnega vodovoda, do 28. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-219, Mestinje - Golobinjek: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/889311</id>
+    <updated>2026-11-20T13:05:28.003Z</updated>
+    <content>R1-219, Mestinje - Golobinjek, pri Mestinju, izmenično enosmerni promet, izgradnja gradbiščnega priključka, do 23. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-639, Ljubljana  (Šentvid)  - Vodice: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/889307</id>
+    <updated>2026-11-17T06:59:12.86Z</updated>
+    <content>R3-639, Ljubljana (Šentvid) - Vodice, pri Skaručni, izmenično enosmerni promet, ureditev ceste, do 30. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-220, Krško - Brežice: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/889108</id>
+    <updated>2026-11-16T07:14:05.937Z</updated>
+    <content>R1-220, Krško - Brežice, v Brežicah, izmenično enosmerni promet, ureditev križišča, kolesrskih in peš poti, do 30. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-641, Ljubljanica - Ljubljana  (Dolgi Most): Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/889122</id>
+    <updated>2026-11-16T08:15:41.58Z</updated>
+    <content>R3-641, Ljubljanica - Ljubljana (Dolgi most), v Dobrovi, izmenično enosmerni promet, rekonstrukcija lokalne ceste, do 31. 1. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-428, Luče - Sestre Logar: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/889102</id>
+    <updated>2026-11-16T06:46:59.13Z</updated>
+    <content>R2-428, Solčava - Pavličevo sedlo, na dveh odsekih, izmenično enosmerni promet, sanacija podajno lovilnih sistemov, do 15. 1. 2027. Občasne, do 15 minutne popolne zapore med 8.30 in 17. uro.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-428, Radmirje - Luče: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/889085</id>
+    <updated>2026-11-16T06:24:24.037Z</updated>
+    <content>R2-428, Radmirje - Luče, na več odsekih, izmenično enosmerni promet, sanacija podajno lovilnih sistemov, do 15. 1. 2027. Občasne, do 15 minutne popolne zapore med 8.30 in 17. uro.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>H4 , Razdrto - Nova Gorica: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/889029</id>
+    <updated>2026-11-15T19:47:05.003Z</updated>
+    <content>H4, Razdrto - Nova Gorica, pred priključkom Vipava v smeri Vrtojbe, Italije, dela, zaprt prehitevalni pas.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-731, Polzela - Parižlje - Braslovče - Male Braslovče: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/888874</id>
+    <updated>2026-11-14T04:42:53.113Z</updated>
+    <content>R3-731, Polzela - Parižlje - Braslovče, pri Braslovčah, oviran promet, sanacija po poplavah, do 31. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-707, Spodnja Selnica - Duh na Ostrem vrhu: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/888876</id>
+    <updated>2026-11-16T06:17:10.93Z</updated>
+    <content>R3-707, Sp. Selnica - Duh na Ostrem vrhu, pri Velikem Boču, izmenično enosmerni promet, občasne popolne zapore (do 60 minut), sečnja in spravilo lesa, do 11. 12. 2026, med 8. in 16h. uro. Občasne do eno urne popolne zapore, vsak dan med 8. in 16. uro.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G2-106, Fara - Petrina: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/888701</id>
+    <updated>2026-11-13T06:50:30.25Z</updated>
+    <content>G2-106, Fara - Petrina, pri Fari, izmenično enosmerni promet, izvedba krožišča in ureditev hodnika za pešce, do 30. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G2-114, Bertoki - Ankaranska vpadnica: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/888695</id>
+    <updated>2026-11-13T06:38:51.447Z</updated>
+    <content>G2-114, Bertoki - Ankaranska vpadnica, med AC priključkom in krožiščem na Ankaranski cesti, oviran promet, razširitev Bertoške vpadnice, do 27. 4. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>RT-912, Novaki - Cerkno: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/888670</id>
+    <updated>2026-11-13T05:24:46.75Z</updated>
+    <content>RT-912, Novaki - Cerkno, pri Poljanah, izmenično enosmerni promet, sanacija prepusta, do 15. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>RT-908, Mojstrana - Vrata: Vreme</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/888661</id>
+    <updated>2026-11-13T04:51:17.277Z</updated>
+    <content>RT-908, Mojstrana - Vrata, zimske razmere, popolna zapora, do 15. 3. 2027.</content>
+    <category term="Vreme" />
+  </entry>
+  <entry>
+    <title>A1-E57, Maribor - Ljubljana: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/888463</id>
+    <updated>2026-11-16T09:59:06.65Z</updated>
+    <content>A1, Maribor - Ljubljana, izvoz Vransko - uvoz Vransko v smeri Ljubljane, dela, odstavni pas.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G1-1, Maribor  (Tržaška cesta)  - Miklavž: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/888079</id>
+    <updated>2026-11-12T10:06:53.763Z</updated>
+    <content>G1-1, Maribor - Ptuj, v Mariboru na Ptujski cesti, pri bencinskem servisu, zaprt en prometni pas, izgradnje priključka s pasom za desno zavijanje, do 15. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-454, Miklavž - Hajdina: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/888077</id>
+    <updated>2026-11-10T06:31:47.07Z</updated>
+    <content>R2-454, Maribor - Ptuj, pri avtocestnem priključju Maribor center, izmenično enosmerni promet, preplastitev vozišla, do 30. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>A1-E61, E70, Ljubljana - Koper: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/887937</id>
+    <updated>2026-11-16T16:56:29.43Z</updated>
+    <content>A1, Ljubljana - Koper, počivališče Ravbarkomanda v smeri Kopra, dela, zaprto počivališče.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-707, Spodnja Selnica - Duh na Ostrem vrhu: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/887913</id>
+    <updated>2026-11-09T08:31:46.147Z</updated>
+    <content>R3-707, Sp. Selnica - Duh na Ostrem vrhu, pri Zgornjem Slemenu, izmenično enosmerni promet, izvedba kablovoda, do 31. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-602, Staro Selo - Breginj - Most na Soči: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/887910</id>
+    <updated>2026-11-09T08:16:42.893Z</updated>
+    <content>R3-602, Staro Selo - Breginj - Most na Soči, Breginj, izmenično enosmerni promet, obnove meteorne in fekalne kanalizacije, do 27. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-425, Pesje - Velenje: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/887911</id>
+    <updated>2026-11-09T13:00:35.667Z</updated>
+    <content>R2-425, Šoštanj - Velenje, pri Podgorju, oviran promet, izgradnja kanalizacije, do 19. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-409, Brezovica - Vrhnika: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/887901</id>
+    <updated>2026-11-09T07:49:10.61Z</updated>
+    <content>R2-409, Brezovica - Vrhnika, na Vrhniki, oviran promet, postavitve nadstrešnic na postajališčih, do 18. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>A1-E61, E70, Ljubljana - Koper: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/887644</id>
+    <updated>2026-11-16T16:56:49.487Z</updated>
+    <content>A1, Ljubljana - Koper, izvoz Postojna iz smeri Ljubljane, dela, popolna zapora.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>NK-642, Vrhnika - Podpeč: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/879544</id>
+    <updated>2026-11-21T06:02:47.07Z</updated>
+    <content>R3-642, Vrhnika - Podpeč, pri Kamniku pod Krimom, popolna zapora, gradnje novega AB podvoza, do 22. 11. 2026. Obvoz: na relaciji Podpeč - Dragomer - Vrhnika - Borovnica in obratno.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>A2-E70, Ljubljana - Obrežje: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/887595</id>
+    <updated>2026-11-20T15:42:40.377Z</updated>
+    <content>A2, Ljubljana - Obrežje, počivališče Čatež v smeri Obrežja, dela, zaprt izvoz na počivališče.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-449, Gornja Radgona: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/887498</id>
+    <updated>2026-11-06T08:51:59.283Z</updated>
+    <content>R2-449, Gornja Radgona - Podgrad, v Gornji Radgoni, Partizanska cesta, izmenično enosmerni promet, obnova objekta (postavitev odra), do 22. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-648, Pri Cerkvi - Struge - Smuka: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/887318</id>
+    <updated>2026-11-05T09:19:15.513Z</updated>
+    <content>R3-648, Pri Cerkvi - Struge - Smuka, v kraju Pri Cerkvi - Struge, izmenično enosmerni promet, obnova vodovoda, do 18. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>A2-E70, Obrežje - Ljubljana: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/887293</id>
+    <updated>2026-11-07T09:19:30.48Z</updated>
+    <content>A2, Obrežje - Ljubljana, prehod Obrežje - priključek Drnovo v smeri Ljubljane, dela, promet poteka po enem voznem pasu v vsako smer.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-702, Trbonje - Vuhred: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/887277</id>
+    <updated>2026-11-05T06:59:21.593Z</updated>
+    <content>R3-702, Trbonje - Vuhred, pri Dravčah, popolna zapora, sanacija območja plazenja in sanacija brežine, do 17. 12. 2026. Obvoz: Trbonje - Muta - Vuzenica in obratno.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>A2-E70, Ljubljana - Obrežje: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/887243</id>
+    <updated>2026-11-07T09:18:30.763Z</updated>
+    <content>A2, Ljubljana - Obrežje, počivališče Čatež - prehod Obrežje v smeri Obrežja, dela, promet poteka po enem voznem pasu v vsako smer.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>A1-E57, Ljubljana - Maribor: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/887047</id>
+    <updated>2026-11-04T05:41:46.76Z</updated>
+    <content>A1, Ljubljana - Maribor, priključek Sl. Bistrica jug - počivališče Polskava v smeri Maribora, dela, promet poteka po dveh zoženih pasovih.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-728, Škofljica - Ig: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/886870</id>
+    <updated>2026-11-03T06:52:12.66Z</updated>
+    <content>R3-728, Škofljica - Ig, na Igu, izmenično enosmerni promet, gradnja krožišča, do 26. 3. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-413, Vodice - Moste: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/886691</id>
+    <updated>2026-11-11T08:39:47.67Z</updated>
+    <content>R2-413, Vodice - Moste, izmenično enosmerni promet, rekonstrukcije ceste, do 28. 2. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-635, Lipnica - Kropa - Rudno: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/886688</id>
+    <updated>2026-11-02T08:00:58.003Z</updated>
+    <content>R3-635, Kropa - Dražgoše, Jamnik, izmenično enosmerni promet, rekonstrukcije cestnega priključka in izvedbe podbojev, do 30. 11. 2026, dnevno med 7. in 17. uro.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-203, Žaga - Kobarid: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/886662</id>
+    <updated>2026-11-02T06:51:09.233Z</updated>
+    <content>R1-203, Žaga - Kobarid, pri Trnovem ob Soči, izmenično enosmerni promet, obnova cestišča, do 26. 3. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-214, Kočevje - Stari Log: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/886650</id>
+    <updated>2026-11-02T06:43:24.187Z</updated>
+    <content>R1-214, Kočevje - Stari Log, pri Mlaki pri Kočevju, oviran promet, gradnja kolesarske steze in kanalizacijskega omrežja, do 15. 5. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G1-11 , Škofije - Koper: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/886476</id>
+    <updated>2026-11-16T13:12:29.7Z</updated>
+    <content>G1-11, Škofije - Koper, izvoz 4 Bertoki - uvoz Bertoki v smeri Kopra, dela, oviran promet.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>A1-E57, Ljubljana - Maribor: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/886263</id>
+    <updated>2026-11-03T08:14:16.5Z</updated>
+    <content>A1, Ljubljana - Maribor, razcep Zadobrova - priključek Domžale v smeri Celja, dela, promet poteka po dveh zoženih pasovih.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-209, Bled - Soteska: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/885927</id>
+    <updated>2026-10-28T07:18:30.247Z</updated>
+    <content>R1-209, Bled - Bohinj, na Bledu, na Cesti svobode, oviran promet, prenova Grand hotela Toplice, do 30. 6. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-206, Vršič - Trenta: (prazno)</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/885165</id>
+    <updated>2026-11-19T12:38:06.677Z</updated>
+    <content>R1-206, Kranjska Gora - Vršič - Bovec, prelaz Vršič, prevozen samo za osebna vozila z zimsko opremo.</content>
+    <category term="(prazno)" />
+  </entry>
+  <entry>
+    <title>RT-902, Strmec - Mangart: Vreme</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/884974</id>
+    <updated>2026-10-23T07:06:56.36Z</updated>
+    <content>RT-902, Strmec - Mangart, zimske razmere, popolna zapora.</content>
+    <category term="Vreme" />
+  </entry>
+  <entry>
+    <title>R2-450, Hoče - Letališče Maribor: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/884764</id>
+    <updated>2026-10-21T07:35:23.183Z</updated>
+    <content>R2-450, Hoče - letališče Maribor, v Spodnjih Hočah, na Miklavški cesti, izmenično enosmerni promet, gradnja krožišča, do 10. 3. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-403, Kneža - Podbrdo: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/884675</id>
+    <updated>2026-10-21T04:25:37.663Z</updated>
+    <content>R2-403, Kneža - Podbrdo, pri Hudijužni, izmenično enosmerni promet, kratkotrajne popolne zapore (do 15 minut), sanacija brežine, do 15. 1. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-650, Žužemberk - Pluska: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/884535</id>
+    <updated>2026-10-20T09:29:02.407Z</updated>
+    <content>R3-650, Žužemberk - Pluska, v Občinah, izmenično enosmerni promet, gradnja pločnika in AP, do 28. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>A1-E61, E70, Ljubljana - Koper: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/884513</id>
+    <updated>2026-10-28T11:36:05.097Z</updated>
+    <content>A1, Ljubljana - Koper, priključek Kastelec - priključek Črni Kal v smeri Kopra, dela, zaprt odstavni pas.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-207, Col - Ajdovščina: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/884244</id>
+    <updated>2026-11-13T06:28:39.7Z</updated>
+    <content>R1-207, Col - Ajdovščina, pri Colu, izmenično enosmerni promet, popravilo zidu, do 26. 11. 2026, dnevno med 7. in 17. uro.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-423, Črnolica - Lesično: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/884239</id>
+    <updated>2026-10-19T05:59:13.17Z</updated>
+    <content>R2-423, Črnolica - Lesično, pri Žegru, izmenično enosmerni promet, sanacije plazu Žegar, do 6. 5. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-454, Miklavž - Hajdina: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/884033</id>
+    <updated>2026-10-17T04:24:19.123Z</updated>
+    <content>R2-454, Maribor - Ptuj, pri Hajdošah, izmenično enosmerni promet, gradnje kanalizacijskega omrežja, do 20. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-655, Dolenja vas - Gotenica - Kočevska Reka: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/883860</id>
+    <updated>2026-10-16T07:10:33.84Z</updated>
+    <content>R3-655, Dolenja vas - Gotenica - Kočevska Reka, Jelendol - Kočevska Reka, na treh odsekih, izmenično enosmerni promet, izvedba ukrepov na obcestnih brežinah, do 6. 1. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-693, Nova Cerkev - Socka - Vitanje: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/883392</id>
+    <updated>2026-10-14T06:46:39.747Z</updated>
+    <content>R3-693, Nova Cerkev - Socka, v Novi Cerkvi, izmenično enosmerni promet, obnova vodovoda, do 12. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-737, Rače - Šikole: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/883380</id>
+    <updated>2026-10-14T06:13:13.733Z</updated>
+    <content>R3-737, Rače - Šikole, Rače - Brezula, izmenično enosmerni promet, izgradnja NN omrežja, do 26. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G2-103, Ušnik - Plave: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/883378</id>
+    <updated>2026-10-14T06:11:55.27Z</updated>
+    <content>G2-103, Nova Gorica - Tolmin, v Kanalu, oviran promet, rekonstrukcija vozišča, do 24. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G1-4, Velenje - Črnova: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/882905</id>
+    <updated>2026-10-12T06:59:05.663Z</updated>
+    <content>G1-4, Velenje - Črnova - Arja vas, oviran promet, občasno promet urejen izmenično enosmerno, postavitve dodatnih elementov za vodenje in zaščito motoristov, do 30. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-738, Tržišče - Hotemež: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/882268</id>
+    <updated>2026-11-11T06:06:42.413Z</updated>
+    <content>R3-738, Tržišče - Hotemež, pri Šentjanžu, popolna zapora, rekonstrukcije vozišča, do 17. 2. 2027. Obvoz: Hotemež-Dol.Boštanj-Tržišče-Krmelj- Šentjanž.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-642, Ig - Ljubljana  (Peruzzijeva): Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/882013</id>
+    <updated>2026-10-07T06:45:28.773Z</updated>
+    <content>R3-642, Ig - Ljubljana (Peruzzijeva), na Igu, izmenično enosmerni promet, ureditev vstopa v naselje, do 12. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-201, Kr. Gora - Mojstrana - Dovje: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/882005</id>
+    <updated>2026-10-07T06:37:48.767Z</updated>
+    <content>R1-201, Kranjska Gora - Jesenice, pri Zgornjih Rutah, izmenično enosmerni promet, ureditev ceste, do 15. 1. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-201, Kr. Gora - Mojstrana - Dovje: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/882004</id>
+    <updated>2026-10-07T06:33:02.733Z</updated>
+    <content>R1-201, Kranjska Gora - Jesenice, Gozd Martuljek, izmenično enosmerni promet, ureditev ceste, do 15. 1. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-209, Bled - Soteska: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/881807</id>
+    <updated>2026-10-06T07:05:40.717Z</updated>
+    <content>R1-209, Bled - Bohinj, Obrne, izmenično enosmerni promet, obnove vozišča, do 11. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-203, Predel - Bovec: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/881585</id>
+    <updated>2026-11-21T13:30:15.857Z</updated>
+    <content>R1-203, Predel - Bovec, pri trdnjavi Kluže, izmenično enosmerni promet, sanacija brežine, do 24. 12. 2026. Popolne zapore vsak dan med 8. in 14.30. uro.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>A1-E57, Maribor - Ljubljana: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/880733</id>
+    <updated>2026-10-28T10:29:22.917Z</updated>
+    <content>A1, Maribor - Ljubljana, priključek Domžale - razcep Zadobrova v smeri Ljubljane, dela, oviran promet.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-688, Poljčane - Majšperk: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/880573</id>
+    <updated>2026-09-30T06:48:49.473Z</updated>
+    <content>R3-688, Poljčane - Majšperk, v Pečkah, izmenično enosmerni promet, ureditev ceste, do 5. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-677, Pišece - Zgornja Pohanca - Krško: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/880007</id>
+    <updated>2026-11-19T07:08:40.54Z</updated>
+    <content>R3-677, Pišece - Zg. Pohanca - Krško, od odcepa za Kremen do Pleterji, popolna zapora, rekonstrukcije vozišča, do 31. 12. 2026. Obvoz: po občinskih in državnih cestah.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-648, Videm - Pri Cerkvi - Struge: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/880006</id>
+    <updated>2026-10-05T07:02:03.963Z</updated>
+    <content>R3-648, Mlačevo - Videm - Pri cerkvi Struge, v Kolenči vasi, izmenično enosmerni promet, zaščita ceste pred padajočim kamenjem, do 11. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-228, Spuhlja - Zavrč: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/879377</id>
+    <updated>2026-11-12T07:44:05.11Z</updated>
+    <content>R1-228, Spuhlja - Zavrč, pri Markovcih, popolna zapora, promet poteka ob gradbišču izmenično enosmerno, ureditev navezave novozgrajene ceste, do 30. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>RT-909, Sorica - Petrovo Brdo: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/879241</id>
+    <updated>2026-09-24T05:29:45.227Z</updated>
+    <content>RT-909, Zgornja Sorica - Petrovo Brdo, pri Petrovem Brdu, popolna zapora, sanacija plazu, do 15. 1. 2027. Obvoz: Petrovo Brdo - Podrošt - Sorica in obratno.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>NK-681, Laško - Breze - Šentjur: Tovornjaki</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/879038</id>
+    <updated>2026-10-29T09:49:55.717Z</updated>
+    <content>R3-681, Laško - Breze - Šentjur, Šentrupert - Osredek, prepoved za tovorna vozila nad 3,5 tone. Obvoz: Obvoz je možen na relaciji Šentrupert - Laško - Celje - Šentjur - Osredek in obratno.</content>
+    <category term="Tovornjaki" />
+  </entry>
+  <entry>
+    <title>R1-212, Cerknica - Bloška Polica: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/878967</id>
+    <updated>2026-11-12T10:15:48.683Z</updated>
+    <content>R1-212, Cerknica - Bloška Polica, v Cerknici, oviran promet, semaforizacije križišča, do 30. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-201, Kr. Gora - Mojstrana - Dovje: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/878961</id>
+    <updated>2026-09-27T15:15:30.98Z</updated>
+    <content>R1-201, Kranjska Gora - Mojstrana - Dovje, pri Logu, pri Kranjski Gori/Log, izmenično enosmerni promet, ureditve pločnika in prehoda za pešce, do 25. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-216, Krka - Žužemberk: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/878703</id>
+    <updated>2026-11-12T08:53:43.27Z</updated>
+    <content>R1-216, Krka - Žužemberk, pri Vrhovem pri Žužemberku, izmenično enosmerni promet, ureditev priključka, do 30. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-430, Slovenske Konjice - Stranice: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/878449</id>
+    <updated>2026-09-21T07:52:44.01Z</updated>
+    <content>R2-430, Slovenske Konjice - Stranice, Spodnje Preloge, izmenično enosmerni promet, ureditev avtobusnih postajališč, do 19. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>H4 , Razdrto - Nova Gorica: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/877398</id>
+    <updated>2026-11-16T12:14:42.22Z</updated>
+    <content>H4, Razdrto - Nova Gorica, priključek Vipava - priključek 2 Ajdovščina v smeri Vrtojbe, Italije, dela, zaprt vozni pas.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-696, Velenje - Škale: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/877331</id>
+    <updated>2026-09-16T05:47:46.607Z</updated>
+    <content>R3-696, Velenje - Škale, v Škalah, oviran promet, občasno promet urejen izmenično enosmerno, izvedbe nove cestne povezave - sklop C Škale, do 28. 5. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-209, Bohinjska Bistrica - Jezero: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/876817</id>
+    <updated>2026-09-14T06:18:34.3Z</updated>
+    <content>R1-209, Bohinjska Bistrica - Jezero, Kamnje, izmenično enosmerni promet, ureditve ceste skozi naselje Kamnje, do 28. 5. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-422, Podsreda - Brestanica: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/875073</id>
+    <updated>2026-09-07T06:21:24.54Z</updated>
+    <content>R2-422, Podsreda - Brestanica, pri Velikem Kamnu, izmenično enosmerni promet, popravilo vozišča, do 31. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G2-107, Rogatec - Dobovec: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/875050</id>
+    <updated>2026-09-07T05:47:30.42Z</updated>
+    <content>G2-107, Rogatec - Dobovec, Dobovec pri Rogatcu, izmenično enosmerni promet, ureditev kolesarske povezave in ceste, do 7. 4. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>A1-E57, Maribor - Ljubljana: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/874696</id>
+    <updated>2026-10-31T21:56:39.113Z</updated>
+    <content>A1, Maribor - Ljubljana, priključek Sl. Bistrica sever - priključek Sl. Bistrica jug v smeri Ljubljane, dela, promet poteka po dveh zoženih pasovih.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>LC-036360, Celje  (cesta V Laško)  - Krožišče Teharje: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/873972</id>
+    <updated>2026-10-14T05:57:55.597Z</updated>
+    <content>MO Celje, LC Zagrad, popolna zapora, izvedba gradbenih del, do 15. 12. 2026. Obvoz: po vzporednih cestah.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-425, Poljana - Šentvid: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/873958</id>
+    <updated>2026-09-02T05:48:54.673Z</updated>
+    <content>R2-425, Poljana - Šentvid, v Črni na Koroškem, izmenično enosmerni promet, obnova ceste, do 26. 1. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G2-112, Ravne - Dravograd: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/873952</id>
+    <updated>2026-11-17T08:01:32.663Z</updated>
+    <content>G2-112, Ravne - Dravograd, pri Tolstem Vrhu, izmenično enosmerni promet, rekonstrukcija ceste in ureditve kolesarske poti (Ujma 2023), do 14. 5. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>RT-912, Zali Log - Davča: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/873761</id>
+    <updated>2026-09-01T08:08:11.587Z</updated>
+    <content>RT-912, Zali log - Davča - Novaki, pri Davči, na treh odsekih, izmenično enosmerni promet, sanacije usada in brežin, do 29. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>NK-219, Slovenska Bistrica - Poljčane: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/873485</id>
+    <updated>2026-11-12T08:34:27.533Z</updated>
+    <content>R1-219, Slovenska Bistrica - Poljčane, pri Videžu, oviran promet, preplastitev vozišča, do 27. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>LZ-212840, Tbilisijska Ul.: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/872585</id>
+    <updated>2026-08-27T06:18:56.6Z</updated>
+    <content>Ljubljana, Tbilisijska ulica, med Tomažičevo Ulico in uvozom v IC Vič, popolna zapora, rekonstrukcija ceste, do 15. 12. 2026. Obvoz: po Gerbičevi in Koprski ulici ter Cesti v Mestni Log.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-702, Trbonje - Vuhred: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/872038</id>
+    <updated>2026-10-29T07:11:19.673Z</updated>
+    <content>R3-702, Trbonje - Vuhred, pri Sv. Vidu, izmenično enosmerni promet, rekonstrukcija ceste, do 11. 2. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>H4 , Razdrto - Nova Gorica: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/871662</id>
+    <updated>2026-08-23T18:40:13.543Z</updated>
+    <content>H4, Razdrto - Nova Gorica, priključek Vipava - pokrit vkop Vipavski Križ v smeri Vrtojbe, Italije, dela, promet poteka po enem voznem pasu v vsako smer.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G1-4, Gornji Dolič - Velenje: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/871074</id>
+    <updated>2026-11-12T08:00:52.227Z</updated>
+    <content>G1-4, Velenje - Slovenj Gradec, pri Paki pri Velenju, izmenično enosmerni promet, preplastitev vozišča, do 1. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G1-5, Brestanica - Krško: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/870809</id>
+    <updated>2026-08-20T06:25:43.447Z</updated>
+    <content>G1-5, Brestanica - Krško, pri Krškem, popolna zapora, ureditev ceste, do 16. 1. 2027. Obvoz: po regionalni cesti Krško - Brežice, glavni cesti Brestanica - Krško in po lokalnih cestah.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-219, Bizeljsko - Čatež: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/870374</id>
+    <updated>2026-08-18T05:30:25.8Z</updated>
+    <content>R1-219, Bizeljsko - Čatež, Stara vas-Bizeljsko, izmenično enosmerni promet, izgradnja pločnika, do 25. 3. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-230, Križevci - Ljutomer: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/869420</id>
+    <updated>2026-09-17T05:57:07.863Z</updated>
+    <content>R1-230, Križevci - Ljutomer, Ljutomer, Slavka Osterca ulica, izmenično enosmerni promet, rekonstrukcije križišča, do 31. 1. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-713, Ljutomer - Savci - Ptuj: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/869418</id>
+    <updated>2026-10-15T05:46:28.493Z</updated>
+    <content>R3-713, Ljutomer - Savci - Ptuj, v Ljutomeru na Prešernovi ulici, popolna zapora, rekonstrukcije križišča, do 31. 1. 2027. Obvoz: po lokalnih cestah, obvoz za vozila nad 3,5 t. preko Ormoža.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-422, Podsreda - Brestanica: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/869415</id>
+    <updated>2026-08-13T06:13:41.147Z</updated>
+    <content>R2-422, Podsreda - Brestanica, v Velikem Dolu, izmenično enosmerni promet, rekonstrukcija ceste, do 15. 7. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G2-108, Litija - Zagorje: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/869213</id>
+    <updated>2026-08-12T06:05:11.5Z</updated>
+    <content>G2-108, Litija - Zagorje, pri Renkah, izmenično enosmerni promet, sanacije usada Renke, do 24. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-603, Most Na Soči - Ušnik: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/869047</id>
+    <updated>2026-08-11T07:14:29.77Z</updated>
+    <content>R3-603, Most na Soči - Ušnik, pri Modrejcah, izmenično enosmerni promet, gradnje vodovoda Modrejce, do 30. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-662, Metlika - Božakovo: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/868133</id>
+    <updated>2026-11-09T10:52:39.987Z</updated>
+    <content>R3-662, Metlika - Božakovo, Želebej - Božakovo, izmenično enosmerni promet, zdrs vozišča.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-625, Bertoki - Gračišče: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/867441</id>
+    <updated>2026-10-06T06:42:15.97Z</updated>
+    <content>R3-625, Bertoki - Gračišče, v Bertokih, v krožišču Ceste borcev, oviran promet, razširitev padnice, do 28. 1. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>NK-741, Bertoki _ Koper  (Škocjan): Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/867439</id>
+    <updated>2026-10-06T06:42:34.54Z</updated>
+    <content>R3-741, Bertoki - Koper, v Bertokih, na Podbeški cesti, popolna zapora, razširitev vpadnice, do 28. 1. 2027. Obvoz: obvoz po obvozni cesti.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-210, Sovodenj - Cerkno: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/867387</id>
+    <updated>2026-08-03T06:13:40.583Z</updated>
+    <content>R1-210, Trebija - Cerkno, v Cerknem, na Gorenjski cesti, izmenično enosmerni promet, rekonstrukcija vozišča, do 30. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-210, Kr  (Primskovo - Labore): Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/867369</id>
+    <updated>2026-08-03T05:34:05.973Z</updated>
+    <content>R1-210, Kr (Labore - Primskovo) pred krožiščem, Kranj, Cesta Boštjana Hladnika, oviran promet, gradnja nadhoda, do 7. 4. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-633, Jereka - Jezero: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/867364</id>
+    <updated>2026-11-16T07:19:36.423Z</updated>
+    <content>R3-633, Jereka - Jezero, v Srednji vasi, oviran promet, ureditev pešpoti, do 30. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-661, Krmačina - Drašiči - Metlika: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/866199</id>
+    <updated>2026-11-02T07:47:09.157Z</updated>
+    <content>R3-661, Črnomelj - Metlika - Krmačina, Metlika - Drašiči, izmenično enosmerni promet, sanacija vozišča in izgradnja pločnika, do 27. 8. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-610, Dolenja Trebuša - Spodnja Idrija: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/866043</id>
+    <updated>2026-09-30T07:04:18.12Z</updated>
+    <content>R3-610, Dolenja Trebuša - Spodnja Idrija, pri Srednji Kanomlji, izmenično enosmerni promet, modernizacije ceste, do 21. 4. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-423, Črnolica - Lesično: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/865957</id>
+    <updated>2026-11-12T08:01:34.367Z</updated>
+    <content>R2-423, Črnolica - Lesično, pri Lesičnem, oviran promet, rekonstrukcije ceste, do 30. 4. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>A1-E61, E70, Koper - Ljubljana: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/864765</id>
+    <updated>2026-11-16T16:56:59.01Z</updated>
+    <content>A1, Koper - Ljubljana, uvoz Postojna v smeri Kopra, dela, popolna zapora.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>A2-E61, Karavanke - Ljubljana: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/862066</id>
+    <updated>2026-11-18T07:28:30.84Z</updated>
+    <content>A2, Karavanke - Ljubljana, predor Karavanke - priključek Jesenice zahod v smeri Ljubljane, dela, promet poteka po enem pasu.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-207, Col - Ajdovščina: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/862034</id>
+    <updated>2026-07-08T05:29:18.503Z</updated>
+    <content>R1-207, Col - Ajdovščina, v Ajdovščini, na Idrijski cesti, izmenično enosmerni promet, ureditve območja priključka, do 31. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-203, Predel - Bovec: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/860848</id>
+    <updated>2026-11-18T09:46:23.103Z</updated>
+    <content>R1-203, Predel - Bovec, pri Ravnem Lazu, izmenično enosmerni promet, rekonstrukcija cesta in izvedba kanalizacije, do 30. 4. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-447, Trojane - Želodnik: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/858095</id>
+    <updated>2026-09-14T06:29:35.973Z</updated>
+    <content>R2-447, Lukovica - Domžale, pri Trojanah, izmenično enosmerni promet, obnove viadukta, do 22. 2. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>RT-933, Breg - Jurklošter: Ovire</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/857579</id>
+    <updated>2026-08-31T07:17:02.52Z</updated>
+    <content>RT-933, Breg - Jurklošter, pri Razborju, izmenično enosmerni promet, udor vozišča, do 31. 8. 2027.</content>
+    <category term="Ovire" />
+  </entry>
+  <entry>
+    <title>R3-696, Velenje - Škale: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/857373</id>
+    <updated>2026-06-15T07:54:12.34Z</updated>
+    <content>R3-696, Velenje - Škale, Škale, izmenično enosmerni promet, izvedbe cestne povezave v sklopu izgradnje HC - sklop C Škale, do 30. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-212, Cerknica - Bloška Polica: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/857361</id>
+    <updated>2026-11-12T10:14:29.487Z</updated>
+    <content>R1-212, Cerknica - Bloška Polica, v Cerknici, na Cesti 4. maja, oviran promet, gradnje krožišča, do 31. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G2-102, Želin - Spodnja Idrija: Ovire</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/856156</id>
+    <updated>2026-06-18T05:52:12.57Z</updated>
+    <content>G2-102, Želin - Sp. Idrija (Marof), pri Plužnjah, izmenično enosmerni promet, podor kamenja, do 31. 12. 2026.</content>
+    <category term="Ovire" />
+  </entry>
+  <entry>
+    <title>R3-694, Velenje - Dobrteša Vas: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/855803</id>
+    <updated>2026-06-08T06:23:22.787Z</updated>
+    <content>R3-694, Velenje - Polzela, pri Polzeli, izmenično enosmerni promet, rekonstrukcija ceste, do 20. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>H4 , Nova Gorica - Razdrto: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/855677</id>
+    <updated>2026-09-28T14:08:25.82Z</updated>
+    <content>H4, Nova Gorica - Razdrto, priključek Selo - priključek Vipava v smeri Razdrtega, dela, promet poteka po enem voznem pasu v vsako smer.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G2-106, Livold - Fara: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/854587</id>
+    <updated>2026-11-06T07:22:48.437Z</updated>
+    <content>G2-106, Livold - Brezovica, pri Fari, oviran promet, izvedbe krožišča in ureditve hodnika za pešce, do 30. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>RT-929, Areh - Šumik - Osankarica - Lukanja: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/854060</id>
+    <updated>2026-06-01T06:32:23.04Z</updated>
+    <content>RT-929, Areh - Šumik - Osankarica - Lukanja, oviran promet, sečnja in spravilo lesa, do 30. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-419, Soteska - Novo mesto: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/848422</id>
+    <updated>2026-05-26T05:26:10.513Z</updated>
+    <content>R2-419, Soteska - Novo mesto, v Novem mestu, Kandijska cesta, oviran promet, gradnja objekta, do 30. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G1-4, Črnova - Arja vas: Ovire</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/849741</id>
+    <updated>2026-10-08T04:35:16.63Z</updated>
+    <content>G1-4, Velenje - Arja vas, pri kamnolomu, pri Veliki Pirešici, kratkotrajne popolne zapore (do 15 minut), miniranje, enkrat tedensko med 9. in 13. uro.</content>
+    <category term="Ovire" />
+  </entry>
+  <entry>
+    <title>R1-215, Trebnje - Mokronog: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/849531</id>
+    <updated>2026-08-31T06:20:19.637Z</updated>
+    <content>R1-215, Trebnje - Mokronog, pri Prelesju, občasno promet urejen izmenično enosmerno, ureditve krožnega križišča, do 16. 6. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-212, Sodražica - Žlebič: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/849203</id>
+    <updated>2026-10-09T03:57:23.59Z</updated>
+    <content>R1-212, Sodražica - Žlebič, pri Sodražici, izmenično enosmerni promet, ureditve hodnika za pešce, do 24. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>A5 , Maribor - Pince: Ovire</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/847026</id>
+    <updated>2026-05-28T09:25:55.17Z</updated>
+    <content>A5, Maribor - Pince, počivališče Dolinsko v smeri Lendave, zaprto počivališče.</content>
+    <category term="Ovire" />
+  </entry>
+  <entry>
+    <title>R3-614, Miren - Opatje Selo: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/845440</id>
+    <updated>2026-09-24T12:00:46.033Z</updated>
+    <content>R3-614, Miren - Opatje selo, pri Lokvici, izmenično enosmerni promet, ureditev ceste, do 24. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-428, Radmirje - Luče: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/842847</id>
+    <updated>2026-06-22T06:40:05.363Z</updated>
+    <content>R2-428, Radmirje - Luče, v Lučah, izmenično enosmerni promet, rekonstrukcija ceste, do 22. 6. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>A1-E61, E70, Ljubljana - Koper: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/841844</id>
+    <updated>2026-11-17T18:25:09.487Z</updated>
+    <content>A1, Ljubljana - Koper, priključek Unec - počivališče Studenec v smeri Kopra, dela, promet poteka po dveh zoženih pasovih v vsako smer.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G2-106, Žlebič - Kočevje: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/839556</id>
+    <updated>2026-11-10T09:52:14.353Z</updated>
+    <content>G2-106, Ljubljana - Kočevje, pri Nemški vasi, izmenično enosmerni promet, ureditev ceste, do 31. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-406, Škofije - Lazaret: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/839549</id>
+    <updated>2026-03-18T08:28:01.2Z</updated>
+    <content>R2-406, Ankaran - Lazaret, v Ankaranu, Jadranska cesta, oviran promet, rekonstrukcija ceste, do 17. 1. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-653, Hrib - Trava - Podplanina: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/839286</id>
+    <updated>2026-06-10T13:34:25.387Z</updated>
+    <content>R3-653, Hrib - Trava - Podplanina, med Loškim Potokom in Travnikom, popolna zapora, obnova ceste, do 23. 12. 2026. Obvoz: po lokalnih cestah.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-677, Pišece - Zgornja Pohanca - Krško: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/837979</id>
+    <updated>2026-11-21T07:00:32.5Z</updated>
+    <content>R3-677, Pišece - Zg. Pohanca - Krško, Zdole - Krško, popolna zapora, rekonstrukcije ceste, do 23. 12. 2026, dnevno med 8. in 17. uro. Delna zapora med 17. in 8. uro.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>A1-E61, E70, Koper - Ljubljana: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/836643</id>
+    <updated>2026-11-17T18:24:55.013Z</updated>
+    <content>A1, Koper - Ljubljana, počivališče Studenec - priključek Unec v smeri Ljubljane, dela, promet poteka po dveh zoženih pasovih v vsako smer.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-425, Poljana - Šentvid: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/835908</id>
+    <updated>2026-09-02T05:46:38.41Z</updated>
+    <content>R2-425, Poljana - Šentvid, pri Žerjavu, izmenično enosmerni promet, gradnje kolesarske povezave in rekonstrukcije ceste, do 15. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-215, Trebnje - Mokronog: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/835765</id>
+    <updated>2026-08-28T05:48:23.147Z</updated>
+    <content>R1-215, Trebnje - Mokronog, v Puščavi, izmenično enosmerni promet, pomična zapora, rekonstrukcije ceste, do 31. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-648, Pri Cerkvi - Struge - Smuka: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/834721</id>
+    <updated>2026-11-03T07:33:59.593Z</updated>
+    <content>R3-648, Pri Cerkvi - Struge - Smuka, oviran promet, rekonstrukcija ceste, do 24. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G1-2, Slovenska Bistrica - Pragersko: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/834544</id>
+    <updated>2026-08-03T06:04:14.713Z</updated>
+    <content>G1-2, Slovenska Bistrica - Pragersko, pri AC priključku Slovenska Bistrica sever, oviran promet, rekonstrukcija ceste v sklopu novogradnje AC viadukta Devina, do 31. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-649, Zagradec - Ambrus - Žvirče: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/834343</id>
+    <updated>2026-11-03T07:33:35.947Z</updated>
+    <content>R3-649, Zagradec - Ambrus - Žvirče, v Žvirčah, oviran promet, rekonstrukcija ceste, do 24. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-639, Ljubljana  (Šentvid)  - Vodice: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/832045</id>
+    <updated>2026-10-30T06:06:06.737Z</updated>
+    <content>R3-639, Ljubljana (Šentvid) - Vodice, pri Skaručni, popolna zapora, ureditev ceste, do 30. 11. 2026. Obvoz: za osebna in tovorna vozila do 7,5 t urejen po državnih cestah na relaciji Vodice–Zbilje–Medvode–Lj. Šentvid in obratno. Za tovorna vozila nad 7,5 t bo obvoz po AC A2 med priključkoma Lj. Šentvid in Vodice.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-418, Zbure - Škocjan: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/832048</id>
+    <updated>2026-05-08T06:13:52.477Z</updated>
+    <content>R2-418, Zbure - Škocjan, v Škocjanu, popolna zapora, promet poteka ob gradbišču, rekonstrukcije križišča, do 13. 1. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G2-105, Nm  (Revoz)  - Metlika: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/831671</id>
+    <updated>2026-10-31T10:53:28.203Z</updated>
+    <content>G2-105, Novo mesto - Metlika, v Bereči vasi, izmenično enosmerni promet, poškodovana bankina, do 31. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-444, Ajdovščina  (Obvoznica): Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/830910</id>
+    <updated>2026-09-02T05:21:43.02Z</updated>
+    <content>R2-444, Vipava - Selo, Ajdovščina (obvoznica), oviran promet, ureditev križišča, do 31. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>RT-918, Grgelj - Fara: Ovire</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/828538</id>
+    <updated>2026-06-03T06:10:43.697Z</updated>
+    <content>RT-918, Grgelj - Fara, Fara - Slavski Laz, izmenično enosmerni promet, zdrs brežine.</content>
+    <category term="Ovire" />
+  </entry>
+  <entry>
+    <title>R3-671, Križaj - Podbočje - Šutna: Ovire</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/824538</id>
+    <updated>2026-06-22T10:08:13.097Z</updated>
+    <content>R3-671, Križaj - Podbočje - Šutna, Brod pri Podbočju, most čez Krko, popolna zapora, poškodovan most. Obvoz: čez Kostanjevico na Krki.</content>
+    <category term="Ovire" />
+  </entry>
+  <entry>
+    <title>G1-2, Spuhlja - Ormož: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/823378</id>
+    <updated>2026-08-21T06:21:41.447Z</updated>
+    <content>G1-2, Ptuj - Ormož, pri Ormožu, popolna zapora, promet poteka ob gradbišču, izgradnja nadvoza, do 22. 2. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-733, Vavta Vas - Dolenjske Toplice - Podturn: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/822956</id>
+    <updated>2026-01-05T06:53:49.89Z</updated>
+    <content>R3-733, Vavta vas - Dolenjske Toplice - Podturn, v Dolenjskih Toplicah, izmenično enosmerni promet, sanacija hotela Vital, do 30. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-403, Češnjica - Škofja Loka: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/820804</id>
+    <updated>2026-03-30T05:23:49.993Z</updated>
+    <content>R2-403, Češnjica - Škofja Loka, pri Praprotnem, izmenično enosmerni promet, zaradi ureditve ceste, do 30. 3. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-210, Sovodenj - Cerkno: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/817780</id>
+    <updated>2026-11-20T07:12:49.05Z</updated>
+    <content>R1-210, Trebija - Cerkno, pri Podlanišču, izmenično enosmerni promet, pomična zapora, sanacije brežin in rekonstrukcije ceste, do 21. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-220, Krško - Brežice: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/809213</id>
+    <updated>2026-10-30T13:10:15.857Z</updated>
+    <content>R1-220, Krško - Brežice, Libna - Stari Grad, izmenično enosmerni promet, izgradnja peš povezave, do 30. 11. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R1-207, Godovič - Črni Vrh: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/774313</id>
+    <updated>2026-08-24T05:54:27.03Z</updated>
+    <content>R1-207, Col - Črni Vrh - Godovič, v Črnem Vrhu, izmenično enosmerni promet, rekonstrukcija ceste, do 27. 3. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>H4 , Razdrto - Nova Gorica: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/765920</id>
+    <updated>2026-02-13T15:18:45.4Z</updated>
+    <content>H4, Razdrto - Nova Gorica, prehod Vrtojba v smeri Vrtojbe, Italije, dela, zaprt prehitevalni pas.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G2-112, Ravne - Dravograd: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/764167</id>
+    <updated>2026-11-17T08:01:46.613Z</updated>
+    <content>G2-112, Ravne - Dravograd, na Ravnah, na Koroški cesti, izmenično enosmerni promet, rekonstrukcija ceste in ureditev kolesarske poti, do 14. 5. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R2-407, Gorenja Vas - Ljubljanica: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/761009</id>
+    <updated>2026-04-15T06:31:38.94Z</updated>
+    <content>R2-407, Gorenja vas - Ljubljanica - Vrhnika, v Gorenji Dobravi, izmenično enosmerni promet, ureditev ceste na dveh odsekih, do 21. 1. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>G2-103, Ušnik - Plave: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/759775</id>
+    <updated>2026-10-20T09:42:16.15Z</updated>
+    <content>G2-103, Nova Gorica - Tolmin, pri Doblarju na dveh lokacijah, izmenično enosmerni promet, rekonstrukcija 110 kV stikališča HE Doblar in sanacija podpornih vencev in zidov, do 29. 12. 2026.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-663, Radovica - Ostriž: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/709414</id>
+    <updated>2026-05-04T07:15:51.06Z</updated>
+    <content>R3-663, Radovica - Ostriž, v Radovici, izmenično enosmerni promet, gradnja zidu ob cesti, do 4. 1. 2027.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-638, Begunje - Bistrica  (Tržič): Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/687754</id>
+    <updated>2025-12-23T07:37:06.973Z</updated>
+    <content>R3-638, Begunje - Bistrica (Tržič), Zadnja vas - Paloviče, izmenično enosmerni promet, nevarnost plazov.</content>
+    <category term="Delo" />
+  </entry>
+  <entry>
+    <title>R3-708, Zgornja Kungota - Plač  (Mejni Prehod): Tovornjaki</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/647025</id>
+    <updated>2025-03-31T06:49:07.457Z</updated>
+    <content>R3-708, Zg. Kungota - Plač, prepoved za tovorna vozila nad 7,5 tone.</content>
+    <category term="Tovornjaki" />
+  </entry>
+  <entry>
+    <title>R3-662, Metlika - Božakovo: Ovire</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/431733</id>
+    <updated>2026-01-05T06:45:09.097Z</updated>
+    <content>R3-662, Metlika - Božakovo, prehod Božakovo, popolna zapora, porušen most.</content>
+    <category term="Ovire" />
+  </entry>
+  <entry>
+    <title>RT-930, Pesek - Oplotnica: Delo</title>
+    <id>tag:promet.si,2000:/_archives/dogodki/301899</id>
+    <updated>2026-10-29T07:55:51.263Z</updated>
+    <content>RT-930, Pesek - Oplotnica, popolna zapora, modernizacija ceste, do 31. 12. 2026. Obvoz: po cesti Areh - Šumik - Osankarica - Lukanja in po lokalni cesti Kebelj - Osankarica ter Gladomes - Podgrad. Promet do kamnoloma je omogočen.</content>
+    <category term="Delo" />
+  </entry>
+</feed>
