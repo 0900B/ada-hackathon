@@ -1,0 +1,537 @@
+{
+ "meta": {
+  "synthetic": true,
+  "scenario": "ljubljana_scenario.json",
+  "legend": {
+   "engine": "payload matches backend/app/models.py OperatorEvent and is validated",
+   "extension": "needs new engine support; payload is a proposal"
+  }
+ },
+ "events": [
+  {
+   "id": "S01",
+   "name_en": "Vehicle breakdown with equipment (and a patient) on board",
+   "name_sl": "Okvara vozila z opremo (in pacientom) na krovu",
+   "kind": "engine",
+   "at_local": "09:15",
+   "engine_event": {
+    "type": "breakdown",
+    "vehicle_id": "A07",
+    "note": "engine failure, defibrillator set and patient on board"
+   },
+   "extension_fields": {
+    "equipment_aboard": [
+     "EQ-002"
+    ],
+    "patient_aboard": true
+   },
+   "expected_replan": [
+    "A07 out of service; its queued trips are reassigned",
+    "The patient aboard is picked up first, at the breakdown site, as urgent",
+    "EQ-002 is collected from the breakdown site by another vehicle BEFORE it is delivered to zd_ig (challenge rule)",
+    "Ambulances are kept free for emergencies; sanitary vans take the seated and wheelchair cases",
+    "A replacement vehicle is due within 2 hours at most (dispatch rulebook, art. 22); a reserve vehicle needs a crew"
+   ],
+   "messages_sl": [
+    "Vozilo je obstalo. Oprema je še v njem.",
+    "A07 ima okvaro motorja na Zaloški cesti, pacient je še v vozilu.",
+    "Zmanjkalo nam je goriva, stojimo v Medvodah."
+   ],
+   "basis": [
+    "challenge brief: equipment in a broken vehicle must first be picked up by another vehicle"
+   ]
+  },
+  {
+   "id": "S02",
+   "name_en": "Delay of one vehicle",
+   "name_sl": "Zamuda vozila",
+   "kind": "engine",
+   "at_local": "08:00",
+   "engine_event": {
+    "type": "delay",
+    "vehicle_id": "A03",
+    "minutes": 25,
+    "note": "stuck behind a jack-knifed truck"
+   },
+   "expected_replan": [
+    "Trips later in A03's queue that now miss due_by move to other vehicles when that helps"
+   ],
+   "messages_sl": [
+    "Zaradi kolone zamujamo približno petindvajset minut.",
+    "Stojimo za zaledenelim tovornjakom, še dvajset minut."
+   ],
+   "basis": [
+    "challenge brief: vehicle delays"
+   ]
+  },
+  {
+   "id": "S03",
+   "name_en": "Road closure near UKC",
+   "name_sl": "Zapora ceste pri UKC",
+   "kind": "engine",
+   "at_local": "08:30",
+   "engine_event": {
+    "type": "road_closure",
+    "lat": 46.0565,
+    "lon": 14.53,
+    "radius_m": 500,
+    "kind": "road_closure",
+    "description": "Zaloška cesta closed after a collision (near UKC)"
+   },
+   "expected_replan": [
+    "Legs that pass the closure are re-timed; trips to and from UKC from the east are re-routed or swapped"
+   ],
+   "messages_sl": [
+    "Zaloška cesta je zaprta zaradi nesreče pri UKC.",
+    "Cesta proti Vrhniki je zaprta, ne moremo mimo."
+   ],
+   "basis": [
+    "challenge brief: road closures",
+    "same closure as the team's stroke scenario"
+   ]
+  },
+  {
+   "id": "S04",
+   "name_en": "Urgent new task: suspected stroke",
+   "name_sl": "Nova nujna naloga: sum na možgansko kap",
+   "kind": "engine",
+   "at_local": "09:00",
+   "engine_event": {
+    "type": "urgent_request",
+    "pickup_id": "home_polje",
+    "dropoff_id": "ukc",
+    "needs": "stretcher",
+    "priority": "emergency",
+    "note": "suspected stroke, FAST positive"
+   },
+   "expected_replan": [
+    "Nearest suitable free NRV is sent, even if it must leave a lower-priority trip",
+    "Hospital pre-alert is drafted"
+   ],
+   "messages_sl": [
+    "Nujno! Sum na možgansko kap v Polju, pacient je na nosilih.",
+    "Klic: padec na ledu v Šiški, sum na zlom kolka."
+   ],
+   "basis": [
+    "challenge brief: urgent new task"
+   ]
+  },
+  {
+   "id": "S05",
+   "name_en": "Second urgent call while teams are busy",
+   "name_sl": "Drugi nujni klic, ekipe so zasedene",
+   "kind": "engine",
+   "at_local": "09:10",
+   "engine_event": {
+    "type": "urgent_request",
+    "pickup_id": "home_crnuce",
+    "dropoff_id": "ukc",
+    "needs": "stretcher",
+    "priority": "emergency",
+    "note": "chest pain, second emergency within 10 minutes"
+   },
+   "expected_replan": [
+    "Both emergencies are served; the dispatcher keeps an even access time across the area"
+   ],
+   "messages_sl": [
+    "Še en nujen klic: bolečina v prsih v Črnučah."
+   ],
+   "basis": [
+    "UKC dispatch plan: spread teams so access time is even"
+   ]
+  },
+  {
+   "id": "S06",
+   "name_en": "Snowfall",
+   "name_sl": "Sneženje",
+   "kind": "engine",
+   "at_local": "07:30",
+   "engine_event": {
+    "type": "weather_override",
+    "clear": false,
+    "snowfall_cm": 3,
+    "precipitation_mm": 3,
+    "temperature_c": -2,
+    "wind_speed_kmh": 20
+   },
+   "expected_replan": [
+    "All legs slow down; late trips are reprioritised"
+   ],
+   "messages_sl": [
+    "Sneži, ceste so spolzke, vozimo počasneje."
+   ],
+   "basis": [
+    "team's snow scenario"
+   ]
+  },
+  {
+   "id": "X01",
+   "name_en": "Fog grounds the helicopter for 1 hour",
+   "name_sl": "Megla: helikopter prizemljen eno uro",
+   "kind": "extension",
+   "at_local": "08:30",
+   "proposed_payload": {
+    "type": "helicopter_grounded",
+    "vehicle_id": "H1",
+    "location_id": "brnik",
+    "duration_min": 60,
+    "reason": "fog"
+   },
+   "expected_replan": [
+    "H1 cannot take any task until 09:30; tasks planned for H1 move to road vehicles",
+    "If the organ task is waiting, it switches to an ambulance if the deadline still holds"
+   ],
+   "messages_sl": [
+    "Megla na Brniku, helikopter ne more vzleteti vsaj eno uro.",
+    "HNMP je zaradi megle prizemljen."
+   ],
+   "basis": [
+    "challenge brief: fog grounds the helicopter for 1 h at the centre",
+    "HNMP site: fog on a fifth to a quarter of days at Brnik"
+   ]
+  },
+  {
+   "id": "X02",
+   "name_en": "Patient priority change",
+   "name_sl": "Sprememba prioritete pacienta",
+   "kind": "extension",
+   "at_local": "09:30",
+   "proposed_payload": {
+    "type": "priority_change",
+    "trip_id": "TR-034",
+    "from": "urgent",
+    "to": "emergency"
+   },
+   "expected_replan": [
+    "The trip's due_by tightens to the emergency slack; a nearer vehicle is chosen"
+   ],
+   "messages_sl": [
+    "Pacient P-127 se je poslabšal, zdaj je nujno."
+   ],
+   "basis": [
+    "challenge brief: patient priority change"
+   ]
+  },
+  {
+   "id": "X03",
+   "name_en": "Reduced hospital capacity: yellow alarm at UKC",
+   "name_sl": "Zmanjšana kapaciteta bolnišnice: rumeni alarm v UKC",
+   "kind": "extension",
+   "at_local": "10:00",
+   "proposed_payload": {
+    "type": "hospital_capacity",
+    "hospital_id": "ukc",
+    "alarm": "yellow",
+    "free": {
+     "resus_bays": 1,
+     "icu_beds": 1,
+     "operating_rooms": 1,
+     "ventilators": 3
+    },
+    "forecast": {
+     "plus_1h": {
+      "icu_beds": 2
+     },
+     "plus_2h": {
+      "icu_beds": 4
+     }
+    },
+    "report_within_min": 15,
+    "synthetic": true
+   },
+   "expected_replan": [
+    "Non-urgent arrivals at UKC are delayed or moved to the outpatient clinics where possible",
+    "Red cases still go to UKC (no alternative in the region); a distribution key limits how many arrive per hour",
+    "Planner reads forecasts at +1 h and +2 h"
+   ],
+   "messages_sl": [
+    "UKC je razglasil rumeni alarm. Prostih je le še en reanimacijski prostor.",
+    "Urgenca je polna, sprejemamo samo življenjsko ogrožene."
+   ],
+   "basis": [
+    "MCI guideline: green, yellow, red hospital alarm; free capacity reported within 15 min with +1 h and +2 h forecasts",
+    "UKC is the only large emergency hospital in the Ljubljana region"
+   ]
+  },
+  {
+   "id": "X04",
+   "name_en": "Mass casualty on the motorway",
+   "name_sl": "Množična nesreča na avtocesti",
+   "kind": "extension",
+   "at_local": "10:30",
+   "proposed_payload": {
+    "type": "mass_casualty",
+    "site": {
+     "lat": 45.98,
+     "lon": 14.34,
+     "description": "motorway near Vrhnika (illustrative location)"
+    },
+    "casualties": {
+     "red": 3,
+     "yellow": 4,
+     "green": 5
+    },
+    "methane_report": true,
+    "activates": [
+     "mass_casualty_trailer_ljubljana",
+     "hospital_alarm_yellow",
+     "helicopter_request"
+    ],
+    "vehicle_cap_surge": 25
+   },
+   "expected_replan": [
+    "Nearest NRVs go first, one per red patient; the rest follow by triage",
+    "Cancel or delay scheduled trips; recall busy teams as soon as they finish",
+    "Free reserve vehicles are staffed by recalls (lead time assumed)",
+    "Helicopter used only if daylight and no fog; one patient per flight",
+    "Hospital distribution key applied"
+   ],
+   "vehicle_estimate": {
+    "capacity_rule": "an emergency ambulance is equipped for about 2 serious + 2 lighter patients",
+    "by_capacity": "7 serious need at least 4 ambulances",
+    "practical_inference": "1 per red + 1 per 2 yellow + 1 per 4 green = 3 + 2 + 2 = 7 vehicles",
+    "tag": "inference"
+   },
+   "messages_sl": [
+    "Množična nesreča na primorski avtocesti pri Vrhniki: trije rdeči, štirje rumeni, pet zelenih.",
+    "Prvi na kraju: avtobus se je prevrnil, okoli dvanajst ponesrečencev, potrebujemo dodatna vozila."
+   ],
+   "basis": [
+    "MCI guideline 2013: first team reports in METHANE format; dispatcher checklist; 25-vehicle surge at the UKC station"
+   ]
+  },
+  {
+   "id": "X05",
+   "name_en": "UKC helipad out of service",
+   "name_sl": "Heliport UKC izpadel",
+   "kind": "extension",
+   "at_local": "11:00",
+   "proposed_payload": {
+    "type": "helipad_out",
+    "site_id": "ukc_helipad",
+    "reason": "fire-suppression system fault",
+    "substitute_site_id": "peperko_barracks",
+    "extra_road_leg": true
+   },
+   "expected_replan": [
+    "Helicopter drop-offs switch to the substitute site; an ambulance leg to UKC is added",
+    "Total time to UKC rises; planner compares with road-only"
+   ],
+   "messages_sl": [
+    "Heliport UKC je izpadel zaradi okvare gasilnega sistema, pristajamo v vojašnici Edvarda Peperka."
+   ],
+   "basis": [
+    "UKC annual report 2025: temporary helipad outages, substitute site set up with the Ministry of Defence each time"
+   ]
+  },
+  {
+   "id": "X06",
+   "name_en": "Radio network down, phone app as backup",
+   "name_sl": "Radijska zveza ne deluje, rezervni sistem",
+   "kind": "extension",
+   "at_local": "11:30",
+   "proposed_payload": {
+    "type": "comms_degraded",
+    "channel": "state radio DRO DMR",
+    "fallback": "phone app Intervencije.net",
+    "position_update_s": {
+     "normal": 10,
+     "degraded": 60
+    },
+    "status_messages": "delayed or missing"
+   },
+   "expected_replan": [
+    "Vehicle positions become stale; planner widens ETA uncertainty",
+    "Engine data-source health goes to stale, the demo already shows this"
+   ],
+   "messages_sl": [
+    "Radijska zveza ne deluje, prehajamo na aplikacijo Intervencije.net."
+   ],
+   "basis": [
+    "dispatch-service plan 2022: radio network coverage problems; phone app as backup",
+    "degraded update interval is an ASSUMPTION"
+   ]
+  },
+  {
+   "id": "X07",
+   "name_en": "Crew shortage: two crews off sick",
+   "name_sl": "Pomanjkanje posadk",
+   "kind": "extension",
+   "at_local": "06:30",
+   "proposed_payload": {
+    "type": "crew_shortage",
+    "vehicle_ids": [
+     "A04",
+     "A09"
+    ],
+    "reason": "sick leave",
+    "replacement": "call-in from home",
+    "assumed_lead_time_min": 45
+   },
+   "expected_replan": [
+    "A04 and A09 leave the pool; trips planned for them move",
+    "Reserve vehicle becomes usable only after the lead time"
+   ],
+   "messages_sl": [
+    "Reševalca na A04 sta zbolela, vozilo ne more na teren.",
+    "Dve ekipi manjkata, kličemo rezervne iz doma."
+   ],
+   "basis": [
+    "UKC annual reports: staff shortage; dispatch plan: reserve-vehicle quota",
+    "lead time is an ASSUMPTION"
+   ]
+  },
+  {
+   "id": "X08",
+   "name_en": "Private non-urgent providers added",
+   "name_sl": "Zasebni prevozniki dodani",
+   "kind": "extension",
+   "at_local": "10:45",
+   "proposed_payload": {
+    "type": "capacity_added",
+    "provider": "private non-urgent transport",
+    "vehicles": [
+     {
+      "type": "transport",
+      "count": 4,
+      "lead_time_min": 30
+     }
+    ],
+    "allowed_tasks": [
+     "seated",
+     "wheelchair",
+     "lighter casualties",
+     "secondary transfers"
+    ],
+    "authority": "dispatcher checks availability; minister's decision in a declared disaster"
+   },
+   "expected_replan": [
+    "Scheduled trips move to the added vehicles after their lead time",
+    "Emergency ambulances are freed for stretcher and red cases"
+   ],
+   "messages_sl": [
+    "Zasebni prevozniki so na voljo: štiri sanitetna vozila v 30 minutah."
+   ],
+   "basis": [
+    "MCI guideline checklist: ask private ambulance services about availability",
+    "count and lead time are ASSUMPTIONS"
+   ]
+  },
+  {
+   "id": "X09",
+   "name_en": "Disaster declared (earthquake, intensity VII)",
+   "name_sl": "Razglašena nesreča (potres)",
+   "kind": "extension",
+   "at_local": "12:00",
+   "proposed_payload": {
+    "type": "disaster_declared",
+    "kind": "earthquake",
+    "intensity_ems": 7,
+    "national_plan_active": true,
+    "ministry_plan_active": true,
+    "effects": {
+     "vehicle_cap": 25,
+     "call_in_staff": true,
+     "elective_freeze": true,
+     "non_urgent_providers": true,
+     "red_cross_teams": true
+    }
+   },
+   "expected_replan": [
+    "Pool grows in steps (own, reserve, private, Red Cross) with lead times",
+    "Scheduled trips are suspended; evacuation of immobile people uses non-urgent providers via dispatch"
+   ],
+   "messages_sl": [
+    "Potres jakosti sedem po evropski lestvici, državni načrt je aktiviran, minister je aktiviral načrt ministrstva za zdravje."
+   ],
+   "basis": [
+    "Ministry of Health plan 2025: tiers by intensity; minister activates by order after national plan"
+   ]
+  },
+  {
+   "id": "X10",
+   "name_en": "Organ transport task",
+   "name_sl": "Prevoz organa",
+   "kind": "extension",
+   "at_local": "10:30",
+   "proposed_payload": {
+    "type": "organ_task",
+    "task_id": "ORG-001"
+   },
+   "expected_replan": [
+    "Choose helicopter (about 31 min flight plus loading) if daylight and no fog, else ambulance (about 80 to 95 min, estimate)",
+    "Deadline from cross-clamp plus cold-ischaemia limit; pre-clear the UKC helipad crew",
+    "Other work is shed first if both options are tight"
+   ],
+   "messages_sl": [
+    "Srce za presaditev v UKC Maribor je pripravljeno, prevzem ob 10.30."
+   ],
+   "basis": [
+    "Slovenija-transplant: central coordinators 24/7; Falcon used for long legs",
+    "limits from general medical sources"
+   ]
+  }
+ ],
+ "playlists": [
+  {
+   "id": "P1",
+   "name": "Fog and an organ",
+   "events": [
+    "X10",
+    "X01"
+   ],
+   "idea": "Heart in Maribor; fog arrives; helicopter out; road transport decided against the 4 h limit"
+  },
+  {
+   "id": "P2",
+   "name": "Motorway mass casualty",
+   "events": [
+    "X04",
+    "S05",
+    "X03",
+    "X08"
+   ],
+   "idea": "Many patients at once; second call; hospital alarm; private providers added"
+  },
+  {
+   "id": "P3",
+   "name": "Hospital pressure",
+   "events": [
+    "X03",
+    "X02",
+    "X05"
+   ],
+   "idea": "Yellow alarm, a patient gets worse, helipad is out"
+  },
+  {
+   "id": "P4",
+   "name": "Comms and crews",
+   "events": [
+    "X07",
+    "X06",
+    "S04"
+   ],
+   "idea": "Staff short, radio down, a stroke call comes in"
+  },
+  {
+   "id": "P5",
+   "name": "Breakdown with equipment",
+   "events": [
+    "S01",
+    "S03"
+   ],
+   "idea": "The challenge's own example plus a closure on the way"
+  },
+  {
+   "id": "P6",
+   "name": "Escalation to disaster",
+   "events": [
+    "S06",
+    "S05",
+    "X04",
+    "X09"
+   ],
+   "idea": "Snow, then incidents, then a declared disaster"
+  }
+ ]
+}

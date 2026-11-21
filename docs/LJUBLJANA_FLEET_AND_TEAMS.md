@@ -4,6 +4,8 @@ Companion to [EMS_RESEARCH.md](EMS_RESEARCH.md) and [WORKFLOWS.md](WORKFLOWS.md)
 
 **Tags:** **[S]** stated in a source I read; **[I]** my inference or arithmetic from sourced numbers; **[?]** not found; **[SS]** only seen in a web-search summary, not yet confirmed in the original text.
 
+**Updated figures (2025 annual report):** 48,754 interventions and 16,087 life-threatening at dispatch; 137 station staff (76 nurses or health technicians, 47 rescuers, 14 other); dispatch coordinates up to 123 teams; UKC bought ambulances with its own funds; the station has its own renovated workshop (outside repairs average 12 to 96 hours); the dispatch software is Computel NMP 3000. Details and the status of every gap are in [GAPS_STATUS.md](GAPS_STATUS.md). The 2024 and 2022 figures below are kept for the trend.
+
 ---
 
 ## 1. Short answers

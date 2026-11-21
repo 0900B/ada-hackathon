@@ -1,6 +1,6 @@
 # Slovenian emergency medical services: research findings (Ljubljana focus)
 
-Researched 2026-11-21 for the AdaHack Epilog challenge #3. Workflow diagrams and per-step data dependencies are in [WORKFLOWS.md](WORKFLOWS.md); image copies are in `docs/diagrams/`. Ljubljana fleet, teams, shifts and dispatch decision: [LJUBLJANA_FLEET_AND_TEAMS.md](LJUBLJANA_FLEET_AND_TEAMS.md). Surge capacity, private ambulances, army, multi-event coordination: [SURGE_AND_MULTI_SERVICE_COORDINATION.md](SURGE_AND_MULTI_SERVICE_COORDINATION.md).
+Researched 2026-11-21 for the AdaHack Epilog challenge #3. Workflow diagrams and per-step data dependencies are in [WORKFLOWS.md](WORKFLOWS.md); image copies are in `docs/diagrams/`. Ljubljana fleet, teams, shifts and dispatch decision: [LJUBLJANA_FLEET_AND_TEAMS.md](LJUBLJANA_FLEET_AND_TEAMS.md). Surge capacity, private ambulances, army, multi-event coordination: [SURGE_AND_MULTI_SERVICE_COORDINATION.md](SURGE_AND_MULTI_SERVICE_COORDINATION.md). Totals, seasons, fuel, breaks, cleaning, handover: [OPERATIONS_DETAILS.md](OPERATIONS_DETAILS.md). Scenario data, surge events, gap status: [SCENARIO_DATA.md](SCENARIO_DATA.md), [SURGE_EVENTS.md](SURGE_EVENTS.md), [GAPS_STATUS.md](GAPS_STATUS.md).
 
 **How to read this:** each fact is tagged **[S]** stated in a source I read, **[I]** my inference, **[?]** not found. Several PDFs could not be read by the web fetch tool, so I extracted their text locally and read it directly; those are marked "(read in full)". Source dates are given because some are old.
 
@@ -131,7 +131,7 @@ Sources: Slovenija-transplant pages (donor network, transplantation, statistics,
 | Transplants per year | about 110 (statistics headline) | 103 (2025 breakdown), about 120 (transplantation page) | 103 |
 | Adult SNMP phone | +386 1 522 84 08 | +386 1 555 2222 | not needed |
 
-## 8. Gaps (not found)
+## 8. Gaps (not found), see [GAPS_STATUS.md](GAPS_STATUS.md) for the updated status
 
 1. Who owns or leases ambulances in Ljubljana
 2. The routing software used by dispatch (live GPS tracking is now confirmed as a rulebook requirement)

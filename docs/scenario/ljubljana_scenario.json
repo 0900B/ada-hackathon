@@ -1,0 +1,1498 @@
+{
+ "meta": {
+  "name": "Ljubljana morning, Monday 23 Nov 2026",
+  "synthetic": true,
+  "seed": 20261123,
+  "window_local": {
+   "from": "06:00",
+   "to": "14:00",
+   "tz": "Europe/Ljubljana (UTC+1 in November)"
+  },
+  "times": "UTC in the engine-compatible sections",
+  "sizing": {
+   "real_daily_interventions": "about 134 in 2025 (48,754 per year), life-threatening 33 percent (16,087)",
+   "this_window": "48 trips: 16 emergency, 16 urgent, 16 scheduled"
+  },
+  "sources": [
+   "UKC annual reports 2024 and 2025",
+   "ZZZS programme decree 2026",
+   "HNMP site",
+   "thesis 2024"
+  ],
+  "engine_compatible_sections": [
+   "places",
+   "vehicles",
+   "trips"
+  ],
+  "assumptions": [
+   "10 NRV at the station, 1 at Vrhnika, 1 at Ivančna Gorica (outposts are real; counts are assumed)",
+   "Shift start hours 07:00 and 19:00",
+   "Hospital capacity numbers are invented",
+   "Trip times are generated, peaks at 07:30, 09:30, 12:00"
+  ]
+ },
+ "places": [
+  {
+   "id": "ukc",
+   "name": "UKC Ljubljana",
+   "kind": "hospital",
+   "lat": 46.0563,
+   "lon": 14.5232
+  },
+  {
+   "id": "onko",
+   "name": "Oncology Institute Ljubljana",
+   "kind": "hospital",
+   "lat": 46.0538,
+   "lon": 14.5222
+  },
+  {
+   "id": "dialysis",
+   "name": "Dialysis centre (simulated)",
+   "kind": "hospital",
+   "lat": 46.061,
+   "lon": 14.529
+  },
+  {
+   "id": "zd_center",
+   "name": "Health centre Ljubljana Center",
+   "kind": "health_centre",
+   "lat": 46.0573,
+   "lon": 14.5155
+  },
+  {
+   "id": "zd_siska",
+   "name": "Health centre Šiška",
+   "kind": "health_centre",
+   "lat": 46.0705,
+   "lon": 14.493
+  },
+  {
+   "id": "zd_vic",
+   "name": "Health centre Vič",
+   "kind": "health_centre",
+   "lat": 46.0445,
+   "lon": 14.4905
+  },
+  {
+   "id": "base_center",
+   "name": "Ambulance station (Zaloška cesta, approx.)",
+   "kind": "base",
+   "lat": 46.058,
+   "lon": 14.5265
+  },
+  {
+   "id": "base_west",
+   "name": "Ambulance base West (team seed, not a real site)",
+   "kind": "base",
+   "lat": 46.069,
+   "lon": 14.48
+  },
+  {
+   "id": "home_siska",
+   "name": "Šiška",
+   "kind": "residential",
+   "lat": 46.0735,
+   "lon": 14.479
+  },
+  {
+   "id": "home_vic",
+   "name": "Vič",
+   "kind": "residential",
+   "lat": 46.04,
+   "lon": 14.482
+  },
+  {
+   "id": "home_moste",
+   "name": "Moste",
+   "kind": "residential",
+   "lat": 46.056,
+   "lon": 14.542
+  },
+  {
+   "id": "home_bezigrad",
+   "name": "Bežigrad",
+   "kind": "residential",
+   "lat": 46.072,
+   "lon": 14.511
+  },
+  {
+   "id": "home_rudnik",
+   "name": "Rudnik",
+   "kind": "residential",
+   "lat": 46.027,
+   "lon": 14.53
+  },
+  {
+   "id": "home_crnuce",
+   "name": "Črnuče",
+   "kind": "residential",
+   "lat": 46.102,
+   "lon": 14.532
+  },
+  {
+   "id": "home_polje",
+   "name": "Polje",
+   "kind": "residential",
+   "lat": 46.062,
+   "lon": 14.59
+  },
+  {
+   "id": "home_domzale",
+   "name": "Domžale",
+   "kind": "residential",
+   "lat": 46.138,
+   "lon": 14.594
+  },
+  {
+   "id": "home_medvode",
+   "name": "Medvode",
+   "kind": "residential",
+   "lat": 46.142,
+   "lon": 14.413
+  },
+  {
+   "id": "home_vrhnika",
+   "name": "Vrhnika",
+   "kind": "residential",
+   "lat": 45.965,
+   "lon": 14.295
+  },
+  {
+   "id": "home_grosuplje",
+   "name": "Grosuplje",
+   "kind": "residential",
+   "lat": 45.955,
+   "lon": 14.658
+  },
+  {
+   "id": "home_skofljica",
+   "name": "Škofljica",
+   "kind": "residential",
+   "lat": 45.984,
+   "lon": 14.577
+  },
+  {
+   "id": "zd_vrhnika",
+   "name": "Health centre Vrhnika (ambulance outpost, approx.)",
+   "kind": "health_centre",
+   "lat": 45.966,
+   "lon": 14.301
+  },
+  {
+   "id": "zd_ig",
+   "name": "Health centre Ivančna Gorica (ambulance outpost, approx.)",
+   "kind": "health_centre",
+   "lat": 45.939,
+   "lon": 14.804
+  }
+ ],
+ "vehicles": [
+  {
+   "id": "A01",
+   "name": "NRV 01",
+   "type": "ambulance",
+   "base_id": "base_center",
+   "lat": 46.058,
+   "lon": 14.5265,
+   "status": "idle",
+   "current_trip_id": null,
+   "queue": [],
+   "busy_until": null
+  },
+  {
+   "id": "A02",
+   "name": "NRV 02",
+   "type": "ambulance",
+   "base_id": "base_center",
+   "lat": 46.058,
+   "lon": 14.5265,
+   "status": "idle",
+   "current_trip_id": null,
+   "queue": [],
+   "busy_until": null
+  },
+  {
+   "id": "A03",
+   "name": "NRV 03",
+   "type": "ambulance",
+   "base_id": "base_center",
+   "lat": 46.058,
+   "lon": 14.5265,
+   "status": "idle",
+   "current_trip_id": null,
+   "queue": [],
+   "busy_until": null
+  },
+  {
+   "id": "A04",
+   "name": "NRV 04",
+   "type": "ambulance",
+   "base_id": "base_center",
+   "lat": 46.058,
+   "lon": 14.5265,
+   "status": "idle",
+   "current_trip_id": null,
+   "queue": [],
+   "busy_until": null
+  },
+  {
+   "id": "A05",
+   "name": "NRV 05",
+   "type": "ambulance",
+   "base_id": "base_center",
+   "lat": 46.058,
+   "lon": 14.5265,
+   "status": "idle",
+   "current_trip_id": null,
+   "queue": [],
+   "busy_until": null
+  },
+  {
+   "id": "A06",
+   "name": "NRV 06",
+   "type": "ambulance",
+   "base_id": "base_center",
+   "lat": 46.058,
+   "lon": 14.5265,
+   "status": "idle",
+   "current_trip_id": null,
+   "queue": [],
+   "busy_until": null
+  },
+  {
+   "id": "A07",
+   "name": "NRV 07",
+   "type": "ambulance",
+   "base_id": "base_center",
+   "lat": 46.058,
+   "lon": 14.5265,
+   "status": "idle",
+   "current_trip_id": null,
+   "queue": [],
+   "busy_until": null
+  },
+  {
+   "id": "A08",
+   "name": "NRV 08",
+   "type": "ambulance",
+   "base_id": "base_center",
+   "lat": 46.058,
+   "lon": 14.5265,
+   "status": "idle",
+   "current_trip_id": null,
+   "queue": [],
+   "busy_until": null
+  },
+  {
+   "id": "A09",
+   "name": "NRV 09",
+   "type": "ambulance",
+   "base_id": "base_center",
+   "lat": 46.058,
+   "lon": 14.5265,
+   "status": "idle",
+   "current_trip_id": null,
+   "queue": [],
+   "busy_until": null
+  },
+  {
+   "id": "A10",
+   "name": "NRV 10",
+   "type": "ambulance",
+   "base_id": "base_center",
+   "lat": 46.058,
+   "lon": 14.5265,
+   "status": "idle",
+   "current_trip_id": null,
+   "queue": [],
+   "busy_until": null
+  },
+  {
+   "id": "A11",
+   "name": "NRV 11",
+   "type": "ambulance",
+   "base_id": "zd_vrhnika",
+   "lat": 45.966,
+   "lon": 14.301,
+   "status": "idle",
+   "current_trip_id": null,
+   "queue": [],
+   "busy_until": null
+  },
+  {
+   "id": "A12",
+   "name": "NRV 12",
+   "type": "ambulance",
+   "base_id": "zd_ig",
+   "lat": 45.939,
+   "lon": 14.804,
+   "status": "idle",
+   "current_trip_id": null,
+   "queue": [],
+   "busy_until": null
+  },
+  {
+   "id": "T01",
+   "name": "Sanitary 01",
+   "type": "transport",
+   "base_id": "base_center",
+   "lat": 46.058,
+   "lon": 14.5265,
+   "status": "idle",
+   "current_trip_id": null,
+   "queue": [],
+   "busy_until": null
+  },
+  {
+   "id": "T02",
+   "name": "Sanitary 02",
+   "type": "transport",
+   "base_id": "base_center",
+   "lat": 46.058,
+   "lon": 14.5265,
+   "status": "idle",
+   "current_trip_id": null,
+   "queue": [],
+   "busy_until": null
+  }
+ ],
+ "trips": [
+  {
+   "id": "TR-001",
+   "patient": "P-117",
+   "priority": "urgent",
+   "needs": "wheelchair",
+   "pickup_id": "zd_vic",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T05:01:00Z",
+   "due_by": "2026-11-23T06:12:00Z",
+   "note": "urgent transfer",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-002",
+   "patient": "P-133",
+   "priority": "scheduled",
+   "needs": "seated",
+   "pickup_id": "onko",
+   "dropoff_id": "home_moste",
+   "pickup_after": "2026-11-23T05:22:00Z",
+   "due_by": "2026-11-23T06:03:00Z",
+   "note": "discharge",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-003",
+   "patient": "P-134",
+   "priority": "scheduled",
+   "needs": "wheelchair",
+   "pickup_id": "ukc",
+   "dropoff_id": "home_siska",
+   "pickup_after": "2026-11-23T05:26:00Z",
+   "due_by": "2026-11-23T05:56:00Z",
+   "note": "discharge",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-004",
+   "patient": "P-118",
+   "priority": "urgent",
+   "needs": "stretcher",
+   "pickup_id": "home_vrhnika",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T05:27:00Z",
+   "due_by": "2026-11-23T07:12:00Z",
+   "note": "urgent transfer",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-005",
+   "patient": "P-119",
+   "priority": "urgent",
+   "needs": "seated",
+   "pickup_id": "zd_center",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T05:31:00Z",
+   "due_by": "2026-11-23T06:38:00Z",
+   "note": "urgent transfer",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-006",
+   "patient": "P-101",
+   "priority": "emergency",
+   "needs": "stretcher",
+   "pickup_id": "home_polje",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T05:41:00Z",
+   "due_by": "2026-11-23T06:15:00Z",
+   "note": "abdominal pain",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-007",
+   "patient": "P-102",
+   "priority": "emergency",
+   "needs": "stretcher",
+   "pickup_id": "home_medvode",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T05:46:00Z",
+   "due_by": "2026-11-23T06:31:00Z",
+   "note": "fall with injury",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-008",
+   "patient": "P-135",
+   "priority": "scheduled",
+   "needs": "wheelchair",
+   "pickup_id": "home_skofljica",
+   "dropoff_id": "zd_siska",
+   "pickup_after": "2026-11-23T05:49:00Z",
+   "due_by": "2026-11-23T06:36:00Z",
+   "note": "outpatient",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-009",
+   "patient": "P-103",
+   "priority": "emergency",
+   "needs": "stretcher",
+   "pickup_id": "home_rudnik",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T05:54:00Z",
+   "due_by": "2026-11-23T06:25:00Z",
+   "note": "seizure",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-010",
+   "patient": "P-120",
+   "priority": "urgent",
+   "needs": "stretcher",
+   "pickup_id": "home_siska",
+   "dropoff_id": "zd_vic",
+   "pickup_after": "2026-11-23T05:55:00Z",
+   "due_by": "2026-11-23T07:07:00Z",
+   "note": "urgent transfer",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-011",
+   "patient": "P-136",
+   "priority": "scheduled",
+   "needs": "seated",
+   "pickup_id": "ukc",
+   "dropoff_id": "home_rudnik",
+   "pickup_after": "2026-11-23T05:56:00Z",
+   "due_by": "2026-11-23T06:24:00Z",
+   "note": "discharge",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-012",
+   "patient": "P-137",
+   "priority": "scheduled",
+   "needs": "stretcher",
+   "pickup_id": "ukc",
+   "dropoff_id": "home_vrhnika",
+   "pickup_after": "2026-11-23T05:56:00Z",
+   "due_by": "2026-11-23T07:13:00Z",
+   "note": "discharge",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-013",
+   "patient": "P-138",
+   "priority": "scheduled",
+   "needs": "wheelchair",
+   "pickup_id": "home_moste",
+   "dropoff_id": "dialysis",
+   "pickup_after": "2026-11-23T05:59:00Z",
+   "due_by": "2026-11-23T06:34:00Z",
+   "note": "dialysis",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-014",
+   "patient": "P-121",
+   "priority": "urgent",
+   "needs": "stretcher",
+   "pickup_id": "home_siska",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T06:15:00Z",
+   "due_by": "2026-11-23T07:29:00Z",
+   "note": "urgent transfer",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-015",
+   "patient": "P-104",
+   "priority": "emergency",
+   "needs": "stretcher",
+   "pickup_id": "home_grosuplje",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T06:18:00Z",
+   "due_by": "2026-11-23T07:07:00Z",
+   "note": "breathing difficulty",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-016",
+   "patient": "P-139",
+   "priority": "scheduled",
+   "needs": "wheelchair",
+   "pickup_id": "home_crnuce",
+   "dropoff_id": "onko",
+   "pickup_after": "2026-11-23T06:33:00Z",
+   "due_by": "2026-11-23T07:14:00Z",
+   "note": "outpatient",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-017",
+   "patient": "P-140",
+   "priority": "scheduled",
+   "needs": "seated",
+   "pickup_id": "home_vrhnika",
+   "dropoff_id": "zd_center",
+   "pickup_after": "2026-11-23T06:37:00Z",
+   "due_by": "2026-11-23T07:45:00Z",
+   "note": "outpatient",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-018",
+   "patient": "P-122",
+   "priority": "urgent",
+   "needs": "seated",
+   "pickup_id": "home_bezigrad",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T06:40:00Z",
+   "due_by": "2026-11-23T07:50:00Z",
+   "note": "urgent transfer",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-019",
+   "patient": "P-141",
+   "priority": "scheduled",
+   "needs": "stretcher",
+   "pickup_id": "home_grosuplje",
+   "dropoff_id": "zd_center",
+   "pickup_after": "2026-11-23T07:05:00Z",
+   "due_by": "2026-11-23T07:59:00Z",
+   "note": "outpatient",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-020",
+   "patient": "P-105",
+   "priority": "emergency",
+   "needs": "stretcher",
+   "pickup_id": "home_skofljica",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T07:06:00Z",
+   "due_by": "2026-11-23T07:45:00Z",
+   "note": "fall with injury",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-021",
+   "patient": "P-142",
+   "priority": "scheduled",
+   "needs": "seated",
+   "pickup_id": "home_siska",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T07:10:00Z",
+   "due_by": "2026-11-23T07:48:00Z",
+   "note": "outpatient",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-022",
+   "patient": "P-106",
+   "priority": "emergency",
+   "needs": "stretcher",
+   "pickup_id": "home_polje",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T07:14:00Z",
+   "due_by": "2026-11-23T07:48:00Z",
+   "note": "breathing difficulty",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-023",
+   "patient": "P-123",
+   "priority": "urgent",
+   "needs": "seated",
+   "pickup_id": "zd_center",
+   "dropoff_id": "zd_center",
+   "pickup_after": "2026-11-23T07:17:00Z",
+   "due_by": "2026-11-23T08:23:00Z",
+   "note": "urgent transfer",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-024",
+   "patient": "P-143",
+   "priority": "scheduled",
+   "needs": "seated",
+   "pickup_id": "home_rudnik",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T07:19:00Z",
+   "due_by": "2026-11-23T07:48:00Z",
+   "note": "outpatient",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-025",
+   "patient": "P-124",
+   "priority": "urgent",
+   "needs": "seated",
+   "pickup_id": "zd_vic",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T07:24:00Z",
+   "due_by": "2026-11-23T08:35:00Z",
+   "note": "urgent transfer",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-026",
+   "patient": "P-107",
+   "priority": "emergency",
+   "needs": "stretcher",
+   "pickup_id": "home_medvode",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T07:27:00Z",
+   "due_by": "2026-11-23T08:12:00Z",
+   "note": "abdominal pain",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-027",
+   "patient": "P-125",
+   "priority": "urgent",
+   "needs": "seated",
+   "pickup_id": "zd_siska",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T07:38:00Z",
+   "due_by": "2026-11-23T08:49:00Z",
+   "note": "urgent transfer",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-028",
+   "patient": "P-108",
+   "priority": "emergency",
+   "needs": "stretcher",
+   "pickup_id": "home_skofljica",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T07:39:00Z",
+   "due_by": "2026-11-23T08:18:00Z",
+   "note": "road collision, minor",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-029",
+   "patient": "P-109",
+   "priority": "emergency",
+   "needs": "stretcher",
+   "pickup_id": "home_domzale",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T07:39:00Z",
+   "due_by": "2026-11-23T08:21:00Z",
+   "note": "breathing difficulty",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-030",
+   "patient": "P-126",
+   "priority": "urgent",
+   "needs": "seated",
+   "pickup_id": "home_bezigrad",
+   "dropoff_id": "onko",
+   "pickup_after": "2026-11-23T07:52:00Z",
+   "due_by": "2026-11-23T09:02:00Z",
+   "note": "urgent transfer",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-031",
+   "patient": "P-144",
+   "priority": "scheduled",
+   "needs": "seated",
+   "pickup_id": "ukc",
+   "dropoff_id": "home_polje",
+   "pickup_after": "2026-11-23T07:55:00Z",
+   "due_by": "2026-11-23T08:34:00Z",
+   "note": "discharge",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-032",
+   "patient": "P-110",
+   "priority": "emergency",
+   "needs": "stretcher",
+   "pickup_id": "home_grosuplje",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T08:15:00Z",
+   "due_by": "2026-11-23T09:04:00Z",
+   "note": "fall with injury",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-033",
+   "patient": "P-111",
+   "priority": "emergency",
+   "needs": "seated",
+   "pickup_id": "home_skofljica",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T09:16:00Z",
+   "due_by": "2026-11-23T09:55:00Z",
+   "note": "abdominal pain",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-034",
+   "patient": "P-127",
+   "priority": "urgent",
+   "needs": "wheelchair",
+   "pickup_id": "zd_center",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T09:32:00Z",
+   "due_by": "2026-11-23T10:39:00Z",
+   "note": "urgent transfer",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-035",
+   "patient": "P-112",
+   "priority": "emergency",
+   "needs": "seated",
+   "pickup_id": "home_grosuplje",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T09:44:00Z",
+   "due_by": "2026-11-23T10:33:00Z",
+   "note": "chest pain",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-036",
+   "patient": "P-128",
+   "priority": "urgent",
+   "needs": "stretcher",
+   "pickup_id": "home_vrhnika",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T09:50:00Z",
+   "due_by": "2026-11-23T11:35:00Z",
+   "note": "urgent transfer",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-037",
+   "patient": "P-145",
+   "priority": "scheduled",
+   "needs": "wheelchair",
+   "pickup_id": "home_polje",
+   "dropoff_id": "dialysis",
+   "pickup_after": "2026-11-23T10:54:00Z",
+   "due_by": "2026-11-23T11:30:00Z",
+   "note": "dialysis",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-038",
+   "patient": "P-129",
+   "priority": "urgent",
+   "needs": "stretcher",
+   "pickup_id": "home_rudnik",
+   "dropoff_id": "zd_vic",
+   "pickup_after": "2026-11-23T10:56:00Z",
+   "due_by": "2026-11-23T12:09:00Z",
+   "note": "urgent transfer",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-039",
+   "patient": "P-130",
+   "priority": "urgent",
+   "needs": "stretcher",
+   "pickup_id": "home_medvode",
+   "dropoff_id": "onko",
+   "pickup_after": "2026-11-23T11:09:00Z",
+   "due_by": "2026-11-23T12:40:00Z",
+   "note": "urgent transfer",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-040",
+   "patient": "P-131",
+   "priority": "urgent",
+   "needs": "wheelchair",
+   "pickup_id": "home_grosuplje",
+   "dropoff_id": "zd_vic",
+   "pickup_after": "2026-11-23T11:10:00Z",
+   "due_by": "2026-11-23T12:47:00Z",
+   "note": "urgent transfer",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-041",
+   "patient": "P-113",
+   "priority": "emergency",
+   "needs": "seated",
+   "pickup_id": "home_medvode",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T11:15:00Z",
+   "due_by": "2026-11-23T12:00:00Z",
+   "note": "chest pain",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-042",
+   "patient": "P-132",
+   "priority": "urgent",
+   "needs": "stretcher",
+   "pickup_id": "home_bezigrad",
+   "dropoff_id": "zd_siska",
+   "pickup_after": "2026-11-23T11:43:00Z",
+   "due_by": "2026-11-23T12:52:00Z",
+   "note": "urgent transfer",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-043",
+   "patient": "P-114",
+   "priority": "emergency",
+   "needs": "stretcher",
+   "pickup_id": "home_skofljica",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T11:58:00Z",
+   "due_by": "2026-11-23T12:37:00Z",
+   "note": "breathing difficulty",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-044",
+   "patient": "P-146",
+   "priority": "scheduled",
+   "needs": "wheelchair",
+   "pickup_id": "home_vrhnika",
+   "dropoff_id": "zd_center",
+   "pickup_after": "2026-11-23T11:59:00Z",
+   "due_by": "2026-11-23T13:07:00Z",
+   "note": "outpatient",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-045",
+   "patient": "P-115",
+   "priority": "emergency",
+   "needs": "stretcher",
+   "pickup_id": "home_medvode",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T12:23:00Z",
+   "due_by": "2026-11-23T13:08:00Z",
+   "note": "collapse",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-046",
+   "patient": "P-147",
+   "priority": "scheduled",
+   "needs": "stretcher",
+   "pickup_id": "onko",
+   "dropoff_id": "home_domzale",
+   "pickup_after": "2026-11-23T12:25:00Z",
+   "due_by": "2026-11-23T13:17:00Z",
+   "note": "discharge",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-047",
+   "patient": "P-116",
+   "priority": "emergency",
+   "needs": "stretcher",
+   "pickup_id": "home_medvode",
+   "dropoff_id": "ukc",
+   "pickup_after": "2026-11-23T12:30:00Z",
+   "due_by": "2026-11-23T13:15:00Z",
+   "note": "breathing difficulty",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  },
+  {
+   "id": "TR-048",
+   "patient": "P-148",
+   "priority": "scheduled",
+   "needs": "wheelchair",
+   "pickup_id": "home_polje",
+   "dropoff_id": "onko",
+   "pickup_after": "2026-11-23T12:30:00Z",
+   "due_by": "2026-11-23T13:21:00Z",
+   "note": "outpatient",
+   "status": "unassigned",
+   "vehicle_id": null,
+   "eta_pickup": null,
+   "eta_dropoff": null,
+   "delay_min": null
+  }
+ ],
+ "extensions": {
+  "note": "Not modelled by backend/app/models.py today. Provided so the team can decide what to add.",
+  "places_extra": [
+   {
+    "id": "ukc_helipad",
+    "name": "UKC Ljubljana rooftop helipad (LJHL)",
+    "kind": "helipad",
+    "lat": 46.055,
+    "lon": 14.5208,
+    "source": "thesis 2024",
+    "tlof_m": 28,
+    "approach_directions": 2,
+    "access": "single bridge",
+    "ground_crew_needed": true
+   },
+   {
+    "id": "brnik",
+    "name": "Brnik airport, HNMP base",
+    "kind": "airfield",
+    "lat": 46.2237,
+    "lon": 14.4576,
+    "source": "approximate"
+   },
+   {
+    "id": "ukc_mb_site",
+    "name": "UKC Maribor landing site",
+    "kind": "helipad",
+    "lat": 46.5512,
+    "lon": 15.6491,
+    "source": "thesis 2024"
+   },
+   {
+    "id": "jesenice_helipad",
+    "name": "SB Jesenice heliport (LJHJ)",
+    "kind": "helipad",
+    "lat": 46.4422,
+    "lon": 14.0375,
+    "source": "thesis 2024"
+   },
+   {
+    "id": "peperko_barracks",
+    "name": "Edvard Peperko barracks, substitute landing site when the UKC helipad is out",
+    "kind": "helipad",
+    "lat": null,
+    "lon": null,
+    "source": "UKC annual report 2025; coordinates not given in the source"
+   }
+  ],
+  "helicopter": {
+   "id": "H1",
+   "name": "HNMP Brnik",
+   "type": "helicopter",
+   "base_id": "brnik",
+   "speed_kmh": 200.0,
+   "patient_capacity": 1,
+   "crew": "doctor + nurse or technician + pilot + rescuer",
+   "operating_window_local": {
+    "from": "08:00",
+    "to": "16:30",
+    "basis": "HNMP schedule 2026, winter half (16 Nov to 31 Dec); no night flying"
+   },
+   "call_to_takeoff_min": {
+    "typical": 13,
+    "range": [
+     12,
+     16
+    ],
+    "basis": "HNMP site 2021 to 2025 averages"
+   },
+   "grounded_by": [
+    "fog",
+    "low cloud base",
+    "strong wind",
+    "darkness"
+   ],
+   "shared_with": "inter-hospital transfers and incubator transports",
+   "straight_line_hints": {
+    "brnik_to_ukc_helipad": {
+     "straight_km": 19.4,
+     "minutes_at_200kmh": 5.8
+    },
+    "ukc_maribor_to_ukc_helipad": {
+     "straight_km": 102.7,
+     "minutes_at_200kmh": 30.8
+    },
+    "jesenice_to_ukc_helipad": {
+     "straight_km": 56.9,
+     "minutes_at_200kmh": 17.1
+    }
+   },
+   "status": "idle"
+  },
+  "duty_roster": {
+   "pattern": "12 h day, next day 12 h night, 2 days off (4-day cycle, 4 rotating groups per team seat)",
+   "source": "Ambulance station website",
+   "shift_start_local": {
+    "day": "07:00",
+    "night": "19:00",
+    "basis": "ASSUMPTION, start hours not published"
+   },
+   "on_duty_teams": {
+    "NRV_ambulance": 12,
+    "motorcycle": 0,
+    "doctor_vehicle_ZD_Ljubljana": 3,
+    "helicopter_HNMP": 1
+   },
+   "motorcycle_note": "Season 1 May to 1 Nov, daylight only, so none on 23 Nov",
+   "max_simultaneous_teams": 16,
+   "emergency_surge_vehicles": 25,
+   "doctor_vehicles": [
+    {
+     "id": "VUZ1"
+    },
+    {
+     "id": "VUZ2"
+    },
+    {
+     "id": "VUZ3"
+    }
+   ],
+   "doctor_vehicle_rule": "joins an NRV crew on scene; not a transport vehicle"
+  },
+  "timing_rules": {
+   "status_chain": [
+    "SPREJETO",
+    "NA POTI",
+    "NA KRAJU",
+    "PRI PACIENTU",
+    "S KRAJA",
+    "NA CILJU",
+    "PREDAJA PACIENTA",
+    "PROST"
+   ],
+   "status_chain_source": "dispatch rulebook, Uradni list RS 58/2017",
+   "handover_max_min": 15,
+   "handover_rule": "after handover the team reports PROST, or the reason if handover took more than 15 min; on dispatcher request the handover is shortened if the patient allows and supplies are sufficient",
+   "replacement_vehicle_max_min": 120,
+   "replacement_vehicle_basis": "dispatch rulebook art. 22: a broken-down unit must provide a replacement within 2 h at most (not for helicopters)",
+   "hospital_capacity_report_max_min": 15,
+   "spare_vehicle_share_min": 0.2,
+   "spare_vehicle_basis": "NMP rulebook, Uradni list RS 81/2015, art. 19: at least 20 percent per vehicle type",
+   "cleaning_after_job_min": {
+    "value": [
+     5,
+     10
+    ],
+    "tag": "ASSUMPTION",
+    "steps": "wipe stretcher, work surfaces and aids, then restock consumables"
+   },
+   "cleaning_after_heavy_bleeding_min": {
+    "value": [
+     30,
+     45
+    ],
+    "tag": "ASSUMPTION",
+    "note": "no Slovenian procedure or time published; includes ventilation and restocking"
+   },
+   "airborne_pathogen": "steam disinfection with hydrogen peroxide (duration not published)",
+   "handover_plus_clean_min": {
+    "value": [
+     15,
+     25
+    ],
+    "tag": "ASSUMPTION"
+   },
+   "break": {
+    "statutory_min_per_day": 30,
+    "counts_as_work_time": true,
+    "earliest_after_work_h": 1,
+    "latest_before_end_h": 1,
+    "proportional_for_12h_shift_min": 45,
+    "proportional_tag": "INFERENCE",
+    "taken_on_standby": true,
+    "source": "ZDR-1 art. 154; station: crews must stay reachable"
+   },
+   "daily_rest_h": 12,
+   "daily_rest_h_uneven_schedule": 11,
+   "weekly_rest_h": 24,
+   "fuel": {
+    "tank_l": 75,
+    "tank_tag": "search summary; Crafter and MAN TGE 75 L, Sprinter 71 to 75 L",
+    "consumption_l_per_100km": [
+     10,
+     14
+    ],
+    "refuel_at_fraction_left": 0.25,
+    "usable_range_km": [
+     400,
+     560
+    ],
+    "range_tag": "ESTIMATE",
+    "km_per_active_day": {
+     "koroska_units_2021": [
+      61,
+      186
+     ],
+     "ljubljana_fleet_average_2018": 90
+    },
+    "refuel_every_days": [
+     2,
+     5
+    ],
+    "refuel_tag": "ESTIMATE"
+   },
+   "interventions_per_day_2024_by_month": {
+    "urgent": [
+     45.6,
+     43.3,
+     40.2,
+     38.2,
+     39.4,
+     42.6,
+     41.8,
+     42.5,
+     42.8,
+     43.9,
+     41.4,
+     46.2
+    ],
+    "non_urgent": [
+     99.9,
+     100.3,
+     91.5,
+     91.1,
+     93.5,
+     91.6,
+     87.9,
+     91.6,
+     91.6,
+     93.1,
+     89.1,
+     89.1
+    ],
+    "source": "UKC annual report 2024, figure 6 divided by days in month"
+   }
+  },
+  "reserve_vehicles": {
+   "count": 9,
+   "basis": "21 ambulances in the fleet (11 modular + 10 combined, end 2022) minus 12 on duty; rule requires at least 20 percent spare per type",
+   "ids": [
+    "R01",
+    "R02",
+    "R03",
+    "R04",
+    "R05",
+    "R06",
+    "R07",
+    "R08",
+    "R09"
+   ],
+   "available_to_crew_in_surge": true,
+   "note": "An unstaffed reserve vehicle needs a crew; the crew comes from recalls or call-in, lead time unknown"
+  },
+  "hospital_capacity": {
+   "SYNTHETIC": true,
+   "note": "Real bed and bay counts are not published in the sources found. These numbers are invented for the scenario. The reporting fields are real: patients accepted at once by triage category, free operating rooms, free ICU beds, free ventilators.",
+   "ukc": {
+    "alarm": "none",
+    "resus_bays_free": 4,
+    "operating_rooms_free": 3,
+    "icu_beds_free": 5,
+    "ventilators_free": 8,
+    "accept_now": {
+     "red": 3,
+     "yellow": 6,
+     "green": 20
+    }
+   },
+   "alternative_emergency_hospitals_in_region": [],
+   "alternatives_note": "UKC is the only large emergency hospital in the Ljubljana region; a diversion means a long transfer (for example SB Jesenice or UKC Maribor), which is why capacity events are hard"
+  },
+  "equipment_tasks": [
+   {
+    "id": "EQ-001",
+    "item": "portable ventilator",
+    "from": "ukc",
+    "to": "zd_vrhnika",
+    "ready_local": "09:00",
+    "due_local": "11:00",
+    "priority": "urgent",
+    "carried_by_vehicle": null,
+    "note": "picked up and delivered by any free vehicle"
+   },
+   {
+    "id": "EQ-002",
+    "item": "mobile defibrillator set",
+    "from": "zd_center",
+    "to": "zd_ig",
+    "ready_local": "07:30",
+    "due_local": "12:00",
+    "priority": "scheduled",
+    "carried_by_vehicle": "A07",
+    "note": "on board A07 at the start; if A07 breaks down, another vehicle must collect it first"
+   },
+   {
+    "id": "EQ-003",
+    "item": "oxygen cylinders",
+    "from": "base_center",
+    "to": "zd_vic",
+    "ready_local": "10:30",
+    "due_local": "13:00",
+    "priority": "scheduled",
+    "carried_by_vehicle": null,
+    "note": ""
+   }
+  ],
+  "organ_task": {
+   "id": "ORG-001",
+   "organ": "heart",
+   "donor_site": "ukc_mb_site",
+   "destination": "ukc_helipad",
+   "cross_clamp_local": "10:30",
+   "cold_ischaemia_limit_h": 4.0,
+   "limit_basis": "heart about 4 to 6 h in general medical sources; the 4 h end is used (conservative)",
+   "latest_arrival_local": "13:00",
+   "latest_arrival_basis": "ASSUMPTION: leaves about 1 h for handover and implant start",
+   "options": {
+    "helicopter": {
+     "straight": {
+      "straight_km": 102.7,
+      "minutes_at_200kmh": 30.8
+     },
+     "needs": "daylight 08:00 to 16:30 and no fog at both ends"
+    },
+    "ambulance": {
+     "road_km_estimate": 130,
+     "minutes_estimate": [
+      80,
+      95
+     ],
+     "basis": "estimate, not routed; replace with OSRM"
+    },
+    "army_jet": {
+     "note": "Falcon 2000EX is used for long flights; not meaningful for a 100 km leg"
+    }
+   },
+   "who_decides": "central transplant coordinator at Slovenija-transplant, 24/7"
+  },
+  "organ_time_limits_h": {
+   "SOURCE": "general medical sources, non-European; no Slovenian or Eurotransplant limits found",
+   "heart": [
+    4,
+    6
+   ],
+   "lung": [
+    4,
+    8
+   ],
+   "liver": [
+    8,
+    12
+   ],
+   "pancreas": [
+    12,
+    18
+   ],
+   "kidney": [
+    24,
+    36
+   ],
+   "scenario_values_conservative": {
+    "heart": 4,
+    "lung": 6,
+    "liver": 10,
+    "kidney": 24
+   }
+  }
+ }
+}
