@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { Link, Navigate, NavLink, Route, Routes } from "react-router";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Link, Navigate, NavLink, Route, Routes, useMatch } from "react-router";
 import {
   API_URL,
   postEvent,
@@ -10,7 +10,10 @@ import {
   type EventRecord,
   type Kpis,
   type Priority,
+  analyzeNow,
+  approveOption,
   fetchVehicle,
+  rejectRun,
   type VehicleDetail,
   type World,
   type WorldSnapshot,
@@ -18,6 +21,9 @@ import {
 import { AgentPanel } from "./AgentPanel";
 import { BRAND } from "./brand";
 import { FieldMessage } from "./FieldMessage";
+import { useHotkeys } from "./hotkeys";
+import { ShortcutsHelp } from "./ShortcutsHelp";
+import { CrewPage } from "./pages/CrewPage";
 import { FogControl } from "./FogControl";
 import { VehicleCard } from "./VehicleCard";
 import { OpsControls } from "./OpsControls";
@@ -43,6 +49,15 @@ function describe(rec: EventRecord): string {
 
 /** Layout: header with navigation, then the routed page. Each page opens its own live connection. */
 export default function App() {
+  const crew = useMatch("/crew/*");
+  if (crew) {
+    // Crew view (phone): full screen, without the dispatcher header
+    return (
+      <Routes>
+        <Route path="/crew/:vehicleId?" element={<CrewPage />} />
+      </Routes>
+    );
+  }
   return (
     <div className="app">
       <header className="header">
@@ -57,6 +72,7 @@ export default function App() {
           <NavLink to="/sim">Simulation</NavLink>
           <NavLink to="/fleet">Fleet</NavLink>
           <NavLink to="/audit">Audit</NavLink>
+          <NavLink to="/crew">Crew view</NavLink>
         </nav>
       </header>
       <Routes>
@@ -110,6 +126,9 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<VehicleDetail | null>(null);
   const [centerOn, setCenterOn] = useState<{ lat: number; lon: number; n: number } | null>(null);
+  const [picked, setPicked] = useState(""); // vehicle chosen in the controls dropdown
+  const [help, setHelp] = useState(false);
+  const micToggle = useRef<(() => void) | null>(null);
 
   // Selected vehicle: refresh its card and highlighted route every 3 s
   useEffect(() => {
@@ -141,6 +160,46 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
     }
   };
 
+  // Hotkeys (see ShortcutsHelp, "?"): B/D act on the vehicle selected on the map, else the dropdown's
+  const inService = state.vehicles.filter((v) => v.status !== "out_of_service");
+  const target =
+    (selectedId && inService.some((v) => v.id === selectedId) ? selectedId : undefined) ??
+    inService.find((v) => v.id === picked)?.id ??
+    inService[0]?.id;
+  const latestRun = state.agent.runs[0];
+  const report = (p: Promise<unknown>, ok: string) =>
+    p.then(
+      () => setMessage({ kind: "ok", text: ok }),
+      (e) => setMessage({ kind: "error", text: e instanceof Error ? e.message : String(e) }),
+    );
+  useHotkeys({
+    m: () => micToggle.current?.(),
+    a: () => void report(analyzeNow(world), "Analysis started"),
+    y: () => {
+      const rec = latestRun?.recommendation;
+      const i = rec?.recommended_index ?? -1;
+      if (latestRun?.status === "done" && rec && rec.options[i] && rec.options[i].feasible !== false)
+        void report(approveOption(world, latestRun.id, i), `Option ${i + 1} applied`);
+    },
+    n: () => {
+      if (latestRun?.status === "done") void report(rejectRun(world, latestRun.id), "Recommendation rejected");
+    },
+    b: () => {
+      if (target) void send({ type: "breakdown", vehicle_id: target, note: "reported by operator (hotkey)" });
+    },
+    d: () => {
+      if (target) void send({ type: "delay", vehicle_id: target, minutes: 10, note: "reported by operator (hotkey)" });
+    },
+    f: () => void send({ type: "fog", duration_min: 60 }),
+    e: () => setMode((m) => (m === "emergency" ? null : "emergency")),
+    c: () => setMode((m) => (m === "closure" ? null : "closure")),
+    Escape: () => {
+      setMode(null);
+      setSelectedId(null);
+    },
+    "?": () => setHelp((h) => !h),
+  });
+
   const onMapClick = (lat: number, lon: number) => {
     if (mode === "closure") {
       void send({ type: "road_closure", lat, lon, radius_m: 400, description: "Road closed (operator report)" });
@@ -152,6 +211,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
 
   return (
     <main className="main">
+        <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
         <section className="map-wrap">
           {mode && (
             <div className="map-hint">
@@ -189,13 +249,22 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
             </Panel>
           )}
           <Panel title="Message from the field">
-            <FieldMessage state={state} />
+            <FieldMessage state={state} micToggleRef={micToggle} />
           </Panel>
           <Panel title="AI dispatcher">
             <AgentPanel state={state} notify={setMessage} />
           </Panel>
           <Panel title={state.hypothetical ? "Inject event (hypothetical)" : "Report event"}>
-            <Controls state={state} busy={busy} mode={mode} setMode={setMode} send={send} setMessage={setMessage} />
+            <Controls
+              state={state}
+              busy={busy}
+              mode={mode}
+              setMode={setMode}
+              send={send}
+              setMessage={setMessage}
+              picked={picked}
+              setPicked={setPicked}
+            />
           </Panel>
           <Panel title="Priority & capacity">
             <OpsControls state={state} send={send} busy={busy} />
@@ -336,6 +405,8 @@ function Controls({
   setMode,
   send,
   setMessage,
+  picked,
+  setPicked,
 }: {
   state: WorldSnapshot;
   busy: boolean;
@@ -343,9 +414,10 @@ function Controls({
   setMode: (m: ClickMode) => void;
   send: Send;
   setMessage: (m: { kind: "ok" | "error"; text: string } | null) => void;
+  picked: string;
+  setPicked: (id: string) => void;
 }) {
   const inService = state.vehicles.filter((v) => v.status !== "out_of_service");
-  const [picked, setPicked] = useState("");
   const [minutes, setMinutes] = useState(20);
   const vehicleId = inService.some((v) => v.id === picked) ? picked : (inService[0]?.id ?? "");
   const snowing = state.weather.overridden;
