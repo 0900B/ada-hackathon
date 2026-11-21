@@ -73,8 +73,15 @@ function TraceLine({ step, clip }: { step: AgentStep; clip?: number }) {
 
 const unassigned = (k: Kpis) => k.unassigned.emergency + k.unassigned.urgent + k.unassigned.scheduled;
 
-/** Events that call for a new analysis (not the operator's own decisions or all-clears). */
-function needsAnalysis(e: EventRecord): boolean {
+/** Events that call for a new analysis (not the operator's own decisions or all-clears). A call
+ * from the live-calls stream only counts while it is a problem: still without a unit, or late. */
+function needsAnalysis(e: EventRecord, state: WorldSnapshot): boolean {
+  if (e.generated) {
+    return e.affected_trip_ids.some((id) => {
+      const t = state.trips.find((x) => x.id === id);
+      return t !== undefined && (t.status === "unassigned" || (t.delay_min ?? 0) >= 5);
+    });
+  }
   if (e.type === "plan_applied" || e.type === "clear_incident") return false;
   if (e.type === "weather_override" && /cleared/i.test(e.summary)) return false;
   if (e.type === "hospital_capacity" && /limit lifted/i.test(e.summary)) return false;
@@ -414,7 +421,7 @@ export function AgentPanel({
     if (autoPending !== null && state.agent.auto === autoPending) setAutoPending(null);
   }, [autoPending, state.agent.auto]);
   const lastRunSeq = idSeq(run?.id);
-  const newEvents = state.events.filter((e) => idSeq(e.id) > lastRunSeq && needsAnalysis(e));
+  const newEvents = state.events.filter((e) => idSeq(e.id) > lastRunSeq && needsAnalysis(e, state));
   const showCta = !auto && newEvents.length > 0 && run?.status !== "running";
 
   const act = async (fn: () => Promise<unknown>, ok: string, runId?: string) => {

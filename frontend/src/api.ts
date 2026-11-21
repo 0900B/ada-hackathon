@@ -122,6 +122,7 @@ export interface EventRecord {
   affected_trip_ids: string[];
   kpis_before: Kpis;
   kpis_after: Kpis;
+  generated?: boolean; // a call from the live-calls generator, not an operator report
 }
 
 export interface PlanStep {
