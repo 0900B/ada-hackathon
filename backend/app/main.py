@@ -19,6 +19,7 @@ from fastapi.responses import StreamingResponse
 from . import config, demo
 from .agent import runner as agent
 from .agent.messages import FieldMessage, MessageError, parse_message, to_operator_events
+from .audit import AUDIT
 from .engine.actions import ActionError
 from .engine.events import EventError, apply_event
 from .engine.plans import apply_plan, simulate_plan
@@ -88,6 +89,7 @@ async def lifespan(app: FastAPI):
     tasks = [
         asyncio.create_task(sim_loop(), name="sim"),
         asyncio.create_task(ROADS.run(client, bump_all), name="roads"),
+        asyncio.create_task(AUDIT.run(), name="audit"),
         asyncio.create_task(
             run_periodic(live, "weather", "live", config.WEATHER_INTERVAL_S, lambda: fetch_weather(live, client)),
             name="weather",
@@ -131,6 +133,7 @@ async def lifespan(app: FastAPI):
         ", ".join(name for name, on in (("TomTom", tomtom.tomtom_key()), ("promet.si/NAP", nap.nap_credentials())) if on)
         or "none (time-of-day profile)",
     )
+    AUDIT.record("system", "startup", "Backend started", payload={"agent_model": config.AGENT_MODEL})
     yield
     agent.cancel_all()
     for t in tasks:
@@ -156,6 +159,7 @@ def health() -> dict:
         "sources": {k: s.model_dump(mode="json") for k, s in feed.sources.items()},
         "tomtom_requests_today": tomtom.usage() if tomtom.tomtom_key() else None,
         "roads": ROADS.summary(),
+        "audit": AUDIT.summary(),
     }
 
 
@@ -217,6 +221,7 @@ async def post_event(event: OperatorEvent = Body(...), state: WorldState = World
         record = apply_event(state, event)
     except EventError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    AUDIT.record(state.name, "event", record.summary, ref=record.id, payload=record)
     clearing = getattr(event, "clear", False)
     if config.AGENT_AUTO and event.type in DISRUPTIVE_EVENTS and not clearing:
         agent.start_run(state, trigger=f"event:{record.id}", focus=record)
@@ -251,11 +256,20 @@ async def post_message(msg: FieldMessage, state: WorldState = World) -> dict:
         "applied": [],
         "run_id": None,
     }
+    AUDIT.record(
+        state.name,
+        "field_message",
+        f'"{msg.text}" -> {parsed.needs_clarification or parsed.understood_en}',
+        ref=msg.sender_vehicle_id,
+        payload={"text": msg.text, "sender": msg.sender_vehicle_id, **{k: result[k] for k in ("understood_sl", "understood_en", "needs_clarification", "events")}},
+    )
     if not msg.apply or parsed.needs_clarification or not events:
         return result
     for ev in events:
         try:
-            result["applied"].append(apply_event(state, ev))
+            applied = apply_event(state, ev)
+            result["applied"].append(applied)
+            AUDIT.record(state.name, "event", applied.summary, ref=applied.id, payload=applied)
         except EventError as e:
             result["error"] = f"{ev.type}: {e}"
             break
@@ -280,15 +294,18 @@ def post_simulate(plan: Plan, state: WorldState = World) -> dict:
 def post_apply(plan: Plan, state: WorldState = World) -> EventRecord:
     """Operator approved: apply the plan for real."""
     try:
-        return apply_plan(state, plan)
+        record = apply_plan(state, plan)
     except ActionError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    AUDIT.record(state.name, "plan_applied", record.summary, ref=record.id, payload=record)
+    return record
 
 
 @router.post("/admin/reset")
 def reset(state: WorldState = World) -> dict:
     agent.cancel_all(state)
     seed_world(state, config.RANDOM_SEED)
+    AUDIT.record(state.name, "reset", f"{state.name} world reset")
     return {"ok": True, "world": state.name, "trips": len(state.trips), "vehicles": len(state.vehicles)}
 
 
@@ -305,7 +322,9 @@ async def run_scenario(name: str, state: WorldState = World) -> dict:
     if not state.hypothetical:
         raise HTTPException(status_code=400, detail="Demo scenarios run in the simulation, not in live mode")
     try:
-        return demo.run_scenario(state, name)
+        result = demo.run_scenario(state, name)
+        AUDIT.record(state.name, "scenario", f"Scenario: {result['title']}", ref=name, payload=result)
+        return result
     except KeyError as e:
         raise HTTPException(status_code=404, detail=f"Unknown scenario {name}") from e
     except RuntimeError as e:
@@ -360,6 +379,13 @@ def approve(run_id: str, req: ApproveRequest, state: WorldState = World) -> Agen
         "at": utcnow().isoformat(),
     }
     run.log("info", f"Operator approved option {req.option_index + 1}: {option.title}")
+    AUDIT.record(
+        state.name,
+        "decision_approved",
+        f"Operator approved option {req.option_index + 1}: {option.title}",
+        ref=run.id,
+        payload={"option": option, "decision": run.decision},
+    )
     state.bump()
     return run
 
@@ -372,8 +398,28 @@ def reject(run_id: str, req: RejectRequest | None = None, state: WorldState = Wo
     run.status = "rejected"
     run.decision = {"reason": req.reason if req else None, "at": utcnow().isoformat()}
     run.log("info", "Operator rejected the recommendation" + (f": {req.reason}" if req and req.reason else ""))
+    AUDIT.record(state.name, "decision_rejected", "Operator rejected the recommendation", ref=run.id, payload=run.decision)
     state.bump()
     return run
+
+
+@app.get("/audit")
+async def get_audit(world: str | None = None, kind: str | None = None, limit: int = 200) -> dict:
+    """The audit trail, newest first: events, field messages, AI recommendations, operator decisions."""
+    return {"status": AUDIT.summary(), "entries": await AUDIT.query(world, kind, limit)}
+
+
+@app.get("/audit/export")
+async def export_audit(world: str | None = None, limit: int = 2000) -> StreamingResponse:
+    """Download the audit trail as JSON lines (one entry per line)."""
+    entries = await AUDIT.query(world, None, limit)
+    lines = [json.dumps(e, ensure_ascii=False) for e in reversed(entries)]
+    body = "".join(line + "\n" for line in lines)
+    return StreamingResponse(
+        iter([body]),
+        media_type="application/x-ndjson",
+        headers={"Content-Disposition": "attachment; filename=plan-b-audit.jsonl"},
+    )
 
 
 app.include_router(router)

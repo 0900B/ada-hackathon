@@ -666,3 +666,49 @@ button.example {
   color: var(--text);
   font-weight: 500;
 }
+
+/* Audit page */
+.audit-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.button-link {
+  font-size: 13px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text) !important;
+  text-decoration: none;
+  background: #222836;
+}
+table.audit td {
+  white-space: normal;
+  vertical-align: top;
+}
+table.audit pre {
+  max-height: 320px;
+  overflow: auto;
+  font-size: 11px;
+  background: #11151c;
+  padding: 8px;
+  border-radius: 6px;
+}
+.world-tag {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #2b3140;
+}
+.world-live {
+  color: var(--ok);
+}
+.world-sim {
+  color: var(--warn);
+}
+.mono {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+}

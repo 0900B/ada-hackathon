@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 import anthropic
 
 from .. import config
+from ..audit import AUDIT
 from ..engine.candidates import greedy_plan
 from ..engine.plans import simulate_plan
 from ..engine.projection import kpis
@@ -67,6 +68,13 @@ def start_run(state: WorldState, trigger: str, focus: EventRecord | None = None,
     )
     state.agent_runs.append(run)
     del state.agent_runs[:-20]  # keep the history bounded
+    AUDIT.record(
+        state.name,
+        "agent_run_started",
+        f"AI analysis started ({trigger})",
+        ref=run.id,
+        payload={"trigger": trigger, "event_id": run.event_id, "question": question, "model": run.model},
+    )
     task_key = _task_key(state, run.id)
     task = asyncio.create_task(_run(state, run, focus, question), name=task_key)
     _tasks[task_key] = task
@@ -232,4 +240,19 @@ def _finish(state: WorldState, run: AgentRun, rec: Recommendation, engine: str) 
     run.status = "done"
     run.finished_at = utcnow()
     run.log("info", f"Done: {len(rec.options)} option(s)")
+    best = rec.options[rec.recommended_index].title if rec.recommended_index >= 0 else "no action"
+    AUDIT.record(
+        state.name,
+        "recommendation",
+        f"{'Claude' if engine == 'claude' else 'Engine fallback'}: {len(rec.options)} option(s), recommended: {best}",
+        ref=run.id,
+        payload={
+            "engine": engine,
+            "model": run.model,
+            "error": run.error,
+            "usage": run.usage,
+            "recommendation": rec,
+            "trace": run.steps,
+        },
+    )
     state.bump()

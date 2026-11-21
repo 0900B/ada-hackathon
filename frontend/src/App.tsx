@@ -18,6 +18,7 @@ import { BRAND } from "./brand";
 import { FieldMessage } from "./FieldMessage";
 import { fmtTime } from "./format";
 import { MapView, type ClickMode } from "./MapView";
+import { AuditPage } from "./pages/AuditPage";
 import { FleetPage } from "./pages/FleetPage";
 
 type Send = (event: Record<string, unknown>) => Promise<void>;
@@ -50,6 +51,7 @@ export default function App() {
           <NavLink to="/live">● Live</NavLink>
           <NavLink to="/sim">Simulation</NavLink>
           <NavLink to="/fleet">Fleet</NavLink>
+          <NavLink to="/audit">Audit</NavLink>
         </nav>
       </header>
       <Routes>
@@ -57,6 +59,7 @@ export default function App() {
         <Route path="/live" element={<WorldPage key="live" world="live" />} />
         <Route path="/sim" element={<WorldPage key="sim" world="sim" />} />
         <Route path="/fleet" element={<FleetRoute />} />
+        <Route path="/audit" element={<AuditPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </div>
