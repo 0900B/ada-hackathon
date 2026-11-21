@@ -84,12 +84,26 @@ Example events:
 {"type": "hospital_capacity", "place_id": "ukc", "capacity": null}
 ```
 
-- **Equipment transport** (`kind: "equipment"`, `needs: "equipment"`, `cargo`): no patient; vans and
-  ambulances carry it. If the vehicle breaks down with it on board, another vehicle must collect it
+- **Equipment transport** (`kind: "equipment"`, `needs: "equipment"`, `cargo`): no patient; vans
+  (and, if needed, ambulances) carry it, never the helicopter. If the vehicle breaks down with it on board, another vehicle must collect it
   at the breakdown site first.
 - **Priority change**: raised to emergency = collect now, due-by at most direct ambulance time + 5 + 20 min
   (urgent: + 60 min from the ready time); deadlines are never loosened. A vehicle that can no longer
-  serve the trip (a van for an emergency) loses it to replanning; trips on board keep their vehicle.
+  serve the trip (a van for an emergency) loses it, and the engine dispatches an ambulance at once;
+  on an ambulance it moves to the front. Trips on board keep their vehicle.
+
+Dispatch model (`engine/actions.py`, `engine/events.py:dispatch_call`):
+- **Ambulances** are emergency units: no pre-planned work, at most their current job + 1 queued trip.
+  New `urgent_request` calls are dispatched at once to the free unit that reaches the patient first
+  (an emergency with none free takes a busy ambulance, which turns around unless it has a patient on board).
+- **Vans** do the scheduled day (seated, wheelchair, stretcher, equipment) and urgent non-emergencies;
+  never emergencies. Bookings (`task_request`) go to a van; a free ambulance only if no van fits.
+- **H1** flies emergencies/urgent trips only, when it is clearly faster (10 / 15 min); no scheduled work or cargo.
+
+Plan steps: an emergency always goes first (the vehicle turns around if needed); nothing is queued ahead
+of a higher priority; no vehicle is diverted from an emergency. When the engine checks an option it
+stores the steps anchored (`before_trip_id`) plus `step_details` (what each step does); approving
+replays exactly that order and is refused (409, with the reason) if it is now clearly worse than shown.
 - **Hospital capacity**: admissions the hospital can still take (each delivered patient uses one;
   `null` = unlimited). Over capacity, the most urgent incoming patients keep their place and the
   rest raise a `hospital_over_capacity` alert and the `over_capacity` KPI until redirected.
@@ -104,7 +118,7 @@ Redirect a patient to another general hospital with free capacity (same vehicle,
 keeps its place in the queue, also with the patient on board):
 
 ```json
-{"steps": [{"trip_id": "TR-011", "vehicle_id": "A1", "position": null, "dropoff_id": "sb_trbovlje"}]}
+{"steps": [{"trip_id": "TR-011", "vehicle_id": "T4", "position": null, "dropoff_id": "sb_trbovlje"}]}
 ```
 
 ## Deploy on Railway
