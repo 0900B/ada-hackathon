@@ -72,6 +72,11 @@ class WorldState:
         self.hypothetical = hypothetical  # False for "live": no invented weather or demo scenarios
         self.version = 0
         self.is_simulation = False  # True on what-if copies: they must not queue route fetches
+        # Start an AI analysis automatically after events/scenarios/field messages? Off by default
+        # (every analysis costs Claude tokens); the operator switches it on, or presses Analyse.
+        from . import config  # config only reads environment variables
+
+        self.auto_analyze = config.AGENT_AUTO
         self._ids = itertools.count(1)
         self.reset_simulation()
 
@@ -171,7 +176,7 @@ class WorldState:
             "agent": {
                 "enabled": config.agent_enabled(),
                 "model": config.AGENT_MODEL,
-                "auto": config.AGENT_AUTO,
+                "auto": self.auto_analyze,
                 "runs": dump(reversed(self.agent_runs[-5:])),  # newest first
             },
         }

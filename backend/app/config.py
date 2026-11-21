@@ -32,7 +32,7 @@ HTTP_USER_AGENT = os.getenv("HTTP_USER_AGENT", "adahack-transport-backend/0.1")
 AGENT_MODEL = os.getenv("AGENT_MODEL", "claude-sonnet-5-5")
 # Sonnet 5.5 defaults to "high"; "medium" is the recommended start for multi-step tool use.
 AGENT_EFFORT = os.getenv("AGENT_EFFORT", "medium")  # low | medium | high | xhigh | max
-AGENT_AUTO = os.getenv("AGENT_AUTO", "1") == "1"  # analyse disruptive events automatically
+AGENT_AUTO = os.getenv("AGENT_AUTO", "0") == "1"  # default for each world's auto-analyse switch (off: saves tokens)
 AGENT_MAX_TURNS = int(os.getenv("AGENT_MAX_TURNS", "10"))
 AGENT_TIMEOUT_S = _float("AGENT_TIMEOUT_S", 120)
 

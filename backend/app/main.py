@@ -15,6 +15,7 @@ import httpx
 from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Path, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
+from pydantic import BaseModel
 
 from . import config, demo
 from .agent import runner as agent
@@ -269,7 +270,7 @@ async def post_event(event: OperatorEvent = Body(...), state: WorldState = World
     unplaced_booking = event.type == "task_request" and any(
         state.trips[t].status == "unassigned" for t in record.affected_trip_ids if t in state.trips
     )
-    if config.AGENT_AUTO and ((event.type in DISRUPTIVE_EVENTS and not clearing) or unplaced_booking):
+    if state.auto_analyze and ((event.type in DISRUPTIVE_EVENTS and not clearing) or unplaced_booking):
         agent.start_run(state, trigger=f"event:{record.id}", focus=record)
     return record
 
@@ -319,7 +320,7 @@ async def post_message(msg: FieldMessage, state: WorldState = World) -> dict:
         except EventError as e:
             result["error"] = f"{ev.type}: {e}"
             break
-    if result["applied"]:
+    if result["applied"] and state.auto_analyze:
         run = agent.start_run(
             state,
             trigger="message",
@@ -382,6 +383,19 @@ def _find_run(state: WorldState, run_id: str) -> AgentRun:
     if run is None:
         raise HTTPException(status_code=404, detail=f"Unknown run {run_id}")
     return run
+
+
+class AutoAnalyzeRequest(BaseModel):
+    enabled: bool
+
+
+@router.post("/agent/auto")
+def set_auto_analyze(req: AutoAnalyzeRequest, state: WorldState = World) -> dict:
+    """Switch automatic AI analysis on/off for this world (off by default: every analysis costs tokens)."""
+    state.auto_analyze = req.enabled
+    AUDIT.record(state.name, "setting", f"Auto-analyse {'on' if req.enabled else 'off'}")
+    state.bump()
+    return {"world": state.name, "auto": state.auto_analyze}
 
 
 @router.post("/agent/analyze")

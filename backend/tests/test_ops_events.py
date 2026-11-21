@@ -534,6 +534,10 @@ def test_end_to_end_with_lifespan_and_engine_fallback():
     with TestClient(main.app) as c:
         r = c.post("/sim/admin/scenario/hospital_full")
         assert r.status_code == 200, r.text
+        assert r.json()["run_id"] is None, "auto-analyse is off by default: no tokens spent"
+        assert c.post("/sim/agent/auto", json={"enabled": True}).json()["auto"] is True
+        c.post("/sim/admin/reset")
+        r = c.post("/sim/admin/scenario/hospital_full")
         run_id = r.json()["run_id"]
         deadline = time.time() + 30
         while time.time() < deadline:

@@ -192,6 +192,10 @@ def run_scenario(state: WorldState, name: str) -> dict[str, Any]:
         + "; ".join(f"({i + 1}) {r.summary}" for i, r in enumerate(records))
         + ". Analyse the combined situation and recommend what to do."
     )
+    if not state.auto_analyze:  # analysis on demand only: the operator presses Analyse
+        state.bump()
+        note = f"Scenario started: {title}. Auto-analyse is off: press Analyse (A) for the AI's recommendation."
+        return {"scenario": name, "title": title, "events": records, "run_id": None, "note": note}
     run = agent.start_run(state, trigger=f"scenario:{name}", question=question)
     state.bump()
     return {"scenario": name, "title": title, "events": records, "run_id": run.id}
