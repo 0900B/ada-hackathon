@@ -59,14 +59,193 @@ html, body, #root {
 
 /* ── Panel body ──────────────────────────────────────────── */
 .panel-body {
-  padding: 16px 20px;
+  padding: 0;
   flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .no-disruptions {
   color: #aaa;
   font-size: 13px;
 }
+
+/* ── Panel sections ──────────────────────────────────────── */
+.panel-section {
+  padding: 12px 20px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.section-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #aaa;
+  margin-bottom: 8px;
+}
+
+/* inline error/ok message */
+.inline-msg {
+  font-size: 11px;
+  padding: 4px 20px;
+  border-left: 2px solid #e5e5e5;
+}
+.inline-msg.ok    { border-color: #2f7d4f; color: #2f7d4f; }
+.inline-msg.error { border-color: #b3261e; color: #b3261e; }
+
+/* ── Scenario buttons ────────────────────────────────────── */
+.scenario-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.btn-scenario {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 6px 8px;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 2px;
+  cursor: pointer;
+  color: #111;
+  text-align: left;
+  line-height: 1.3;
+}
+.btn-scenario:hover:not(:disabled) { border-color: #111; }
+.btn-scenario:disabled { opacity: 0.4; cursor: default; }
+
+.btn-reset {
+  color: #666;
+  grid-column: 1 / -1;  /* full width */
+  text-align: center;
+}
+
+/* ── Status line ─────────────────────────────────────────── */
+.status-line {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #666;
+  font-family: ui-monospace, 'Courier New', monospace;
+}
+.status-line.awaiting { color: #b26b00; }
+
+/* ── Situation ───────────────────────────────────────────── */
+.situation-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #111;
+}
+
+/* ── Options table ───────────────────────────────────────── */
+.options-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.options-table th {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #aaa;
+  text-align: left;
+  padding: 0 6px 6px 0;
+  border-bottom: 1px solid #e5e5e5;
+}
+.options-table td {
+  padding: 6px 6px 6px 0;
+  vertical-align: top;
+  border-bottom: 1px solid #f0f0f0;
+  color: #333;
+  font-family: inherit;
+}
+.options-table td:first-child {
+  font-family: ui-monospace, 'Courier New', monospace;
+  color: #aaa;
+  width: 20px;
+}
+.opt-row-rec td:first-child {
+  border-left: 2px solid #1f3a5f;
+  padding-left: 4px;
+  color: #1f3a5f;
+}
+.opt-delta {
+  font-family: ui-monospace, 'Courier New', monospace;
+  white-space: nowrap;
+}
+.opt-delta.better { color: #2f7d4f; }
+.opt-delta.worse  { color: #b3261e; }
+.opt-delta.same   { color: #aaa; }
+
+/* ── Recommendation ──────────────────────────────────────── */
+.rec-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #111;
+  margin-bottom: 4px;
+}
+.rec-reasoning {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #555;
+}
+
+/* ── Approve / Reject ────────────────────────────────────── */
+.action-row {
+  display: flex;
+  gap: 8px;
+  padding: 12px 20px;
+  border-bottom: 1px solid #e5e5e5;
+}
+.btn-approve {
+  flex: 1;
+  padding: 7px 12px;
+  background: #111;
+  color: #fff;
+  border: 1px solid #111;
+  border-radius: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-approve:hover:not(:disabled) { background: #333; border-color: #333; }
+.btn-approve:disabled { opacity: 0.4; cursor: default; }
+
+.btn-reject {
+  flex: 1;
+  padding: 7px 12px;
+  background: #fff;
+  color: #111;
+  border: 1px solid #ccc;
+  border-radius: 2px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.btn-reject:hover:not(:disabled) { border-color: #111; }
+.btn-reject:disabled { opacity: 0.4; cursor: default; }
+
+/* ── Decision log ────────────────────────────────────────── */
+.log-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.log-line {
+  font-size: 11px;
+  font-family: ui-monospace, 'Courier New', monospace;
+  color: #555;
+  line-height: 1.4;
+}
+.log-line .log-verdict {
+  font-weight: 700;
+}
+.log-line .log-verdict.approved { color: #2f7d4f; }
+.log-line .log-verdict.rejected { color: #b3261e; }
 
 /* ── Tile layer: greyscale + slight brightness so colour markers stand out */
 .map-container .leaflet-tile {
@@ -75,10 +254,11 @@ html, body, #root {
 
 /* ── Ambulance ID label (Leaflet permanent tooltip) ─────── */
 .amb-label {
-  background: none !important;
+  background: rgba(255, 255, 255, 0.88) !important;
   border: none !important;
   box-shadow: none !important;
-  padding: 0 !important;
+  padding: 1px 3px !important;
+  border-radius: 2px !important;
   font-family: 'Courier New', Courier, monospace;
   font-size: 10px;
   font-weight: 700;

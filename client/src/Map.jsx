@@ -10,7 +10,7 @@ const COLOR = {
   base:     '#555555',
   high:     '#b3261e',
   medium:   '#8a7a00',
-  disabled: '#999999',
+  disabled: '#9e9e9e',
 }
 
 // Navy square for hospitals — no Leaflet built-in square shape
@@ -57,7 +57,7 @@ export default function Map({ vehicles = [], places = [], incidents = [] }) {
   return (
     <MapContainer
       center={[46.0569, 14.5058]}
-      zoom={13}
+      zoom={14}
       style={{ width: '100%', height: '100%' }}
     >
       <TileLayer
@@ -120,7 +120,7 @@ export default function Map({ vehicles = [], places = [], incidents = [] }) {
           <Tooltip
             permanent
             direction="right"
-            offset={[9, 0]}
+            offset={[12, 0]}
             className="amb-label"
           >
             {v.id}
