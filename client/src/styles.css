@@ -91,6 +91,52 @@ html, body, #root {
   display: none !important;
 }
 
+/* ── Offline notice ─────────────────────────────────────── */
+.offline-notice {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #aaa;
+  margin-bottom: 8px;
+}
+
+/* ── Legend ──────────────────────────────────────────────── */
+.legend {
+  border-top: 1px solid #e5e5e5;
+  padding: 12px 20px 16px;
+  margin-top: auto;
+}
+.legend-title {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #aaa;
+  margin-bottom: 8px;
+}
+.legend-items {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #333;
+}
+.legend-shape {
+  font-size: 11px;
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.legend-label {
+  color: #555;
+}
+
 /* ── Leaflet popup overrides ─────────────────────────────── */
 .leaflet-popup-content-wrapper {
   border-radius: 2px !important;
