@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 
 from .. import config
+from ..engine.actions import LJ
 from ..engine.candidates import nearest_place_name
 from ..engine.projection import DONE
 from ..models import OperatorEvent
@@ -49,7 +50,8 @@ emergency if life-threatening, otherwise urgent.
 "urgenca je polna") is a hospital_capacity event for that hospital (full = 0).
 - A booking or order for a planned, not life-threatening transport ("naročam prevoz", "prosim za \
 prevoz", "potrebujemo prevoz opreme") is a task_request: kind equipment for cargo (put the cargo \
-in label), otherwise patient; ready_in_min from the time mentioned (0 if "zdaj"); priority urgent \
+in label), otherwise patient; ready_in_min = minutes from now_local_time (in the context) until \
+the time mentioned (0 if "zdaj"); priority urgent \
 only if the message says so. Life-threatening cases stay urgent_request.
 - Put what was said about cargo (patient, equipment) in the event's note.
 - understood_sl and understood_en: one short sentence each, saying what you understood and any \
@@ -167,6 +169,7 @@ def build_context(state: WorldState, sender_vehicle_id: str | None) -> dict[str,
             }
         )
     return {
+        "now_local_time": state.sim_time.astimezone(LJ).strftime("%H:%M"),  # for "ob 18h" -> minutes from now
         "sender_vehicle_id": sender_vehicle_id,
         "vehicles": vehicles,
         "places": [
