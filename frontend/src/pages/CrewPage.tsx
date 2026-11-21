@@ -29,6 +29,8 @@ import {
 } from "lucide-react";
 import { fmtTime, humanize, vehicleStatusText } from "../format";
 import { Callsign } from "../icons";
+import { LEVEL_PRIORITY, levelOf, levelUp, severitySupported } from "../severity";
+import { ResponseLine, SeverityBadge } from "../SeverityBadge";
 import { useHotkeys } from "../hotkeys";
 import { SPEECH_LANGS, speechSecureContext, usePushToTalk, useSpeechInput } from "../voice";
 import "../voice.css";
@@ -65,12 +67,17 @@ function pointAhead(v: Vehicle, ahead = 250): [number, number] {
  * The same quick report as a plain event, for when the AI message parser is unavailable (no API key,
  * or the AI can't be reached): the crew can still reach dispatch. null = no direct equivalent.
  */
-function directReport(key: string, v: Vehicle, trip: Trip | undefined): Record<string, unknown> | null {
+function directReport(key: string, v: Vehicle, trip: Trip | undefined, graded: boolean): Record<string, unknown> | null {
   const note = `reported by the crew of ${v.id}`;
   if (key === "1") return { type: "breakdown", vehicle_id: v.id, note };
   if (key === "2") return { type: "delay", vehicle_id: v.id, minutes: 10, note };
-  if (key === "3" && trip && trip.kind === "patient" && trip.priority !== "emergency")
-    return { type: "priority_change", trip_id: trip.id, priority: trip.priority === "scheduled" ? "urgent" : "emergency", note };
+  if (key === "3" && trip && trip.kind === "patient") {
+    // one severity level up (routine > urgent > serious > critical); older backends: urgent, then emergency
+    const up = levelUp(levelOf(trip));
+    if (graded && up) return { type: "priority_change", trip_id: trip.id, priority: LEVEL_PRIORITY[up], severity: up, note };
+    if (!graded && trip.priority !== "emergency")
+      return { type: "priority_change", trip_id: trip.id, priority: trip.priority === "scheduled" ? "urgent" : "emergency", note };
+  }
   if (key === "4" && v.type !== "helicopter") {
     const [lat, lon] = pointAhead(v);
     return { type: "road_closure", lat, lon, radius_m: 150, description: `Road closed (${note})` };
@@ -180,7 +187,7 @@ function CrewConsole({
       navigator.vibrate?.(40);
       return true;
     } catch (e) {
-      const fallback = quickKey ? directReport(quickKey, vehicle, trip) : null;
+      const fallback = quickKey ? directReport(quickKey, vehicle, trip, severitySupported(state.trips)) : null;
       if (fallback) {
         try {
           const rec = await postEvent(world, fallback);
@@ -247,10 +254,12 @@ function CrewConsole({
           <div className="crew-trip">
             <div className="crew-trip-who">
               <strong>{trip.kind === "equipment" ? (trip.cargo ?? "equipment") : trip.patient}</strong>{" "}
-              <span className={`prio prio-${trip.priority}`}>{trip.priority}</span>{" "}
               <span className="muted">
                 {trip.kind === "equipment" ? "equipment" : trip.needs} · {trip.id}
               </span>
+            </div>
+            <div className="crew-sev">
+              <SeverityBadge trip={trip} size="md" />
             </div>
             <div className="crew-route">
               {placeName(trip.pickup_id)} → {placeName(trip.dropoff_id)}
@@ -261,6 +270,11 @@ function CrewConsole({
               {trip.status !== "onboard" && <> · drop-off {fmtTime(trip.eta_dropoff)}</>}
               {late && <> · +{Math.round(trip.delay_min ?? 0)} min late</>}
             </div>
+            {trip.status !== "onboard" && (
+              <div className="crew-resp">
+                <ResponseLine trip={trip} now={state.sim_time} />
+              </div>
+            )}
           </div>
         ) : (
           <p className="muted crew-trip">No current trip.</p>
@@ -271,6 +285,11 @@ function CrewConsole({
             {stop.eta && <> · {fmtTime(stop.eta)}</>}
             {vehicle.queue.length > (trip ? 0 : 1) && (
               <span className="muted"> · {vehicle.queue.length - (trip ? 0 : 1)} more queued</span>
+            )}
+            {!trip && queued && (
+              <div className="crew-sev">
+                <SeverityBadge trip={queued} size="md" />
+              </div>
             )}
           </div>
         )}
