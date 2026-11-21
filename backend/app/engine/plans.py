@@ -38,6 +38,17 @@ def _apply_steps(state: WorldState, plan: Plan) -> tuple[list[str], list[PlanSte
     errors: list[str] = []
     applied: list[PlanStep] = []
     for i, step in enumerate(plan.steps):
+        trip = state.trips.get(step.trip_id)
+        if (
+            trip is not None
+            and trip.vehicle_id == step.vehicle_id
+            and trip.status in ("onboard", "completed")
+            and (step.dropoff_id is None or step.dropoff_id == trip.dropoff_id)
+        ):
+            # Already done by that unit (e.g. "keep the engine's dispatch" and the crew picked the
+            # patient up while the operator read the option): nothing left to apply, not an error.
+            applied.append(step.model_copy(update={"position": None, "interrupt_current": False, "before_trip_id": None}))
+            continue
         try:
             placed = assign_trip(
                 state, step.trip_id, step.vehicle_id, step.position, step.interrupt_current, step.dropoff_id, step.before_trip_id
@@ -95,7 +106,11 @@ def step_details(before: WorldState, after: WorldState, steps: list[PlanStep]) -
         old = before.vehicles.get(s.vehicle_id)
         was_current = old.current_trip_id if old else None
         dest = after.places[t.dropoff_id].name
-        if t.status == "onboard":
+        redirected = bool(s.dropoff_id) and s.dropoff_id != before.trips[t.id].dropoff_id
+        if t.status == "onboard" and not redirected:
+            action, when = "onboard", "already on board"
+            text = f"{v.id} already has {t.label} on board, at {dest} {_hhmm(t.eta_dropoff)}"
+        elif t.status == "onboard":
             action, when = "redirect", "keeps its patient on board"
             text = f"{v.id} takes {t.label} to {dest} instead (on board), arrives {_hhmm(t.eta_dropoff)}"
         else:
@@ -124,7 +139,7 @@ def step_details(before: WorldState, after: WorldState, steps: list[PlanStep]) -
                 "vehicle_id": v.id,
                 "label": t.label,
                 "priority": t.priority,
-                "action": action,  # now | divert | next | queued | redirect
+                "action": action,  # now | divert | next | queued | redirect | onboard (already picked up)
                 "when": when,
                 "order": order + 1,  # 1 = the vehicle's first job
                 "after_trip_ids": ahead,
