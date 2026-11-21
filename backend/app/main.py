@@ -147,8 +147,27 @@ async def lifespan(app: FastAPI):
     await client.aclose()
 
 
+class LegacyPathsToSim:
+    """Backwards compatibility: pre-split clients (e.g. the `client/` app on the Klimentina branch) call
+    unprefixed paths like /state, /stream or /agent/runs/... They're served by the simulation world.
+    Pure ASGI (not BaseHTTPMiddleware) so the SSE stream passes through untouched."""
+
+    PREFIXES = ("/state", "/stream", "/alerts", "/kpis", "/events", "/plans", "/admin", "/agent", "/messages", "/vehicles")
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] == "http":
+            path = scope["path"]
+            if any(path == p or path.startswith(p + "/") for p in self.PREFIXES):
+                scope = {**scope, "path": "/sim" + path, "raw_path": ("/sim" + path).encode()}
+        await self.app(scope, receive, send)
+
+
 app = FastAPI(title="Emergency transport assistant - backend", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(LegacyPathsToSim)
 
 
 @app.get("/")
