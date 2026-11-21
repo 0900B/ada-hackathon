@@ -1,0 +1,109 @@
+{
+ "Pomurska": {
+  "units": 4,
+  "nrv": 7.0,
+  "vuz": 1.0,
+  "staff": 83,
+  "ucs": [
+   "Murska Sobota"
+  ]
+ },
+ "Podravska": {
+  "units": 5,
+  "nrv": 14.0,
+  "vuz": 4.5,
+  "staff": 196,
+  "ucs": [
+   "Maribor",
+   "Ptuj"
+  ]
+ },
+ "Koroška": {
+  "units": 5,
+  "nrv": 5.5,
+  "vuz": 2.2,
+  "staff": 82,
+  "ucs": [
+   "Slovenj Gradec"
+  ]
+ },
+ "Savinjska": {
+  "units": 8,
+  "nrv": 13.0,
+  "vuz": 5.1,
+  "staff": 192,
+  "ucs": [
+   "Celje"
+  ]
+ },
+ "Zasavska": {
+  "units": 3,
+  "nrv": 3.5,
+  "vuz": 2.0,
+  "staff": 59,
+  "ucs": [
+   "Trbovlje"
+  ]
+ },
+ "Osrednjeslovenska": {
+  "units": 8,
+  "nrv": 17.5,
+  "vuz": 8.0,
+  "staff": 272,
+  "ucs": [
+   "Ljubljana"
+  ]
+ },
+ "Posavska": {
+  "units": 3,
+  "nrv": 5.5,
+  "vuz": 3.0,
+  "staff": 91,
+  "ucs": [
+   "Brežice"
+  ]
+ },
+ "Jugovzhodna Slovenija": {
+  "units": 6,
+  "nrv": 9.5,
+  "vuz": 3.5,
+  "staff": 138,
+  "ucs": [
+   "Novo Mesto"
+  ]
+ },
+ "Gorenjska": {
+  "units": 6,
+  "nrv": 11.5,
+  "vuz": 4.0,
+  "staff": 164,
+  "ucs": [
+   "Jesenice"
+  ]
+ },
+ "Goriška": {
+  "units": 4,
+  "nrv": 7.5,
+  "vuz": 3.0,
+  "staff": 112,
+  "ucs": [
+   "Nova Gorica"
+  ]
+ },
+ "Obalno-kraška": {
+  "units": 4,
+  "nrv": 5.0,
+  "vuz": 4.8,
+  "staff": 107,
+  "ucs": [
+   "Izola"
+  ]
+ },
+ "Primorsko-notranjska": {
+  "units": 3,
+  "nrv": 4.5,
+  "vuz": 2.0,
+  "staff": 69,
+  "ucs": []
+ }
+}
