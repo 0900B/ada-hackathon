@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { trafficTileUrl, type Vehicle, type VehicleDetail, type WorldSnapshot } from "./api";
@@ -58,6 +58,7 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
   const el = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layers = useRef<Layers | null>(null);
+  const [zoomTick, setZoomTick] = useState(0);
   // Vehicle markers live across snapshots (moved, not re-created), so a click never lands on a
   // marker that is being replaced, tooltips stay open, and CSS can animate the movement.
   const markers = useRef(new Map<string, { marker: L.Marker; key: string }>());
@@ -137,6 +138,7 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
     });
     map.on("zoomend", () => {
       clearTimeout(smoothTimer);
+      setZoomTick((t) => t + 1); // re-place fanned-out markers for the new zoom (pixel offsets)
       smoothTimer = setTimeout(() => box.classList.add("smooth"), 400);
     });
     // Leaflet only tracks window resizes; re-measure whenever the map's own box changes size
@@ -229,12 +231,17 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       });
     }
 
-    // Vehicles parked on the same spot (e.g. at a base) are fanned out side by side
+    // Vehicles standing on the same spot (e.g. parked at a base) are fanned out side by side.
+    // Only stationary ones: a moving vehicle is never offset, so nothing jumps when one drives off.
+    const stationary = (v: Vehicle) =>
+      v.status === "idle" || v.status === "loading" || v.status === "out_of_service" || Boolean(v.busy_until) || Boolean(v.waiting_until);
     const spots = new Map<string, string[]>();
     for (const v of state.vehicles) {
+      if (!stationary(v)) continue;
       const k = `${v.lat.toFixed(4)},${v.lon.toFixed(4)}`;
       spots.set(k, [...(spots.get(k) ?? []), v.id]);
     }
+    const map = mapRef.current;
 
     const seen = new Set<string>();
     for (const v of state.vehicles) {
@@ -299,11 +306,17 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       const cls = `${selected ? " selected" : ""}${faded ? " faded" : ""}`;
       const held = Boolean(v.busy_until) && v.status !== "loading" && !(v.status === "returning" && !v.current_trip_id);
       const html = vehicleHtml(v, cls, heli && flying && !grounded, grounded, held);
-      const spot = spots.get(`${v.lat.toFixed(4)},${v.lon.toFixed(4)}`) ?? [v.id];
+      const spot = (stationary(v) && spots.get(`${v.lat.toFixed(4)},${v.lon.toFixed(4)}`)) || [v.id];
       const shift = spot.length > 1 ? (spot.indexOf(v.id) - (spot.length - 1) / 2) * VEH_W : 0;
       const size: [number, number] = [heli ? 72 : 60, 24];
-      const anchor: [number, number] = [size[0] / 2 - shift, size[1] / 2];
-      const key = `${html}|${anchor[0]}`;
+      const anchor: [number, number] = [size[0] / 2, size[1] / 2]; // constant: the element is never re-created
+      // The fan-out is a pixel offset of the marker's position, so changes glide like normal movement
+      let pos = L.latLng(v.lat, v.lon);
+      if (shift !== 0 && map) {
+        const p = map.latLngToLayerPoint(pos);
+        pos = map.layerPointToLatLng(L.point(p.x + shift, p.y));
+      }
+      const key = html;
       const where = target ? ` · ${target.kind === "base" ? "flying home" : `flying to ${target.kind}`}: ${target.place.name}` : "";
       const groundedText = grounded ? ` · grounded by fog until ${fmtTime(v.grounded_until)}` : "";
       const tip = `${v.name} · ${vehicleStatusText(v, state.trips)}${trip ? ` · ${trip.id} (${trip.label})` : ""}${
@@ -314,7 +327,7 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       const existing = markers.current.get(v.id);
       if (!existing) {
         const icon = L.divIcon({ className: "veh-marker", html, iconSize: size, iconAnchor: anchor });
-        const marker = L.marker([v.lat, v.lon], { icon, zIndexOffset: z, riseOnHover: true })
+        const marker = L.marker(pos, { icon, zIndexOffset: z, riseOnHover: true })
           .bindTooltip(tip, { direction: "top", offset: [0, -size[1] / 2] })
           .on("click", () => selectRef.current(v.id))
           .addTo(ls.vehicles);
@@ -322,9 +335,13 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       } else {
         const { marker } = existing;
         const ll = marker.getLatLng();
-        if (ll.lat !== v.lat || ll.lng !== v.lon) marker.setLatLng([v.lat, v.lon]);
+        if (ll.lat !== pos.lat || ll.lng !== pos.lng) marker.setLatLng(pos);
         if (existing.key !== key) {
-          marker.setIcon(L.divIcon({ className: "veh-marker", html, iconSize: size, iconAnchor: anchor }));
+          // Status or selection changed: update the content in place. Replacing the icon would
+          // create a new element, which skips the glide (or animates in from the map's corner).
+          const node = marker.getElement();
+          if (node) node.innerHTML = html;
+          else marker.setIcon(L.divIcon({ className: "veh-marker", html, iconSize: size, iconAnchor: anchor }));
           existing.key = key;
         }
         marker.setTooltipContent(tip);
@@ -337,7 +354,7 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
         markers.current.delete(id);
       }
     }
-  }, [state, selectedId, detail]);
+  }, [state, selectedId, detail, zoomTick]);
 
   return <div ref={el} className="map" />; // constant on purpose, see the classList effect above
 }
