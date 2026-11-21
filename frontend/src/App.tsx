@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { Link, NavLink, Route, Routes } from "react-router";
 import {
   API_URL,
   postEvent,
@@ -10,16 +11,13 @@ import {
   type WorldSnapshot,
 } from "./api";
 import { AgentPanel } from "./AgentPanel";
+import { fmtTime } from "./format";
 import { MapView, type ClickMode } from "./MapView";
+import { FleetPage } from "./pages/FleetPage";
 
 type Send = (event: Record<string, unknown>) => Promise<void>;
 
 const PRIORITY_ORDER: Record<Priority, number> = { emergency: 0, urgent: 1, scheduled: 2 };
-
-const fmtTime = (iso: string | null | undefined) =>
-  iso
-    ? new Date(iso).toLocaleTimeString("sl-SI", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Ljubljana" })
-    : "–";
 
 const unassignedTotal = (k: Kpis) => k.unassigned.emergency + k.unassigned.urgent + k.unassigned.scheduled;
 
@@ -32,8 +30,36 @@ function describe(rec: EventRecord): string {
   );
 }
 
+/** Layout: one live connection shared by every page, header with navigation, then the routed page. */
 export default function App() {
   const { state, connected } = useWorldState();
+
+  if (!state) {
+    return <div className="loading">Connecting to {API_URL} …</div>;
+  }
+
+  return (
+    <div className="app">
+      <Header state={state} connected={connected} />
+      <Routes>
+        <Route path="/" element={<Dashboard state={state} />} />
+        <Route path="/fleet" element={<FleetPage state={state} />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </div>
+  );
+}
+
+function NotFound() {
+  return (
+    <main className="page">
+      <h2>Page not found</h2>
+      <Link to="/">Back to the dashboard</Link>
+    </main>
+  );
+}
+
+function Dashboard({ state }: { state: WorldSnapshot }) {
   const [mode, setMode] = useState<ClickMode>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
@@ -58,14 +84,8 @@ export default function App() {
     setMode(null);
   };
 
-  if (!state) {
-    return <div className="loading">Connecting to {API_URL} …</div>;
-  }
-
   return (
-    <div className="app">
-      <Header state={state} connected={connected} />
-      <main className="main">
+    <main className="main">
         <section className="map-wrap">
           {mode && (
             <div className="map-hint">
@@ -96,8 +116,7 @@ export default function App() {
         <section className="trips">
           <TripTable state={state} />
         </section>
-      </main>
-    </div>
+    </main>
   );
 }
 
@@ -106,6 +125,12 @@ function Header({ state, connected }: { state: WorldSnapshot; connected: boolean
   return (
     <header className="header">
       <h1>🚑 Emergency Transport Assistant</h1>
+      <nav className="nav">
+        <NavLink to="/" end>
+          Dashboard
+        </NavLink>
+        <NavLink to="/fleet">Fleet</NavLink>
+      </nav>
       <div className="chips">
         <span className={`chip ${connected ? "ok" : "bad"}`}>{connected ? "● live" : "● reconnecting"}</span>
         <span className="chip">Sim time {fmtTime(state.sim_time)}</span>

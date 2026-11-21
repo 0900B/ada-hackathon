@@ -73,6 +73,64 @@ body {
   color: var(--warn);
 }
 
+/* Navigation and subpages */
+.nav {
+  display: flex;
+  gap: 4px;
+}
+.nav a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 14px;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+.nav a:hover {
+  color: var(--text);
+}
+.nav a.active {
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+}
+.page {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+.page h2 {
+  margin: 0 0 12px;
+}
+.page a {
+  color: var(--accent);
+}
+.fleet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+.vehicle-card h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.vehicle-card.st-out_of_service {
+  opacity: 0.6;
+}
+.schedule {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.schedule li.late {
+  color: #ff8787;
+}
+
 /* Layout */
 .main {
   flex: 1;
