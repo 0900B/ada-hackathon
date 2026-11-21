@@ -1354,6 +1354,15 @@ th {
   width: max-content;
   margin-top: 1px;
 }
+/* Server messages in both languages (ErrorText.tsx): Slovenian, then English */
+.bilingual {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bilingual .lang-tag {
+  margin-right: 4px;
+}
 .sev-row {
   display: flex;
   flex-wrap: wrap;

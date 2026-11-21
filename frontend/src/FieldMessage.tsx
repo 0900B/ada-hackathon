@@ -3,6 +3,7 @@ import { Check, Mic, Send, CircleHelp } from "lucide-react";
 import { sendFieldMessage, type MessageResult, type WorldSnapshot } from "./api";
 import { SPEECH_LANGS, speechSecureContext, usePushToTalk, useSpeechInput } from "./voice";
 import "./voice.css";
+import { ErrorText } from "./ErrorText";
 
 /** Part 3 of the brief: a crew/dispatcher message in Slovenian (or English) -> events -> new plan. */
 const EXAMPLES = [
@@ -149,7 +150,11 @@ export function FieldMessage({
           <p className="muted small">Voice input needs Chrome or Edge.</p>
         )}
         {speech.error && <div className="message error">{speech.error}</div>}
-        {error && <div className="message error">{error}</div>}
+        {error && (
+          <div className="message error">
+            <ErrorText text={error} />
+          </div>
+        )}
         {result && (
           <div className="parsed">
             <div>

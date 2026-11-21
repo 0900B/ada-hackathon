@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 from . import config, demo
 from .agent import runner as agent
 from .agent.messages import FieldMessage, MessageError, parse_message, to_operator_events
+from .guard import GUARD, message_limit_detail
 from .audit import AUDIT
 from .engine import surge
 from .engine.actions import ActionError
@@ -213,7 +214,8 @@ def health() -> dict:
         "tomtom_requests_today": tomtom.usage() if tomtom.tomtom_key() else None,
         "roads": ROADS.summary(),
         "audit": AUDIT.summary(),
-        "traffic_tiles": {"available": tiles.available(), **tiles.stats},
+        "traffic_tiles": tiles.status(),
+        "claude": {"enabled": config.agent_enabled(), **GUARD.status()},
     }
 
 
@@ -325,6 +327,10 @@ async def post_message(msg: FieldMessage, state: WorldState = World) -> dict:
         raise HTTPException(status_code=503, detail="Message parsing needs the Claude API key; use the event buttons")
     if msg.sender_vehicle_id and msg.sender_vehicle_id not in state.vehicles:
         raise HTTPException(status_code=400, detail=f"Unknown vehicle {msg.sender_vehicle_id}")
+    if not GUARD.try_acquire("message"):  # Claude usage limit (cost/abuse guard for the live demo)
+        retry = GUARD.retry_after_s()
+        AUDIT.record(state.name, "field_message", f'"{msg.text}" -> not processed: AI limit reached', ref=msg.sender_vehicle_id)
+        raise HTTPException(status_code=429, detail=message_limit_detail(retry), headers={"Retry-After": str(retry)})
     try:
         parsed = await parse_message(state, msg.text, msg.sender_vehicle_id)
         events = to_operator_events(state, parsed, msg.text)
@@ -366,7 +372,7 @@ async def post_message(msg: FieldMessage, state: WorldState = World) -> dict:
             focus=result["applied"][-1],
             question=f'Field message: "{msg.text}". Understood as: {parsed.understood_en}',
         )
-        result["run_id"] = run.id
+        result["run_id"] = run.id if run else None  # None: skipped (AI usage limit)
     return result
 
 
@@ -636,8 +642,9 @@ def reject(run_id: str, req: RejectRequest | None = None, state: WorldState = Wo
 @app.get("/tiles/traffic/{layer}/{z}/{x}/{y}.png")
 async def traffic_tile(layer: str, z: int, x: int, y: int) -> Response:
     """TomTom traffic tiles (layer: flow or incidents) via our cache; the API key stays on the server."""
-    content, real = await tiles.get_tile(HTTP, layer, z, x, y)
-    return Response(content, media_type="image/png", headers={"Cache-Control": f"public, max-age={60 if real else 30}"})
+    content, _real, max_age = await tiles.get_tile(HTTP, layer, z, x, y)
+    # browsers keep a tile for what is left of its two minutes in our cache (reloads don't re-ask)
+    return Response(content, media_type="image/png", headers={"Cache-Control": f"public, max-age={max_age}"})
 
 
 @app.get("/audit")

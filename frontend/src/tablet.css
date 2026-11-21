@@ -406,6 +406,7 @@
   color: #fff;
 }
 .mdt-toast {
+  white-space: pre-line;
   position: absolute;
   z-index: 1000;
   left: 50%;

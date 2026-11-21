@@ -33,6 +33,7 @@ import { LEVEL_PRIORITY, levelOf, levelUp, severitySupported } from "../severity
 import { ResponseLine, SeverityBadge } from "../SeverityBadge";
 import { doctorJobLine } from "../doctor";
 import { DoctorTag } from "../DoctorTag";
+import { ErrorText } from "../ErrorText";
 import { useHotkeys } from "../hotkeys";
 import { SPEECH_LANGS, speechSecureContext, usePushToTalk, useSpeechInput } from "../voice";
 import "../voice.css";
@@ -380,7 +381,11 @@ function CrewConsole({
               <span className="spinner" /> AI is interpreting the message…
             </div>
           )}
-          {error && <div className="message error">Not delivered: {error}</div>}
+          {error && (
+            <div className="message error">
+              Not delivered: <ErrorText text={error} />
+            </div>
+          )}
           {direct && (
             <>
               <div className="applied">
