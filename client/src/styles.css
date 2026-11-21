@@ -1179,8 +1179,8 @@ html, body, #root {
 .kpi-value   { font-size: 32px; color: var(--tx-on-dark); }
 .kpi-unit    { font-size: 13px; color: var(--tx-on-dark-sub); }
 .kpi-label   { font-size: 9px;  color: var(--tx-on-dark-muted); margin-top: 5px; letter-spacing: 0.10em; }
-.kpi-warn    { color: #D4A85A; }   /* brighter amber on dark than op-mission */
-.kpi-crit    { color: var(--p-rose); }
+.kpi-warn    { color: #FA8925; }   /* orange — consistent with --op-mission on dark */
+.kpi-crit    { color: var(--p-coral); }
 
 /* ━━━━ LIGHT ZONE: events, alerts, scenarios ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
@@ -1229,13 +1229,13 @@ html, body, #root {
 
 /* ── Token contrast upgrades ─────────────────────────────────────────────── */
 :root {
-  /* Light-surface text — originals were too pale on almond-60 (#F0E8E3) */
-  --tx-secondary:      #3B3F41;              /* was #51575A → ~5:1 on almond-60 */
-  --tx-muted:          #5F6467;              /* was #8A9094 → readable at 11px all-caps */
+  /* Light-surface text — updated for near-white (#EDEEEE) panel surface */
+  --tx-secondary:      #2D3133;
+  --tx-muted:          #5A6063;
 
-  /* Dark-surface text — semitransparent values rendered below 2:1 on gunmetal */
-  --tx-on-dark-sub:    rgba(213, 187, 177, 0.78);  /* was 0.60 → ≥ 7:1 on gunmetal */
-  --tx-on-dark-muted:  rgba(213, 187, 177, 0.70);  /* was 0.35 → ≥ 5:1 on gunmetal */
+  /* Dark-surface text on near-black (#131516) */
+  --tx-on-dark-sub:    rgba(232, 234, 235, 0.80);
+  --tx-on-dark-muted:  rgba(232, 234, 235, 0.52);
 }
 
 /* ── Responsive panel: 38vw clamps between 360px and 580px ──────────────── */
