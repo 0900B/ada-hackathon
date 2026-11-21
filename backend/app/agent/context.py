@@ -175,7 +175,9 @@ def tool_simulate_plan(state: WorldState, steps: list[dict[str, Any]]) -> dict[s
     if not steps:
         return {"feasible": True, "note": "Empty plan: nothing changes.", "kpis": kpis(state)}
     plan = Plan(steps=[PlanStep(**s) for s in steps])
-    return simulate_plan(state, plan)
+    result = simulate_plan(state, plan)
+    result.pop("steps", None)  # the engine's anchored copy of the steps; step_details says what they do
+    return result
 
 
 def tool_vehicle_schedule(state: WorldState, vehicle_id: str) -> dict[str, Any]:

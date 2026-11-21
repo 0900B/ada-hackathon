@@ -23,7 +23,8 @@ from .agent.messages import FieldMessage, MessageError, parse_message, to_operat
 from .audit import AUDIT
 from .engine.actions import ActionError
 from .engine.events import EventError, apply_event
-from .engine.plans import apply_plan, simulate_plan
+from .agent.context import hhmm
+from .engine.plans import apply_plan, simulate_plan, stale_reasons
 from .engine.projection import kpis, project_all
 from .fetchers import nap, tomtom
 from .fetchers.base import run_periodic
@@ -414,9 +415,28 @@ def get_run(run_id: str, state: WorldState = World) -> AgentRun:
     return _find_run(state, run_id)
 
 
+def _out_of_date(state: WorldState, run: AgentRun, why: str) -> HTTPException:
+    """The world moved on since the option was checked: say what changed and start a fresh analysis."""
+    run.log("info", f"Approval refused, plan out of date: {why}"[:600])
+    fresh = None
+    if config.AGENT_AUTO:
+        fresh = agent.start_run(
+            state, trigger=f"stale:{run.id}", question=f"The operator wanted to approve a plan that is out of date ({why}). Re-plan."
+        )
+    state.bump()
+    tail = f" A new analysis has started ({fresh.id})." if fresh else " Ask for a new analysis."
+    return HTTPException(status_code=409, detail=why + tail)
+
+
 @router.post("/agent/runs/{run_id}/approve")
-def approve(run_id: str, req: ApproveRequest, state: WorldState = World) -> AgentRun:
-    """Operator approves one option: its steps are re-checked against the current world and applied."""
+async def approve(run_id: str, req: ApproveRequest, state: WorldState = World) -> AgentRun:
+    """Operator approves one option: its steps are re-checked against the current world and applied.
+
+    The steps carry anchors (before_trip_id) from when the engine checked them, so the vehicles do
+    the jobs in the order that was shown even if they moved on meanwhile. If the outcome is now
+    clearly worse than shown (e.g. a vehicle loaded a patient and can no longer turn around), the
+    approval is refused with the reason (409) and, with AGENT_AUTO, a fresh analysis starts.
+    """
     run = _find_run(state, run_id)
     if run.status != "done" or run.recommendation is None:
         raise HTTPException(status_code=409, detail=f"Run {run_id} is {run.status}; nothing to approve")
@@ -425,18 +445,30 @@ def approve(run_id: str, req: ApproveRequest, state: WorldState = World) -> Agen
         raise HTTPException(status_code=400, detail="option_index out of range")
     option = options[req.option_index]
     applied_event = None
+    executed: list[str] = []
     if option.steps:
+        plan = Plan(steps=option.steps, rationale=f"Approved: {option.title}")
+        project_all(state)
+        preview = simulate_plan(state, plan)
+        checked = run.recommendation.checked_at
+        since = f" (checked at {hhmm(checked)}, now {hhmm(state.sim_time)})" if checked else ""
+        if not preview["feasible"]:
+            # e.g. a patient was picked up meanwhile, or the vehicle broke down.
+            raise _out_of_date(state, run, f"Plan no longer valid{since}: {'; '.join(preview['errors'])}.")
+        if stale := stale_reasons(option.step_details, preview["step_details"]):
+            raise _out_of_date(state, run, f"Plan is out of date{since}: {'; '.join(stale)}.")
         try:
-            applied_event = apply_plan(state, Plan(steps=option.steps, rationale=f"Approved: {option.title}"))
+            applied_event = apply_plan(state, plan)
         except ActionError as e:
-            # The world moved on since the recommendation (e.g. a patient was picked up meanwhile).
-            raise HTTPException(status_code=409, detail=f"Plan no longer valid: {e}. Ask for a new analysis.") from e
+            raise _out_of_date(state, run, f"Plan no longer valid{since}: {e}.") from e
+        executed = [d["text"] for d in preview["step_details"]]
     run.status = "approved"
     run.decision = {
         "option_index": req.option_index,
         "title": option.title,
         "event_id": applied_event.id if applied_event else None,
         "at": utcnow().isoformat(),
+        "executed": executed,  # what each step does as applied (same wording as step_details[].text)
     }
     run.log("info", f"Operator approved option {req.option_index + 1}: {option.title}")
     AUDIT.record(

@@ -17,8 +17,8 @@ from .. import config
 from ..audit import AUDIT
 from ..engine.candidates import greedy_plan
 from ..engine.plans import simulate_plan
-from ..engine.projection import kpis
-from ..models import AgentRun, EventRecord, Plan, Recommendation, RecommendationOption, utcnow
+from ..engine.projection import kpis, project_all
+from ..models import AgentRun, EventRecord, Plan, PlanStep, Recommendation, RecommendationOption, utcnow
 from .context import build_user_message, describe_call, describe_result, execute_tool
 from .prompts import OUTPUT_SCHEMA, SYSTEM_PROMPT, TOOLS
 
@@ -196,10 +196,12 @@ def _engine_recommendation(state: WorldState, focus: EventRecord | None, reason:
     situation = focus.summary if focus else "Operator requested a review."
     options = []
     if plan:
+        details = simulate_plan(state, plan)["step_details"]
+        what = "; ".join(d["text"] for d in details[:3]) + (f"; and {len(details) - 3} more" if len(details) > 3 else "")
         options.append(
             RecommendationOption(
                 title="Engine: lowest-delay reassignment",
-                summary=f"Assign {len(plan.steps)} unassigned trip(s), most urgent first, each to its best simulated vehicle.",
+                summary=f"Most urgent first, each trip to its best simulated vehicle: {what}.",
                 steps=plan.steps,
                 pros=["Computed deterministically from the live simulation"],
                 cons=["No AI trade-off reasoning or notification drafts"],
@@ -222,8 +224,15 @@ def _engine_recommendation(state: WorldState, focus: EventRecord | None, reason:
 
 
 def _finish(state: WorldState, run: AgentRun, rec: Recommendation, engine: str) -> None:
-    """Re-simulate every option with the engine so all numbers shown are the engine's, not the model's."""
+    """Re-simulate every option with the engine so all numbers shown are the engine's, not the model's.
+
+    Each feasible option's steps are replaced by the steps as the engine applies them (normalised,
+    with anchors), and step_details says in plain words what every step really does. Approval
+    replays exactly these steps and is checked against these details.
+    """
+    project_all(state)
     rec.kpis_before = kpis(state)
+    rec.checked_at = state.sim_time
     for opt in rec.options:
         if not opt.steps:
             opt.feasible, opt.kpis_after = True, kpis(state)
@@ -233,8 +242,14 @@ def _finish(state: WorldState, run: AgentRun, rec: Recommendation, engine: str) 
         opt.errors = result["errors"]
         opt.kpis_after = result["kpis_after"]
         opt.trip_changes = result["trip_changes"][:12]
+        if opt.feasible:
+            opt.steps = [PlanStep(**s) for s in result["steps"]]
+            opt.step_details = result["step_details"]
     if not (0 <= rec.recommended_index < len(rec.options)):
         rec.recommended_index = 0 if rec.options else -1
+    if rec.options and rec.options[rec.recommended_index].feasible is False:
+        # Never recommend an option that cannot be applied: take the first one that can.
+        rec.recommended_index = next((i for i, o in enumerate(rec.options) if o.feasible), rec.recommended_index)
     run.recommendation = rec
     run.engine = engine  # type: ignore[assignment]
     run.status = "done"

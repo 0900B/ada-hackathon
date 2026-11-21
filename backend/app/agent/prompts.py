@@ -17,8 +17,16 @@ Fog (megla) grounds it (`grounded_by_fog_until`): it takes no new trips until th
 trips need road vehicles.
 - Trips have a priority: emergency > urgent > scheduled. Each trip has a time the patient is ready \
 for pickup and a due-by time at the destination. Delay means minutes after due-by.
-- Each vehicle works through its queue in order. A trip whose status is "onboard" cannot move to \
-another vehicle.
+- Each vehicle finishes its current trip, then works through its queue in order. A trip whose \
+status is "onboard" cannot move to another vehicle.
+- What a step does: position k puts the trip before the k-th queued trip (0 = right after the \
+current trip, null = at the end); interrupt_current=true turns the vehicle around now (its current \
+trip goes back to the queue). An emergency always goes first: the engine puts it before every trip \
+not yet picked up, turning the vehicle around if needed. A vehicle is never turned away from an \
+emergency or from a trip of higher priority, and no trip is queued ahead of a higher-priority one. \
+Steps are applied in order, so a later step can push an earlier one back: simulate_plan's \
+step_details says what each step really does (who goes now, who goes next, when). Describe your \
+options the same way: say a vehicle "goes now" only when step_details says so.
 - Travel times come from the backend's model, which already accounts for traffic, weather and incidents. \
 Vehicles are routed around road closures automatically (detours), and the ETAs include those detours.
 - All times are local (Europe/Ljubljana) on the same day, written HH:MM.

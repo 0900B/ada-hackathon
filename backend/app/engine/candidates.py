@@ -7,11 +7,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ..models import Plan, PlanStep, Trip, VehicleType
+from ..models import Plan, PlanStep, Trip, Vehicle, VehicleType
 from ..routing import flies, haversine_km
 from .actions import ActionError, assign_trip, can_serve, check_redirect
-from .plans import simulate
-from .projection import DONE, PRIORITY_ORDER, kpis, over_capacity, project_all
+from .plans import simulate_steps, step_details
+from .projection import DONE, PRIORITY_ORDER, kpis, over_capacity, project_all, route_trip_ids
 
 if TYPE_CHECKING:
     from ..state import WorldState
@@ -32,6 +32,16 @@ def spends_helicopter(state: WorldState, vehicle_type: VehicleType, trip: Trip) 
         return False
     a, b = state.places[trip.pickup_id], state.places[trip.dropoff_id]
     return haversine_km(a.lat, a.lon, b.lat, b.lon) < HELICOPTER_LONG_TRIP_KM
+
+
+def is_free(state: WorldState, v: Vehicle) -> bool:
+    """Available right now: in service, not grounded, no job and nothing queued (idle or driving home)."""
+    return (
+        v.status in ("idle", "returning")
+        and v.current_trip_id is None
+        and not v.queue
+        and v.grounded_until is None
+    )
 
 
 def nearest_place_name(state: WorldState, lat: float, lon: float) -> str:
@@ -72,32 +82,44 @@ def find_candidates(
         if queue_len > 0 and trip.status != "onboard":
             options.add((0, False))  # right after the current trip
         current = state.trips.get(v.current_trip_id) if v.current_trip_id else None
-        if urgent and current and current.id != trip_id and current.status != "onboard" and trip.status != "onboard":
-            options.add((0, True))  # divert now, current trip goes back to the queue
+        if (
+            urgent
+            and current
+            and current.id != trip_id
+            and current.status != "onboard"
+            and trip.status != "onboard"
+            and PRIORITY_ORDER[trip.priority] < PRIORITY_ORDER[current.priority]
+        ):
+            options.add((0, True))  # divert now (only for a more urgent trip), current trip goes back to the queue
 
-        for position, interrupt in options:
+        seen: set[tuple] = set()
+        for position, interrupt in sorted(options, key=lambda o: (o[0] is not None, o[1])):  # least change first
             step = PlanStep(
                 trip_id=trip_id, vehicle_id=v.id, position=position, interrupt_current=interrupt, dropoff_id=dropoff_id
             )
-            sim, errors = simulate(state, Plan(steps=[step]))
+            sim, errors, applied = simulate_steps(state, Plan(steps=[step]))
             if errors:
                 continue
+            # The engine may normalise a step (an emergency always goes first): keep each real outcome once.
+            step = applied[0].model_copy(update={"before_trip_id": None})
+            outcome = (step.interrupt_current, tuple(route_trip_ids(sim.vehicles[v.id])))
+            if outcome in seen:
+                continue
+            seen.add(outcome)
             t = sim.trips[trip_id]
             k = kpis(sim)
+            details = step_details(state, sim, applied)
             results.append(
                 {
-                    "step": step.model_dump(),
+                    "step": step.model_dump(exclude={"before_trip_id"}),
                     "vehicle_id": v.id,
                     "vehicle_type": v.type,
                     "vehicle_status": v.status,
+                    "vehicle_free": is_free(state, v),
                     "vehicle_near": nearest_place_name(state, v.lat, v.lon),
-                    "insertion": "divert now (interrupts current trip)"
-                    if interrupt
-                    else (
-                        ("keeps its place" if own and redirect else "end of queue")
-                        if position is None
-                        else "next, after current trip"
-                    ),
+                    "insertion": ("keeps its place" if own and redirect and step.position is None else details[0]["when"])
+                    if details
+                    else "end of queue",
                     "trip_eta_pickup": t.eta_pickup,
                     "trip_eta_dropoff": t.eta_dropoff,
                     "trip_delay_min": t.delay_min,

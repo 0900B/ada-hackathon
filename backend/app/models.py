@@ -326,6 +326,10 @@ class PlanStep(BaseModel):
     # Redirect the patient to another hospital (a general one with free capacity). On the trip's own
     # vehicle with position=None the trip keeps its place in the queue (works with the patient on board).
     dropoff_id: str | None = None
+    # Set by the engine when it checks an option: the trip this one must come right before in the
+    # vehicle's route (None = at the end). When set, it replaces position/interrupt_current, so an
+    # approved plan keeps the order it was checked with even if the vehicle moved on meanwhile.
+    before_trip_id: str | None = None
 
 
 class Plan(BaseModel):
@@ -359,6 +363,9 @@ class RecommendationOption(BaseModel):
     errors: list[str] = Field(default_factory=list)
     kpis_after: dict[str, Any] | None = None
     trip_changes: list[dict[str, Any]] = Field(default_factory=list)
+    # What each step really does, in step order (who, which stop of the vehicle's route, after which
+    # trips, predicted pickup/drop-off and a one-line `text`). Approval is checked against these.
+    step_details: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class Recommendation(BaseModel):
@@ -369,6 +376,7 @@ class Recommendation(BaseModel):
     notifications: list[NotificationDraft] = Field(default_factory=list)
     escalation: str | None = None
     kpis_before: dict[str, Any] | None = None  # filled in by the engine
+    checked_at: datetime | None = None  # world (sim) time the engine checked the options
 
 
 class AgentRun(BaseModel):
