@@ -23,18 +23,22 @@ function incidentKindLabel(kind) {
   return kind.replace(/_/g, ' ')
 }
 
-// Vehicles that need a "pending decision" ring: active while run.status === 'done'
+// Vehicles shown with a dark ring while run is active (running = analysis in progress, done = awaiting decision).
+// During 'running' we can only identify broken-down vehicles; steps arrive once the recommendation is ready.
 function getAffectedVehicleIds(run, state) {
-  if (!run || run.status !== 'done') return new Set()
+  if (!run || (run.status !== 'running' && run.status !== 'done')) return new Set()
   const ids = new Set()
-  for (const opt of (run.recommendation?.options ?? [])) {
-    for (const step of (opt.steps ?? [])) {
-      if (step.vehicle_id) ids.add(step.vehicle_id)
-    }
-  }
-  // Always include broken-down vehicles
+  // Broken-down vehicles are always identifiable from live state
   for (const v of (state?.vehicles ?? [])) {
     if (v.status === 'out_of_service') ids.add(v.id)
+  }
+  // Once recommendation is ready, also include every vehicle mentioned in an option's steps
+  if (run.status === 'done') {
+    for (const opt of (run.recommendation?.options ?? [])) {
+      for (const step of (opt.steps ?? [])) {
+        if (step.vehicle_id) ids.add(step.vehicle_id)
+      }
+    }
   }
   return ids
 }
@@ -82,20 +86,23 @@ function useWorldState() {
   }, [])
 
   // If SSE delivers nothing within 8s, start polling /state as a fallback.
-  // Once SSE delivers a message, polling stops.
+  // When state arrives (from SSE or poll), the effect re-runs: cleanup fires first,
+  // clearing both the timeout and any running interval before the early-return branch exits.
   useEffect(() => {
     if (state) return
-    const id = setTimeout(() => {
-      if (state) return
-      const poll = setInterval(async () => {
+    let pollId = null
+    const timerId = setTimeout(() => {
+      pollId = setInterval(async () => {
         try {
           const s = await fetchState()
           setState(s)
         } catch {}
       }, 3000)
-      return () => clearInterval(poll)
     }, 8000)
-    return () => clearTimeout(id)
+    return () => {
+      clearTimeout(timerId)
+      if (pollId !== null) clearInterval(pollId)
+    }
   }, [state])
 
   return { state, offline: state === null }
@@ -117,18 +124,6 @@ function useAction(setMessage, setBusy) {
   }
 }
 
-// ── Extract vehicle IDs mentioned in recommendation text ──────────────────────
-
-function extractHighlightIds(rec, vehicles) {
-  if (!rec || !vehicles?.length) return []
-  const text = [
-    rec.situation ?? '',
-    ...(rec.options?.map(o => `${o.title} ${o.summary}`) ?? []),
-    rec.reasoning ?? '',
-  ].join(' ')
-  return vehicles.filter(v => text.includes(v.id)).map(v => v.id)
-}
-
 // ── Shared delta helper ───────────────────────────────────────────────────────
 
 function deltaClass(before, after) {
@@ -146,9 +141,10 @@ export default function App() {
   const [cardMinimised, setCardMinimised] = useState(false)
   const action = useAction(setMessage, setBusy)
 
-  const mapProps = state ? liveToMapProps(state) : mockToMapProps()
-  const run      = state?.agent?.runs?.[0] ?? null
-  const showCard = run?.status === 'done' && !!run?.recommendation
+  const mapProps    = state ? liveToMapProps(state) : mockToMapProps()
+  const run         = state?.agent?.runs?.[0] ?? null
+  const showCard    = run?.status === 'done' && !!run?.recommendation
+  const affectedIds = getAffectedVehicleIds(run, state)
 
   // Reset minimised whenever a new decision arrives
   const prevRunId = useRef(null)
@@ -206,7 +202,7 @@ export default function App() {
             <p className={`inline-msg ${message.kind}`}>{message.text}</p>
           )}
 
-          <ScenariosSection busy={busy} action={action} />
+          <ScenariosSection busy={busy || run?.status === 'running'} action={action} />
           <StatusSection run={run} />
           <EventSection
             incidents={state?.incidents?.filter(i => i.active !== false) ?? []}
