@@ -26,8 +26,6 @@ Always commit and push to the `Klimentina` branch. Never commit or push to `main
 
 ## Project rules
 
-- Active frontend in `frontend/`, active backend in `backend/`.
-  (The `client/` directory is an abandoned early prototype; use only as a visual reference.)
-- Never modify `backend/` — a teammate owns it.
+- Klimentina works ONLY in `client/`. Never modify `frontend/` or `backend/` — teammates own them. Reading them for reference is OK.
 - Never commit secrets (.env). Commit and push after each working step.
 - Keep code simple and commented; explain briefly what was done in each response.
