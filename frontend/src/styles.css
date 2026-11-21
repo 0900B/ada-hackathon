@@ -1447,6 +1447,14 @@ table.audit pre {
 .vc-actions button {
   font-size: 12px;
 }
+.vc-links {
+  display: flex;
+  gap: 6px;
+}
+.vc-links .button-link {
+  font-size: 12px;
+  padding: 5px 8px;
+}
 .vc-detour {
   margin-top: 4px;
   color: #ff922b;

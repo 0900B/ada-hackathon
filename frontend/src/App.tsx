@@ -20,6 +20,7 @@ import { FieldMessage } from "./FieldMessage";
 import { useHotkeys } from "./hotkeys";
 import { ShortcutsHelp } from "./ShortcutsHelp";
 import { CrewPage } from "./pages/CrewPage";
+import { TabletPage } from "./pages/TabletPage";
 import { ScenariosPanel } from "./ScenariosPanel";
 import { VehicleCard } from "./VehicleCard";
 import { VehicleStrip } from "./VehicleStrip";
@@ -52,6 +53,7 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 /** Layout: header with navigation, then the routed page. Each page opens its own live connection. */
 export default function App() {
   const crew = useMatch("/crew/*");
+  const tablet = useMatch("/vehicle/*");
   const { pathname } = useLocation();
   // Fleet and Crew view follow the world of the dashboard you came from
   const [lastWorld, setLastWorld] = useState<World>("live");
@@ -59,11 +61,12 @@ export default function App() {
     if (pathname === "/sim" || pathname === "/live") setLastWorld(pathname === "/sim" ? "sim" : "live");
   }, [pathname]);
 
-  if (crew) {
-    // Crew view (phone): full screen, without the dispatcher header
+  if (crew || tablet) {
+    // Crew view (phone) and in-vehicle tablet: full screen, without the dispatcher header
     return (
       <Routes>
         <Route path="/crew/:vehicleId?" element={<CrewPage />} />
+        <Route path="/vehicle/:vehicleId?" element={<TabletPage />} />
       </Routes>
     );
   }

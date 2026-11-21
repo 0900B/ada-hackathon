@@ -122,6 +122,14 @@ export function VehicleCard({
           🔧 Breakdown
         </button>
       </div>
+      <div className="vc-links">
+        <a className="button-link" href={`/vehicle/${encodeURIComponent(v.id)}?world=${state.world}`} target="_blank" rel="noopener">
+          🖥 Tablet view ↗
+        </a>
+        <a className="button-link" href={`/crew/${encodeURIComponent(v.id)}?world=${state.world}`} target="_blank" rel="noopener">
+          📱 Crew phone ↗
+        </a>
+      </div>
     </div>
   );
 }

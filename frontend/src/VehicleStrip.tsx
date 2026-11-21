@@ -262,6 +262,9 @@ function VehiclePopover({
         <a className="button-link" href={`/crew/${encodeURIComponent(v.id)}?world=${state.world}`} target="_blank" rel="noopener">
           📱 Crew view ↗
         </a>
+        <a className="button-link" href={`/vehicle/${encodeURIComponent(v.id)}?world=${state.world}`} target="_blank" rel="noopener">
+          🖥 Tablet view ↗
+        </a>
       </div>
     </div>
   );

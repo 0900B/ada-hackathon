@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { trafficTileUrl, type Vehicle, type VehicleDetail, type WorldSnapshot } from "./api";
+import { baseMaps, saveBase, savedBase, type BaseId } from "./basemaps";
 import { flightTarget, fmtTime, vehicleStatusText } from "./format";
 
 export type ClickMode = "closure" | "emergency" | null;
@@ -37,50 +38,6 @@ interface Props {
   onSelect: (id: string | null) => void;
   detail: VehicleDetail | null; // route of the selected vehicle, highlighted
   centerOn: { lat: number; lon: number; n: number } | null; // bump n to re-center
-}
-
-type BaseId = "dark" | "standard" | "satellite" | "hybrid" | "terrain";
-const BASE_KEY = "planb.basemap";
-const OSM = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
-const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
-const ESRI_ATTR = "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community";
-const esri = (service: string) => `https://server.arcgisonline.com/ArcGIS/rest/services/${service}/MapServer/tile/{z}/{y}/{x}`;
-
-/** The base maps of the layer switcher (Google-Maps style), all keyless. */
-function baseMaps(): Record<BaseId, { label: string; layer: L.Layer }> {
-  const imagery = () => L.tileLayer(esri("World_Imagery"), { attribution: ESRI_ATTR, maxZoom: 19 });
-  return {
-    dark: { label: "🌙 Dark", layer: L.tileLayer(OSM, { attribution: OSM_ATTR, maxZoom: 19, className: "base-layer dark-layer" }) },
-    standard: { label: "🗺 Standard", layer: L.tileLayer(OSM, { attribution: OSM_ATTR, maxZoom: 19, className: "base-layer" }) },
-    satellite: { label: "🛰 Satellite", layer: imagery() },
-    hybrid: {
-      label: "🛰 Hybrid (satellite + labels)",
-      layer: L.layerGroup([
-        imagery(),
-        L.tileLayer(esri("Reference/World_Transportation"), { maxZoom: 19 }),
-        L.tileLayer(esri("Reference/World_Boundaries_and_Places"), { maxZoom: 19 }),
-      ]),
-    },
-    terrain: {
-      label: "⛰ Terrain",
-      layer: L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
-        subdomains: "abc",
-        maxNativeZoom: 17,
-        maxZoom: 19,
-        attribution: `${OSM_ATTR}, SRTM | style &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)`,
-      }),
-    },
-  };
-}
-
-function savedBase(): BaseId {
-  try {
-    const v = localStorage.getItem(BASE_KEY);
-    if (v === "dark" || v === "standard" || v === "satellite" || v === "hybrid" || v === "terrain") return v;
-  } catch {
-    // storage blocked: use the default
-  }
-  return "dark";
 }
 
 function vehicleHtml(v: Vehicle, cls: string, flying: boolean, grounded: boolean): string {
@@ -131,11 +88,7 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       const id = (Object.keys(bases) as BaseId[]).find((k) => bases[k].layer === e.layer);
       if (!id) return;
       box.dataset.base = id; // lets the CSS outline routes on bright base maps
-      try {
-        localStorage.setItem(BASE_KEY, id);
-      } catch {
-        // storage blocked (private window): the choice just isn't remembered
-      }
+      saveBase(id);
     });
     // Live traffic from TomTom (through our backend; transparent overlays, no colour filter)
     const traffic = L.tileLayer(trafficTileUrl("flow"), {

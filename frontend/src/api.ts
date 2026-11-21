@@ -34,6 +34,7 @@ export interface Vehicle {
   queue: string[];
   busy_until: string | null;
   grounded_until?: string | null; // helicopters: grounded by fog until then (no new flights)
+  waiting_until?: string | null; // standing at a pickup until the patient is ready
   on_road: boolean;
   path_progress: number;
   path: [number, number][] | null; // remaining road geometry of the current leg (null = no road route)
@@ -61,6 +62,7 @@ export interface Trip {
   eta_pickup: string | null;
   eta_dropoff: string | null;
   delay_min: number | null;
+  dispatched_at?: string | null; // when the engine dispatched this call itself (sim time)
 }
 
 export interface Incident {
@@ -195,7 +197,14 @@ export interface AgentRun {
   steps: AgentStep[];
   recommendation: Recommendation | null;
   error: string | null;
-  decision: { option_index?: number; title?: string; reason?: string | null; at?: string; event_id?: string | null } | null;
+  decision: {
+    option_index?: number;
+    title?: string;
+    reason?: string | null;
+    at?: string;
+    event_id?: string | null;
+    executed?: string[]; // what each step did as applied (same wording as step_details[].text)
+  } | null;
   usage: Record<string, number>;
 }
 
@@ -301,6 +310,7 @@ export interface VehicleStop {
   lon: number;
   eta: string | null;
   delay_min?: number | null;
+  ready_at?: string; // pickups: the patient is ready from (arriving earlier means waiting)
 }
 
 export interface VehicleDetail {
@@ -312,6 +322,40 @@ export interface VehicleDetail {
   stops: VehicleStop[];
   legs: [number, number][][];
   detour_legs?: number[]; // indexes into legs that go around a road closure
+}
+
+/** In-vehicle tablet: next manoeuvres on the current leg (GET /{world}/vehicles/{id}/navigation). */
+export interface NavStep {
+  type: string; // OSRM manoeuvre: turn, new name, continue, merge, fork, end of road, roundabout, arrive, …
+  modifier: string | null; // left, slight right, straight, uturn, …
+  exit: number | null; // roundabouts
+  name: string;
+  ref: string | null;
+  lat: number;
+  lon: number;
+  distance_m: number; // from the vehicle to this manoeuvre
+}
+
+export interface Navigation {
+  vehicle_id: string;
+  sim_time: string;
+  mode: "road" | "flight" | "none";
+  status: "ok" | "pending" | "unavailable" | "arrived" | "no_leg" | "out_of_service";
+  target: { kind: "pickup" | "dropoff" | "base"; place_id: string; name: string; lat: number; lon: number; trip_id: string | null } | null;
+  steps: NavStep[];
+  remaining_m?: number;
+  remaining_s?: number;
+  eta?: string;
+  waiting?: boolean;
+  bearing_deg?: number; // flight mode
+  detour?: boolean;
+  error?: string | null;
+}
+
+export async function fetchNavigation(world: World, id: string): Promise<Navigation> {
+  const res = await fetch(`${API_URL}/${world}/vehicles/${encodeURIComponent(id)}/navigation`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return (await res.json()) as Navigation;
 }
 
 export async function fetchVehicle(world: World, id: string): Promise<VehicleDetail> {
