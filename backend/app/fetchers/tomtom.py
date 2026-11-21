@@ -92,7 +92,7 @@ async def fetch_flow(state: WorldState, client: httpx.AsyncClient) -> None:
     try:
         spend("flow", len(FLOW_POINTS))
         results = await asyncio.gather(
-            *(_get(client, FLOW_URL, {"point": f"{lat},{lon}", "unit": "kmph"}) for lat, lon in FLOW_POINTS.values()),
+            *(get(client, FLOW_URL, {"point": f"{lat},{lon}", "unit": "kmph"}) for lat, lon in FLOW_POINTS.values()),
             return_exceptions=True,
         )
         samples = []
