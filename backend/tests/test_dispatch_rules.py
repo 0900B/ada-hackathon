@@ -220,7 +220,10 @@ def test_ambulances_are_not_tied_up_by_routine_trips_hours_ahead():
     later = new_trip("TX-L", "scheduled", "home_moste", ready_min=120)
     assert not any(c["vehicle_type"] in ("ambulance", "helicopter") for c in find_candidates(W, later.id, limit=100))
     soon = new_trip("TX-N", "scheduled", "home_moste", ready_min=10)
-    assert any(c["vehicle_type"] == "ambulance" for c in find_candidates(W, soon.id, limit=100))
+    # Ambulances never take scheduled trips (AMBULANCES_TAKE_SCHEDULED = False), not even soon ones
+    assert not any(c["vehicle_type"] in ("ambulance", "helicopter") for c in find_candidates(W, soon.id, limit=100))
+    ok, why = can_serve(W.vehicles["A1"], soon)
+    assert not ok and "scheduled" in why
 
 
 def test_engine_plan_after_a_van_breakdown_keeps_ambulances_short_and_one_free():

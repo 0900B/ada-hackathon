@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 CAPABILITIES = {
     "ambulance": [
-        "Emergency unit: emergencies and urgent calls",
+        "Emergency unit: emergencies and urgent calls only (no scheduled transports)",
         "Dispatched on availability and proximity",
         "At most its current job plus one queued trip",
         "Stretcher, wheelchair and seated patients; equipment",

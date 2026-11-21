@@ -21,6 +21,9 @@ EQUIPMENT_CARRIERS = ("ambulance", "transport")  # equipment goes by road; the h
 # - the helicopter (H1) only flies emergencies and urgent trips (never routine work or cargo).
 EMERGENCY_UNITS = ("ambulance", "helicopter")
 MAX_QUEUED_EMERGENCY_UNIT = 1  # an emergency unit holds its current job plus at most this many queued
+# Ambulances take emergencies and urgent trips only; every scheduled pickup/transfer goes to a van.
+# (Team decision for now; set True to let the engine use a free ambulance for a scheduled trip again.)
+AMBULANCES_TAKE_SCHEDULED = False
 
 
 class ActionError(ValueError):
@@ -39,6 +42,8 @@ def can_serve(v: Vehicle, trip: Trip) -> tuple[bool, str | None]:
         return False, f"{v.name} is a transport van; emergencies need an ambulance"
     if v.type == "helicopter" and trip.priority == "scheduled":
         return False, f"{v.name} only flies emergencies and urgent trips; scheduled trips go by road"
+    if v.type == "ambulance" and trip.priority == "scheduled" and not AMBULANCES_TAKE_SCHEDULED:
+        return False, f"{v.name} is an emergency ambulance; scheduled transports go to the transport vans"
     if v.type in EMERGENCY_UNITS:
         jobs = [t for t in ([v.current_trip_id] if v.current_trip_id else []) + list(v.queue) if t != trip.id]
         if len(jobs) > MAX_QUEUED_EMERGENCY_UNIT:
