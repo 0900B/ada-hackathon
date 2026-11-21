@@ -1087,3 +1087,126 @@ html, body, #root {
   letter-spacing: 0.03em;
 }
 .popup-warn { color: var(--status-crit); }
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   PHASE 3.1 — VISUAL HIERARCHY & READABILITY
+   Widens panel, extends Gunmetal block through fleet + KPI, adds Teal accent
+   line as the structural break, steps up the entire type scale, and improves
+   scannability across fleet, metrics, and events.
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* ── Type-scale step-up ───────────────────────────────────────────────────── */
+:root {
+  --fs-2xs:  10px;
+  --fs-xs:   11px;
+  --fs-sm:   13px;
+  --fs-base: 15px;
+  --fs-md:   16px;
+  --fs-lg:   20px;
+  --fs-xl:   26px;
+}
+
+/* ── Panel wider: 480 → 580px ────────────────────────────────────────────── */
+.side-panel { flex: 0 0 580px; }
+
+/* ── Header — a touch more top breathing room ────────────────────────────── */
+.panel-header { padding: var(--sp-4) var(--sp-5) var(--sp-3); }
+
+/* ── Section label global margin bump ────────────────────────────────────── */
+.section-label { margin-bottom: 10px; }
+
+/* ── Panel sections — slightly more vertical padding ─────────────────────── */
+.panel-section { padding: 14px var(--sp-5); }
+
+/* ━━━━ DARK BLOCK: fleet + KPI share Gunmetal with the header ━━━━━━━━━━━━━━ */
+
+/* Fleet section inherits dark background */
+.fleet-section {
+  background: var(--bg-header);
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: none;
+}
+
+/* Labels inside the dark fleet section */
+.fleet-section .section-label { color: var(--tx-on-dark-muted); margin-bottom: 0; }
+.fleet-section .fleet-summary { font-size: 11px; gap: var(--sp-3); }
+.fleet-section .fs-free        { color: var(--p-teal); }
+.fleet-section .fs-call        { color: var(--op-mission); }
+.fleet-section .fs-oos         { color: var(--tx-on-dark-muted); }
+
+/* 3-column grid: 9 vehicles fill exactly 3 rows — no orphaned chips */
+.fleet-grid { grid-template-columns: repeat(3, 1fr); gap: 7px; }
+
+/* Chips in dark context */
+.fleet-chip {
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border-left-width: 3px;
+}
+.fleet-chip--free {
+  border-left-color: var(--p-teal);
+  background: rgba(156, 196, 178, 0.12);
+}
+.fleet-chip--call {
+  border-left-color: var(--op-mission);
+  background: rgba(184, 121, 42, 0.09);
+}
+.fleet-chip--oos {
+  border-left-color: rgba(255, 255, 255, 0.10);
+  background: transparent;
+  opacity: 0.40;
+}
+
+.chip-id     { font-size: 12px; color: var(--tx-on-dark); }
+.chip-status { font-size: 9px;  color: var(--tx-on-dark-muted); }
+.fleet-chip--free .chip-status { color: var(--p-teal); }
+.fleet-chip--call .chip-status { color: var(--op-mission); }
+
+/* KPI bar: dark block; Teal accent line marks end of authority zone */
+.kpi-bar {
+  background: var(--p-gunmetal);
+  border-bottom: 2px solid rgba(156, 196, 178, 0.35);
+}
+.kpi-item    { padding: 12px 0; border-right-color: rgba(255, 255, 255, 0.07); }
+.kpi-value   { font-size: 32px; color: var(--tx-on-dark); }
+.kpi-unit    { font-size: 13px; color: var(--tx-on-dark-sub); }
+.kpi-label   { font-size: 9px;  color: var(--tx-on-dark-muted); margin-top: 5px; letter-spacing: 0.10em; }
+.kpi-warn    { color: #D4A85A; }   /* brighter amber on dark than op-mission */
+.kpi-crit    { color: var(--p-rose); }
+
+/* ━━━━ LIGHT ZONE: events, alerts, scenarios ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Events: larger body text, readable from projector distance */
+.event-list { gap: 9px; }
+.event-line { gap: 10px; }
+.event-time { font-size: 12px; letter-spacing: 0.04em; }
+.event-text { font-size: 14px; font-weight: var(--fw-medium); line-height: 1.35; }
+
+/* Alerts: bigger body text */
+.alert-line { font-size: 12px; padding-left: 10px; }
+.alert-text { font-size: 13px; }
+
+/* Situation / recommendation text */
+.situation-lead   { font-size: 15px; }
+.situation-detail { font-size: 12px; }
+
+/* Scenario buttons: more legible at a glance */
+.scenario-list  { gap: 3px; }
+.btn-scenario   { font-size: 12px; padding: 8px 12px; border-left-width: 3px; }
+.btn-reset-link { font-size: 11px; margin-top: var(--sp-3); }
+
+/* Status line: larger */
+.status-line { font-size: 14px; letter-spacing: 0.04em; }
+
+/* Legend: a little more compact padding, slightly larger labels */
+.legend      { padding: 8px var(--sp-5) 10px; }
+.legend-title { margin-bottom: 6px; }
+.legend-grid { gap: 3px 20px; }
+.legend-label { font-size: 11px; }
+
+/* Decision log */
+.log-line { font-size: 11px; }
+
+/* Offline notice */
+.offline-notice { font-size: 13px; }
