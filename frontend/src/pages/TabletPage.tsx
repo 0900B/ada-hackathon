@@ -121,7 +121,7 @@ const TURN_ANGLE: Record<string, number> = {
 };
 
 function instruction(s: NavStep): string {
-  const road = s.name || s.ref || "";
+  const road = s.name || (s.ref ? (/^\d/.test(s.ref) ? `road ${s.ref}` : s.ref) : "");
   const onto = road ? ` onto ${road}` : "";
   const mod = s.modifier ?? "";
   const side = mod.includes("left") ? "left" : mod.includes("right") ? "right" : "";
@@ -154,6 +154,7 @@ function instruction(s: NavStep): string {
     default:
       if (mod === "uturn") return `Make a U-turn${onto}`;
       if (mod === "straight" || !mod) return `Go straight${onto}`;
+      if (mod.startsWith("slight")) return `Bear ${side}${onto}`;
       return `Turn ${mod}${onto}`;
   }
 }
