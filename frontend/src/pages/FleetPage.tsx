@@ -1,21 +1,32 @@
+import { Link } from "react-router";
 import type { WorldSnapshot } from "../api";
 import { fmtTime, vehicleStatusText } from "../format";
 
-/** Example subpage: every vehicle with its current trip and projected queue. */
+/** Every vehicle with its current trip and projected queue (Live or Simulation: ?world=). */
 export function FleetPage({ state }: { state: WorldSnapshot }) {
   const trips = new Map(state.trips.map((t) => [t.id, t]));
   const place = new Map(state.places.map((p) => [p.id, p.name]));
 
   return (
     <main className="page">
-      <h2>Fleet</h2>
+      <h2 className="page-title">
+        Fleet · {state.hypothetical ? "Simulation" : "Live"}
+        <span className="page-switch">
+          <Link to="/fleet?world=live" className={state.hypothetical ? "" : "on"}>
+            Live
+          </Link>
+          <Link to="/fleet?world=sim" className={state.hypothetical ? "on" : ""}>
+            Simulation
+          </Link>
+        </span>
+      </h2>
       <div className="fleet-grid">
         {state.vehicles.map((v) => {
           const route = [v.current_trip_id, ...v.queue].filter((id): id is string => Boolean(id));
           return (
             <section key={v.id} className={`panel vehicle-card st-${v.status}`}>
               <h3>
-                <span className={`veh veh-${v.type}`}>{v.id}</span> {v.name}
+                <span className={`veh veh-${v.type}`}>{v.type === "helicopter" ? `🚁 ${v.id}` : v.id}</span> {v.name}
               </h3>
               <p className="muted">
                 {v.type} · {vehicleStatusText(v, state.trips)} · base {place.get(v.base_id) ?? v.base_id}

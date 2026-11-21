@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import {
   API_URL,
+  idSeq,
   sendFieldMessage,
   useWorldState,
   type AgentRun,
@@ -11,7 +12,7 @@ import {
   type World,
   type WorldSnapshot,
 } from "../api";
-import { fmtTime, humanize } from "../format";
+import { fmtTime, humanize, vehicleStatusText } from "../format";
 import { useHotkeys } from "../hotkeys";
 import { SPEECH_LANGS, speechSecureContext, usePushToTalk, useSpeechInput } from "../voice";
 import "../voice.css";
@@ -154,7 +155,14 @@ function CrewConsole({
   const trip = tripById(vehicle.current_trip_id);
   const queued = tripById(vehicle.queue[0]);
   const stop = nextStop(vehicle, trip, queued, placeName);
-  const run = result?.run_id ? state.agent.runs.find((r) => r.id === result.run_id) : undefined;
+  // The analysis that answers this message: the one it started, or (auto-analysis off) the first
+  // one the dispatcher starts after it
+  const sentSeq = Math.max(-1, ...(result?.applied ?? []).map((a) => idSeq(a.id)));
+  const run = result?.run_id
+    ? state.agent.runs.find((r) => r.id === result.run_id)
+    : result?.applied.length
+      ? [...state.agent.runs].reverse().find((r) => idSeq(r.id) > sentSeq)
+      : undefined;
   const late = (trip?.delay_min ?? 0) >= 5;
 
   return (
@@ -167,7 +175,7 @@ function CrewConsole({
           <span className={`crew-world ${world}`}>{world === "sim" ? "SIM" : "LIVE"}</span>
         </div>
         <div className="crew-chips">
-          <span className={`chip st-${vehicle.status}`}>{humanize(vehicle.status)}</span>
+          <span className={`chip st-${vehicle.status}`}>{vehicleStatusText(vehicle, state.trips)}</span>
           <span className={`chip ${connected ? "ok" : "bad"}`}>{connected ? "● online" : "● reconnecting"}</span>
           {vehicle.grounded_until && <span className="chip warn">🌫 grounded until {fmtTime(vehicle.grounded_until)}</span>}
         </div>
@@ -175,9 +183,10 @@ function CrewConsole({
         {trip ? (
           <div className="crew-trip">
             <div className="crew-trip-who">
-              <strong>{trip.patient}</strong> <span className={`prio prio-${trip.priority}`}>{trip.priority}</span>{" "}
+              <strong>{trip.kind === "equipment" ? `📦 ${trip.cargo ?? "equipment"}` : trip.patient}</strong>{" "}
+              <span className={`prio prio-${trip.priority}`}>{trip.priority}</span>{" "}
               <span className="muted">
-                {trip.needs} · {trip.id}
+                {trip.kind === "equipment" ? "equipment" : trip.needs} · {trip.id}
               </span>
             </div>
             <div className="crew-route">
@@ -315,9 +324,9 @@ function MessageOutcome({ result, run }: { result: MessageResult; run: AgentRun 
         </div>
       ))}
       {result.error && <div className="message error">{result.error}</div>}
-      {result.run_id ? (
+      {result.run_id || run ? (
         <div className="crew-notified">
-          📡 Dispatcher notified: AI is replanning
+          📡 Dispatcher notified{result.run_id || run?.status === "running" ? ": AI is replanning" : ""}
           {run && (
             <div className={`crew-run run-${run.status}`}>
               {run.status === "running" && <span className="spinner" />} {RUN_STATUS[run.status]}
