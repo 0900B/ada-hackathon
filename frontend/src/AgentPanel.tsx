@@ -382,8 +382,10 @@ export function AgentPanel({
   // --- lifecycle bookkeeping (idempotent, so it is safe during render) ---
   let info: { sawRunning?: boolean; sawUndecided?: boolean; doneSim?: number; decidedAt?: number } | undefined;
   if (run) {
-    info = seen.current.get(run.id);
-    if (!info) seen.current.set(run.id, (info = {}));
+    // run ids restart when the backend restarts (the page survives that): key by id + start time
+    const runKey = `${run.id}@${run.started_at}`;
+    info = seen.current.get(runKey);
+    if (!info) seen.current.set(runKey, (info = {}));
     if (run.status === "running") info.sawRunning = true;
     if (run.status === "done" && info.doneSim === undefined) {
       // Watched it finish: now. Loaded the page later: estimate from the wall-clock finish time.
@@ -431,7 +433,8 @@ export function AgentPanel({
       notify("ok", ok);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (runId && /no longer valid/i.test(msg)) setStaleRuns((s) => new Set(s).add(runId));
+      // 409 from the backend: "Plan no longer valid ..." or "Plan is out of date ..."
+      if (runId && /no longer valid|out of date/i.test(msg)) setStaleRuns((s) => new Set(s).add(runId));
       notify("error", msg);
     } finally {
       setBusy(false);
