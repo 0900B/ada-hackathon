@@ -49,6 +49,13 @@ function incidentColor(kind) {
   return COLOR.high  // road_closure, accident
 }
 
+function incidentKindLabel(kind) {
+  if (kind === 'road_closure') return 'Road closure'
+  if (kind === 'accident')     return 'Accident'
+  if (kind === 'congestion')   return 'Congestion'
+  return kind.replace(/_/g, ' ')
+}
+
 export default function Map({ vehicles = [], places = [], incidents = [], highlightIds = [], highlightIncidents = false }) {
   const hospitals = places.filter(p => p.kind === 'hospital')
   const bases     = places.filter(p => p.kind === 'base')
@@ -101,7 +108,7 @@ export default function Map({ vehicles = [], places = [], incidents = [], highli
         </Marker>
       ))}
 
-      {/* ── Active incidents: translucent circle sized to actual radius_m ── */}
+      {/* ── Active incidents: translucent circle + permanent kind label ── */}
       {incidents.map(inc => {
         const c = incidentColor(inc.kind)
         return (
@@ -111,7 +118,8 @@ export default function Map({ vehicles = [], places = [], incidents = [], highli
             radius={inc.radius_m}
             pathOptions={{ color: c, weight: 1.5, fillColor: c, fillOpacity: 0.15 }}
           >
-            <Tooltip>{inc.description || inc.kind}</Tooltip>
+            <Tooltip permanent className="amb-label">{incidentKindLabel(inc.kind)}</Tooltip>
+            <Popup>{inc.description || inc.kind}</Popup>
           </Circle>
         )
       })}
@@ -127,6 +135,20 @@ export default function Map({ vehicles = [], places = [], incidents = [], highli
           <Tooltip>{p.name}</Tooltip>
         </CircleMarker>
       ))}
+
+      {/* ── Outer rings for affected vehicles (rendered first, appear behind) ── */}
+      {vehicles
+        .filter(v => highlightIds.includes(v.id))
+        .map(v => (
+          <CircleMarker
+            key={`ring-${v.id}`}
+            center={[v.lat, v.lon]}
+            radius={(v.type === 'ambulance' ? 7 : 6) + 4}
+            pathOptions={{ color: '#111', weight: 1.5, fillOpacity: 0 }}
+            interactive={false}
+          />
+        ))
+      }
 
       {/* ── Vehicles: colour by status, monospace ID label ── */}
       {vehicles.map(v => (

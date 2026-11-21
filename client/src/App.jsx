@@ -169,7 +169,8 @@ export default function App() {
   }, [showCard, cardMinimised])
 
   const cardOpen           = showCard && !cardMinimised
-  const highlightIds       = cardOpen ? extractHighlightIds(run.recommendation, mapProps.vehicles) : []
+  // Ring shown on affected vehicles while a run is active (running or awaiting decision)
+  const highlightIds       = [...affectedIds]
   const highlightIncidents = cardOpen
 
   return (
@@ -207,6 +208,12 @@ export default function App() {
 
           <ScenariosSection busy={busy} action={action} />
           <StatusSection run={run} />
+          <EventSection
+            incidents={state?.incidents?.filter(i => i.active !== false) ?? []}
+            trips={state?.trips ?? []}
+            places={state?.places ?? []}
+            events={state?.events ?? []}
+          />
           {run?.recommendation && <SituationSection rec={run.recommendation} />}
           <DecisionLogSection runs={state?.agent?.runs ?? []} />
         </div>
@@ -395,7 +402,55 @@ function StatusSection({ run }) {
   )
 }
 
-// ── Situation (panel: event context, no actions) ──────────────────────────────
+// ── Event section — raw incident facts from state, shown before AI finishes ───
+
+function EventSection({ incidents, trips, places, events }) {
+  const placeById = new Map((places ?? []).map(p => [p.id, p]))
+
+  const urgentTrips = (trips ?? []).filter(t =>
+    (t.priority === 'emergency' || t.priority === 'urgent') &&
+    t.status !== 'completed' && t.status !== 'cancelled'
+  )
+
+  if ((incidents ?? []).length === 0 && urgentTrips.length === 0) return null
+
+  return (
+    <div className="panel-section">
+      <span className="section-label">EVENTS</span>
+      <div className="event-list">
+        {(incidents ?? []).map(inc => {
+          const nearest = nearestPlace(inc.lat, inc.lon, places ?? [])
+          const time = fmtSimTime(inc.created_at)
+          return (
+            <div key={inc.id} className="event-line">
+              <span className="event-time">{time}</span>
+              <span className="event-text">
+                {incidentKindLabel(inc.kind)}{nearest ? ` · ${nearest.name}` : ''}
+              </span>
+            </div>
+          )
+        })}
+        {urgentTrips.map(t => {
+          const pickup  = placeById.get(t.pickup_id)
+          const dropoff = placeById.get(t.dropoff_id)
+          const label   = t.priority === 'emergency' ? 'Emergency patient' : 'Urgent patient'
+          // prefer the event timestamp when available
+          const ev   = (events ?? []).find(e => e.affected_trip_ids?.includes(t.id))
+          const time = fmtSimTime(ev?.sim_time ?? t.pickup_after)
+          const route = [pickup?.name, dropoff?.name].filter(Boolean).join(' → ')
+          return (
+            <div key={t.id} className="event-line">
+              <span className="event-time">{time}</span>
+              <span className="event-text">{label}{route ? ` · ${route}` : ''}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── Situation (panel: AI analysis, shown once recommendation is ready) ─────────
 
 function SituationSection({ rec }) {
   const dot    = rec.situation.indexOf('. ')
@@ -404,7 +459,7 @@ function SituationSection({ rec }) {
 
   return (
     <div className="panel-section">
-      <span className="section-label">EVENT</span>
+      <span className="section-label">SITUATION</span>
       <p className="situation-lead">{lead}</p>
       {detail && <p className="situation-detail">{detail}</p>}
       {rec.escalation && (

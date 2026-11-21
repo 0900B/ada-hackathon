@@ -136,6 +136,32 @@ html, body, #root {
 .btn-reset-link:hover:not(:disabled) { color: #666; }
 .btn-reset-link:disabled { opacity: 0.4; cursor: default; }
 
+/* ── Events section ──────────────────────────────────────── */
+.event-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.event-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.event-time {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  color: #aaa;
+  flex-shrink: 0;
+}
+
+.event-text {
+  color: #333;
+  line-height: 1.4;
+}
+
 /* ── Status line ─────────────────────────────────────────── */
 .status-line {
   font-size: 11px;
