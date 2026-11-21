@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from ..engine.projection import LOAD_MIN, UNLOAD_MIN
 from ..models import Vehicle
 from ..roads import ROADS, key, point_along
-from ..routing import travel_minutes
+from ..routing import flies, travel_minutes
 
 if TYPE_CHECKING:
     from ..state import WorldState
@@ -16,6 +16,8 @@ if TYPE_CHECKING:
 def tick(state: WorldState, dt_s: float) -> None:
     state.sim_time += timedelta(seconds=dt_s)
     for v in state.vehicles.values():
+        if v.grounded_until and state.sim_time >= v.grounded_until:
+            v.grounded_until = None  # the fog has lifted: the helicopter can fly again
         if v.status == "out_of_service":
             continue
         if v.busy_until and state.sim_time < v.busy_until:
@@ -31,15 +33,16 @@ def _move_towards(state: WorldState, v: Vehicle, lat: float, lon: float, dt_min:
     in traffic, weather or incidents speed the vehicle up or slow it down mid-leg.
     """
     target = key(lat, lon)
+    flying = flies(v.type)  # helicopters fly straight and never use (or request) road routes
     if v.path_to is None or tuple(v.path_to) != target:  # a new leg starts here
         v.path_from, v.path_to, v.path_progress = (v.lat, v.lon), target, 0.0
-        v.on_road = ROADS.route(v.lat, v.lon, lat, lon) is not None
-        if not v.on_road:
+        v.on_road = not flying and ROADS.route(v.lat, v.lon, lat, lon) is not None
+        if not v.on_road and not flying:
             ROADS.want_route(v.lat, v.lon, lat, lon)  # later legs on this pair will follow the road
     if v.path_progress >= 1.0:
         return True
     assert v.path_from is not None
-    if not v.on_road and ROADS.route(v.path_from[0], v.path_from[1], lat, lon) is not None:
+    if not v.on_road and not flying and ROADS.route(v.path_from[0], v.path_from[1], lat, lon) is not None:
         v.on_road = True  # the road route arrived mid-leg: snap onto it
     total = travel_minutes(state, v.path_from[0], v.path_from[1], lat, lon, v.type, emergency)
     v.path_progress = 1.0 if total <= dt_min else min(1.0, v.path_progress + dt_min / total)

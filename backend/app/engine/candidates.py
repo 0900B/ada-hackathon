@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ..models import Plan, PlanStep
-from ..routing import haversine_km
+from ..models import Plan, PlanStep, Trip, VehicleType
+from ..routing import flies, haversine_km
 from .actions import ActionError, assign_trip, can_serve
 from .plans import simulate
 from .projection import DONE, kpis, project_all
@@ -17,6 +17,21 @@ if TYPE_CHECKING:
     from ..state import WorldState
 
 PRIORITY_ORDER = {"emergency": 0, "urgent": 1, "scheduled": 2}
+HELICOPTER_LONG_TRIP_KM = 30.0  # scheduled trips at least this long (straight line) may fly
+# Urgent trips: the helicopter ranks first only if it reaches the patient at least this much
+# sooner than the best road vehicle (in-city calls stay with ambulances). 0 = always the fastest.
+HELICOPTER_MIN_GAIN_MIN = 5.0
+
+
+def spends_helicopter(state: WorldState, vehicle_type: VehicleType, trip: Trip) -> bool:
+    """True if flying this trip would spend the helicopter on routine work a road vehicle should do.
+
+    The helicopter is kept for emergencies, urgent trips and long trips.
+    """
+    if not flies(vehicle_type) or trip.priority != "scheduled":
+        return False
+    a, b = state.places[trip.pickup_id], state.places[trip.dropoff_id]
+    return haversine_km(a.lat, a.lon, b.lat, b.lon) < HELICOPTER_LONG_TRIP_KM
 
 
 def nearest_place_name(state: WorldState, lat: float, lon: float) -> str:
@@ -84,11 +99,21 @@ def find_candidates(state: WorldState, trip_id: str, limit: int = 8) -> list[dic
     def score(c: dict[str, Any]):
         k = c["kpis_after"]
         if urgent:  # get the patient fastest, then protect other priority trips
-            return (c["pickup_in_min"] or 0, k["late_non_scheduled"], k["total_delay_min"])
-        # Routine trip: no new lateness first; then keep ambulances free for emergencies
-        # unless the patient needs a stretcher; then the smallest delay.
+            reserve = HELICOPTER_MIN_GAIN_MIN if flies(c["vehicle_type"]) else 0.0
+            return ((c["pickup_in_min"] or 0) + reserve, k["late_non_scheduled"], k["total_delay_min"])
+        # Routine trip: no new lateness first; then keep the helicopter free unless only it avoids
+        # lateness; then keep ambulances free for emergencies unless the patient needs a
+        # stretcher; then the smallest delay.
+        spends_heli = spends_helicopter(state, c["vehicle_type"], trip)
         spends_ambulance = c["vehicle_type"] == "ambulance" and trip.needs != "stretcher"
-        return (k["late_non_scheduled"], k["late_trips"], spends_ambulance, c["trip_delay_min"] or 0, k["total_delay_min"])
+        return (
+            k["late_non_scheduled"],
+            k["late_trips"],
+            spends_heli,
+            spends_ambulance,
+            c["trip_delay_min"] or 0,
+            k["total_delay_min"],
+        )
 
     results.sort(key=score)
     return results[:limit]

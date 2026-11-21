@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { WorldSnapshot } from "./api";
+import { fmtTime } from "./format";
 
 export type ClickMode = "closure" | "emergency" | null;
 
@@ -98,9 +99,24 @@ export function MapView({ state, mode, onMapClick }: Props) {
 
     for (const v of state.vehicles) {
       const trip = v.current_trip_id ? tripById.get(v.current_trip_id) : undefined;
-      const color = v.type === "ambulance" ? "#ff8787" : "#74c0fc";
+      const color = v.type === "ambulance" ? "#ff8787" : v.type === "helicopter" ? "#ffc078" : "#74c0fc";
       const dash = v.status === "to_pickup" ? "6 6" : undefined;
-      if (v.path && v.path.length > 1) {
+      const grounded = v.grounded_until != null; // the backend clears it when the fog lifts
+      if (v.type === "helicopter") {
+        // Helicopters fly straight (no road path): dashed flight line to the pickup, drop-off or base
+        const targetId =
+          v.status === "to_pickup" ? trip?.pickup_id : trip ? trip.dropoff_id : v.status === "returning" ? v.base_id : undefined;
+        const target = targetId ? placeById.get(targetId) : undefined;
+        if (target) {
+          L.polyline(
+            [
+              [v.lat, v.lon],
+              [target.lat, target.lon],
+            ],
+            { color, weight: 2, opacity: 0.9, dashArray: "10 8" },
+          ).addTo(ls.routes);
+        }
+      } else if (v.path && v.path.length > 1) {
         // Real road route still to drive
         L.polyline(v.path, { color, weight: 3, opacity: 0.85, dashArray: dash }).addTo(ls.routes);
       } else if (trip) {
@@ -118,12 +134,13 @@ export function MapView({ state, mode, onMapClick }: Props) {
       }
       const icon = L.divIcon({
         className: "",
-        html: `<div class="veh veh-${v.type} st-${v.status}">${v.id}</div>`,
+        html: `<div class="veh veh-${v.type} st-${v.status}${grounded ? " grounded" : ""}">${v.id}</div>`,
         iconSize: [32, 20],
         iconAnchor: [16, 10],
       });
+      const groundedText = grounded ? ` · grounded by fog until ${fmtTime(v.grounded_until)}` : "";
       L.marker([v.lat, v.lon], { icon })
-        .bindTooltip(`${v.name} · ${v.status.replace(/_/g, " ")}${trip ? ` · ${trip.id}` : ""}`)
+        .bindTooltip(`${v.name} · ${v.status.replace(/_/g, " ")}${trip ? ` · ${trip.id}` : ""}${groundedText}`)
         .addTo(ls.vehicles);
     }
   }, [state]);

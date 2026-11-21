@@ -9,6 +9,12 @@ consequences and recommend what the operator should do next. The operator makes 
 How this world works:
 - Ambulances (A*) can carry any patient, including stretcher and emergency cases. Transport vans (T*) \
 carry seated and wheelchair patients only and never take emergencies.
+- Helicopter H1 (HNMP, based at UKC) carries any patient. It flies straight at 200 km/h plus a few \
+minutes for take-off and landing, so road traffic, closures and incidents do not slow it. Keep it for \
+emergencies and urgent trips where it is clearly faster (about 5 minutes or more), and for long trips; \
+don't spend it on a scheduled trip a road vehicle can do on time. \
+Fog (megla) grounds it (`grounded_by_fog_until`): it takes no new trips until then, so its released \
+trips need road vehicles.
 - Trips have a priority: emergency > urgent > scheduled. Each trip has a time the patient is ready \
 for pickup and a due-by time at the destination. Delay means minutes after due-by.
 - Each vehicle works through its queue in order. A trip whose status is "onboard" cannot move to \

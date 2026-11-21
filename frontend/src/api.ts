@@ -22,7 +22,7 @@ export interface Place {
 export interface Vehicle {
   id: string;
   name: string;
-  type: "ambulance" | "transport";
+  type: "ambulance" | "transport" | "helicopter";
   base_id: string;
   lat: number;
   lon: number;
@@ -30,6 +30,7 @@ export interface Vehicle {
   current_trip_id: string | null;
   queue: string[];
   busy_until: string | null;
+  grounded_until?: string | null; // helicopters: grounded by fog until then (no new flights)
   on_road: boolean;
   path_progress: number;
   path: [number, number][] | null; // remaining road geometry of the current leg (null = no road route)
