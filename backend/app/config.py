@@ -11,6 +11,8 @@ SIM_SPEEDUP = _float("SIM_SPEEDUP", 5.0)  # simulated seconds per real second
 WEATHER_INTERVAL_S = _float("WEATHER_INTERVAL_S", 600)
 TRAFFIC_INTERVAL_S = _float("TRAFFIC_INTERVAL_S", 30)
 RANDOM_SEED = int(os.getenv("RANDOM_SEED", "42"))
+# MET Norway asks API clients to identify themselves; add a contact address here if you like.
+HTTP_USER_AGENT = os.getenv("HTTP_USER_AGENT", "adahack-transport-backend/0.1")
 
 # Ljubljana Bezigrad, the point the ARSO hackathon kit uses for Open-Meteo calls.
 LJUBLJANA_LAT = 46.0655

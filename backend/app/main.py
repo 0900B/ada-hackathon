@@ -49,7 +49,7 @@ async def sim_loop() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     seed_world(state, config.RANDOM_SEED)
-    client = httpx.AsyncClient(timeout=10.0, headers={"User-Agent": "adahack-transport-backend"})
+    client = httpx.AsyncClient(timeout=10.0, headers={"User-Agent": config.HTTP_USER_AGENT})
     tasks = [
         asyncio.create_task(sim_loop(), name="sim"),
         asyncio.create_task(

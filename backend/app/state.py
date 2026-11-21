@@ -81,6 +81,8 @@ class WorldState:
     # --- serialisation -------------------------------------------------------
 
     def snapshot(self) -> dict[str, Any]:
+        from .engine.projection import kpis  # local import: projection depends on this module's types
+
         def dump(items):
             return [i.model_dump(mode="json") for i in items]
 
@@ -101,5 +103,6 @@ class WorldState:
             "traffic": {"factor": self.traffic_factor},
             "sources": {k: s.model_dump(mode="json") for k, s in self.sources.items()},
             "alerts": dump(self.alerts),
+            "kpis": kpis(self),
             "events": dump(self.events[-20:]),
         }
