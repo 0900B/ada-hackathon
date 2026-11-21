@@ -114,6 +114,7 @@ def test_content_bounds_and_enums():
         ("severity", {"value": "purple"}),
         ("event", {"kind": "bogus"}),
         ("triage", {"level": "pink"}),
+        ("triage", {"level": "scheduled"}),  # a card level inferred from priority, never a triage level
         ("triage", {"level": "red", "problem_type": "diagnosis"}),
         ("er_action", {"action": "teleport"}),
     ]:

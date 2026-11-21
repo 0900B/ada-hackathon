@@ -9,7 +9,8 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, TypeAdapter, m
 
 from . import config
 
-Level = Literal["red", "yellow", "scheduled"]
+Level = Literal["red", "yellow", "scheduled"]  # the CARD level (LEVEL_BY_PRIORITY values); not a triage level
+TriageLevel = Literal["red", "yellow"]  # what a triage entry may carry; "scheduled" is only ever inferred
 Source = Literal["crew_voice", "crew_tap", "monitor", "dispatcher", "er_reception", "system", "simulated_crew"]
 EntryState = Literal["heard", "inferred", "confirmed"]
 ProblemType = Literal[
@@ -30,7 +31,7 @@ class _Content(BaseModel):
 
 
 class TriageContent(_Content):
-    level: Level
+    level: TriageLevel
     problem_type: ProblemType = "other"
 
 
