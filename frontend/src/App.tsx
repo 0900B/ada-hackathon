@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useMatch, useSearchParams } from "react-router";
 import {
   API_URL,
@@ -34,7 +34,6 @@ import { FieldMessage } from "./FieldMessage";
 import { useHotkeys } from "./hotkeys";
 import { ShortcutsHelp } from "./ShortcutsHelp";
 import { CrewPage } from "./pages/CrewPage";
-import { TabletPage } from "./pages/TabletPage";
 import { ScenariosPanel } from "./ScenariosPanel";
 import { VehicleCard } from "./VehicleCard";
 import { VehicleStrip } from "./VehicleStrip";
@@ -43,6 +42,9 @@ import { fmtTime } from "./format";
 import { MapView, type ClickMode } from "./MapView";
 import { AuditPage } from "./pages/AuditPage";
 import { FleetPage } from "./pages/FleetPage";
+
+// The tablet view loads separately: its navigation map patches Leaflet for rotation (leaflet-rotate)
+const TabletPage = lazy(() => import("./pages/TabletPage").then((m) => ({ default: m.TabletPage })));
 
 type Send = (event: Record<string, unknown>) => Promise<void>;
 type Toast = { kind: "ok" | "error"; text: string; sticky: boolean; n: number };
@@ -80,7 +82,14 @@ export default function App() {
     return (
       <Routes>
         <Route path="/crew/:vehicleId?" element={<CrewPage />} />
-        <Route path="/vehicle/:vehicleId?" element={<TabletPage />} />
+        <Route
+          path="/vehicle/:vehicleId?"
+          element={
+            <Suspense fallback={<div className="loading">Loading the tablet view…</div>}>
+              <TabletPage />
+            </Suspense>
+          }
+        />
       </Routes>
     );
   }

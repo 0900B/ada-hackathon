@@ -296,11 +296,81 @@
   flex: 1;
   min-height: 0;
 }
+.nav-wrap {
+  position: absolute;
+  inset: 0;
+}
 .nav-map {
   position: absolute;
   inset: 0;
   isolation: isolate;
   background: #1a1d24;
+}
+/* View modes (top-left), compass (below them), Re-centre / Follow (bottom-left) */
+.nav-views {
+  position: absolute;
+  z-index: 1000;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  border: 1px solid var(--m-border);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+.nav-views .mdt-btn {
+  min-height: 48px;
+  border: none;
+  border-radius: 0;
+  font-size: 15px;
+  padding: 6px 12px;
+  background: var(--m-panel);
+}
+.nav-views .mdt-btn + .mdt-btn {
+  border-left: 1px solid var(--m-border);
+}
+.nav-views .mdt-btn.on {
+  background: var(--m-accent);
+  color: #fff;
+}
+.nav-compass {
+  position: absolute;
+  z-index: 1000;
+  top: 72px;
+  left: 12px;
+  width: 52px;
+  min-width: 52px;
+  height: 52px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--m-panel);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+.nav-compass svg {
+  width: 36px;
+  height: 36px;
+}
+.nav-compass .needle-n {
+  fill: #f2555a;
+}
+.nav-compass .needle-s {
+  fill: var(--m-muted);
+}
+.nav-recentre {
+  position: absolute;
+  z-index: 1000;
+  left: 12px;
+  bottom: 28px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  background: var(--m-accent);
+  border-color: var(--m-accent);
+  color: #fff;
+}
+@media (max-width: 1100px) {
+  .nav-views .mdt-btn {
+    font-size: 14px;
+    padding: 6px 9px;
+  }
 }
 .nav-map .dark-layer .leaflet-tile {
   filter: invert(1) hue-rotate(180deg) brightness(0.8) contrast(0.95);
@@ -308,9 +378,7 @@
 .nav-map:not([data-base="dark"]) .leaflet-overlay-pane path {
   filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.9));
 }
-.nav-map.smooth .veh-marker {
-  transition: transform 1.9s linear;
-}
+/* the vehicle glides by the map's own animation loop (NavMap.tsx), not by CSS transitions */
 .mdt .leaflet-control-zoom a {
   width: 48px;
   height: 48px;
@@ -341,7 +409,7 @@
   position: absolute;
   z-index: 1000;
   left: 50%;
-  top: 12px;
+  bottom: 96px;
   transform: translateX(-50%);
   max-width: calc(100% - 24px);
   padding: 10px 14px;

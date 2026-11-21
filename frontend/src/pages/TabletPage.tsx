@@ -23,7 +23,6 @@ import {
   Check,
   Clock,
   Construction,
-  Crosshair,
   Flag,
   Fuel,
   House,
@@ -666,7 +665,6 @@ function TabletConsole({
 }) {
   const [detail, setDetail] = useState<VehicleDetail | null>(null);
   const [nav, setNav] = useState<Navigation | null>(null);
-  const [follow, setFollow] = useState(true);
   const [toast, setToast] = useState<{ ok: boolean; text: string; n: number } | null>(null);
   const chime = useChime();
   const { notes, ack } = useDispatchNotes(state, vehicle, chime);
@@ -728,13 +726,8 @@ function TabletConsole({
       <section className="mdt-mapcol">
         <NavBanner nav={nav} vehicle={vehicle} trip={trip} state={state} />
         <div className="mdt-mapbox">
-          <NavMap vehicle={vehicle} detail={detail} nav={nav} incidents={state.incidents} follow={follow} onUserMove={() => setFollow(false)} />
-          {!follow && (
-            <button className="mdt-btn mdt-recenter" onClick={() => setFollow(true)}>
-              <Crosshair /> Re-centre
-            </button>
-          )}
-          {toast && <div className={`mdt-toast ${toast.ok ? "ok" : "bad"}`}>{toast.text}</div>}
+          <NavMap vehicle={vehicle} detail={detail} nav={nav} incidents={state.incidents} />
+          {toast &&<div className={`mdt-toast ${toast.ok ? "ok" : "bad"}`}>{toast.text}</div>}
         </div>
       </section>
 

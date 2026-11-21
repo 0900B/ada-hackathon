@@ -83,7 +83,10 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
   useEffect(() => {
     if (!el.current) return;
     const box = el.current;
-    const map = L.map(box).setView([46.056, 14.51], 12);
+    // Always pass an options object: once the tablet view has loaded leaflet-rotate in this tab, its
+    // patched Map constructor reads options.rotate and throws without one
+    // (and keep its rotate control and shift+wheel rotation off: the dashboard map never turns)
+    const map = L.map(box, { rotateControl: false, shiftKeyRotate: false }).setView([46.056, 14.51], 12);
     // Base maps (keyless tile services). Only "Dark" gets the CSS invert filter (.dark-layer in styles.css).
     const bases = baseMaps();
     const initial = savedBase();
