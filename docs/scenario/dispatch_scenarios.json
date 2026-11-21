@@ -1,0 +1,4458 @@
+{
+ "meta": {
+  "name": "Dispatch scenarios for the agentic flow",
+  "synthetic": true,
+  "seed": 20261123,
+  "colour_scheme": "red = life-threatening (engine priority emergency); yellow = possible danger or needs a doctor's assessment (engine priority urgent); non-urgent = scheduled transport (engine priority scheduled). Green appears only as the on-scene severity of walking patients in multi-patient incidents.",
+  "model": "Procedure-first assignment: red -> nearest suitable public unit from any area, private ambulance only if no public unit reaches in 15 min and the private one is faster; yellow -> Ljubljana-area units, other areas only with the demand trigger on and a local wait over 30 min, private only over 45 min [A]; non-urgent -> private vans once the trigger is on; doctor vehicles follow red calls with a doctor flag; one patient per ambulance, so red and yellow patients each need an ambulance.",
+  "demand_trigger": "free ambulances in the Ljubljana area are 25 percent or less of those crewed, or a red arrival is predicted over 15 minutes [A threshold]",
+  "travel": "Same constants as backend/app/routing.py: road factor 1.35, 42 km/h, lights and sirens x1.3 for red, weather factor and time-of-day traffic profile copied from the engine; positions interpolate while a unit drives",
+  "service_times_min": {
+   "scene_red": 20,
+   "scene_yellow": 15,
+   "handover": 12,
+   "turnaround": 8,
+   "tag": "[A]"
+  },
+  "assumptions": [
+   "Roster by shift: 26 ambulances crewed in the Ljubljana emergency area by day, 22 by night (decree team counts of 1.5 become 2 by day, 1 by night)",
+   "Doctor vehicles: 10 in the Ljubljana area by day, 9 by night; 5 in neighbouring areas",
+   "Neighbouring areas used: Kranj, Škofja Loka, Tržič, Litija, Zagorje, Trbovlje, Trebnje, Novo mesto (unit counts rounded from the decree)",
+   "Private providers: 3 ambulances with qualified crews (mobilisation 15 min) and 6 non-urgent vans (30 min); bases and crew qualification are not published",
+   "Background load: share of units busy with non-urgent transports at the start, 30 percent is the all-day average from 134 interventions a day",
+   "Which red calls get a doctor is set by the triage step; the flag is an input here (SloIn NMP text is not public)",
+   "Slovenian caller texts are drafts to be read by a native speaker"
+  ],
+  "rosters_detail": {
+   "day": {
+    "ljubljana_area_ambulances": 26,
+    "ljubljana_area_doctor_vehicles": 10,
+    "other_area_ambulances": 16,
+    "other_area_doctor_vehicles": 5,
+    "public_sanitary_vans": 2,
+    "private_ambulances": 3,
+    "private_vans": 6
+   },
+   "night": {
+    "ljubljana_area_ambulances": 22,
+    "ljubljana_area_doctor_vehicles": 9,
+    "other_area_ambulances": 13,
+    "other_area_doctor_vehicles": 5,
+    "public_sanitary_vans": 2,
+    "private_ambulances": 3,
+    "private_vans": 6
+   }
+  }
+ },
+ "scenes": {
+  "vic": {
+   "name": "Vič (residential block)",
+   "lat": 46.04,
+   "lon": 14.482
+  },
+  "bezigrad": {
+   "name": "Bežigrad",
+   "lat": 46.072,
+   "lon": 14.511
+  },
+  "siska": {
+   "name": "Šiška",
+   "lat": 46.0735,
+   "lon": 14.479
+  },
+  "crnuce": {
+   "name": "Črnuče",
+   "lat": 46.102,
+   "lon": 14.532
+  },
+  "moste": {
+   "name": "Moste",
+   "lat": 46.056,
+   "lon": 14.542
+  },
+  "polje": {
+   "name": "Polje",
+   "lat": 46.062,
+   "lon": 14.59
+  },
+  "rudnik": {
+   "name": "Rudnik",
+   "lat": 46.027,
+   "lon": 14.53
+  },
+  "domzale": {
+   "name": "Domžale (outskirts)",
+   "lat": 46.149,
+   "lon": 14.612
+  },
+  "vrhnika": {
+   "name": "Vrhnika (outskirts)",
+   "lat": 45.9735,
+   "lon": 14.279
+  },
+  "grosuplje": {
+   "name": "Grosuplje (outskirts)",
+   "lat": 45.964,
+   "lon": 14.674
+  },
+  "medvode": {
+   "name": "Medvode (outskirts)",
+   "lat": 46.15,
+   "lon": 14.429
+  },
+  "skofljica": {
+   "name": "Škofljica",
+   "lat": 45.984,
+   "lon": 14.577
+  },
+  "kamnisko_bistrica": {
+   "name": "Kamniška Bistrica trailhead",
+   "lat": 46.296,
+   "lon": 14.602
+  },
+  "kocevje": {
+   "name": "Kočevje (outskirts)",
+   "lat": 45.65,
+   "lon": 14.875
+  },
+  "ring_east": {
+   "name": "East ring road (synthetic crash site)",
+   "lat": 46.0545,
+   "lon": 14.585
+  },
+  "a1_bus": {
+   "name": "A1 motorway near Šentjakob (synthetic crash site)",
+   "lat": 46.1225,
+   "lon": 14.575
+  },
+  "kamnik": {
+   "name": "Kamnik (outskirts)",
+   "lat": 46.233,
+   "lon": 14.626
+  },
+  "postojna": {
+   "name": "Postojna",
+   "lat": 45.774,
+   "lon": 14.215
+  },
+  "zaloska": {
+   "name": "Zaloška cesta",
+   "lat": 46.0585,
+   "lon": 14.538
+  },
+  "trzin": {
+   "name": "Trzin",
+   "lat": 46.1305,
+   "lon": 14.5575
+  },
+  "ig": {
+   "name": "Ivančna Gorica",
+   "lat": 45.939,
+   "lon": 14.804
+  },
+  "notranje_gorice": {
+   "name": "Notranje Gorice",
+   "lat": 45.99,
+   "lon": 14.4
+  }
+ },
+ "hospitals": {
+  "ukc": {
+   "name": "UKC Ljubljana",
+   "lat": 46.0563,
+   "lon": 14.5232
+  },
+  "jesenice": {
+   "name": "SB Jesenice",
+   "lat": 46.443,
+   "lon": 14.037
+  },
+  "celje": {
+   "name": "SB Celje",
+   "lat": 46.234,
+   "lon": 15.261
+  },
+  "novomesto": {
+   "name": "SB Novo mesto",
+   "lat": 45.804,
+   "lon": 15.169
+  }
+ },
+ "scenarios": [
+  {
+   "id": "D01",
+   "name": "Quiet morning: one yellow call",
+   "intent": "The smallest case: one patient, one ambulance. Shows procedure-first selection from live positions, local area only, no escalation.",
+   "start_local": "09:00",
+   "weekday": true,
+   "shift": "day",
+   "weather": {},
+   "fog_at_brnik": false,
+   "background_load": 0.3,
+   "units_not_offered": {
+    "cleaning": {},
+    "low_fuel": []
+   },
+   "calls": [
+    {
+     "id": "D01-C1",
+     "t": 0,
+     "place_id": "vic",
+     "place_name": "Vič (residential block)",
+     "lat": 46.04,
+     "lon": 14.482,
+     "problem": "Fall at home, suspected hip fracture, conscious, in pain",
+     "caller_text_sl": "Starejša gospa je padla doma in ne more vstati, boli jo kolk, pri zavesti je.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    }
+   ],
+   "non_urgent_batches": [],
+   "engine_events": [
+    {
+     "call": "D01-C1",
+     "t_min": 0,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.04,
+      "lon": 14.482,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Fall at home, suspected hip fracture, conscious, in pain"
+     }
+    }
+   ],
+   "expected": {
+    "calls": 1,
+    "patients": 1,
+    "units_needed_by_rule": {
+     "NRV": 1,
+     "VUZ": 0,
+     "HNMP": 0,
+     "VAN": 0
+    },
+    "assignments_made": 1,
+    "units_reused_after_finishing": 0,
+    "units_sent": {
+     "ambulances": [
+      "A01"
+     ],
+     "doctor_vehicles": [],
+     "sanitary_vans": [],
+     "private_ambulances": [],
+     "private_vans": [],
+     "helicopter": []
+    },
+    "units_dispatched": {
+     "ambulances": 1
+    },
+    "total_units_dispatched": 1,
+    "other_area_units": [],
+    "private_units": [],
+    "other_services_alerted": {},
+    "diverted_other_jobs": 0,
+    "demand_trigger": {
+     "on": false,
+     "at_min": null,
+     "reason": null
+    },
+    "ljubljana_area_ambulances_crewed": 26,
+    "ljubljana_area_ambulances_free_at_lowest": 18,
+    "ljubljana_area_peak_busy_percent": 31,
+    "red_first_ambulance_arrival_min": {},
+    "red_target_met": null,
+    "weather_speed_factor": 1.0,
+    "non_urgent_moved_to_private_vans": 0
+   },
+   "dispatch_log": [
+    {
+     "call": "D01-C1",
+     "t": 0.0,
+     "assignments": [
+      {
+       "unit": "A01",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 10.0,
+       "arrives_min": 10.0,
+       "free_again_min": 53.3,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 18
+    }
+   ],
+   "non_urgent_log": []
+  },
+  {
+   "id": "D02",
+   "name": "Chest pain: ambulance and doctor start from different places",
+   "intent": "One red call whose triage response includes a doctor. The doctor vehicle and the ambulance start at different bases; pre-alert to the ER.",
+   "start_local": "10:30",
+   "weekday": true,
+   "shift": "day",
+   "weather": {},
+   "fog_at_brnik": false,
+   "background_load": 0.35,
+   "units_not_offered": {
+    "cleaning": {},
+    "low_fuel": []
+   },
+   "calls": [
+    {
+     "id": "D02-C1",
+     "t": 0,
+     "place_id": "bezigrad",
+     "place_name": "Bežigrad",
+     "lat": 46.072,
+     "lon": 14.511,
+     "problem": "Chest pain, sweating, suspected heart attack, 58 years",
+     "caller_text_sl": "Mož, star 58 let, ima hude bolečine v prsih, poten je in bled.",
+     "patients": [
+      {
+       "sev": "red",
+       "n": 1
+      }
+     ],
+     "doctors": 1,
+     "first_responders": true
+    }
+   ],
+   "non_urgent_batches": [],
+   "engine_events": [
+    {
+     "call": "D02-C1",
+     "t_min": 0,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.072,
+      "lon": 14.511,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "emergency",
+      "note": "Chest pain, sweating, suspected heart attack, 58 years"
+     }
+    }
+   ],
+   "expected": {
+    "calls": 1,
+    "patients": 1,
+    "units_needed_by_rule": {
+     "NRV": 1,
+     "VUZ": 1,
+     "HNMP": 0,
+     "VAN": 0
+    },
+    "assignments_made": 2,
+    "units_reused_after_finishing": 0,
+    "units_sent": {
+     "ambulances": [
+      "A02"
+     ],
+     "doctor_vehicles": [
+      "D02"
+     ],
+     "sanitary_vans": [],
+     "private_ambulances": [],
+     "private_vans": [],
+     "helicopter": []
+    },
+    "units_dispatched": {
+     "ambulances": 1,
+     "doctor_vehicles": 1
+    },
+    "total_units_dispatched": 2,
+    "other_area_units": [],
+    "private_units": [],
+    "other_services_alerted": {
+     "first responders": [
+      "D02-C1"
+     ]
+    },
+    "diverted_other_jobs": 0,
+    "demand_trigger": {
+     "on": false,
+     "at_min": null,
+     "reason": null
+    },
+    "ljubljana_area_ambulances_crewed": 26,
+    "ljubljana_area_ambulances_free_at_lowest": 18,
+    "ljubljana_area_peak_busy_percent": 31,
+    "red_first_ambulance_arrival_min": {
+     "D02-C1": 4.4
+    },
+    "red_target_met": true,
+    "weather_speed_factor": 1.0,
+    "non_urgent_moved_to_private_vans": 0
+   },
+   "dispatch_log": [
+    {
+     "call": "D02-C1",
+     "t": 0.0,
+     "assignments": [
+      {
+       "unit": "A02",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 4.4,
+       "arrives_min": 4.4,
+       "free_again_min": 47.9,
+       "diverted_from_other_job": false,
+       "note": "nearest suitable public unit"
+      },
+      {
+       "unit": "D02",
+       "kind": "VUZ",
+       "org": "ZD Ljubljana",
+       "base": "zd_siska",
+       "area": "LJ",
+       "eta_min": 7.4,
+       "arrives_min": 7.4,
+       "free_again_min": 50.9,
+       "diverted_from_other_job": false,
+       "note": "doctor vehicle"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 1,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 18
+    }
+   ],
+   "non_urgent_log": []
+  },
+  {
+   "id": "D03a",
+   "name": "Cardiac arrest at a mountain trailhead, helicopter flies",
+   "intent": "Red call far from the base. Helicopter, doctor vehicle, ambulance and first responders. The agent races the helicopter against the ground ETA.",
+   "start_local": "11:15",
+   "weekday": true,
+   "shift": "day",
+   "weather": {},
+   "fog_at_brnik": false,
+   "background_load": 0.35,
+   "units_not_offered": {
+    "cleaning": {},
+    "low_fuel": []
+   },
+   "calls": [
+    {
+     "id": "D03a-C1",
+     "t": 0,
+     "place_id": "kamnisko_bistrica",
+     "place_name": "Kamniška Bistrica trailhead",
+     "lat": 46.296,
+     "lon": 14.602,
+     "problem": "Cardiac arrest, bystander CPR in progress",
+     "caller_text_sl": "Pohodnik se je zgrudil, ne diha, mimoidoči ga oživljajo.",
+     "patients": [
+      {
+       "sev": "red",
+       "n": 1
+      }
+     ],
+     "doctors": 1,
+     "air": true,
+     "first_responders": true
+    }
+   ],
+   "non_urgent_batches": [],
+   "engine_events": [
+    {
+     "call": "D03a-C1",
+     "t_min": 0,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.296,
+      "lon": 14.602,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "emergency",
+      "note": "Cardiac arrest, bystander CPR in progress"
+     }
+    }
+   ],
+   "expected": {
+    "calls": 1,
+    "patients": 1,
+    "units_needed_by_rule": {
+     "NRV": 1,
+     "VUZ": 1,
+     "HNMP": 1,
+     "VAN": 0
+    },
+    "assignments_made": 2,
+    "units_reused_after_finishing": 0,
+    "units_sent": {
+     "ambulances": [
+      "A16"
+     ],
+     "doctor_vehicles": [
+      "D05"
+     ],
+     "sanitary_vans": [],
+     "private_ambulances": [],
+     "private_vans": [],
+     "helicopter": [
+      "H1"
+     ]
+    },
+    "units_dispatched": {
+     "ambulances": 1,
+     "doctor_vehicles": 1,
+     "helicopter": 1
+    },
+    "total_units_dispatched": 3,
+    "other_area_units": [],
+    "private_units": [],
+    "other_services_alerted": {
+     "first responders": [
+      "D03a-C1"
+     ]
+    },
+    "diverted_other_jobs": 0,
+    "demand_trigger": {
+     "on": false,
+     "at_min": null,
+     "reason": null
+    },
+    "ljubljana_area_ambulances_crewed": 26,
+    "ljubljana_area_ambulances_free_at_lowest": 14,
+    "ljubljana_area_peak_busy_percent": 46,
+    "red_first_ambulance_arrival_min": {
+     "D03a-C1": 14.7
+    },
+    "red_target_met": true,
+    "weather_speed_factor": 1.0,
+    "non_urgent_moved_to_private_vans": 0
+   },
+   "dispatch_log": [
+    {
+     "call": "D03a-C1",
+     "t": 0.0,
+     "assignments": [
+      {
+       "unit": "A16",
+       "kind": "NRV",
+       "org": "ZD Kamnik",
+       "base": "kamnik",
+       "area": "LJ",
+       "eta_min": 14.7,
+       "arrives_min": 14.7,
+       "free_again_min": 102.4,
+       "diverted_from_other_job": false,
+       "note": "nearest suitable public unit"
+      },
+      {
+       "unit": "D05",
+       "kind": "VUZ",
+       "org": "ZD Kamnik",
+       "base": "kamnik",
+       "area": "LJ",
+       "eta_min": 18.7,
+       "arrives_min": 18.7,
+       "free_again_min": 106.4,
+       "diverted_from_other_job": false,
+       "note": "doctor vehicle"
+      }
+     ],
+     "notes": [
+      "Helicopter H1 from Brnik: 13 min to take-off + 4 min flight + landing = about 20 min; ground ETA of the first ambulance 15 min"
+     ],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 1,
+      "HNMP": 1,
+      "VAN": 0
+     },
+     "helicopter": {
+      "launched": true,
+      "eta_min": 20.1
+     },
+     "free_lj_ambulances_after": 14
+    }
+   ],
+   "non_urgent_log": []
+  },
+  {
+   "id": "D03b",
+   "name": "Same call with fog at Brnik: helicopter grounded",
+   "intent": "The same call, but fog grounds the helicopter. The ground units already moved at the first minute; no replan needed.",
+   "start_local": "11:15",
+   "weekday": true,
+   "shift": "day",
+   "weather": {
+    "precip_mm": 0.0
+   },
+   "fog_at_brnik": true,
+   "background_load": 0.35,
+   "units_not_offered": {
+    "cleaning": {},
+    "low_fuel": []
+   },
+   "calls": [
+    {
+     "id": "D03b-C1",
+     "t": 0,
+     "place_id": "kamnisko_bistrica",
+     "place_name": "Kamniška Bistrica trailhead",
+     "lat": 46.296,
+     "lon": 14.602,
+     "problem": "Cardiac arrest, bystander CPR in progress",
+     "caller_text_sl": "Pohodnik se je zgrudil, ne diha, mimoidoči ga oživljajo.",
+     "patients": [
+      {
+       "sev": "red",
+       "n": 1
+      }
+     ],
+     "doctors": 1,
+     "air": true,
+     "first_responders": true
+    }
+   ],
+   "non_urgent_batches": [],
+   "engine_events": [
+    {
+     "call": "D03b-C1",
+     "t_min": 0,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.296,
+      "lon": 14.602,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "emergency",
+      "note": "Cardiac arrest, bystander CPR in progress"
+     }
+    }
+   ],
+   "expected": {
+    "calls": 1,
+    "patients": 1,
+    "units_needed_by_rule": {
+     "NRV": 1,
+     "VUZ": 1,
+     "HNMP": 1,
+     "VAN": 0
+    },
+    "assignments_made": 2,
+    "units_reused_after_finishing": 0,
+    "units_sent": {
+     "ambulances": [
+      "A15"
+     ],
+     "doctor_vehicles": [
+      "D05"
+     ],
+     "sanitary_vans": [],
+     "private_ambulances": [],
+     "private_vans": [],
+     "helicopter": []
+    },
+    "units_dispatched": {
+     "ambulances": 1,
+     "doctor_vehicles": 1
+    },
+    "total_units_dispatched": 2,
+    "other_area_units": [],
+    "private_units": [],
+    "other_services_alerted": {
+     "first responders": [
+      "D03b-C1"
+     ]
+    },
+    "diverted_other_jobs": 0,
+    "demand_trigger": {
+     "on": false,
+     "at_min": null,
+     "reason": null
+    },
+    "ljubljana_area_ambulances_crewed": 26,
+    "ljubljana_area_ambulances_free_at_lowest": 19,
+    "ljubljana_area_peak_busy_percent": 27,
+    "red_first_ambulance_arrival_min": {
+     "D03b-C1": 14.7
+    },
+    "red_target_met": true,
+    "weather_speed_factor": 1.0,
+    "non_urgent_moved_to_private_vans": 0
+   },
+   "dispatch_log": [
+    {
+     "call": "D03b-C1",
+     "t": 0.0,
+     "assignments": [
+      {
+       "unit": "A15",
+       "kind": "NRV",
+       "org": "ZD Kamnik",
+       "base": "kamnik",
+       "area": "LJ",
+       "eta_min": 14.7,
+       "arrives_min": 14.7,
+       "free_again_min": 102.4,
+       "diverted_from_other_job": false,
+       "note": "nearest suitable public unit"
+      },
+      {
+       "unit": "D05",
+       "kind": "VUZ",
+       "org": "ZD Kamnik",
+       "base": "kamnik",
+       "area": "LJ",
+       "eta_min": 18.7,
+       "arrives_min": 18.7,
+       "free_again_min": 106.4,
+       "diverted_from_other_job": false,
+       "note": "doctor vehicle"
+      }
+     ],
+     "notes": [
+      "Helicopter not available: fog at Brnik; ground units only"
+     ],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 1,
+      "HNMP": 1,
+      "VAN": 0
+     },
+     "helicopter": {
+      "launched": false,
+      "reason": "fog at Brnik"
+     },
+     "free_lj_ambulances_after": 19
+    }
+   ],
+   "non_urgent_log": []
+  },
+  {
+   "id": "D04",
+   "name": "Two reds compete for the nearest unit",
+   "intent": "A yellow call is on its way when two red calls arrive three minutes apart. Shows diversion of a lower-priority unit and a dispatcher question when the clinical order is unclear.",
+   "start_local": "13:50",
+   "weekday": true,
+   "shift": "day",
+   "weather": {},
+   "fog_at_brnik": false,
+   "background_load": 0.4,
+   "units_not_offered": {
+    "cleaning": {},
+    "low_fuel": []
+   },
+   "calls": [
+    {
+     "id": "D04-C0",
+     "t": 0,
+     "place_id": "bezigrad",
+     "place_name": "Bežigrad",
+     "lat": 46.072,
+     "lon": 14.511,
+     "problem": "Minor injuries after a fall from a bicycle",
+     "caller_text_sl": "Kolesar je padel, ima odrgnine in boli ga zapestje.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D04-C1",
+     "t": 2,
+     "place_id": "siska",
+     "place_name": "Šiška",
+     "lat": 46.0735,
+     "lon": 14.479,
+     "problem": "Cardiac arrest at home, relative does CPR",
+     "caller_text_sl": "Žena ne diha, sin jo oživlja, Šiška.",
+     "patients": [
+      {
+       "sev": "red",
+       "n": 1
+      }
+     ],
+     "doctors": 1,
+     "first_responders": true
+    },
+    {
+     "id": "D04-C2",
+     "t": 5,
+     "place_id": "crnuce",
+     "place_name": "Črnuče",
+     "lat": 46.102,
+     "lon": 14.532,
+     "problem": "Suspected stroke, face droop, arm weakness",
+     "caller_text_sl": "Moški ima povešen obraz in ne more dvigniti roke.",
+     "patients": [
+      {
+       "sev": "red",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    }
+   ],
+   "non_urgent_batches": [],
+   "engine_events": [
+    {
+     "call": "D04-C0",
+     "t_min": 0,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.072,
+      "lon": 14.511,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Minor injuries after a fall from a bicycle"
+     }
+    },
+    {
+     "call": "D04-C1",
+     "t_min": 2,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.0735,
+      "lon": 14.479,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "emergency",
+      "note": "Cardiac arrest at home, relative does CPR"
+     }
+    },
+    {
+     "call": "D04-C2",
+     "t_min": 5,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.102,
+      "lon": 14.532,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "emergency",
+      "note": "Suspected stroke, face droop, arm weakness"
+     }
+    }
+   ],
+   "expected": {
+    "calls": 3,
+    "patients": 3,
+    "units_needed_by_rule": {
+     "NRV": 3,
+     "VUZ": 1,
+     "HNMP": 0,
+     "VAN": 0
+    },
+    "assignments_made": 4,
+    "units_reused_after_finishing": 0,
+    "units_sent": {
+     "ambulances": [
+      "A01",
+      "A02",
+      "A08"
+     ],
+     "doctor_vehicles": [
+      "D02"
+     ],
+     "sanitary_vans": [],
+     "private_ambulances": [],
+     "private_vans": [],
+     "helicopter": []
+    },
+    "units_dispatched": {
+     "ambulances": 3,
+     "doctor_vehicles": 1
+    },
+    "total_units_dispatched": 4,
+    "other_area_units": [],
+    "private_units": [],
+    "other_services_alerted": {
+     "first responders": [
+      "D04-C1"
+     ]
+    },
+    "diverted_other_jobs": 2,
+    "demand_trigger": {
+     "on": false,
+     "at_min": null,
+     "reason": null
+    },
+    "ljubljana_area_ambulances_crewed": 26,
+    "ljubljana_area_ambulances_free_at_lowest": 13,
+    "ljubljana_area_peak_busy_percent": 50,
+    "red_first_ambulance_arrival_min": {
+     "D04-C1": 6.0,
+     "D04-C2": 7.3
+    },
+    "red_target_met": true,
+    "weather_speed_factor": 1.0,
+    "non_urgent_moved_to_private_vans": 0
+   },
+   "dispatch_log": [
+    {
+     "call": "D04-C0",
+     "t": 0.0,
+     "assignments": [
+      {
+       "unit": "A01",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 5.5,
+       "arrives_min": 5.5,
+       "free_again_min": 45.0,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area",
+       "superseded": "taken off for D04-C1"
+      },
+      {
+       "unit": "A02",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 5.5,
+       "arrives_min": 7.5,
+       "free_again_min": 47.0,
+       "diverted_from_other_job": false,
+       "note": "re-planned at minute 2: nearest unit in the Ljubljana area",
+       "superseded": "taken off for D04-C2"
+      },
+      {
+       "unit": "A08",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 5.5,
+       "arrives_min": 10.5,
+       "free_again_min": 50.0,
+       "diverted_from_other_job": false,
+       "note": "re-planned at minute 5: nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 15
+    },
+    {
+     "call": "D04-C1",
+     "t": 2.0,
+     "assignments": [
+      {
+       "unit": "A01",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 6.0,
+       "arrives_min": 8.0,
+       "free_again_min": 54.8,
+       "diverted_from_other_job": true,
+       "note": "nearest suitable public unit"
+      },
+      {
+       "unit": "D02",
+       "kind": "VUZ",
+       "org": "ZD Ljubljana",
+       "base": "zd_siska",
+       "area": "LJ",
+       "eta_min": 7.0,
+       "arrives_min": 9.0,
+       "free_again_min": 55.8,
+       "diverted_from_other_job": false,
+       "note": "doctor vehicle"
+      }
+     ],
+     "notes": [
+      "A01 was taken off D04-C0 (yellow, not yet at the patient) for a red call; D04-C0 is re-planned and its patient told"
+     ],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 1,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 14
+    },
+    {
+     "call": "D04-C2",
+     "t": 5.0,
+     "assignments": [
+      {
+       "unit": "A02",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 7.3,
+       "arrives_min": 12.3,
+       "free_again_min": 61.2,
+       "diverted_from_other_job": true,
+       "note": "nearest suitable public unit"
+      }
+     ],
+     "notes": [
+      "A02 was taken off D04-C0 (yellow, not yet at the patient) for a red call; D04-C0 is re-planned and its patient told"
+     ],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 13
+    }
+   ],
+   "non_urgent_log": []
+  },
+  {
+   "id": "D05",
+   "name": "Multi-vehicle crash on the ring road at dusk",
+   "intent": "One incident, six patients (2 red, 2 yellow, 2 green): seven units plus fire and police. Helicopter window has closed, rush hour and a closed lane slow every ETA.",
+   "start_local": "17:20",
+   "weekday": true,
+   "shift": "day",
+   "weather": {
+    "precip_mm": 0.5,
+    "temp_c": 4
+   },
+   "fog_at_brnik": false,
+   "background_load": 0.45,
+   "units_not_offered": {
+    "cleaning": {},
+    "low_fuel": []
+   },
+   "calls": [
+    {
+     "id": "D05-C1",
+     "t": 0,
+     "place_id": "ring_east",
+     "place_name": "East ring road (synthetic crash site)",
+     "lat": 46.0545,
+     "lon": 14.585,
+     "problem": "Crash of four vehicles, six injured, one trapped",
+     "caller_text_sl": "Trčenje štirih vozil na obvoznici, šest ranjenih, eden je ukleščen.",
+     "patients": [
+      {
+       "sev": "red",
+       "n": 2
+      },
+      {
+       "sev": "yellow",
+       "n": 2
+      },
+      {
+       "sev": "green",
+       "n": 2
+      }
+     ],
+     "doctors": 2,
+     "air": true,
+     "fire": true,
+     "police": true,
+     "first_responders": true,
+     "extra": 0.85
+    }
+   ],
+   "non_urgent_batches": [],
+   "engine_events": [
+    {
+     "call": "D05-C1",
+     "t_min": 0,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.0545,
+      "lon": 14.585,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "emergency",
+      "note": "Crash of four vehicles, six injured, one trapped"
+     }
+    }
+   ],
+   "expected": {
+    "calls": 1,
+    "patients": 6,
+    "units_needed_by_rule": {
+     "NRV": 4,
+     "VUZ": 2,
+     "HNMP": 1,
+     "VAN": 1
+    },
+    "assignments_made": 7,
+    "units_reused_after_finishing": 0,
+    "units_sent": {
+     "ambulances": [
+      "A02",
+      "A03",
+      "A04",
+      "A05"
+     ],
+     "doctor_vehicles": [
+      "D01",
+      "D02"
+     ],
+     "sanitary_vans": [
+      "T02"
+     ],
+     "private_ambulances": [],
+     "private_vans": [],
+     "helicopter": []
+    },
+    "units_dispatched": {
+     "ambulances": 4,
+     "doctor_vehicles": 2,
+     "sanitary_vans": 1
+    },
+    "total_units_dispatched": 7,
+    "other_area_units": [],
+    "private_units": [],
+    "other_services_alerted": {
+     "first responders": [
+      "D05-C1"
+     ],
+     "fire brigade": [
+      "D05-C1"
+     ],
+     "police": [
+      "D05-C1"
+     ]
+    },
+    "diverted_other_jobs": 1,
+    "demand_trigger": {
+     "on": false,
+     "at_min": null,
+     "reason": null
+    },
+    "ljubljana_area_ambulances_crewed": 26,
+    "ljubljana_area_ambulances_free_at_lowest": 10,
+    "ljubljana_area_peak_busy_percent": 62,
+    "red_first_ambulance_arrival_min": {
+     "D05-C1": 13.1
+    },
+    "red_target_met": true,
+    "weather_speed_factor": 0.93,
+    "non_urgent_moved_to_private_vans": 0
+   },
+   "dispatch_log": [
+    {
+     "call": "D05-C1",
+     "t": 0.0,
+     "assignments": [
+      {
+       "unit": "A03",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 13.1,
+       "arrives_min": 13.1,
+       "free_again_min": 64.8,
+       "diverted_from_other_job": true,
+       "note": "nearest suitable public unit"
+      },
+      {
+       "unit": "A02",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 14.1,
+       "arrives_min": 14.1,
+       "free_again_min": 65.8,
+       "diverted_from_other_job": false,
+       "note": "nearest suitable public unit"
+      },
+      {
+       "unit": "A04",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 18.0,
+       "arrives_min": 18.0,
+       "free_again_min": 68.2,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      },
+      {
+       "unit": "A05",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 18.0,
+       "arrives_min": 18.0,
+       "free_again_min": 68.2,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      },
+      {
+       "unit": "D01",
+       "kind": "VUZ",
+       "org": "ZD Ljubljana",
+       "base": "zd_center",
+       "area": "LJ",
+       "eta_min": 20.5,
+       "arrives_min": 20.5,
+       "free_again_min": 72.2,
+       "diverted_from_other_job": false,
+       "note": "doctor vehicle"
+      },
+      {
+       "unit": "D02",
+       "kind": "VUZ",
+       "org": "ZD Ljubljana",
+       "base": "zd_siska",
+       "area": "LJ",
+       "eta_min": 26.1,
+       "arrives_min": 26.1,
+       "free_again_min": 77.8,
+       "diverted_from_other_job": false,
+       "note": "doctor vehicle"
+      },
+      {
+       "unit": "T02",
+       "kind": "VAN",
+       "org": "UKC station (sanitary)",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 18.0,
+       "arrives_min": 18.0,
+       "free_again_min": 63.2,
+       "diverted_from_other_job": false,
+       "note": "public sanitary van"
+      }
+     ],
+     "notes": [
+      "Helicopter not available: outside the daylight window (08:00 to 16:30), local time 17:19; ground units only"
+     ],
+     "needs": {
+      "NRV": 4,
+      "VUZ": 2,
+      "HNMP": 1,
+      "VAN": 1
+     },
+     "helicopter": {
+      "launched": false,
+      "reason": "outside the daylight window (08:00 to 16:30), local time 17:19"
+     },
+     "free_lj_ambulances_after": 10
+    }
+   ],
+   "non_urgent_log": []
+  },
+  {
+   "id": "D06",
+   "name": "Rush hour mix: one red, five yellow, scheduled discharges",
+   "intent": "Steady pressure over an hour in rush hour: six calls, one red and five yellow. The agent keeps the area rule, uses the nearest free unit each time and leaves eight scheduled discharges with the public units because the demand trigger never fires.",
+   "start_local": "16:00",
+   "weekday": true,
+   "shift": "day",
+   "weather": {},
+   "fog_at_brnik": false,
+   "background_load": 0.45,
+   "units_not_offered": {
+    "cleaning": {},
+    "low_fuel": []
+   },
+   "calls": [
+    {
+     "id": "D06-C1",
+     "t": 0,
+     "place_id": "moste",
+     "place_name": "Moste",
+     "lat": 46.056,
+     "lon": 14.542,
+     "problem": "Abdominal pain with vomiting blood",
+     "caller_text_sl": "Moški bruha kri in mu je slabo.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D06-C2",
+     "t": 8,
+     "place_id": "crnuce",
+     "place_name": "Črnuče",
+     "lat": 46.102,
+     "lon": 14.532,
+     "problem": "Fall from a ladder, head injury, drowsy",
+     "caller_text_sl": "Padel je z lestve, udaril se je v glavo, je zaspan.",
+     "patients": [
+      {
+       "sev": "red",
+       "n": 1
+      }
+     ],
+     "doctors": 1
+    },
+    {
+     "id": "D06-C3",
+     "t": 22,
+     "place_id": "kocevje",
+     "place_name": "Kočevje (outskirts)",
+     "lat": 45.65,
+     "lon": 14.875,
+     "problem": "Breathing difficulty, known asthma",
+     "caller_text_sl": "Otrok težko diha, ima astmo.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D06-C4",
+     "t": 31,
+     "place_id": "polje",
+     "place_name": "Polje",
+     "lat": 46.062,
+     "lon": 14.59,
+     "problem": "Severe pain in the leg after a fall",
+     "caller_text_sl": "Gospa se je zvila, noga je otekla in boli.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D06-C5",
+     "t": 44,
+     "place_id": "rudnik",
+     "place_name": "Rudnik",
+     "lat": 46.027,
+     "lon": 14.53,
+     "problem": "Allergic reaction, hives and swollen lips",
+     "caller_text_sl": "Po piku čebele ima otekle ustnice in izpuščaj.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D06-C6",
+     "t": 55,
+     "place_id": "trzin",
+     "place_name": "Trzin",
+     "lat": 46.1305,
+     "lon": 14.5575,
+     "problem": "Diabetic, confused and sweating",
+     "caller_text_sl": "Sladkorni bolnik je zmeden in oblit z znojem.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    }
+   ],
+   "non_urgent_batches": [
+    {
+     "t": 30,
+     "n": 8
+    }
+   ],
+   "engine_events": [
+    {
+     "call": "D06-C1",
+     "t_min": 0,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.056,
+      "lon": 14.542,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Abdominal pain with vomiting blood"
+     }
+    },
+    {
+     "call": "D06-C2",
+     "t_min": 8,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.102,
+      "lon": 14.532,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "emergency",
+      "note": "Fall from a ladder, head injury, drowsy"
+     }
+    },
+    {
+     "call": "D06-C3",
+     "t_min": 22,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 45.65,
+      "lon": 14.875,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Breathing difficulty, known asthma"
+     }
+    },
+    {
+     "call": "D06-C4",
+     "t_min": 31,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.062,
+      "lon": 14.59,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Severe pain in the leg after a fall"
+     }
+    },
+    {
+     "call": "D06-C5",
+     "t_min": 44,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.027,
+      "lon": 14.53,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Allergic reaction, hives and swollen lips"
+     }
+    },
+    {
+     "call": "D06-C6",
+     "t_min": 55,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.1305,
+      "lon": 14.5575,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Diabetic, confused and sweating"
+     }
+    }
+   ],
+   "expected": {
+    "calls": 6,
+    "patients": 6,
+    "units_needed_by_rule": {
+     "NRV": 6,
+     "VUZ": 1,
+     "HNMP": 0,
+     "VAN": 0
+    },
+    "assignments_made": 7,
+    "units_reused_after_finishing": 0,
+    "units_sent": {
+     "ambulances": [
+      "A01",
+      "A03",
+      "A04",
+      "A08",
+      "A13",
+      "A20"
+     ],
+     "doctor_vehicles": [
+      "D02"
+     ],
+     "sanitary_vans": [],
+     "private_ambulances": [],
+     "private_vans": [],
+     "helicopter": []
+    },
+    "units_dispatched": {
+     "ambulances": 6,
+     "doctor_vehicles": 1
+    },
+    "total_units_dispatched": 7,
+    "other_area_units": [],
+    "private_units": [],
+    "other_services_alerted": {},
+    "diverted_other_jobs": 2,
+    "demand_trigger": {
+     "on": false,
+     "at_min": null,
+     "reason": null
+    },
+    "ljubljana_area_ambulances_crewed": 26,
+    "ljubljana_area_ambulances_free_at_lowest": 17,
+    "ljubljana_area_peak_busy_percent": 35,
+    "red_first_ambulance_arrival_min": {
+     "D06-C2": 4.7
+    },
+    "red_target_met": true,
+    "weather_speed_factor": 1.0,
+    "non_urgent_moved_to_private_vans": 0
+   },
+   "dispatch_log": [
+    {
+     "call": "D06-C1",
+     "t": 0.0,
+     "assignments": [
+      {
+       "unit": "A01",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 4.6,
+       "arrives_min": 4.6,
+       "free_again_min": 43.9,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 18
+    },
+    {
+     "call": "D06-C2",
+     "t": 8.0,
+     "assignments": [
+      {
+       "unit": "A04",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 4.7,
+       "arrives_min": 12.7,
+       "free_again_min": 64.4,
+       "diverted_from_other_job": true,
+       "note": "nearest suitable public unit"
+      },
+      {
+       "unit": "D02",
+       "kind": "VUZ",
+       "org": "ZD Ljubljana",
+       "base": "zd_siska",
+       "area": "LJ",
+       "eta_min": 15.5,
+       "arrives_min": 23.5,
+       "free_again_min": 75.2,
+       "diverted_from_other_job": false,
+       "note": "doctor vehicle"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 1,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 18
+    },
+    {
+     "call": "D06-C3",
+     "t": 22.0,
+     "assignments": [
+      {
+       "unit": "A20",
+       "kind": "NRV",
+       "org": "ZD Kočevje",
+       "base": "kocevje",
+       "area": "LJ",
+       "eta_min": 5.0,
+       "arrives_min": 27.0,
+       "free_again_min": 218.6,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 17
+    },
+    {
+     "call": "D06-C4",
+     "t": 31.0,
+     "assignments": [
+      {
+       "unit": "A03",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 15.6,
+       "arrives_min": 46.6,
+       "free_again_min": 97.0,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 18
+    },
+    {
+     "call": "D06-C5",
+     "t": 44.0,
+     "assignments": [
+      {
+       "unit": "A08",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 8.3,
+       "arrives_min": 52.3,
+       "free_again_min": 97.1,
+       "diverted_from_other_job": true,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 21
+    },
+    {
+     "call": "D06-C6",
+     "t": 55.0,
+     "assignments": [
+      {
+       "unit": "A13",
+       "kind": "NRV",
+       "org": "ZD Domžale",
+       "base": "domzale",
+       "area": "LJ",
+       "eta_min": 9.6,
+       "arrives_min": 64.6,
+       "free_again_min": 125.3,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 20
+    }
+   ],
+   "non_urgent_log": [
+    {
+     "t": 30.0,
+     "n": 8,
+     "to_private_vans": 0,
+     "kept_by_public_units": 8,
+     "trigger_on": false
+    }
+   ]
+  },
+  {
+   "id": "D07",
+   "name": "Busy afternoon, teams near full capacity",
+   "intent": "Eleven calls in 75 minutes (3 red, 8 yellow) while most ambulances are already out. The demand trigger fires; non-urgent transports move to private vans; yellow calls and reds draw on other areas.",
+   "start_local": "15:00",
+   "weekday": true,
+   "shift": "day",
+   "weather": {
+    "precip_mm": 1.0,
+    "temp_c": 6
+   },
+   "fog_at_brnik": false,
+   "background_load": 0.75,
+   "units_not_offered": {
+    "cleaning": {},
+    "low_fuel": []
+   },
+   "calls": [
+    {
+     "id": "D07-C1",
+     "t": 0,
+     "place_id": "siska",
+     "place_name": "Šiška",
+     "lat": 46.0735,
+     "lon": 14.479,
+     "problem": "Chest pain, 66 years",
+     "caller_text_sl": "Gospa ima stiskanje v prsih.",
+     "patients": [
+      {
+       "sev": "red",
+       "n": 1
+      }
+     ],
+     "doctors": 1
+    },
+    {
+     "id": "D07-C2",
+     "t": 4,
+     "place_id": "moste",
+     "place_name": "Moste",
+     "lat": 46.056,
+     "lon": 14.542,
+     "problem": "Fall, wrist fracture",
+     "caller_text_sl": "Padec, zlomljeno zapestje.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D07-C3",
+     "t": 9,
+     "place_id": "domzale",
+     "place_name": "Domžale (outskirts)",
+     "lat": 46.149,
+     "lon": 14.612,
+     "problem": "Breathing difficulty, COPD",
+     "caller_text_sl": "Težko diha, ima KOPB.",
+     "patients": [
+      {
+       "sev": "red",
+       "n": 1
+      }
+     ],
+     "doctors": 1
+    },
+    {
+     "id": "D07-C4",
+     "t": 14,
+     "place_id": "vrhnika",
+     "place_name": "Vrhnika (outskirts)",
+     "lat": 45.9735,
+     "lon": 14.279,
+     "problem": "Fall from a bicycle, hurt shoulder",
+     "caller_text_sl": "Kolesar je padel, boli ga rama.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D07-C5",
+     "t": 20,
+     "place_id": "grosuplje",
+     "place_name": "Grosuplje (outskirts)",
+     "lat": 45.964,
+     "lon": 14.674,
+     "problem": "Syncope, now awake",
+     "caller_text_sl": "Omedlel je, zdaj je buden.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D07-C6",
+     "t": 27,
+     "place_id": "bezigrad",
+     "place_name": "Bežigrad",
+     "lat": 46.072,
+     "lon": 14.511,
+     "problem": "High fever and confusion, elderly",
+     "caller_text_sl": "Starejši gospod ima vročino in je zmeden.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D07-C7",
+     "t": 33,
+     "place_id": "crnuce",
+     "place_name": "Črnuče",
+     "lat": 46.102,
+     "lon": 14.532,
+     "problem": "Stroke symptoms",
+     "caller_text_sl": "Znaki možganske kapi, govor je moten.",
+     "patients": [
+      {
+       "sev": "red",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D07-C8",
+     "t": 41,
+     "place_id": "vic",
+     "place_name": "Vič (residential block)",
+     "lat": 46.04,
+     "lon": 14.482,
+     "problem": "Back pain after lifting",
+     "caller_text_sl": "Hud hrbtni bolečin po dvigovanju.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D07-C9",
+     "t": 50,
+     "place_id": "medvode",
+     "place_name": "Medvode (outskirts)",
+     "lat": 46.15,
+     "lon": 14.429,
+     "problem": "Kidney colic",
+     "caller_text_sl": "Ledvična kolika.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D07-C10",
+     "t": 58,
+     "place_id": "skofljica",
+     "place_name": "Škofljica",
+     "lat": 45.984,
+     "lon": 14.577,
+     "problem": "Laceration, bleeding controlled",
+     "caller_text_sl": "Rana na roki, krvavitev ustavljena.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D07-C11",
+     "t": 68,
+     "place_id": "polje",
+     "place_name": "Polje",
+     "lat": 46.062,
+     "lon": 14.59,
+     "problem": "Pregnant, bleeding",
+     "caller_text_sl": "Nosečnica ima krvavitev.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    }
+   ],
+   "non_urgent_batches": [
+    {
+     "t": 30,
+     "n": 15
+    }
+   ],
+   "engine_events": [
+    {
+     "call": "D07-C1",
+     "t_min": 0,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.0735,
+      "lon": 14.479,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "emergency",
+      "note": "Chest pain, 66 years"
+     }
+    },
+    {
+     "call": "D07-C2",
+     "t_min": 4,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.056,
+      "lon": 14.542,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Fall, wrist fracture"
+     }
+    },
+    {
+     "call": "D07-C3",
+     "t_min": 9,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.149,
+      "lon": 14.612,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "emergency",
+      "note": "Breathing difficulty, COPD"
+     }
+    },
+    {
+     "call": "D07-C4",
+     "t_min": 14,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 45.9735,
+      "lon": 14.279,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Fall from a bicycle, hurt shoulder"
+     }
+    },
+    {
+     "call": "D07-C5",
+     "t_min": 20,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 45.964,
+      "lon": 14.674,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Syncope, now awake"
+     }
+    },
+    {
+     "call": "D07-C6",
+     "t_min": 27,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.072,
+      "lon": 14.511,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "High fever and confusion, elderly"
+     }
+    },
+    {
+     "call": "D07-C7",
+     "t_min": 33,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.102,
+      "lon": 14.532,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "emergency",
+      "note": "Stroke symptoms"
+     }
+    },
+    {
+     "call": "D07-C8",
+     "t_min": 41,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.04,
+      "lon": 14.482,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Back pain after lifting"
+     }
+    },
+    {
+     "call": "D07-C9",
+     "t_min": 50,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.15,
+      "lon": 14.429,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Kidney colic"
+     }
+    },
+    {
+     "call": "D07-C10",
+     "t_min": 58,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 45.984,
+      "lon": 14.577,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Laceration, bleeding controlled"
+     }
+    },
+    {
+     "call": "D07-C11",
+     "t_min": 68,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.062,
+      "lon": 14.59,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Pregnant, bleeding"
+     }
+    }
+   ],
+   "expected": {
+    "calls": 11,
+    "patients": 11,
+    "units_needed_by_rule": {
+     "NRV": 11,
+     "VUZ": 2,
+     "HNMP": 0,
+     "VAN": 0
+    },
+    "assignments_made": 13,
+    "units_reused_after_finishing": 1,
+    "units_sent": {
+     "ambulances": [
+      "A01",
+      "A02",
+      "A03",
+      "A04",
+      "A05",
+      "A06",
+      "A08",
+      "A13",
+      "A25",
+      "A30"
+     ],
+     "doctor_vehicles": [
+      "D01",
+      "D04"
+     ],
+     "sanitary_vans": [],
+     "private_ambulances": [],
+     "private_vans": [],
+     "helicopter": []
+    },
+    "units_dispatched": {
+     "ambulances": 10,
+     "doctor_vehicles": 2
+    },
+    "total_units_dispatched": 12,
+    "other_area_units": [
+     "A30"
+    ],
+    "private_units": [],
+    "other_services_alerted": {},
+    "diverted_other_jobs": 3,
+    "demand_trigger": {
+     "on": true,
+     "at_min": 0.0,
+     "reason": "free ambulances in the Ljubljana area 6 of 26 (25 percent or less)"
+    },
+    "ljubljana_area_ambulances_crewed": 26,
+    "ljubljana_area_ambulances_free_at_lowest": 3,
+    "ljubljana_area_peak_busy_percent": 88,
+    "red_first_ambulance_arrival_min": {
+     "D07-C1": 10.6,
+     "D07-C3": 5.6,
+     "D07-C7": 9.5
+    },
+    "red_target_met": true,
+    "weather_speed_factor": 0.93,
+    "non_urgent_moved_to_private_vans": 6
+   },
+   "dispatch_log": [
+    {
+     "call": "D07-C1",
+     "t": 0.0,
+     "assignments": [
+      {
+       "unit": "A01",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 10.6,
+       "arrives_min": 10.6,
+       "free_again_min": 60.2,
+       "diverted_from_other_job": false,
+       "note": "nearest suitable public unit"
+      },
+      {
+       "unit": "D01",
+       "kind": "VUZ",
+       "org": "ZD Ljubljana",
+       "base": "zd_center",
+       "area": "LJ",
+       "eta_min": 13.2,
+       "arrives_min": 13.2,
+       "free_again_min": 62.8,
+       "diverted_from_other_job": false,
+       "note": "doctor vehicle"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 1,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 5
+    },
+    {
+     "call": "D07-C2",
+     "t": 4.0,
+     "assignments": [
+      {
+       "unit": "A08",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 4.9,
+       "arrives_min": 8.9,
+       "free_again_min": 48.5,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 4
+    },
+    {
+     "call": "D07-C3",
+     "t": 9.0,
+     "assignments": [
+      {
+       "unit": "A13",
+       "kind": "NRV",
+       "org": "ZD Domžale",
+       "base": "domzale",
+       "area": "LJ",
+       "eta_min": 5.6,
+       "arrives_min": 14.6,
+       "free_again_min": 85.0,
+       "diverted_from_other_job": false,
+       "note": "nearest suitable public unit"
+      },
+      {
+       "unit": "D04",
+       "kind": "VUZ",
+       "org": "ZD Domžale",
+       "base": "domzale",
+       "area": "LJ",
+       "eta_min": 9.6,
+       "arrives_min": 18.6,
+       "free_again_min": 89.0,
+       "diverted_from_other_job": false,
+       "note": "doctor vehicle"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 1,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 3
+    },
+    {
+     "call": "D07-C4",
+     "t": 14.0,
+     "assignments": [
+      {
+       "unit": "A25",
+       "kind": "NRV",
+       "org": "ZD Postojna",
+       "base": "postojna",
+       "area": "LJ",
+       "eta_min": 60.6,
+       "arrives_min": 74.6,
+       "free_again_min": 176.5,
+       "diverted_from_other_job": true,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 3
+    },
+    {
+     "call": "D07-C5",
+     "t": 20.0,
+     "assignments": [
+      {
+       "unit": "A05",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 43.8,
+       "arrives_min": 63.8,
+       "free_again_min": 148.3,
+       "diverted_from_other_job": true,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 4
+    },
+    {
+     "call": "D07-C6",
+     "t": 27.0,
+     "assignments": [
+      {
+       "unit": "A06",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 7.3,
+       "arrives_min": 34.3,
+       "free_again_min": 75.6,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area",
+       "superseded": "taken off for D07-C7"
+      },
+      {
+       "unit": "A04",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 7.3,
+       "arrives_min": 40.3,
+       "free_again_min": 81.6,
+       "diverted_from_other_job": false,
+       "note": "re-planned at minute 33: nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 5
+    },
+    {
+     "call": "D07-C7",
+     "t": 33.0,
+     "assignments": [
+      {
+       "unit": "A06",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 9.5,
+       "arrives_min": 42.5,
+       "free_again_min": 95.1,
+       "diverted_from_other_job": true,
+       "note": "nearest suitable public unit"
+      }
+     ],
+     "notes": [
+      "A06 was taken off D07-C6 (yellow, not yet at the patient) for a red call; D07-C6 is re-planned and its patient told"
+     ],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 7
+    },
+    {
+     "call": "D07-C8",
+     "t": 41.0,
+     "assignments": [
+      {
+       "unit": "A03",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 12.7,
+       "arrives_min": 53.7,
+       "free_again_min": 100.4,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 7
+    },
+    {
+     "call": "D07-C9",
+     "t": 50.0,
+     "assignments": [
+      {
+       "unit": "A30",
+       "kind": "NRV",
+       "org": "ZD Škofja Loka",
+       "base": "skofja_loka",
+       "area": "NG",
+       "eta_min": 31.6,
+       "arrives_min": 81.6,
+       "free_again_min": 157.2,
+       "diverted_from_other_job": false,
+       "note": "other area (trigger on, local wait over 30 min)"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 9
+    },
+    {
+     "call": "D07-C10",
+     "t": 58.0,
+     "assignments": [
+      {
+       "unit": "A08",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 29.9,
+       "arrives_min": 87.9,
+       "free_again_min": 151.7,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 9
+    },
+    {
+     "call": "D07-C11",
+     "t": 68.0,
+     "assignments": [
+      {
+       "unit": "A02",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 16.7,
+       "arrives_min": 84.7,
+       "free_again_min": 136.3,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 10
+    }
+   ],
+   "non_urgent_log": [
+    {
+     "t": 30.0,
+     "n": 15,
+     "to_private_vans": 6,
+     "kept_by_public_units": 9,
+     "trigger_on": true
+    }
+   ]
+  },
+  {
+   "id": "D08",
+   "name": "Saturday night, thin staffing, three reds",
+   "intent": "Night roster (22 ambulances in the area against 26 by day), no helicopter, three reds in 21 minutes at different ends of the area. Shows other-area units for reds and the private option as last resort.",
+   "start_local": "03:20",
+   "weekday": false,
+   "shift": "night",
+   "weather": {},
+   "fog_at_brnik": false,
+   "background_load": 0.5,
+   "units_not_offered": {
+    "cleaning": {},
+    "low_fuel": []
+   },
+   "calls": [
+    {
+     "id": "D08-C1",
+     "t": 0,
+     "place_id": "domzale",
+     "place_name": "Domžale (outskirts)",
+     "lat": 46.149,
+     "lon": 14.612,
+     "problem": "Cardiac arrest at a party",
+     "caller_text_sl": "Mladenič je padel in ne diha.",
+     "patients": [
+      {
+       "sev": "red",
+       "n": 1
+      }
+     ],
+     "doctors": 1,
+     "first_responders": true
+    },
+    {
+     "id": "D08-C2",
+     "t": 12,
+     "place_id": "vrhnika",
+     "place_name": "Vrhnika (outskirts)",
+     "lat": 45.9735,
+     "lon": 14.279,
+     "problem": "Road crash, driver unconscious",
+     "caller_text_sl": "Prometna nesreča, voznik je nezavesten.",
+     "patients": [
+      {
+       "sev": "red",
+       "n": 1
+      }
+     ],
+     "doctors": 1,
+     "fire": true,
+     "police": true
+    },
+    {
+     "id": "D08-C3",
+     "t": 21,
+     "place_id": "grosuplje",
+     "place_name": "Grosuplje (outskirts)",
+     "lat": 45.964,
+     "lon": 14.674,
+     "problem": "Severe bleeding from a stab wound",
+     "caller_text_sl": "Zabodena rana, močna krvavitev.",
+     "patients": [
+      {
+       "sev": "red",
+       "n": 1
+      }
+     ],
+     "doctors": 1,
+     "police": true
+    }
+   ],
+   "non_urgent_batches": [],
+   "engine_events": [
+    {
+     "call": "D08-C1",
+     "t_min": 0,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.149,
+      "lon": 14.612,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "emergency",
+      "note": "Cardiac arrest at a party"
+     }
+    },
+    {
+     "call": "D08-C2",
+     "t_min": 12,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 45.9735,
+      "lon": 14.279,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "emergency",
+      "note": "Road crash, driver unconscious"
+     }
+    },
+    {
+     "call": "D08-C3",
+     "t_min": 21,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 45.964,
+      "lon": 14.674,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "emergency",
+      "note": "Severe bleeding from a stab wound"
+     }
+    }
+   ],
+   "expected": {
+    "calls": 3,
+    "patients": 3,
+    "units_needed_by_rule": {
+     "NRV": 3,
+     "VUZ": 3,
+     "HNMP": 0,
+     "VAN": 0
+    },
+    "assignments_made": 6,
+    "units_reused_after_finishing": 0,
+    "units_sent": {
+     "ambulances": [
+      "A10",
+      "A11",
+      "A13"
+     ],
+     "doctor_vehicles": [
+      "D04",
+      "D05",
+      "D06"
+     ],
+     "sanitary_vans": [],
+     "private_ambulances": [],
+     "private_vans": [],
+     "helicopter": []
+    },
+    "units_dispatched": {
+     "ambulances": 3,
+     "doctor_vehicles": 3
+    },
+    "total_units_dispatched": 6,
+    "other_area_units": [],
+    "private_units": [],
+    "other_services_alerted": {
+     "first responders": [
+      "D08-C1"
+     ],
+     "fire brigade": [
+      "D08-C2"
+     ],
+     "police": [
+      "D08-C2",
+      "D08-C3"
+     ]
+    },
+    "diverted_other_jobs": 2,
+    "demand_trigger": {
+     "on": true,
+     "at_min": 21.0,
+     "reason": "predicted red arrival 15 min (over 15)"
+    },
+    "ljubljana_area_ambulances_crewed": 22,
+    "ljubljana_area_ambulances_free_at_lowest": 11,
+    "ljubljana_area_peak_busy_percent": 50,
+    "red_first_ambulance_arrival_min": {
+     "D08-C1": 3.0,
+     "D08-C2": 2.2,
+     "D08-C3": 15.1
+    },
+    "red_target_met": false,
+    "weather_speed_factor": 1.0,
+    "non_urgent_moved_to_private_vans": 0
+   },
+   "dispatch_log": [
+    {
+     "call": "D08-C1",
+     "t": 0.0,
+     "assignments": [
+      {
+       "unit": "A13",
+       "kind": "NRV",
+       "org": "ZD Domžale",
+       "base": "domzale",
+       "area": "LJ",
+       "eta_min": 3.0,
+       "arrives_min": 3.0,
+       "free_again_min": 59.7,
+       "diverted_from_other_job": true,
+       "note": "nearest suitable public unit"
+      },
+      {
+       "unit": "D04",
+       "kind": "VUZ",
+       "org": "ZD Kamnik",
+       "base": "kamnik",
+       "area": "LJ",
+       "eta_min": 16.5,
+       "arrives_min": 16.5,
+       "free_again_min": 73.2,
+       "diverted_from_other_job": false,
+       "note": "doctor vehicle"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 1,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 11
+    },
+    {
+     "call": "D08-C2",
+     "t": 12.0,
+     "assignments": [
+      {
+       "unit": "A10",
+       "kind": "NRV",
+       "org": "UKC outpost Vrhnika",
+       "base": "vrhnika",
+       "area": "LJ",
+       "eta_min": 2.2,
+       "arrives_min": 14.2,
+       "free_again_min": 82.5,
+       "diverted_from_other_job": true,
+       "note": "nearest suitable public unit"
+      },
+      {
+       "unit": "D06",
+       "kind": "VUZ",
+       "org": "ZD Vrhnika",
+       "base": "vrhnika",
+       "area": "LJ",
+       "eta_min": 7.6,
+       "arrives_min": 19.6,
+       "free_again_min": 87.9,
+       "diverted_from_other_job": false,
+       "note": "doctor vehicle"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 1,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 12
+    },
+    {
+     "call": "D08-C3",
+     "t": 21.0,
+     "assignments": [
+      {
+       "unit": "A11",
+       "kind": "NRV",
+       "org": "UKC outpost Ivančna Gorica",
+       "base": "ig",
+       "area": "LJ",
+       "eta_min": 15.1,
+       "arrives_min": 36.1,
+       "free_again_min": 97.0,
+       "diverted_from_other_job": false,
+       "note": "nearest suitable public unit"
+      },
+      {
+       "unit": "D05",
+       "kind": "VUZ",
+       "org": "ZD Ivančna Gorica/Grosuplje",
+       "base": "grosuplje",
+       "area": "LJ",
+       "eta_min": 7.0,
+       "arrives_min": 28.0,
+       "free_again_min": 88.9,
+       "diverted_from_other_job": false,
+       "note": "doctor vehicle"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 1,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 12
+    }
+   ],
+   "non_urgent_log": []
+  },
+  {
+   "id": "D09",
+   "name": "Snow and ice morning: many calls, slow roads",
+   "intent": "Snow cuts road speed to 0.6 of normal on top of rush hour. Fourteen calls in two hours. One ambulance is cleaning, one is too low on fuel to be offered, the helicopter is grounded and non-urgent trips move to private vans.",
+   "start_local": "07:30",
+   "weekday": true,
+   "shift": "day",
+   "weather": {
+    "snow_cm": 3.0,
+    "temp_c": -2.0,
+    "precip_mm": 1.5,
+    "wind_kmh": 20
+   },
+   "fog_at_brnik": true,
+   "background_load": 0.55,
+   "units_not_offered": {
+    "cleaning": {
+     "A03": 30
+    },
+    "low_fuel": [
+     "A05"
+    ]
+   },
+   "calls": [
+    {
+     "id": "D09-C1",
+     "t": 0,
+     "place_id": "zaloska",
+     "place_name": "Zaloška cesta",
+     "lat": 46.0585,
+     "lon": 14.538,
+     "problem": "Crash on icy road, driver trapped",
+     "caller_text_sl": "Zdrsnilo je in trčilo, voznik je ukleščen.",
+     "patients": [
+      {
+       "sev": "red",
+       "n": 1
+      }
+     ],
+     "doctors": 1,
+     "fire": true,
+     "police": true,
+     "air": true,
+     "extra": 0.9
+    },
+    {
+     "id": "D09-C2",
+     "t": 6,
+     "place_id": "moste",
+     "place_name": "Moste",
+     "lat": 46.056,
+     "lon": 14.542,
+     "problem": "Fall on ice, wrist and hip pain",
+     "caller_text_sl": "Padec na ledu, boli zapestje in kolk.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D09-C3",
+     "t": 12,
+     "place_id": "polje",
+     "place_name": "Polje",
+     "lat": 46.062,
+     "lon": 14.59,
+     "problem": "Fall on ice, head wound",
+     "caller_text_sl": "Padec na ledu, krvavi iz glave.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D09-C4",
+     "t": 19,
+     "place_id": "siska",
+     "place_name": "Šiška",
+     "lat": 46.0735,
+     "lon": 14.479,
+     "problem": "Fall on ice, ankle",
+     "caller_text_sl": "Padec na ledu, gleženj.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D09-C5",
+     "t": 25,
+     "place_id": "crnuce",
+     "place_name": "Črnuče",
+     "lat": 46.102,
+     "lon": 14.532,
+     "problem": "Two cars collided, one injured",
+     "caller_text_sl": "Trčenje dveh vozil, en ranjen.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D09-C6",
+     "t": 31,
+     "place_id": "domzale",
+     "place_name": "Domžale (outskirts)",
+     "lat": 46.149,
+     "lon": 14.612,
+     "problem": "Chest pain after shovelling snow",
+     "caller_text_sl": "Bolečine v prsih po metanju snega.",
+     "patients": [
+      {
+       "sev": "red",
+       "n": 1
+      }
+     ],
+     "doctors": 1
+    },
+    {
+     "id": "D09-C7",
+     "t": 38,
+     "place_id": "rudnik",
+     "place_name": "Rudnik",
+     "lat": 46.027,
+     "lon": 14.53,
+     "problem": "Fall on ice, shoulder",
+     "caller_text_sl": "Padec na ledu, rama.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D09-C8",
+     "t": 44,
+     "place_id": "vic",
+     "place_name": "Vič (residential block)",
+     "lat": 46.04,
+     "lon": 14.482,
+     "problem": "Fall on ice, wrist",
+     "caller_text_sl": "Padec, zapestje.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D09-C9",
+     "t": 52,
+     "place_id": "vrhnika",
+     "place_name": "Vrhnika (outskirts)",
+     "lat": 45.9735,
+     "lon": 14.279,
+     "problem": "Car off the road, passenger hurt",
+     "caller_text_sl": "Avto je zdrsnil s ceste, sopotnik je poškodovan.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D09-C10",
+     "t": 61,
+     "place_id": "grosuplje",
+     "place_name": "Grosuplje (outskirts)",
+     "lat": 45.964,
+     "lon": 14.674,
+     "problem": "Fall on ice, hip",
+     "caller_text_sl": "Padec na ledu, kolk.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D09-C11",
+     "t": 70,
+     "place_id": "bezigrad",
+     "place_name": "Bežigrad",
+     "lat": 46.072,
+     "lon": 14.511,
+     "problem": "Fall, neck pain",
+     "caller_text_sl": "Padec, boli vrat.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D09-C12",
+     "t": 83,
+     "place_id": "kamnik",
+     "place_name": "Kamnik (outskirts)",
+     "lat": 46.233,
+     "lon": 14.626,
+     "problem": "Hypothermia, found outside",
+     "caller_text_sl": "Najden je podhlajen na prostem.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D09-C13",
+     "t": 96,
+     "place_id": "medvode",
+     "place_name": "Medvode (outskirts)",
+     "lat": 46.15,
+     "lon": 14.429,
+     "problem": "Fall on ice, leg",
+     "caller_text_sl": "Padec na ledu, noga.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D09-C14",
+     "t": 110,
+     "place_id": "skofljica",
+     "place_name": "Škofljica",
+     "lat": 45.984,
+     "lon": 14.577,
+     "problem": "Fall on ice, wrist",
+     "caller_text_sl": "Padec na ledu, zapestje.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    }
+   ],
+   "non_urgent_batches": [
+    {
+     "t": 20,
+     "n": 20
+    }
+   ],
+   "engine_events": [
+    {
+     "call": "D09-C1",
+     "t_min": 0,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.0585,
+      "lon": 14.538,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "emergency",
+      "note": "Crash on icy road, driver trapped"
+     }
+    },
+    {
+     "call": "D09-C2",
+     "t_min": 6,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.056,
+      "lon": 14.542,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Fall on ice, wrist and hip pain"
+     }
+    },
+    {
+     "call": "D09-C3",
+     "t_min": 12,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.062,
+      "lon": 14.59,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Fall on ice, head wound"
+     }
+    },
+    {
+     "call": "D09-C4",
+     "t_min": 19,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.0735,
+      "lon": 14.479,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Fall on ice, ankle"
+     }
+    },
+    {
+     "call": "D09-C5",
+     "t_min": 25,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.102,
+      "lon": 14.532,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Two cars collided, one injured"
+     }
+    },
+    {
+     "call": "D09-C6",
+     "t_min": 31,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.149,
+      "lon": 14.612,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "emergency",
+      "note": "Chest pain after shovelling snow"
+     }
+    },
+    {
+     "call": "D09-C7",
+     "t_min": 38,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.027,
+      "lon": 14.53,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Fall on ice, shoulder"
+     }
+    },
+    {
+     "call": "D09-C8",
+     "t_min": 44,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.04,
+      "lon": 14.482,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Fall on ice, wrist"
+     }
+    },
+    {
+     "call": "D09-C9",
+     "t_min": 52,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 45.9735,
+      "lon": 14.279,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Car off the road, passenger hurt"
+     }
+    },
+    {
+     "call": "D09-C10",
+     "t_min": 61,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 45.964,
+      "lon": 14.674,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Fall on ice, hip"
+     }
+    },
+    {
+     "call": "D09-C11",
+     "t_min": 70,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.072,
+      "lon": 14.511,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Fall, neck pain"
+     }
+    },
+    {
+     "call": "D09-C12",
+     "t_min": 83,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.233,
+      "lon": 14.626,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Hypothermia, found outside"
+     }
+    },
+    {
+     "call": "D09-C13",
+     "t_min": 96,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.15,
+      "lon": 14.429,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Fall on ice, leg"
+     }
+    },
+    {
+     "call": "D09-C14",
+     "t_min": 110,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 45.984,
+      "lon": 14.577,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Fall on ice, wrist"
+     }
+    }
+   ],
+   "expected": {
+    "calls": 14,
+    "patients": 14,
+    "units_needed_by_rule": {
+     "NRV": 14,
+     "VUZ": 2,
+     "HNMP": 1,
+     "VAN": 0
+    },
+    "assignments_made": 16,
+    "units_reused_after_finishing": 2,
+    "units_sent": {
+     "ambulances": [
+      "A01",
+      "A02",
+      "A03",
+      "A04",
+      "A06",
+      "A07",
+      "A08",
+      "A09",
+      "A11",
+      "A14",
+      "A16",
+      "A17"
+     ],
+     "doctor_vehicles": [
+      "D02",
+      "D04"
+     ],
+     "sanitary_vans": [],
+     "private_ambulances": [],
+     "private_vans": [],
+     "helicopter": []
+    },
+    "units_dispatched": {
+     "ambulances": 12,
+     "doctor_vehicles": 2
+    },
+    "total_units_dispatched": 14,
+    "other_area_units": [],
+    "private_units": [],
+    "other_services_alerted": {
+     "fire brigade": [
+      "D09-C1"
+     ],
+     "police": [
+      "D09-C1"
+     ]
+    },
+    "diverted_other_jobs": 4,
+    "demand_trigger": {
+     "on": true,
+     "at_min": 20.0,
+     "reason": "free ambulances in the Ljubljana area 6 of 26 (25 percent or less)"
+    },
+    "ljubljana_area_ambulances_crewed": 26,
+    "ljubljana_area_ambulances_free_at_lowest": 9,
+    "ljubljana_area_peak_busy_percent": 65,
+    "red_first_ambulance_arrival_min": {
+     "D09-C1": 4.4,
+     "D09-C6": 6.0
+    },
+    "red_target_met": true,
+    "weather_speed_factor": 0.6,
+    "non_urgent_moved_to_private_vans": 6
+   },
+   "dispatch_log": [
+    {
+     "call": "D09-C1",
+     "t": 0.0,
+     "assignments": [
+      {
+       "unit": "A02",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 4.4,
+       "arrives_min": 4.4,
+       "free_again_min": 48.9,
+       "diverted_from_other_job": true,
+       "note": "nearest suitable public unit"
+      },
+      {
+       "unit": "D02",
+       "kind": "VUZ",
+       "org": "ZD Ljubljana",
+       "base": "zd_siska",
+       "area": "LJ",
+       "eta_min": 12.4,
+       "arrives_min": 12.4,
+       "free_again_min": 56.8,
+       "diverted_from_other_job": true,
+       "note": "doctor vehicle"
+      }
+     ],
+     "notes": [
+      "Helicopter not available: snow and low cloud at Brnik (assumed); ground units only"
+     ],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 1,
+      "HNMP": 1,
+      "VAN": 0
+     },
+     "helicopter": {
+      "launched": false,
+      "reason": "snow and low cloud at Brnik (assumed)"
+     },
+     "free_lj_ambulances_after": 12
+    },
+    {
+     "call": "D09-C2",
+     "t": 6.0,
+     "assignments": [
+      {
+       "unit": "A01",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 7.0,
+       "arrives_min": 13.0,
+       "free_again_min": 55.2,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 11
+    },
+    {
+     "call": "D09-C3",
+     "t": 12.0,
+     "assignments": [
+      {
+       "unit": "A06",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 25.3,
+       "arrives_min": 37.3,
+       "free_again_min": 98.0,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 10
+    },
+    {
+     "call": "D09-C4",
+     "t": 19.0,
+     "assignments": [
+      {
+       "unit": "A09",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 20.3,
+       "arrives_min": 39.3,
+       "free_again_min": 93.7,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 9
+    },
+    {
+     "call": "D09-C5",
+     "t": 25.0,
+     "assignments": [
+      {
+       "unit": "A07",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 11.2,
+       "arrives_min": 36.2,
+       "free_again_min": 96.6,
+       "diverted_from_other_job": true,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 9
+    },
+    {
+     "call": "D09-C6",
+     "t": 31.0,
+     "assignments": [
+      {
+       "unit": "A14",
+       "kind": "NRV",
+       "org": "ZD Domžale",
+       "base": "domzale",
+       "area": "LJ",
+       "eta_min": 6.0,
+       "arrives_min": 37.0,
+       "free_again_min": 124.1,
+       "diverted_from_other_job": true,
+       "note": "nearest suitable public unit"
+      },
+      {
+       "unit": "D04",
+       "kind": "VUZ",
+       "org": "ZD Domžale",
+       "base": "domzale",
+       "area": "LJ",
+       "eta_min": 12.2,
+       "arrives_min": 43.2,
+       "free_again_min": 130.3,
+       "diverted_from_other_job": false,
+       "note": "doctor vehicle"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 1,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 10
+    },
+    {
+     "call": "D09-C7",
+     "t": 38.0,
+     "assignments": [
+      {
+       "unit": "A03",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 17.3,
+       "arrives_min": 55.3,
+       "free_again_min": 106.6,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 11
+    },
+    {
+     "call": "D09-C8",
+     "t": 44.0,
+     "assignments": [
+      {
+       "unit": "A08",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 20.7,
+       "arrives_min": 64.7,
+       "free_again_min": 117.8,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 10
+    },
+    {
+     "call": "D09-C9",
+     "t": 52.0,
+     "assignments": [
+      {
+       "unit": "A17",
+       "kind": "NRV",
+       "org": "ZD Logatec",
+       "base": "logatec",
+       "area": "LJ",
+       "eta_min": 38.1,
+       "arrives_min": 90.1,
+       "free_again_min": 228.9,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 10
+    },
+    {
+     "call": "D09-C10",
+     "t": 61.0,
+     "assignments": [
+      {
+       "unit": "A11",
+       "kind": "NRV",
+       "org": "UKC outpost Ivančna Gorica",
+       "base": "ig",
+       "area": "LJ",
+       "eta_min": 40.4,
+       "arrives_min": 101.4,
+       "free_again_min": 195.1,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 11
+    },
+    {
+     "call": "D09-C11",
+     "t": 70.0,
+     "assignments": [
+      {
+       "unit": "A01",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 8.5,
+       "arrives_min": 78.5,
+       "free_again_min": 121.0,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 11
+    },
+    {
+     "call": "D09-C12",
+     "t": 83.0,
+     "assignments": [
+      {
+       "unit": "A16",
+       "kind": "NRV",
+       "org": "ZD Kamnik",
+       "base": "kamnik",
+       "area": "LJ",
+       "eta_min": 6.0,
+       "arrives_min": 89.0,
+       "free_again_min": 204.1,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 12
+    },
+    {
+     "call": "D09-C13",
+     "t": 96.0,
+     "assignments": [
+      {
+       "unit": "A04",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 49.0,
+       "arrives_min": 145.0,
+       "free_again_min": 228.0,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 13
+    },
+    {
+     "call": "D09-C14",
+     "t": 110.0,
+     "assignments": [
+      {
+       "unit": "A02",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 35.2,
+       "arrives_min": 145.2,
+       "free_again_min": 214.4,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 15
+    }
+   ],
+   "non_urgent_log": [
+    {
+     "t": 20.0,
+     "n": 20,
+     "to_private_vans": 6,
+     "kept_by_public_units": 14,
+     "trigger_on": true
+    }
+   ]
+  },
+  {
+   "id": "D10",
+   "name": "Mass-casualty: bus crash on the motorway, 22 patients",
+   "intent": "The largest case: 4 red, 8 yellow, 10 green. The first team reports and a human declares the mass-casualty event; the agent prepares the allocation. One patient per ambulance for red and yellow, four green patients share a van. Dark, so no helicopter.",
+   "start_local": "18:10",
+   "weekday": true,
+   "shift": "day",
+   "weather": {
+    "precip_mm": 0.5,
+    "temp_c": 3
+   },
+   "fog_at_brnik": false,
+   "background_load": 0.5,
+   "units_not_offered": {
+    "cleaning": {},
+    "low_fuel": []
+   },
+   "calls": [
+    {
+     "id": "D10-C1",
+     "t": 0,
+     "place_id": "a1_bus",
+     "place_name": "A1 motorway near Šentjakob (synthetic crash site)",
+     "lat": 46.1225,
+     "lon": 14.575,
+     "problem": "Coach and car crash on the motorway, about 22 injured",
+     "caller_text_sl": "Avtobus je trčil na avtocesti, ranjenih je približno dvajset.",
+     "patients": [
+      {
+       "sev": "red",
+       "n": 4
+      },
+      {
+       "sev": "yellow",
+       "n": 8
+      },
+      {
+       "sev": "green",
+       "n": 10
+      }
+     ],
+     "doctors": 4,
+     "air": true,
+     "fire": true,
+     "police": true,
+     "mci": true,
+     "first_responders": true,
+     "extra": 0.85
+    }
+   ],
+   "non_urgent_batches": [],
+   "engine_events": [
+    {
+     "call": "D10-C1",
+     "t_min": 0,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.1225,
+      "lon": 14.575,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "emergency",
+      "note": "Coach and car crash on the motorway, about 22 injured"
+     }
+    }
+   ],
+   "expected": {
+    "calls": 1,
+    "patients": 22,
+    "units_needed_by_rule": {
+     "NRV": 12,
+     "VUZ": 4,
+     "HNMP": 1,
+     "VAN": 3
+    },
+    "assignments_made": 19,
+    "units_reused_after_finishing": 0,
+    "units_sent": {
+     "ambulances": [
+      "A01",
+      "A02",
+      "A03",
+      "A05",
+      "A08",
+      "A09",
+      "A13",
+      "A14",
+      "A15",
+      "A16",
+      "A28",
+      "A32"
+     ],
+     "doctor_vehicles": [
+      "D01",
+      "D02",
+      "D03",
+      "D05"
+     ],
+     "sanitary_vans": [],
+     "private_ambulances": [],
+     "private_vans": [
+      "PT01",
+      "PT03",
+      "PT05"
+     ],
+     "helicopter": []
+    },
+    "units_dispatched": {
+     "ambulances": 12,
+     "doctor_vehicles": 4,
+     "private_vans": 3
+    },
+    "total_units_dispatched": 19,
+    "other_area_units": [
+     "A28",
+     "A32"
+    ],
+    "private_units": [
+     "PT01",
+     "PT03",
+     "PT05"
+    ],
+    "other_services_alerted": {
+     "first responders": [
+      "D10-C1"
+     ],
+     "fire brigade": [
+      "D10-C1"
+     ],
+     "police": [
+      "D10-C1"
+     ],
+     "mass-casualty trailer": [
+      "D10-C1"
+     ],
+     "incident commander and triage team": [
+      "D10-C1"
+     ]
+    },
+    "diverted_other_jobs": 2,
+    "demand_trigger": {
+     "on": true,
+     "at_min": 0.0,
+     "reason": "predicted red arrival 19 min (over 15)"
+    },
+    "ljubljana_area_ambulances_crewed": 26,
+    "ljubljana_area_ambulances_free_at_lowest": 10,
+    "ljubljana_area_peak_busy_percent": 62,
+    "red_first_ambulance_arrival_min": {
+     "D10-C1": 5.9
+    },
+    "red_target_met": true,
+    "weather_speed_factor": 0.93,
+    "non_urgent_moved_to_private_vans": 0
+   },
+   "dispatch_log": [
+    {
+     "call": "D10-C1",
+     "t": 0.0,
+     "assignments": [
+      {
+       "unit": "A13",
+       "kind": "NRV",
+       "org": "ZD Domžale",
+       "base": "domzale",
+       "area": "LJ",
+       "eta_min": 5.9,
+       "arrives_min": 5.9,
+       "free_again_min": 61.6,
+       "diverted_from_other_job": false,
+       "note": "nearest suitable public unit"
+      },
+      {
+       "unit": "A14",
+       "kind": "NRV",
+       "org": "ZD Domžale",
+       "base": "domzale",
+       "area": "LJ",
+       "eta_min": 6.1,
+       "arrives_min": 6.1,
+       "free_again_min": 61.8,
+       "diverted_from_other_job": true,
+       "note": "nearest suitable public unit"
+      },
+      {
+       "unit": "A08",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 13.9,
+       "arrives_min": 13.9,
+       "free_again_min": 69.7,
+       "diverted_from_other_job": true,
+       "note": "nearest suitable public unit"
+      },
+      {
+       "unit": "A01",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 18.9,
+       "arrives_min": 18.9,
+       "free_again_min": 74.6,
+       "diverted_from_other_job": false,
+       "note": "nearest suitable public unit"
+      },
+      {
+       "unit": "A03",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 24.2,
+       "arrives_min": 24.2,
+       "free_again_min": 79.6,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      },
+      {
+       "unit": "A02",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 25.0,
+       "arrives_min": 25.0,
+       "free_again_min": 80.5,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      },
+      {
+       "unit": "A05",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 25.0,
+       "arrives_min": 25.0,
+       "free_again_min": 80.5,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      },
+      {
+       "unit": "A09",
+       "kind": "NRV",
+       "org": "UKC station",
+       "base": "ukc",
+       "area": "LJ",
+       "eta_min": 25.0,
+       "arrives_min": 25.0,
+       "free_again_min": 80.5,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      },
+      {
+       "unit": "A28",
+       "kind": "NRV",
+       "org": "ZD Kranj",
+       "base": "kranj",
+       "area": "NG",
+       "eta_min": 34.7,
+       "arrives_min": 34.7,
+       "free_again_min": 90.1,
+       "diverted_from_other_job": false,
+       "note": "other area (trigger on, local wait over 30 min)"
+      },
+      {
+       "unit": "A16",
+       "kind": "NRV",
+       "org": "ZD Kamnik",
+       "base": "kamnik",
+       "area": "LJ",
+       "eta_min": 35.0,
+       "arrives_min": 35.0,
+       "free_again_min": 90.4,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      },
+      {
+       "unit": "A32",
+       "kind": "NRV",
+       "org": "ZD Tržič",
+       "base": "trzic",
+       "area": "NG",
+       "eta_min": 36.8,
+       "arrives_min": 36.8,
+       "free_again_min": 92.2,
+       "diverted_from_other_job": false,
+       "note": "other area (trigger on, local wait over 30 min)"
+      },
+      {
+       "unit": "A15",
+       "kind": "NRV",
+       "org": "ZD Kamnik",
+       "base": "kamnik",
+       "area": "LJ",
+       "eta_min": 37.1,
+       "arrives_min": 37.1,
+       "free_again_min": 92.5,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      },
+      {
+       "unit": "D02",
+       "kind": "VUZ",
+       "org": "ZD Ljubljana",
+       "base": "zd_siska",
+       "area": "LJ",
+       "eta_min": 23.9,
+       "arrives_min": 23.9,
+       "free_again_min": 79.6,
+       "diverted_from_other_job": false,
+       "note": "doctor vehicle"
+      },
+      {
+       "unit": "D01",
+       "kind": "VUZ",
+       "org": "ZD Ljubljana",
+       "base": "zd_center",
+       "area": "LJ",
+       "eta_min": 23.9,
+       "arrives_min": 23.9,
+       "free_again_min": 79.7,
+       "diverted_from_other_job": false,
+       "note": "doctor vehicle"
+      },
+      {
+       "unit": "D03",
+       "kind": "VUZ",
+       "org": "ZD Ljubljana",
+       "base": "zd_vic",
+       "area": "LJ",
+       "eta_min": 29.0,
+       "arrives_min": 29.0,
+       "free_again_min": 84.7,
+       "diverted_from_other_job": false,
+       "note": "doctor vehicle"
+      },
+      {
+       "unit": "D05",
+       "kind": "VUZ",
+       "org": "ZD Kamnik",
+       "base": "kamnik",
+       "area": "LJ",
+       "eta_min": 31.2,
+       "arrives_min": 31.2,
+       "free_again_min": 86.9,
+       "diverted_from_other_job": false,
+       "note": "doctor vehicle"
+      },
+      {
+       "unit": "PT03",
+       "kind": "PVAN",
+       "org": "Private non-urgent transport [A]",
+       "base": "priv3",
+       "area": "PRIV",
+       "eta_min": 40.6,
+       "arrives_min": 40.6,
+       "free_again_min": 91.0,
+       "diverted_from_other_job": false,
+       "note": "private transport van"
+      },
+      {
+       "unit": "PT05",
+       "kind": "PVAN",
+       "org": "Private non-urgent transport [A]",
+       "base": "priv5",
+       "area": "PRIV",
+       "eta_min": 47.6,
+       "arrives_min": 47.6,
+       "free_again_min": 98.1,
+       "diverted_from_other_job": false,
+       "note": "private transport van"
+      },
+      {
+       "unit": "PT01",
+       "kind": "PVAN",
+       "org": "Private non-urgent transport [A]",
+       "base": "priv1",
+       "area": "PRIV",
+       "eta_min": 51.5,
+       "arrives_min": 51.5,
+       "free_again_min": 101.9,
+       "diverted_from_other_job": false,
+       "note": "private transport van"
+      }
+     ],
+     "notes": [
+      "Helicopter not available: outside the daylight window (08:00 to 16:30), local time 18:10; ground units only"
+     ],
+     "needs": {
+      "NRV": 12,
+      "VUZ": 4,
+      "HNMP": 1,
+      "VAN": 3
+     },
+     "helicopter": {
+      "launched": false,
+      "reason": "outside the daylight window (08:00 to 16:30), local time 18:10"
+     },
+     "free_lj_ambulances_after": 10
+    }
+   ],
+   "non_urgent_log": []
+  },
+  {
+   "id": "D11",
+   "name": "Everything is out: no public unit is free within 15 minutes",
+   "intent": "Storm hour, an extreme case: every ambulance in the area and in the neighbouring areas is tied up for at least 18 minutes. Two reds and two yellows arrive. Shows the rule for private ambulances: used for a red call only when no public unit, from any area, reaches in 15 minutes and the private one is faster.",
+   "start_local": "16:00",
+   "weekday": true,
+   "shift": "day",
+   "weather": {
+    "wind_kmh": 70,
+    "precip_mm": 3.0,
+    "temp_c": 8
+   },
+   "fog_at_brnik": false,
+   "background_load": 1.0,
+   "units_not_offered": {
+    "cleaning": {},
+    "low_fuel": []
+   },
+   "calls": [
+    {
+     "id": "D11-C1",
+     "t": 0,
+     "place_id": "bezigrad",
+     "place_name": "Bežigrad",
+     "lat": 46.072,
+     "lon": 14.511,
+     "problem": "Collapse in the street, not breathing",
+     "caller_text_sl": "Moški se je zgrudil na ulici in ne diha.",
+     "patients": [
+      {
+       "sev": "red",
+       "n": 1
+      }
+     ],
+     "doctors": 1,
+     "first_responders": true
+    },
+    {
+     "id": "D11-C2",
+     "t": 5,
+     "place_id": "polje",
+     "place_name": "Polje",
+     "lat": 46.062,
+     "lon": 14.59,
+     "problem": "Tree fell on a car, driver trapped",
+     "caller_text_sl": "Drevo je padlo na avto, voznik je ukleščen.",
+     "patients": [
+      {
+       "sev": "red",
+       "n": 1
+      }
+     ],
+     "doctors": 1,
+     "fire": true,
+     "police": true
+    },
+    {
+     "id": "D11-C3",
+     "t": 10,
+     "place_id": "siska",
+     "place_name": "Šiška",
+     "lat": 46.0735,
+     "lon": 14.479,
+     "problem": "Roof tile injury, bleeding head",
+     "caller_text_sl": "Strešnik je padel na glavo, krvavi.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    },
+    {
+     "id": "D11-C4",
+     "t": 16,
+     "place_id": "vic",
+     "place_name": "Vič (residential block)",
+     "lat": 46.04,
+     "lon": 14.482,
+     "problem": "Fall in the storm, hip pain",
+     "caller_text_sl": "Padec v vihari, boli kolk.",
+     "patients": [
+      {
+       "sev": "yellow",
+       "n": 1
+      }
+     ],
+     "doctors": 0
+    }
+   ],
+   "non_urgent_batches": [
+    {
+     "t": 12,
+     "n": 18
+    }
+   ],
+   "engine_events": [
+    {
+     "call": "D11-C1",
+     "t_min": 0,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.072,
+      "lon": 14.511,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "emergency",
+      "note": "Collapse in the street, not breathing"
+     }
+    },
+    {
+     "call": "D11-C2",
+     "t_min": 5,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.062,
+      "lon": 14.59,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "emergency",
+      "note": "Tree fell on a car, driver trapped"
+     }
+    },
+    {
+     "call": "D11-C3",
+     "t_min": 10,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.0735,
+      "lon": 14.479,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Roof tile injury, bleeding head"
+     }
+    },
+    {
+     "call": "D11-C4",
+     "t_min": 16,
+     "payload": {
+      "type": "urgent_request",
+      "lat": 46.04,
+      "lon": 14.482,
+      "dropoff_id": "ukc",
+      "needs": "stretcher",
+      "priority": "urgent",
+      "note": "Fall in the storm, hip pain"
+     }
+    }
+   ],
+   "expected": {
+    "calls": 4,
+    "patients": 4,
+    "units_needed_by_rule": {
+     "NRV": 4,
+     "VUZ": 2,
+     "HNMP": 0,
+     "VAN": 0
+    },
+    "assignments_made": 6,
+    "units_reused_after_finishing": 0,
+    "units_sent": {
+     "ambulances": [
+      "A15",
+      "A24"
+     ],
+     "doctor_vehicles": [
+      "D01",
+      "D04"
+     ],
+     "sanitary_vans": [],
+     "private_ambulances": [
+      "PA01",
+      "PA02"
+     ],
+     "private_vans": [],
+     "helicopter": []
+    },
+    "units_dispatched": {
+     "ambulances": 2,
+     "doctor_vehicles": 2,
+     "private_ambulances": 2
+    },
+    "total_units_dispatched": 6,
+    "other_area_units": [],
+    "private_units": [
+     "PA01",
+     "PA02"
+    ],
+    "other_services_alerted": {
+     "first responders": [
+      "D11-C1"
+     ],
+     "fire brigade": [
+      "D11-C2"
+     ],
+     "police": [
+      "D11-C2"
+     ]
+    },
+    "diverted_other_jobs": 0,
+    "demand_trigger": {
+     "on": true,
+     "at_min": 0.0,
+     "reason": "free ambulances in the Ljubljana area 0 of 26 (25 percent or less)"
+    },
+    "ljubljana_area_ambulances_crewed": 26,
+    "ljubljana_area_ambulances_free_at_lowest": 0,
+    "ljubljana_area_peak_busy_percent": 100,
+    "red_first_ambulance_arrival_min": {
+     "D11-C1": 16.7,
+     "D11-C2": 28.4
+    },
+    "red_target_met": false,
+    "weather_speed_factor": 0.85,
+    "non_urgent_moved_to_private_vans": 6
+   },
+   "dispatch_log": [
+    {
+     "call": "D11-C1",
+     "t": 0.0,
+     "assignments": [
+      {
+       "unit": "PA01",
+       "kind": "PAMB",
+       "org": "Private ambulance (qualified crew) [A]",
+       "base": "priv1",
+       "area": "PRIV",
+       "eta_min": 16.7,
+       "arrives_min": 16.7,
+       "free_again_min": 62.0,
+       "diverted_from_other_job": false,
+       "note": "private ambulance: no public unit within 15 min"
+      },
+      {
+       "unit": "D01",
+       "kind": "VUZ",
+       "org": "ZD Ljubljana",
+       "base": "zd_center",
+       "area": "LJ",
+       "eta_min": 9.5,
+       "arrives_min": 9.5,
+       "free_again_min": 54.8,
+       "diverted_from_other_job": false,
+       "note": "doctor vehicle"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 1,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 0
+    },
+    {
+     "call": "D11-C2",
+     "t": 5.0,
+     "assignments": [
+      {
+       "unit": "PA02",
+       "kind": "PAMB",
+       "org": "Private ambulance (qualified crew) [A]",
+       "base": "priv2",
+       "area": "PRIV",
+       "eta_min": 28.4,
+       "arrives_min": 33.4,
+       "free_again_min": 87.4,
+       "diverted_from_other_job": false,
+       "note": "private ambulance: no public unit within 15 min"
+      },
+      {
+       "unit": "D04",
+       "kind": "VUZ",
+       "org": "ZD Domžale",
+       "base": "domzale",
+       "area": "LJ",
+       "eta_min": 33.0,
+       "arrives_min": 38.0,
+       "free_again_min": 92.0,
+       "diverted_from_other_job": false,
+       "note": "doctor vehicle"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 1,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 0
+    },
+    {
+     "call": "D11-C3",
+     "t": 10.0,
+     "assignments": [
+      {
+       "unit": "A15",
+       "kind": "NRV",
+       "org": "ZD Kamnik",
+       "base": "kamnik",
+       "area": "LJ",
+       "eta_min": 23.7,
+       "arrives_min": 33.7,
+       "free_again_min": 82.3,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 0
+    },
+    {
+     "call": "D11-C4",
+     "t": 16.0,
+     "assignments": [
+      {
+       "unit": "A24",
+       "kind": "NRV",
+       "org": "ZD Postojna",
+       "base": "postojna",
+       "area": "LJ",
+       "eta_min": 17.2,
+       "arrives_min": 33.2,
+       "free_again_min": 81.0,
+       "diverted_from_other_job": false,
+       "note": "nearest unit in the Ljubljana area"
+      }
+     ],
+     "notes": [],
+     "needs": {
+      "NRV": 1,
+      "VUZ": 0,
+      "HNMP": 0,
+      "VAN": 0
+     },
+     "free_lj_ambulances_after": 0
+    }
+   ],
+   "non_urgent_log": [
+    {
+     "t": 12.0,
+     "n": 18,
+     "to_private_vans": 6,
+     "kept_by_public_units": 12,
+     "trigger_on": true
+    }
+   ]
+  }
+ ]
+}
