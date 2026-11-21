@@ -754,12 +754,20 @@ th {
   padding: 4px 8px;
 }
 .trip-table td.cell-clip {
-  max-width: 150px;
+  max-width: 130px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .trip-table td.cell-route {
-  max-width: 250px;
+  max-width: 210px;
+}
+@media (min-width: 1600px) {
+  .trip-table td.cell-clip {
+    max-width: 200px;
+  }
+  .trip-table td.cell-route {
+    max-width: 340px;
+  }
 }
 .trip-table td.late {
   color: var(--prio-em-fg);
