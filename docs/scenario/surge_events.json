@@ -105,7 +105,7 @@
     "note": "suspected stroke, FAST positive"
    },
    "expected_replan": [
-    "Nearest suitable free NRV is sent, even if it must leave a lower-priority trip",
+    "Nearest suitable free NRV is sent, whoever area it is (rule since 3 June 2026), even if it must leave a lower-priority trip",
     "Hospital pre-alert is drafted"
    ],
    "messages_sl": [
@@ -342,7 +342,8 @@
    },
    "expected_replan": [
     "Vehicle positions become stale; planner widens ETA uncertainty",
-    "Engine data-source health goes to stale, the demo already shows this"
+    "Engine data-source health goes to stale, the demo already shows this",
+    "Paper forms are the fallback if the digital record fails (2026 rulebook)"
    ],
    "messages_sl": [
     "Radijska zveza ne deluje, prehajamo na aplikacijo Intervencije.net."
@@ -414,6 +415,7 @@
    ],
    "basis": [
     "MCI guideline checklist: ask private ambulance services about availability",
+    "2026 rulebook (reported): public-network non-urgent providers must answer the dispatcher in a sudden surge",
     "count and lead time are ASSUMPTIONS"
    ]
   },

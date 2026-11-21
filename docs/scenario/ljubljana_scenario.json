@@ -25,7 +25,7 @@
    "trips"
   ],
   "assumptions": [
-   "10 NRV at the station, 1 at Vrhnika, 1 at Ivančna Gorica (outposts are real; counts are assumed)",
+   "9 NRV at the station, 1 each at Vrhnika, Ivančna Gorica and Medvode (outposts are real, Medvode per a June 2026 report; counts are assumed)",
    "Shift start hours 07:00 and 19:00",
    "Hospital capacity numbers are invented",
    "Trip times are generated, peaks at 07:30, 09:30, 12:00"
@@ -185,6 +185,13 @@
    "kind": "health_centre",
    "lat": 45.939,
    "lon": 14.804
+  },
+  {
+   "id": "zd_medvode",
+   "name": "Health centre Medvode (new dislocated ambulance unit since 2026, approx.)",
+   "kind": "health_centre",
+   "lat": 46.142,
+   "lon": 14.413
   }
  ],
  "vehicles": [
@@ -300,18 +307,6 @@
    "id": "A10",
    "name": "NRV 10",
    "type": "ambulance",
-   "base_id": "base_center",
-   "lat": 46.058,
-   "lon": 14.5265,
-   "status": "idle",
-   "current_trip_id": null,
-   "queue": [],
-   "busy_until": null
-  },
-  {
-   "id": "A11",
-   "name": "NRV 11",
-   "type": "ambulance",
    "base_id": "zd_vrhnika",
    "lat": 45.966,
    "lon": 14.301,
@@ -321,12 +316,24 @@
    "busy_until": null
   },
   {
-   "id": "A12",
-   "name": "NRV 12",
+   "id": "A11",
+   "name": "NRV 11",
    "type": "ambulance",
    "base_id": "zd_ig",
    "lat": 45.939,
    "lon": 14.804,
+   "status": "idle",
+   "current_trip_id": null,
+   "queue": [],
+   "busy_until": null
+  },
+  {
+   "id": "A12",
+   "name": "NRV 12",
+   "type": "ambulance",
+   "base_id": "zd_medvode",
+   "lat": 46.142,
+   "lon": 14.413,
    "status": "idle",
    "current_trip_id": null,
    "queue": [],
@@ -1265,9 +1272,22 @@
    "handover_rule": "after handover the team reports PROST, or the reason if handover took more than 15 min; on dispatcher request the handover is shortened if the patient allows and supplies are sufficient",
    "replacement_vehicle_max_min": 120,
    "replacement_vehicle_basis": "dispatch rulebook art. 22: a broken-down unit must provide a replacement within 2 h at most (not for helicopters)",
+   "response_standards_2026": {
+    "priority_I_average_access_min_max_per_year": 15,
+    "exit_time_min": 1,
+    "doctor_vehicle_exit_max_min": 5,
+    "tag": "reported (Zurnal24, June 2026), text of the rulebook not read"
+   },
+   "dispatch_rule_2026": "nearest team by access time regardless of the provider area (since 3 June 2026)",
+   "digital_record_2026": {
+    "name": "EDSZ / IS NMP",
+    "rollout": "Gorenjska autumn 2026, all units 2027",
+    "paper_forms_fallback": true,
+    "ljubljana_status": "probably older process in 2026 (inference)"
+   },
    "hospital_capacity_report_max_min": 15,
    "spare_vehicle_share_min": 0.2,
-   "spare_vehicle_basis": "NMP rulebook, Uradni list RS 81/2015, art. 19: at least 20 percent per vehicle type",
+   "spare_vehicle_basis": "2015 NMP rulebook art. 19: at least 20 percent per vehicle type; that rulebook was replaced on 3 June 2026, rule not re-verified",
    "cleaning_after_job_min": {
     "value": [
      5,

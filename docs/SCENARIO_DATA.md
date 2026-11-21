@@ -13,12 +13,12 @@ File: [`scenario/ljubljana_scenario.json`](scenario/ljubljana_scenario.json). Co
 | Section | What | Engine-compatible? |
 |---|---|---|
 | `meta` | Date (Mon 23 Nov 2026), window 06:00 to 14:00 local (UTC+1), seed, sizing notes, assumptions | n/a |
-| `places` (22) | The team's 20 seed places with identical ids and coordinates, plus the two real ambulance outposts (Vrhnika, Ivančna Gorica) | **Yes**, validated against `backend/app/models.py` `Place` |
+| `places` (23) | The team's 20 seed places with identical ids and coordinates, plus three ambulance outposts (Vrhnika, Ivančna Gorica, Medvode) | **Yes**, validated against `backend/app/models.py` `Place` |
 | `vehicles` (14) | 12 emergency ambulances (NRV) + 2 sanitary vehicles | **Yes**, validated against `Vehicle` |
 | `trips` (48) | 16 emergency, 16 urgent, 16 scheduled | **Yes**, validated against `Trip` |
 | `extensions` | Helicopter, duty roster, reserve vehicles, hospital capacity, equipment tasks, organ task, organ time limits, extra helipads, timing rules (handover, replacement vehicle, cleaning, breaks, fuel, monthly demand) | **No**, the engine has no such concepts today |
 
-The engine-compatible parts were checked by importing the team's pydantic models read-only: 22/22 places, 14/14 vehicles, 48/48 trips valid, no broken references, every `due_by` after `pickup_after`. I did **not** run the simulator on it; only the schema was validated.
+The engine-compatible parts were checked by importing the team's pydantic models read-only: 23/23 places, 14/14 vehicles, 48/48 trips valid, no broken references, every `due_by` after `pickup_after`. I did **not** run the simulator on it; only the schema was validated.
 
 ---
 
@@ -32,8 +32,8 @@ The engine-compatible parts were checked by importing the team's pydantic models
 | Reserve vehicles | 9 (21 minus 12) | Arithmetic; rule asks at least 20 percent spare per type | [S] rule, [A] 21 as the ambulance count |
 | Doctor vehicles | 3 | ZZZS decree 2026, ZD Ljubljana | [S] |
 | Motorcycles on 23 Nov | 0 | Season is 1 May to 1 Nov | [S] |
-| Outposts | Vrhnika and Ivančna Gorica | UKC annual reports 2024 and 2025 | [S] |
-| Vehicles per base | 10 at the station, 1 + 1 at the outposts | **Not published** | [A] |
+| Outposts | Vrhnika, Ivančna Gorica and Medvode | UKC annual reports 2024 and 2025 [S]; Medvode from a June 2026 report [SS] | [S] / [SS] |
+| Vehicles per base | 9 at the station, 1 at each outpost | **Not published** | [A] |
 | Interventions per day | about 134 | 48,754 in 2025 | [S] |
 | Share life-threatening | 33 percent | 16,087 of 48,754 in 2025 | [S] |
 | Trips in the window | 48 = 16 emergency, 16 urgent, 16 scheduled | Real daytime volume for 8 h is about 45 to 60 interventions; 1/3 emergency matches the real share | [A] |
@@ -59,7 +59,7 @@ The engine-compatible parts were checked by importing the team's pydantic models
 | Ambulances | 3 | 12 |
 | Transport vans | 5 | 2 |
 | Trips | 24, all `scheduled` at start | 48, a mix of `emergency`, `urgent`, `scheduled` |
-| Places | 20 | the same 20 + 2 outposts |
+| Places | 20 | the same 20 + 3 outposts |
 | Emergencies | arrive only as events | **also present at the start**, so the baseline is already busy |
 | Helicopter | no | yes (extension) |
 | Crews, shifts | no | yes (extension) |

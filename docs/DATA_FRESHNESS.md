@@ -62,14 +62,14 @@ A new **Pravilnik o službi nujne medicinske pomoči in prevozih pacientov** (Ur
 
 ---
 
-## 3. Corrections made in the other documents (partly done)
+## 3. Corrections made in the other documents
 
 - **Mechanical workshop:** removed the claim that the station has none. It has a renovated workshop, and external repairs take 12 to 96 hours on average. (The 2025 report said a *planned new building* would lack one.)
 - **Paperwork:** marked the 2015 form list as replaced on 3 June 2026 and added the new digital record and its rollout.
 - **Spare vehicles:** marked the 20 percent rule as 2015, not re-verified under the 2026 text.
-- **Private providers:** the 2026 duty to answer dispatch calls is recorded in section 1 only; **not yet copied** into the surge document.
-- **Dispatch rule and response standards:** recorded in section 1 of this file only; **not yet copied** into the surge and scenario documents.
-- **Scenario file:** **not yet updated** for the Medvode unit, the 2026 response standards or the digital record with paper fallback. Still to do.
+- **Private providers:** the 2026 duty to answer dispatch calls and the new provider requirements are in the surge document.
+- **Dispatch rule and response standards:** added to the surge document and to the scenario's timing rules.
+- **Scenario file:** added the Medvode unit (one emergency ambulance moved there, an assumption), the 2026 response standards and the digital record with paper fallback.
 
 ---
 

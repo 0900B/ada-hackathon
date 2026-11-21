@@ -53,13 +53,13 @@ These are the things a good repair should do, so you can check the demo's answer
 | S01 | A07's queued trips are reassigned; the patient on board is picked up first at the breakdown site as urgent; **EQ-002 is collected by another vehicle before it is delivered to zd_ig**; ambulances stay free for emergencies; a replacement vehicle is due within 2 hours at most (dispatch rulebook, art. 22) |
 | S02 | Only trips that now miss `due_by` move |
 | S03 | Legs crossing the closure are re-timed; east-side UKC trips use the nearest free vehicle |
-| S04 / S05 | Nearest suitable free NRV goes, even if it must leave a lower-priority trip; both emergencies served; the rest of the city keeps cover |
+| S04 / S05 | Nearest suitable free NRV goes, whoever area it is (rule since 3 June 2026), even if it must leave a lower-priority trip; both emergencies served; the rest of the city keeps cover |
 | X01 | H1 takes nothing until 09:30; its tasks move to road vehicles; the organ task falls back to an ambulance if the deadline holds |
 | X02 | `due_by` tightens to emergency slack; a nearer vehicle is chosen |
 | X03 | Non-urgent arrivals at UKC are delayed or redirected to outpatient clinics; reds still go to UKC; planner reads the +1 h and +2 h forecast |
 | X04 | Nearest NRVs go first, one per red; scheduled trips are cancelled or delayed; free teams are recalled; reserve vehicles staffed after the lead time; helicopter only if daylight and no fog; hospital distribution key applied |
 | X05 | Helicopter drop-offs move to the substitute site with an added ambulance leg; compare with road only |
-| X06 | Positions go stale, the ETA band widens, source health shows `stale` (the demo already has this state) |
+| X06 | Positions go stale, the ETA band widens, source health shows `stale` (the demo already has this state); paper forms are the fallback if the digital record fails |
 | X07 | A04 and A09 leave the pool; reserve vehicles help only after the lead time |
 | X08 | Scheduled and seated trips move to the added vehicles after their lead time; ambulances are freed for stretcher and red cases |
 | X09 | Pool grows in steps with lead times: own, reserve, private, Red Cross; scheduled work suspended |
