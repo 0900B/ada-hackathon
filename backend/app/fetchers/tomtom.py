@@ -67,6 +67,10 @@ def usage() -> dict[str, Any]:
     return {"day": _usage["day"], **{k: f"{_usage[k]}/{cap}" for k, cap in caps.items()}}
 
 
+def today() -> str:
+    return utcnow().date().isoformat()
+
+
 def spend(kind: str, n: int) -> None:
     """Count n requests against today's cap, or refuse before making them."""
     today = utcnow().date().isoformat()

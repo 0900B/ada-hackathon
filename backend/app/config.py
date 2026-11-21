@@ -20,8 +20,11 @@ TOMTOM_DAILY_FLOW_CAP = int(os.getenv("TOMTOM_DAILY_FLOW_CAP", "2000"))
 TOMTOM_DAILY_INCIDENT_CAP = int(os.getenv("TOMTOM_DAILY_INCIDENT_CAP", "150"))
 # TomTom routing is only the backup router (OSRM is primary); free plan 20,000/month.
 TOMTOM_DAILY_ROUTING_CAP = int(os.getenv("TOMTOM_DAILY_ROUTING_CAP", "500"))
-# Traffic map tiles (free plan: 200,000/month), served through our cached proxy.
-TOMTOM_DAILY_TILE_CAP = int(os.getenv("TOMTOM_DAILY_TILE_CAP", "3000"))
+# Traffic map tiles (free plan: Traffic raster tiles 200,000/month), served through our cached proxy
+# (2-min server cache shared by all devices, browser cache for the rest of it). 25,000/day lets
+# several devices rehearse all day; eight such days stay inside the month's 200,000. The count is
+# in memory, so a restart starts the day's count again.
+TOMTOM_DAILY_TILE_CAP = int(os.getenv("TOMTOM_DAILY_TILE_CAP", "25000"))
 # NAP / promet.si (when NAP_USERNAME + NAP_PASSWORD are set); NAP updates events about every minute.
 NAP_INTERVAL_S = _float("NAP_INTERVAL_S", 120)
 RANDOM_SEED = int(os.getenv("RANDOM_SEED", "42"))
@@ -41,7 +44,8 @@ AGENT_MODEL = os.getenv("AGENT_MODEL", "claude-sonnet-5-5")
 AGENT_EFFORT = os.getenv("AGENT_EFFORT", "medium")  # low | medium | high | xhigh | max
 AGENT_AUTO = os.getenv("AGENT_AUTO", "0") == "1"  # default for each world's auto-analyse switch (off: saves tokens)
 AGENT_MAX_TURNS = int(os.getenv("AGENT_MAX_TURNS", "10"))
-AGENT_TIMEOUT_S = _float("AGENT_TIMEOUT_S", 120)
+# Deadline for a whole analysis (all tool turns and retries): after it, the engine's plan is shown
+AGENT_TIMEOUT_S = _float("AGENT_TIMEOUT_S", 60)
 
 
 def agent_enabled() -> bool:
