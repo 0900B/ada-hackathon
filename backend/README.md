@@ -9,7 +9,8 @@ goes wrong, every decision is made from data already in memory; nothing waits on
 |---|---|---|
 | World state | `app/state.py` | Vehicles, trips, places, incidents, weather, data-source freshness, all in memory |
 | Simulator | `app/sim/simulator.py` | Moves vehicles every tick (stand-in for live GPS) |
-| Seed data | `app/sim/seed.py` | 8 vehicles, 24 synthetic scheduled trips around Ljubljana |
+| Seed data | `app/sim/seed.py` | Places, 9 vehicles, crews; in scheduled-day mode also 24 synthetic scheduled trips + 4 equipment runs |
+| Live calls | `app/sim/calls.py` | The call stream of live-calls mode (default), each call dispatched at once |
 | Travel model | `app/routing.py` | Distance x road factor, adjusted for traffic, weather and incidents |
 | Projection | `app/engine/projection.py` | Predicts every trip's arrival time and delay, including knock-on delays; builds alerts and KPIs |
 | Events | `app/engine/events.py` | Breakdown, delay, road closure, urgent request, weather override |
@@ -34,6 +35,24 @@ Two worlds read them:
   emergency, closure); hypothetical weather and demo scenarios are refused.
 - **`sim`**: the presentation sandbox: 5× clock (`SIM_SPEEDUP`), snowstorm override, demo scenarios, reset.
 
+## Operating mode: live calls (default) or a scheduled day
+
+- **Live calls** (default for both worlds): no pre-planned trips; every unit starts idle at its base.
+  `app/sim/calls.py` generates calls (`CALLS_PER_HOUR`, default 8 per world hour, exponential gaps of
+  2–25 min, its own seeded RNG per world): emergencies at street addresses around Ljubljana (to UKC),
+  sometimes a remote one (Kamniška Bistrica, Krvavec, Sava valley: the helicopter), urgent field calls,
+  urgent patient transports (health centre or GP referral to UKC, urgent discharges, inter-hospital
+  transfers) and urgent equipment runs (blood products, lab samples, a ventilator). Emergencies and field
+  calls go through `dispatch_call` (nearest suitable free unit); transports and equipment are booked onto
+  a van (`task_request` with `if_late: "soonest"`: if nothing fits on time, the vehicle that delivers it
+  least late). Typical load at 8/h: ambulances and vans 45–65 % busy, queues at most current job + 1.
+  A generated call never starts an AI analysis; a genuine problem (no unit, or late) may, only with
+  auto-analyse on and at most once per 15 world-minutes. Demo scenarios pause new calls for 30 world-minutes.
+- **Scheduled day** (`SCHEDULED_DAY=1`, or `POST /{world}/admin/reset {"scheduled_day": true}`): the
+  vans start with a pre-planned day of booked trips (the brief's "initial plan"); no random calls.
+- The snapshot says which: `mode` (`live_calls` / `scheduled_day`) and `calls` (generator status).
+  It sends open trips plus those finished in the last 3 world-hours (everything stays in memory).
+
 ## API
 
 `{world}` is `live` or `sim`.
@@ -47,7 +66,8 @@ Two worlds read them:
 | POST | `/{world}/events` | Report/inject an event (see below) |
 | POST | `/{world}/plans/simulate` | What-if: before/after KPIs and per-trip changes |
 | POST | `/{world}/plans/apply` | Operator approved: apply the plan |
-| POST | `/{world}/admin/reset` | Re-seed that world |
+| POST | `/{world}/admin/reset` | Re-seed that world; optional `{"scheduled_day": true\|false}` switches the mode |
+| POST | `/{world}/admin/calls` | Live-calls generator: `{"enabled": bool, "per_hour": number}` (both optional) |
 | GET/POST | `/sim/admin/scenarios`, `/sim/admin/scenario/{name}` | Demo scenarios (simulation only) |
 | POST | `/{world}/agent/analyze` | Ask the Claude agent to review the situation (`{"question": "..."}` optional) |
 | GET | `/{world}/agent/runs` | Agent runs, newest first (also in `/state` and `/stream` under `agent`) |
@@ -56,7 +76,9 @@ Two worlds read them:
 
 ## The Claude agent (`app/agent/`)
 
-Disruptive events (breakdown, delay, closure, urgent request, snow) start an analysis automatically.
+With auto-analyse on (a per-world switch, off by default to save tokens), disruptive events (breakdown,
+delay, closure, urgent request, snow) start an analysis automatically; routine live calls never do.
+Otherwise the operator presses Analyse (the first one after a demo scenario gets its description).
 Claude (`claude-sonnet-5-5` by default; set `AGENT_MODEL=claude-opus-5-5` for Opus) gets the situation, then uses three tools backed by the engine:
 `find_candidates` (vehicles ranked by simulated outcome), `simulate_plan` (what-if for a whole option)
 and `get_vehicle_schedule`. It returns 2-3 options as structured JSON with a recommendation and
