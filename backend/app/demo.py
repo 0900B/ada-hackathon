@@ -198,7 +198,7 @@ def _hospital_full(state: WorldState) -> list[EventRecord]:
 
 def _stroke_rush_hour(state: WorldState) -> list[EventRecord]:
     """Available soon (rule 1): a stroke in Polje while Zaloška is closed. A2 is about to hand over a
-    patient at UKC, the only free ambulance (A3) is driving home from Medvode and H1 is out on a
+    patient at UKC, the only free ambulance (A3) is driving back from a transfer to Novo mesto and H1 is out on a
     mountain call. The engine sends A2 at once: drop-off, handover, then Polje, and it compares arrival
     at UKC (the stroke centre). The loaded leg goes around the closure."""
     _helicopter_on_remote_job(state)
@@ -209,7 +209,10 @@ def _stroke_rush_hour(state: WorldState) -> list[EventRecord]:
     _job(state, "T5", "zd_center", needs="seated", note="referred to the UKC emergency department")
     _fast_forward(state, 20, until=lambda: a2_job.status == "onboard" and state.vehicles["A2"].status == "with_patient"
                   and a2_job.eta_dropoff is not None and (a2_job.eta_dropoff - state.sim_time).total_seconds() <= 150)
-    _park(state, "A3", "home_medvode")  # the only free ambulance is far away, driving home
+    # The only free ambulance is far away, driving back from a transfer to Novo mesto, so the unit
+    # finishing at UKC is clearly sooner with real road times too, even through the Zaloška closure
+    # (from Medvode or Vrhnika the motorway made A3 about as fast as A2).
+    _park(state, "A3", "sb_novo_mesto")
     return [
         apply_event(
             state,

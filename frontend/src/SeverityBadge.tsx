@@ -1,4 +1,4 @@
-import { Baby, TrendingDown, Users } from "lucide-react";
+import { Baby, HeartOff, Hourglass, TrendingDown, Users } from "lucide-react";
 import type { Trip } from "./api";
 import {
   conditionText,
@@ -14,7 +14,13 @@ import {
   type Graded,
 } from "./severity";
 
-const MOD_ICON: Record<string, typeof Baby> = { child: Baby, deteriorating: TrendingDown, multiple_patients: Users };
+const MOD_ICON: Record<string, typeof Baby> = {
+  child: Baby,
+  deteriorating: TrendingDown,
+  multiple_patients: Users,
+  no_bystander_cpr: HeartOff, // arrest with no CPR or AED on scene yet
+  late_stroke_window: Hourglass, // stroke near the end of its treatment window
+};
 
 /** Tooltip: level and what it means, the condition, time sensitivity, case modifiers and the target. */
 export function severityTitle(t: Graded): string {

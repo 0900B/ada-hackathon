@@ -416,9 +416,11 @@ export const runScenario = (name: string) =>
 
 export const SCENARIOS = [
   { name: "stranded_patient", label: "Stranded patient", title: "Van breaks down with an urgent patient on board" },
-  { name: "stroke_rush_hour", label: "Stroke and closure", title: "Stroke emergency with a road closure near UKC" },
-  { name: "surge", label: "Call surge", title: "Surge: seven calls at once, three ambulances" },
-  { name: "remote_emergency", label: "Remote emergency", title: "Remote emergency in the mountains: the helicopter is needed" },
+  { name: "stroke_rush_hour", label: "Stroke and closure", title: "Stroke near a closure: an ambulance finishing at UKC goes next" },
+  { name: "priority_override", label: "Priority override", title: "Cardiac arrest next to an ambulance on its way to a fall" },
+  { name: "same_level", label: "Same level, different urgency", title: "Two serious calls, one close ambulance: heart attack before seizure" },
+  { name: "surge", label: "Call surge", title: "Surge: seven calls at once, including a cardiac arrest" },
+  { name: "remote_emergency", label: "Remote emergency", title: "Remote emergency in the mountains: the helicopter turns around" },
   { name: "snow_cascade", label: "Snow cascade", title: "Snowstorm, a stuck van and an emergency at once" },
   { name: "stranded_equipment", label: "Stranded equipment", title: "Van breaks down with blood products on board" },
   { name: "hospital_full", label: "UKC full", title: "UKC can admit only two more patients as a patient becomes an emergency" },

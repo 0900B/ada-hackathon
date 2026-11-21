@@ -1015,6 +1015,10 @@ th {
 .trip-table td.cell-sev .sev-cond {
   flex: 0 1 auto;
 }
+/* In the dense table, the condition wins over unknown modifier text (it stays in the tooltip) */
+.trip-table td.cell-sev .sev-mod-text {
+  display: none;
+}
 /* Narrow dashboards (tablet-sized windows): level, T and case only; the condition is in the tooltip */
 @media (max-width: 1300px) {
   .trip-table td.cell-sev .sev-cond {
