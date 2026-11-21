@@ -1,14 +1,16 @@
 :root {
-  --bg: #0f1218;
-  --panel: #171b23;
-  --border: #262c38;
-  --text: #e6e9ef;
-  --muted: #8a93a6;
-  --ok: #40c057;
-  --warn: #fab005;
-  --bad: #fa5252;
-  --accent: #4dabf7;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --bg: #ffffff;
+  --surface: #f7f7f7;
+  --border: #e5e5e5;
+  --text: #111111;
+  --muted: #666666;
+  --free: #2f7d4f;
+  --on-mission: #b26b00;
+  --high: #b3261e;
+  --medium: #8a7a00;
+  --hospital: #1f3a5f;
+  font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
   color: var(--text);
   background: var(--bg);
 }
@@ -40,11 +42,15 @@ body {
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
-  padding: 10px 16px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--border);
+  background: var(--bg);
 }
 .header h1 {
-  font-size: 18px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   margin: 0;
 }
 .chips {
@@ -53,44 +59,49 @@ body {
   flex-wrap: wrap;
 }
 .chip {
-  font-size: 12px;
-  padding: 3px 8px;
-  border-radius: 999px;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 2px;
   border: 1px solid var(--border);
-  background: var(--panel);
+  background: var(--surface);
+  color: var(--muted);
+  font-family: ui-monospace, 'Courier New', monospace;
 }
 .chip.ok,
 .chip.src-fresh {
-  color: var(--ok);
+  color: var(--free);
 }
 .chip.bad,
 .chip.src-down {
-  color: var(--bad);
+  color: var(--high);
 }
 .chip.warn,
 .chip.src-stale,
 .chip.src-starting {
-  color: var(--warn);
+  color: var(--on-mission);
 }
 
 /* Navigation and subpages */
 .nav {
   display: flex;
-  gap: 4px;
+  gap: 2px;
 }
 .nav a {
   color: var(--muted);
   text-decoration: none;
-  font-size: 14px;
-  padding: 4px 10px;
-  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 2px;
 }
 .nav a:hover {
   color: var(--text);
 }
 .nav a.active {
   color: var(--text);
-  background: var(--panel);
+  background: var(--surface);
   border: 1px solid var(--border);
 }
 .page {
@@ -100,9 +111,15 @@ body {
 }
 .page h2 {
   margin: 0 0 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 .page a {
-  color: var(--accent);
+  color: var(--text);
+  text-decoration: underline;
 }
 .fleet-grid {
   display: grid;
@@ -111,24 +128,25 @@ body {
 }
 .vehicle-card h3 {
   margin: 0 0 4px;
-  font-size: 15px;
+  font-size: 13px;
+  font-weight: 600;
   display: flex;
   align-items: center;
   gap: 8px;
 }
 .vehicle-card.st-out_of_service {
-  opacity: 0.6;
+  opacity: 0.5;
 }
 .schedule {
   margin: 8px 0 0;
   padding-left: 18px;
-  font-size: 13px;
+  font-size: 12px;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 .schedule li.late {
-  color: #ff8787;
+  color: var(--high);
 }
 
 /* Layout */
@@ -137,8 +155,8 @@ body {
   min-height: 0;
   display: grid;
   /* minmax(0, …) so content (wide table, map panes) can never stretch a cell past its track */
-  grid-template-columns: minmax(0, 1fr) 400px;
-  grid-template-rows: minmax(0, 1fr) 260px;
+  grid-template-columns: minmax(0, 7fr) minmax(280px, 3fr);
+  grid-template-rows: minmax(0, 1fr) 240px;
   grid-template-areas:
     "map side"
     "trips side";
@@ -161,13 +179,8 @@ body {
 .map.picking {
   cursor: crosshair;
 }
-/* Dark tiles: filter each tile image, not the moving pane (a filtered, transformed pane can
-   escape overflow clipping in some GPU-accelerated browsers) */
-.map .leaflet-tile {
-  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9);
-}
 .leaflet-container {
-  background: #1a1d24;
+  background: #f0ede8;
 }
 .map-hint {
   position: absolute;
@@ -175,11 +188,14 @@ body {
   top: 10px;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--warn);
-  color: #111;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 13px;
+  background: var(--on-mission);
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 .side {
   grid-area: side;
@@ -192,7 +208,7 @@ body {
   padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 .trips {
   grid-area: trips;
@@ -207,21 +223,22 @@ body {
 
 /* Panels */
 .panel {
-  background: var(--panel);
+  background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 2px;
   padding: 10px 12px;
 }
 .panel h2 {
-  font-size: 13px;
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   color: var(--muted);
   margin: 0 0 8px;
 }
 .muted {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   margin: 0;
 }
 
@@ -232,22 +249,27 @@ body {
   gap: 6px;
 }
 .kpi {
-  background: var(--panel);
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 2px;
   padding: 8px 4px;
   text-align: center;
 }
 .kpi-value {
   font-size: 18px;
   font-weight: 600;
+  font-family: ui-monospace, 'Courier New', monospace;
 }
 .kpi-label {
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   color: var(--muted);
+  margin-top: 2px;
 }
 .kpi.bad .kpi-value {
-  color: var(--bad);
+  color: var(--high);
 }
 
 /* Controls */
@@ -270,53 +292,63 @@ button,
 select,
 input {
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text);
-  background: #222836;
+  background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 6px 8px;
+  border-radius: 2px;
+  padding: 5px 8px;
 }
 button {
   cursor: pointer;
 }
 button:hover:not(:disabled) {
-  border-color: var(--accent);
+  border-color: var(--text);
 }
 button:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: default;
 }
 button.active {
-  background: var(--warn);
-  color: #111;
+  background: var(--on-mission);
+  color: #fff;
+  border-color: var(--on-mission);
 }
 button.ghost {
   background: transparent;
+  color: var(--muted);
 }
 button.link {
   background: none;
   border: none;
-  color: var(--accent);
+  color: var(--muted);
+  text-decoration: underline;
   padding: 0 4px;
   flex: 0;
-}
-.scenario-label {
-  margin-top: 6px;
   font-size: 12px;
 }
+.scenario-label {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
 .message {
-  margin-top: 8px;
-  font-size: 13px;
-  padding: 6px 8px;
-  border-radius: 6px;
+  margin-top: 4px;
+  font-size: 12px;
+  padding: 5px 8px;
+  border-radius: 2px;
+  border-left: 2px solid var(--border);
 }
 .message.ok {
-  background: rgba(64, 192, 87, 0.12);
+  border-color: var(--free);
+  color: var(--free);
 }
 .message.error {
-  background: rgba(250, 82, 82, 0.15);
-  color: var(--bad);
+  border-color: var(--high);
+  color: var(--high);
 }
 
 /* Alerts and events */
@@ -328,31 +360,31 @@ button.link {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 13px;
+  font-size: 12px;
 }
 .alert {
-  padding: 5px 8px;
-  border-radius: 6px;
-  border-left: 3px solid var(--muted);
-  background: #1d222c;
+  padding: 4px 8px;
+  border-radius: 2px;
+  border-left: 2px solid var(--border);
+  background: var(--surface);
   display: flex;
   justify-content: space-between;
 }
 .alert.sev-critical {
-  border-color: #ff0054;
+  border-color: var(--high);
 }
 .alert.sev-high {
-  border-color: var(--bad);
+  border-color: var(--high);
 }
 .alert.sev-medium {
-  border-color: var(--warn);
+  border-color: var(--medium);
 }
 
 /* Trips table */
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 12px;
 }
 th,
 td {
@@ -366,25 +398,44 @@ th {
   top: 0;
   background: var(--bg);
   color: var(--muted);
-  font-weight: 500;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+td {
+  font-family: ui-monospace, 'Courier New', monospace;
+}
+td:nth-child(2) {
+  /* patient name — not monospace */
+  font-family: inherit;
 }
 .row-unassigned {
-  background: rgba(255, 0, 84, 0.12);
+  background: #fdf5f5;
 }
 .row-late {
-  background: rgba(250, 82, 82, 0.08);
+  background: #fffbf0;
 }
 .prio {
-  font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: #2b3140;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
 }
 .prio-emergency {
-  background: #ff0054;
+  border-color: var(--high);
+  color: var(--high);
+  background: #fdf5f5;
 }
 .prio-urgent {
-  background: #e8590c;
+  border-color: var(--on-mission);
+  color: var(--on-mission);
+  background: #fff9f0;
 }
 
 /* AI dispatcher */
@@ -392,7 +443,7 @@ th {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  font-size: 13px;
+  font-size: 12px;
 }
 .agent-head {
   display: flex;
@@ -401,23 +452,20 @@ th {
   gap: 8px;
 }
 .run-status {
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
+/* spinner: replaced with text indicator — no animation per design rules */
 .spinner {
   display: inline-block;
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   margin-right: 4px;
-  border: 2px solid var(--accent);
-  border-right-color: transparent;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  border: 1px solid var(--muted);
   vertical-align: -1px;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 .trace {
   list-style: none;
@@ -425,55 +473,59 @@ th {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  font-size: 12px;
+  gap: 2px;
+  font-size: 11px;
+  font-family: ui-monospace, 'Courier New', monospace;
+  color: var(--muted);
 }
 .trace-reasoning {
   color: var(--muted);
-  font-style: italic;
 }
 .trace-tool_result {
-  color: var(--accent);
+  color: var(--hospital);
 }
 .trace-error {
-  color: var(--warn);
+  color: var(--on-mission);
 }
 .situation {
   margin: 0;
-  font-weight: 500;
+  font-weight: 600;
 }
 .escalation {
-  background: rgba(255, 0, 84, 0.15);
-  border: 1px solid #ff0054;
-  border-radius: 6px;
+  background: #fdf5f5;
+  border: 1px solid var(--high);
+  border-radius: 2px;
   padding: 6px 8px;
+  color: var(--high);
 }
 .warn-box {
-  background: rgba(250, 176, 5, 0.12);
-  color: var(--warn);
-  border-radius: 6px;
-  padding: 6px 8px;
-  font-size: 12px;
+  background: #fff9f0;
+  color: var(--on-mission);
+  border-radius: 2px;
+  border: 1px solid var(--on-mission);
+  padding: 5px 8px;
+  font-size: 11px;
 }
 .rec {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 .option {
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 2px;
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  background: #1b2029;
+  gap: 5px;
+  background: var(--surface);
 }
 .option.recommended {
-  border-color: var(--accent);
+  border-color: var(--hospital);
+  background: #f4f7fc;
 }
 .option.infeasible {
-  opacity: 0.7;
+  opacity: 0.5;
 }
 .option-head {
   display: flex;
@@ -485,15 +537,17 @@ th {
   color: var(--muted);
 }
 .badge {
-  font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--accent);
-  color: #0b1220;
+  font-size: 10px;
   font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 2px;
+  background: var(--hospital);
+  color: #fff;
 }
 .badge.ok {
-  background: var(--ok);
+  background: var(--free);
 }
 .deltas {
   display: flex;
@@ -501,72 +555,115 @@ th {
   flex-wrap: wrap;
 }
 .delta {
-  font-size: 12px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: #2b3140;
+  font-size: 11px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-family: ui-monospace, 'Courier New', monospace;
 }
 .delta.better {
-  color: var(--ok);
+  color: var(--free);
+  border-color: var(--free);
 }
 .delta.worse {
-  color: var(--bad);
+  color: var(--high);
+  border-color: var(--high);
 }
 .plan-steps {
   margin: 0;
   padding-left: 16px;
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 12px;
+  font-family: ui-monospace, 'Courier New', monospace;
+  font-size: 11px;
+  color: var(--muted);
 }
 .proscons {
-  font-size: 12px;
+  font-size: 11px;
 }
 .pro {
-  color: var(--ok);
+  color: var(--free);
 }
 .con {
-  color: #ff8787;
+  color: var(--high);
 }
 button.primary {
-  background: var(--accent);
-  color: #0b1220;
+  background: var(--hospital);
+  color: #fff;
+  border-color: var(--hospital);
   font-weight: 600;
+}
+button.primary:hover:not(:disabled) {
+  border-color: var(--hospital);
+  opacity: 0.85;
 }
 .reasoning {
   margin: 0;
-  font-size: 12px;
+  font-size: 11px;
+  color: var(--muted);
 }
 .notifications summary {
   cursor: pointer;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 .notification {
   margin-top: 6px;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 /* Vehicle markers (Leaflet divIcon) */
 .veh {
-  font: 600 11px system-ui, sans-serif;
-  color: #fff;
-  border-radius: 4px;
+  font: 600 10px ui-monospace, 'Courier New', monospace;
+  color: var(--text);
+  background: #fff;
+  border-radius: 2px;
   text-align: center;
   line-height: 18px;
   width: 32px;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--border);
 }
 .veh-ambulance {
-  background: #e03131;
+  border-color: var(--high);
+  color: var(--high);
 }
 .veh-transport {
-  background: #1971c2;
+  border-color: var(--hospital);
+  color: var(--hospital);
+}
+.veh.st-to_pickup,
+.veh.st-to_dropoff {
+  background: #fff9f0;
+  border-color: var(--on-mission);
+  color: var(--on-mission);
 }
 .veh.st-idle {
   opacity: 0.6;
 }
 .veh.st-out_of_service {
-  background: #495057;
+  opacity: 0.4;
   text-decoration: line-through;
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+/* Leaflet popup overrides — match design rules */
+.leaflet-popup-content-wrapper {
+  border-radius: 2px !important;
+  box-shadow: none !important;
+  border: 1px solid var(--border) !important;
+  font-size: 12px !important;
+  font-family: 'Inter', system-ui, sans-serif !important;
+  padding: 0 !important;
+  color: var(--text) !important;
+  background: var(--bg) !important;
+}
+.leaflet-popup-content {
+  margin: 6px 10px !important;
+  line-height: 1.5 !important;
+}
+.leaflet-popup-tip-container {
+  display: none !important;
 }
