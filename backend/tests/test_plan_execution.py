@@ -39,8 +39,7 @@ W = main.sim
 
 def fresh() -> None:
     seed_world(W, config.RANDOM_SEED)
-    if hasattr(W, "auto_analyze"):
-        W.auto_analyze = False
+    W.auto_analyze = False
 
 
 def clear(vehicle_id: str) -> None:

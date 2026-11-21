@@ -419,7 +419,7 @@ def _out_of_date(state: WorldState, run: AgentRun, why: str) -> HTTPException:
     """The world moved on since the option was checked: say what changed and start a fresh analysis."""
     run.log("info", f"Approval refused, plan out of date: {why}"[:600])
     fresh = None
-    if config.AGENT_AUTO:
+    if state.auto_analyze:  # analysis on demand otherwise: the operator presses Analyse
         fresh = agent.start_run(
             state, trigger=f"stale:{run.id}", question=f"The operator wanted to approve a plan that is out of date ({why}). Re-plan."
         )
@@ -435,7 +435,7 @@ async def approve(run_id: str, req: ApproveRequest, state: WorldState = World) -
     The steps carry anchors (before_trip_id) from when the engine checked them, so the vehicles do
     the jobs in the order that was shown even if they moved on meanwhile. If the outcome is now
     clearly worse than shown (e.g. a vehicle loaded a patient and can no longer turn around), the
-    approval is refused with the reason (409) and, with AGENT_AUTO, a fresh analysis starts.
+    approval is refused with the reason (409) and, if auto-analyse is on, a fresh analysis starts.
     """
     run = _find_run(state, run_id)
     if run.status != "done" or run.recommendation is None:
