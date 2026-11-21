@@ -18,7 +18,7 @@ def _apply_steps(state: WorldState, plan: Plan) -> list[str]:
     errors = []
     for i, step in enumerate(plan.steps):
         try:
-            assign_trip(state, step.trip_id, step.vehicle_id, step.position, step.interrupt_current)
+            assign_trip(state, step.trip_id, step.vehicle_id, step.position, step.interrupt_current, step.dropoff_id)
         except ActionError as e:
             errors.append(f"step {i + 1}: {e}")
     return errors
@@ -41,9 +41,11 @@ def simulate_plan(state: WorldState, plan: Plan) -> dict[str, Any]:
         if after.status in DONE:
             continue
         d_before, d_after = before.delay_min, after.delay_min
+        redirected = before.dropoff_id != after.dropoff_id
         changed = (
             before.vehicle_id != after.vehicle_id
             or before.status != after.status
+            or redirected
             or abs((d_before or 0) - (d_after or 0)) >= 1
         )
         if changed:
@@ -51,12 +53,14 @@ def simulate_plan(state: WorldState, plan: Plan) -> dict[str, Any]:
                 {
                     "trip_id": tid,
                     "patient": after.patient,
+                    "label": after.label,
                     "priority": after.priority,
                     "vehicle_before": before.vehicle_id,
                     "vehicle_after": after.vehicle_id,
                     "delay_before_min": d_before,
                     "delay_after_min": d_after,
                     "eta_dropoff_after": after.eta_dropoff,
+                    "redirected_to": after.dropoff_id if redirected else None,
                 }
             )
     return {

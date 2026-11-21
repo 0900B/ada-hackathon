@@ -1,5 +1,5 @@
 import type { WorldSnapshot } from "../api";
-import { fmtTime, humanize } from "../format";
+import { fmtTime, vehicleStatusText } from "../format";
 
 /** Example subpage: every vehicle with its current trip and projected queue. */
 export function FleetPage({ state }: { state: WorldSnapshot }) {
@@ -18,7 +18,7 @@ export function FleetPage({ state }: { state: WorldSnapshot }) {
                 <span className={`veh veh-${v.type}`}>{v.id}</span> {v.name}
               </h3>
               <p className="muted">
-                {v.type} · {humanize(v.status)} · base {place.get(v.base_id) ?? v.base_id}
+                {v.type} · {vehicleStatusText(v, state.trips)} · base {place.get(v.base_id) ?? v.base_id}
                 {v.busy_until ? ` · busy until ${fmtTime(v.busy_until)}` : ""}
                 {v.grounded_until ? ` · 🌫 grounded by fog until ${fmtTime(v.grounded_until)}` : ""}
               </p>
@@ -32,7 +32,8 @@ export function FleetPage({ state }: { state: WorldSnapshot }) {
                     const late = (t.delay_min ?? 0) >= 5;
                     return (
                       <li key={id} className={late ? "late" : ""}>
-                        <strong>{t.id}</strong> <span className={`prio prio-${t.priority}`}>{t.priority}</span> {t.needs}
+                        <strong>{t.id}</strong> <span className={`prio prio-${t.priority}`}>{t.priority}</span>{" "}
+                        {t.kind === "equipment" ? t.label : t.needs}
                         <br />
                         {place.get(t.pickup_id)} → {place.get(t.dropoff_id)}
                         <br />

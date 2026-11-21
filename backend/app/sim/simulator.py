@@ -96,6 +96,9 @@ def _advance(state: WorldState, v: Vehicle, dt_min: float) -> None:
         trip.status = "completed"
         trip.eta_dropoff = state.sim_time
         trip.delay_min = round(max(0.0, (state.sim_time - trip.due_by).total_seconds() / 60), 1)
+        dest = state.places[trip.dropoff_id]
+        if dest.capacity is not None and trip.kind == "patient":
+            dest.capacity = max(0, dest.capacity - 1)  # one admission used
         v.current_trip_id = None
         v.status = "returning"
         v.busy_until = state.sim_time + timedelta(minutes=UNLOAD_MIN)

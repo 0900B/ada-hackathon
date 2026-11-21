@@ -17,6 +17,7 @@ import { AgentPanel } from "./AgentPanel";
 import { BRAND } from "./brand";
 import { FieldMessage } from "./FieldMessage";
 import { FogControl } from "./FogControl";
+import { OpsControls } from "./OpsControls";
 import { fmtTime } from "./format";
 import { MapView, type ClickMode } from "./MapView";
 import { AuditPage } from "./pages/AuditPage";
@@ -153,6 +154,9 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
           </Panel>
           <Panel title={state.hypothetical ? "Inject event (hypothetical)" : "Report event"}>
             <Controls state={state} busy={busy} mode={mode} setMode={setMode} send={send} setMessage={setMessage} />
+          </Panel>
+          <Panel title="Priority & capacity">
+            <OpsControls state={state} send={send} busy={busy} />
           </Panel>
           <Panel title={`Alerts (${state.alerts.length})`}>
             <Alerts state={state} send={send} />
@@ -454,7 +458,7 @@ function TripTable({ state }: { state: WorldSnapshot }) {
           return (
             <tr key={t.id} className={t.status === "unassigned" ? "row-unassigned" : late ? "row-late" : ""}>
               <td>{t.id}</td>
-              <td>{t.patient}</td>
+              <td>{t.label ?? t.patient}</td>
               <td>
                 <span className={`prio prio-${t.priority}`}>{t.priority}</span>
               </td>

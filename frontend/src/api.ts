@@ -7,7 +7,8 @@ export const API_URL = (
 // --- Types mirroring the backend snapshot (backend/app/models.py) -----------
 
 export type Priority = "emergency" | "urgent" | "scheduled";
-export type Needs = "stretcher" | "wheelchair" | "seated";
+export type Needs = "stretcher" | "wheelchair" | "seated" | "equipment";
+export type TripKind = "patient" | "equipment";
 export type Severity = "critical" | "high" | "medium" | "low";
 export type SourceHealth = "starting" | "fresh" | "stale" | "down";
 
@@ -17,6 +18,8 @@ export interface Place {
   kind: string;
   lat: number;
   lon: number;
+  capacity: number | null; // hospitals: admissions it can still take (null = unlimited)
+  specialty: string | null; // e.g. "oncology"; null = general hospital
 }
 
 export interface Vehicle {
@@ -38,7 +41,10 @@ export interface Vehicle {
 
 export interface Trip {
   id: string;
-  patient: string;
+  kind: TripKind;
+  patient: string | null; // null for equipment
+  cargo: string | null; // equipment only, e.g. "ventilator"
+  label: string; // what to show: the patient label, or "equipment: ventilator"
   priority: Priority;
   needs: Needs;
   pickup_id: string;
@@ -99,6 +105,7 @@ export interface Kpis {
   max_delay_min: number;
   unassigned: Record<Priority, number>;
   vehicles_in_service: number;
+  over_capacity: number; // patients heading to a hospital that cannot admit them
 }
 
 export interface EventRecord {
@@ -116,17 +123,20 @@ export interface PlanStep {
   vehicle_id: string;
   position: number | null;
   interrupt_current: boolean;
+  dropoff_id?: string | null; // redirect to this hospital
 }
 
 export interface TripChange {
   trip_id: string;
-  patient: string;
+  patient: string | null;
+  label: string;
   priority: Priority;
   vehicle_before: string | null;
   vehicle_after: string | null;
   delay_before_min: number | null;
   delay_after_min: number | null;
   eta_dropoff_after: string | null;
+  redirected_to: string | null; // hospital id when the plan redirects this patient
 }
 
 export interface RecommendationOption {
@@ -268,4 +278,6 @@ export const SCENARIOS = [
   { name: "stranded_patient", label: "🚐 Stranded patient", title: "Van breaks down with a patient on board" },
   { name: "stroke_rush_hour", label: "🧠 Stroke + closure", title: "Stroke emergency with a road closure near UKC" },
   { name: "snow_cascade", label: "❄️ Snow cascade", title: "Snowstorm, a delayed van and an emergency at once" },
+  { name: "stranded_equipment", label: "🧰 Stranded equipment", title: "Vehicle breaks down with medical equipment on board" },
+  { name: "hospital_full", label: "🏥 UKC full", title: "UKC can admit only one more patient as a patient becomes an emergency" },
 ];

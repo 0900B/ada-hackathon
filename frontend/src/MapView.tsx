@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { WorldSnapshot } from "./api";
-import { fmtTime } from "./format";
+import { fmtTime, vehicleStatusText } from "./format";
 
 export type ClickMode = "closure" | "emergency" | null;
 
@@ -140,7 +140,9 @@ export function MapView({ state, mode, onMapClick }: Props) {
       });
       const groundedText = grounded ? ` · grounded by fog until ${fmtTime(v.grounded_until)}` : "";
       L.marker([v.lat, v.lon], { icon })
-        .bindTooltip(`${v.name} · ${v.status.replace(/_/g, " ")}${trip ? ` · ${trip.id}` : ""}${groundedText}`)
+        .bindTooltip(
+          `${v.name} · ${vehicleStatusText(v, state.trips)}${trip ? ` · ${trip.id} (${trip.label})` : ""}${groundedText}`,
+        )
         .addTo(ls.vehicles);
     }
   }, [state]);

@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
-from ..models import Alert, Severity, Vehicle
+from ..models import Alert, Severity, Trip, Vehicle
 from ..roads import ROADS, key
 from ..routing import flies, travel_minutes, vehicle_leg_minutes
 
@@ -22,6 +22,7 @@ UNLOAD_MIN = 3.0
 LATE_ALERT_MIN = 5.0
 DONE = ("completed", "cancelled")
 SEVERITY_ORDER: dict[Severity, int] = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+PRIORITY_ORDER = {"emergency": 0, "urgent": 1, "scheduled": 2}
 
 
 @dataclass
@@ -114,6 +115,44 @@ def project_all(state: WorldState) -> None:
     state.alerts = compute_alerts(state)
 
 
+# --- Hospital capacity ----------------------------------------------------------------
+# A hospital's `capacity` is how many more patients it can admit (None = unlimited). Every open
+# patient trip heading there needs one admission; equipment deliveries need none. When more
+# patients are incoming than it can admit, the most urgent keep their place (then patients already
+# on board, then the earliest due) and the rest are "overflow": they need another hospital.
+
+
+def incoming_patients(state: WorldState, place_id: str, exclude_trip: str | None = None) -> list[Trip]:
+    return [
+        t
+        for t in state.trips.values()
+        if t.dropoff_id == place_id and t.kind == "patient" and t.status not in DONE and t.id != exclude_trip
+    ]
+
+
+def free_capacity(state: WorldState, place_id: str, exclude_trip: str | None = None) -> int | None:
+    """Admissions left after every incoming patient (None = unlimited; negative = over capacity)."""
+    place = state.places.get(place_id)
+    if place is None or place.capacity is None:
+        return None
+    return place.capacity - len(incoming_patients(state, place_id, exclude_trip))
+
+
+def over_capacity(state: WorldState) -> dict[str, list[Trip]]:
+    """Hospitals with more incoming patients than they can admit -> the overflow trips, most urgent first."""
+    out: dict[str, list[Trip]] = {}
+    for p in state.places.values():
+        if p.kind != "hospital" or p.capacity is None:
+            continue
+        incoming = sorted(
+            incoming_patients(state, p.id),
+            key=lambda t: (PRIORITY_ORDER[t.priority], t.status != "onboard", t.due_by),
+        )
+        if len(incoming) > p.capacity:
+            out[p.id] = incoming[p.capacity :]
+    return out
+
+
 def compute_alerts(state: WorldState) -> list[Alert]:
     alerts: list[Alert] = []
     for trip in state.trips.values():
@@ -126,7 +165,7 @@ def compute_alerts(state: WorldState) -> list[Alert]:
                     id=f"trip_unassigned:{trip.id}",
                     kind="trip_unassigned",
                     severity=sev,
-                    message=f"{trip.priority.capitalize()} trip {trip.id} ({trip.patient}) has no vehicle",
+                    message=f"{trip.priority.capitalize()} trip {trip.id} ({trip.label}) has no vehicle",
                     trip_id=trip.id,
                 )
             )
@@ -137,7 +176,7 @@ def compute_alerts(state: WorldState) -> list[Alert]:
                     id=f"trip_late:{trip.id}",
                     kind="trip_late",
                     severity=sev,
-                    message=f"Trip {trip.id} ({trip.patient}) predicted {trip.delay_min:.0f} min late",
+                    message=f"Trip {trip.id} ({trip.label}) predicted {trip.delay_min:.0f} min late",
                     trip_id=trip.id,
                     vehicle_id=trip.vehicle_id,
                 )
@@ -164,6 +203,20 @@ def compute_alerts(state: WorldState) -> list[Alert]:
                     vehicle_id=v.id,
                 )
             )
+    for place_id, overflow in over_capacity(state).items():
+        p = state.places[place_id]
+        alerts.append(
+            Alert(
+                id=f"hospital_over_capacity:{place_id}",
+                kind="hospital_over_capacity",
+                severity="critical" if any(t.priority == "emergency" for t in overflow) else "high",
+                message=(
+                    f"{p.name} over capacity: {p.capacity + len(overflow)} patients incoming, can admit "
+                    f"{p.capacity}; redirect {', '.join(t.id for t in overflow)}"
+                ),
+                trip_id=overflow[0].id,
+            )
+        )
     w = state.effective_weather
     snow_soon = any(h.snowfall_cm > 0 for h in state.weather_forecast[:3])
     if (w and (w.snowfall_cm > 0 or (w.precipitation_mm > 0 and w.temperature_c <= 0.5))) or snow_soon:
@@ -202,4 +255,5 @@ def kpis(state: WorldState) -> dict[str, Any]:
         "max_delay_min": round(max((t.delay_min or 0 for t in open_trips), default=0), 1),
         "unassigned": {p: sum(1 for t in unassigned if t.priority == p) for p in ("emergency", "urgent", "scheduled")},
         "vehicles_in_service": sum(1 for v in state.vehicles.values() if v.status != "out_of_service"),
+        "over_capacity": sum(len(trips) for trips in over_capacity(state).values()),  # patients without an admission
     }

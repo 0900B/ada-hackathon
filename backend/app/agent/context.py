@@ -8,8 +8,8 @@ from zoneinfo import ZoneInfo
 
 from ..engine.candidates import find_candidates, nearest_place_name
 from ..engine.plans import simulate_plan
-from ..engine.projection import DONE, kpis, project_route
-from ..models import EventRecord, Plan, PlanStep
+from ..engine.projection import DONE, incoming_patients, kpis, over_capacity, project_route
+from ..models import EventRecord, Plan, PlanStep, Trip, Vehicle
 from ..routing import weather_factor
 
 if TYPE_CHECKING:
@@ -35,6 +35,34 @@ def jsonable(obj: Any) -> Any:
 
 def to_json(obj: Any) -> str:
     return json.dumps(jsonable(obj), ensure_ascii=False, separators=(",", ":"))
+
+
+def _load(t: Trip) -> dict[str, Any]:
+    """Who or what a trip carries: never call equipment a patient."""
+    return {"patient": t.patient} if t.kind == "patient" else {"equipment": t.cargo}
+
+
+def _vehicle_status(state: WorldState, v: Vehicle) -> str:
+    current = state.trips.get(v.current_trip_id) if v.current_trip_id else None
+    if v.status == "with_patient" and current and current.kind == "equipment":
+        return "with_equipment"
+    return v.status
+
+
+def build_hospitals(state: WorldState) -> list[dict[str, Any]]:
+    overflow = over_capacity(state)
+    return [
+        {
+            "id": p.id,
+            "name": p.name,
+            **({"specialty": p.specialty} if p.specialty else {}),
+            "can_admit": "unlimited" if p.capacity is None else p.capacity,
+            "incoming_patients": len(incoming_patients(state, p.id)),
+            **({"over_capacity_redirect": [t.id for t in overflow[p.id]]} if p.id in overflow else {}),
+        }
+        for p in state.places.values()
+        if p.kind == "hospital"
+    ]
 
 
 def build_situation(state: WorldState) -> dict[str, Any]:
@@ -69,7 +97,7 @@ def build_situation(state: WorldState) -> dict[str, Any]:
             {
                 "id": v.id,
                 "type": v.type,
-                "status": v.status,
+                "status": _vehicle_status(state, v),
                 "near": nearest_place_name(state, v.lat, v.lon),
                 "current_trip": v.current_trip_id,
                 "queue": v.queue,
@@ -78,10 +106,11 @@ def build_situation(state: WorldState) -> dict[str, Any]:
             }
             for v in state.vehicles.values()
         ],
+        "hospitals": build_hospitals(state),
         "open_trips": [
             {
                 "id": t.id,
-                "patient": t.patient,
+                **_load(t),
                 "priority": t.priority,
                 "needs": t.needs,
                 "from": places[t.pickup_id].name,
@@ -121,13 +150,21 @@ def build_user_message(state: WorldState, focus: EventRecord | None, question: s
 # --- Tool implementations ----------------------------------------------------------
 
 
-def tool_find_candidates(state: WorldState, trip_id: str) -> dict[str, Any]:
+def tool_find_candidates(state: WorldState, trip_id: str, dropoff_id: str | None = None) -> dict[str, Any]:
     t = state.trips.get(trip_id)
-    candidates = find_candidates(state, trip_id)
+    candidates = find_candidates(state, trip_id, dropoff_id=dropoff_id)
     return {
         "trip": None
         if t is None
-        else {"id": t.id, "priority": t.priority, "needs": t.needs, "ready": hhmm(t.pickup_after), "due": hhmm(t.due_by)},
+        else {
+            "id": t.id,
+            **_load(t),
+            "priority": t.priority,
+            "needs": t.needs,
+            "ready": hhmm(t.pickup_after),
+            "due": hhmm(t.due_by),
+            "to": state.places[dropoff_id or t.dropoff_id].name,
+        },
         "candidates": candidates,
         "note": "No suitable vehicle can take this trip." if not candidates else None,
     }
@@ -169,7 +206,7 @@ def tool_vehicle_schedule(state: WorldState, vehicle_id: str) -> dict[str, Any]:
 
 def execute_tool(state: WorldState, name: str, args: dict[str, Any]) -> str:
     if name == "find_candidates":
-        result = tool_find_candidates(state, args["trip_id"])
+        result = tool_find_candidates(state, args["trip_id"], args.get("dropoff_id"))
     elif name == "simulate_plan":
         result = tool_simulate_plan(state, args["steps"])
     elif name == "get_vehicle_schedule":
@@ -181,10 +218,16 @@ def execute_tool(state: WorldState, name: str, args: dict[str, Any]) -> str:
 
 def describe_call(name: str, args: dict[str, Any]) -> str:
     if name == "find_candidates":
-        return f"Finding vehicles for {args.get('trip_id')}"
+        to = f" (redirected to {args['dropoff_id']})" if args.get("dropoff_id") else ""
+        return f"Finding vehicles for {args.get('trip_id')}{to}"
     if name == "simulate_plan":
         steps = args.get("steps") or []
-        return "Simulating: " + (", ".join(f"{s['trip_id']}→{s['vehicle_id']}" for s in steps) or "no changes")
+        return "Simulating: " + (
+            ", ".join(
+                f"{s['trip_id']}→{s['vehicle_id']}" + (f"⇒{s['dropoff_id']}" if s.get("dropoff_id") else "") for s in steps
+            )
+            or "no changes"
+        )
     if name == "get_vehicle_schedule":
         return f"Checking {args.get('vehicle_id')}'s schedule"
     return f"{name}({args})"
@@ -199,8 +242,10 @@ def describe_result(name: str, result_json: str) -> str | None:
     b, a = r.get("kpis_before"), r.get("kpis_after")
     if not (b and a):
         return None
+    over_b, over_a = b.get("over_capacity", 0), a.get("over_capacity", 0)
     return (
         f"Late trips {b['late_trips']} → {a['late_trips']}, total delay "
         f"{b['total_delay_min']:.0f} → {a['total_delay_min']:.0f} min, unassigned "
         f"{sum(b['unassigned'].values())} → {sum(a['unassigned'].values())}"
+        + (f", over capacity {over_b} → {over_a}" if over_b or over_a else "")
     )

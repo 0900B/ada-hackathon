@@ -15,6 +15,8 @@ from .models import (
     BreakdownEvent,
     DelayEvent,
     EventRecord,
+    HospitalCapacityEvent,
+    PriorityChangeEvent,
     RoadClosureEvent,
     UrgentRequestEvent,
     Vehicle,
@@ -39,18 +41,73 @@ def _fast_forward(state: WorldState, minutes: float, until: Callable[[], Vehicle
     return None
 
 
-def _van_with_patient(state: WorldState) -> Vehicle | None:
+def _van_carrying(state: WorldState, kind: str) -> Vehicle | None:
+    """A van with a patient (or equipment) on board and more trips queued."""
     return next(
-        (v for v in state.vehicles.values() if v.type == "transport" and v.status == "with_patient" and v.queue),
+        (
+            v
+            for v in state.vehicles.values()
+            if v.type == "transport"
+            and v.status == "with_patient"  # loaded (patient or equipment)
+            and v.queue
+            and v.current_trip_id
+            and state.trips[v.current_trip_id].kind == kind
+        ),
         None,
     )
 
 
 def _stranded_patient(state: WorldState) -> list[EventRecord]:
-    van = _fast_forward(state, MAX_FAST_FORWARD_MIN, until=lambda: _van_with_patient(state))
+    van = _fast_forward(state, MAX_FAST_FORWARD_MIN, until=lambda: _van_carrying(state, "patient"))
     if van is None:
         raise RuntimeError("no van with a patient on board within the fast-forward window")
     return [apply_event(state, BreakdownEvent(type="breakdown", vehicle_id=van.id, note="engine failure, patient on board"))]
+
+
+def _stranded_equipment(state: WorldState) -> list[EventRecord]:
+    def loaded_with_equipment() -> Vehicle | None:
+        return next(
+            (
+                v
+                for v in state.vehicles.values()
+                if v.current_trip_id
+                and state.trips[v.current_trip_id].kind == "equipment"
+                and state.trips[v.current_trip_id].status == "onboard"
+            ),
+            None,
+        )
+
+    v = _fast_forward(state, MAX_FAST_FORWARD_MIN, until=loaded_with_equipment)
+    if v is None:
+        raise RuntimeError("no vehicle with equipment on board within the fast-forward window")
+    return [apply_event(state, BreakdownEvent(type="breakdown", vehicle_id=v.id, note="gearbox failure, equipment on board"))]
+
+
+def _hospital_full(state: WorldState) -> list[EventRecord]:
+    _fast_forward(state, 5)
+    to_ukc = sorted(
+        (
+            t
+            for t in state.trips.values()
+            if t.dropoff_id == "ukc" and t.kind == "patient" and t.status == "assigned"
+            and t.vehicle_id and state.vehicles[t.vehicle_id].type == "transport"
+        ),
+        key=lambda t: t.due_by,
+    )
+    if not to_ukc:
+        raise RuntimeError("no van trip heading to UKC to escalate")
+    return [
+        apply_event(
+            state,
+            PriorityChangeEvent(
+                type="priority_change", trip_id=to_ukc[0].id, priority="emergency", note="condition worsened, chest pain"
+            ),
+        ),
+        apply_event(
+            state,
+            HospitalCapacityEvent(type="hospital_capacity", place_id="ukc", capacity=1, note="emergency department full"),
+        ),
+    ]
 
 
 def _stroke_rush_hour(state: WorldState) -> list[EventRecord]:
@@ -96,6 +153,8 @@ SCENARIOS: dict[str, tuple[str, Callable[[WorldState], list[EventRecord]]]] = {
     "stranded_patient": ("Van breaks down with a patient on board", _stranded_patient),
     "stroke_rush_hour": ("Stroke emergency with a road closure near UKC", _stroke_rush_hour),
     "snow_cascade": ("Snowstorm, a delayed van and an emergency at once", _snow_cascade),
+    "stranded_equipment": ("Vehicle breaks down with medical equipment on board", _stranded_equipment),
+    "hospital_full": ("UKC can admit only one more patient as a patient becomes an emergency", _hospital_full),
 }
 
 

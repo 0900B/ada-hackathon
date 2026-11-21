@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, computed_field, model_validator
 
 
 def utcnow() -> datetime:
@@ -15,7 +15,8 @@ PlaceKind = Literal["hospital", "health_centre", "residential", "base", "inciden
 VehicleType = Literal["ambulance", "transport", "helicopter"]
 VehicleStatus = Literal["idle", "to_pickup", "loading", "with_patient", "returning", "out_of_service"]
 Priority = Literal["emergency", "urgent", "scheduled"]
-Needs = Literal["stretcher", "wheelchair", "seated"]
+Needs = Literal["stretcher", "wheelchair", "seated", "equipment"]  # "equipment": no patient, cargo only
+TripKind = Literal["patient", "equipment"]
 TripStatus = Literal["unassigned", "assigned", "en_route_pickup", "onboard", "completed", "cancelled"]
 SourceKind = Literal["live", "simulated", "fallback"]
 SourceHealth = Literal["starting", "fresh", "stale", "down"]
@@ -32,6 +33,9 @@ class Place(BaseModel):
     kind: PlaceKind
     lat: float
     lon: float
+    # Hospitals only: admissions it can still take (None = unlimited); each delivered patient uses one.
+    capacity: int | None = None
+    specialty: str | None = None  # e.g. "oncology"; None = general hospital (a valid redirect target)
 
 
 class Vehicle(BaseModel):
@@ -57,12 +61,14 @@ class Vehicle(BaseModel):
 
 class Trip(BaseModel):
     id: str
-    patient: str  # pseudonymous label, never real data
+    kind: TripKind = "patient"  # "equipment" = prevoz opreme: carries cargo, no patient
+    patient: str | None = None  # pseudonymous label, never real data; None for equipment
+    cargo: str | None = None  # equipment only, e.g. "ventilator", "blood products"
     priority: Priority
     needs: Needs
     pickup_id: str
     dropoff_id: str
-    pickup_after: datetime  # patient ready from
+    pickup_after: datetime  # patient (or equipment) ready from
     due_by: datetime  # must arrive at drop-off by
     note: str | None = None
     status: TripStatus = "unassigned"
@@ -70,6 +76,21 @@ class Trip(BaseModel):
     eta_pickup: datetime | None = None
     eta_dropoff: datetime | None = None
     delay_min: float | None = None  # predicted (or final) lateness vs due_by
+
+    @model_validator(mode="after")
+    def _equipment_consistent(self) -> Trip:
+        """kind="equipment" and needs="equipment" always go together (either one implies the other)."""
+        if self.kind == "equipment" or self.needs == "equipment":
+            self.kind, self.needs = "equipment", "equipment"
+        return self
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def label(self) -> str:
+        """How to refer to what is carried: the patient label, or the cargo for equipment."""
+        if self.kind == "equipment":
+            return f"equipment: {self.cargo or 'unspecified'}"
+        return self.patient or self.id
 
 
 class Incident(BaseModel):
@@ -135,7 +156,9 @@ class SourceStatus(BaseModel):
 
 class Alert(BaseModel):
     id: str  # stable, e.g. "trip_late:TR-004", so clients can diff
-    kind: Literal["trip_unassigned", "trip_late", "vehicle_down", "weather_risk", "data_source_down"]
+    kind: Literal[
+        "trip_unassigned", "trip_late", "vehicle_down", "weather_risk", "data_source_down", "hospital_over_capacity"
+    ]
     severity: Severity
     message: str
     trip_id: str | None = None
@@ -218,6 +241,24 @@ class FogEvent(BaseModel):
     note: str | None = None
 
 
+class PriorityChangeEvent(BaseModel):
+    """Sprememba prioritete: a trip's priority changes (e.g. the patient's condition worsens)."""
+
+    type: Literal["priority_change"]
+    trip_id: str
+    priority: Priority
+    note: str | None = None
+
+
+class HospitalCapacityEvent(BaseModel):
+    """Zmanjšana kapaciteta: how many more patients a hospital can admit. capacity=null restores unlimited."""
+
+    type: Literal["hospital_capacity"]
+    place_id: str
+    capacity: int | None = Field(default=None, ge=0, le=1000)
+    note: str | None = None
+
+
 OperatorEvent = Annotated[
     Union[
         BreakdownEvent,
@@ -227,6 +268,8 @@ OperatorEvent = Annotated[
         UrgentRequestEvent,
         WeatherOverrideEvent,
         FogEvent,
+        PriorityChangeEvent,
+        HospitalCapacityEvent,
     ],
     Field(discriminator="type"),
 ]
@@ -240,6 +283,9 @@ class PlanStep(BaseModel):
     vehicle_id: str
     position: int | None = None  # index in the vehicle's queue; None = append at the end
     interrupt_current: bool = False  # put this trip before the vehicle's current (not yet onboard) trip
+    # Redirect the patient to another hospital (a general one with free capacity). On the trip's own
+    # vehicle with position=None the trip keeps its place in the queue (works with the patient on board).
+    dropoff_id: str | None = None
 
 
 class Plan(BaseModel):

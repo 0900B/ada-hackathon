@@ -86,6 +86,15 @@ EVENT_SCHEMAS = [
         },
     ),
     _event("fog", {"duration_min": {"type": "integer"}, "note": _NULLABLE_STR}),
+    _event(
+        "priority_change",
+        {
+            "trip_id": {"type": "string"},
+            "priority": {"type": "string", "enum": ["emergency", "urgent", "scheduled"]},
+            "note": _NULLABLE_STR,
+        },
+    ),
+    _event("hospital_capacity", {"place_id": {"type": "string"}, "capacity": {"type": "integer"}, "note": _NULLABLE_STR}),
 ]
 
 PARSE_SCHEMA = {
@@ -132,12 +141,16 @@ def build_context(state: WorldState, sender_vehicle_id: str | None) -> dict[str,
                 "status": v.status,
                 "near": nearest_place_name(state, v.lat, v.lon),
                 "on_board": on_board,
+                "current_trip": v.current_trip_id,
             }
         )
     return {
         "sender_vehicle_id": sender_vehicle_id,
         "vehicles": vehicles,
-        "places": [{"id": p.id, "name": p.name, "kind": p.kind} for p in state.places.values()],
+        "places": [
+            {"id": p.id, "name": p.name, "kind": p.kind, **({"capacity": p.capacity} if getattr(p, "capacity", None) is not None else {})}
+            for p in state.places.values()
+        ],
         "open_trips": [
             {"id": t.id, "label": t.patient, "priority": t.priority, "vehicle": t.vehicle_id, "status": t.status}
             for t in trips.values()
@@ -194,6 +207,10 @@ def to_operator_events(state: WorldState, parsed: ParsedMessage) -> list[Any]:
                 ev.pop("dropoff_id", None)  # model default: UKC
         elif ev["type"] in ("breakdown", "delay") and ev["vehicle_id"] not in state.vehicles:
             raise MessageError(f"Unknown vehicle {ev['vehicle_id']}")
+        elif ev["type"] == "priority_change" and ev["trip_id"] not in state.trips:
+            raise MessageError(f"Unknown trip {ev['trip_id']}")
+        elif ev["type"] == "hospital_capacity" and ev["place_id"] not in state.places:
+            raise MessageError(f"Unknown place {ev['place_id']}")
         clean = {k: v for k, v in ev.items() if v is not None}
         try:
             out.append(_event_adapter.validate_python(clean))
