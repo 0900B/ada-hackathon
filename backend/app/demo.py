@@ -504,5 +504,11 @@ def run_scenario(state: WorldState, name: str) -> dict[str, Any]:
         note = f"Scenario started: {title}. Auto-analyse is off: press Analyse (A) for the AI's recommendation."
         return {"scenario": name, "title": title, "events": records, "run_id": None, "note": note}
     run = agent.start_run(state, trigger=f"scenario:{name}", question=question)
+    if run is None:  # automatic analysis skipped: Claude usage limit reached (app/guard.py)
+        state.pending_question = question  # the operator's Analyse still gets the scenario's description
+        state.pending_scenario_events = {r.id for r in records}
+        state.bump()
+        note = f"Scenario started: {title}. The AI limit is reached: press Analyse (A) for the engine's plan."
+        return {"scenario": name, "title": title, "events": records, "run_id": None, "note": note}
     state.bump()
     return {"scenario": name, "title": title, "events": records, "run_id": run.id}

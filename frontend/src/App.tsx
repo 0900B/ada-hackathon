@@ -534,8 +534,34 @@ function StatusBar({ state, connected }: { state: WorldSnapshot; connected: bool
             ? unhealthy.map((s) => `${s.name}: ${s.health}`).join(" · ")
             : "Data feeds fresh"}
         </span>
+        <TilesChip />
       </div>
     </div>
+  );
+}
+
+/** The TomTom traffic layer's daily tile cap (from /health, once a minute): a quiet note when it's reached. */
+function TilesChip() {
+  const [tiles, setTiles] = useState<{ capped?: boolean; used?: string } | null>(null);
+  useEffect(() => {
+    let stop = false;
+    const load = () =>
+      fetch(`${API_URL}/health`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((h) => !stop && setTiles(h?.traffic_tiles ?? null))
+        .catch(() => undefined);
+    void load();
+    const timer = setInterval(load, 60_000);
+    return () => {
+      stop = true;
+      clearInterval(timer);
+    };
+  }, []);
+  if (!tiles?.capped) return null;
+  return (
+    <span className="chip warn" title={`TomTom traffic tiles today: ${tiles.used ?? "?"}. The free plan's quota is protected; the map shows no traffic colours until tomorrow (UTC).`}>
+      <Car /> Traffic layer paused: daily tile limit
+    </span>
   );
 }
 

@@ -24,6 +24,7 @@ from ..engine.projection import red_wait_min
 from ..engine.severity import RED_REFERENCE_MIN, clinical_reason
 from ..engine.plans import simulate_plan
 from ..engine.projection import kpis, project_all
+from ..guard import GUARD, LIMIT_NOTE, LIMIT_REASON, SLOW_NOTE, SLOW_REASON
 from ..models import AgentRun, EventRecord, Plan, PlanStep, Recommendation, RecommendationOption, utcnow
 from .context import build_user_message, describe_call, describe_result, execute_tool
 from .prompts import OUTPUT_SCHEMA, SYSTEM_PROMPT, TOOLS
@@ -56,8 +57,18 @@ def _task_key(state: WorldState, run_id: str) -> str:
     return f"{state.name}:{run_id}"  # run ids are per world, so key tasks by world too
 
 
-def start_run(state: WorldState, trigger: str, focus: EventRecord | None = None, question: str | None = None) -> AgentRun:
-    """Start an analysis in the background. A newer run supersedes any run still in progress."""
+def start_run(
+    state: WorldState, trigger: str, focus: EventRecord | None = None, question: str | None = None
+) -> AgentRun | None:
+    """Start an analysis in the background. A newer run supersedes any run still in progress.
+
+    Only the operator's own request ("operator") always runs; an automatic one (event, call, message,
+    scenario, stale plan) is skipped (returns None) while the Claude usage limit is reached."""
+    if trigger != "operator" and config.agent_enabled() and not GUARD.available():
+        GUARD.skipped_auto()
+        log.warning("automatic analysis (%s) skipped: Claude usage limit reached", trigger)
+        AUDIT.record(state.name, "agent_run_skipped", f"Automatic AI analysis skipped ({trigger}): {LIMIT_REASON}")
+        return None
     for run in state.agent_runs:
         if run.status == "running" and (task := _tasks.get(_task_key(state, run.id))):
             task.cancel()
@@ -104,9 +115,15 @@ async def _run(state: WorldState, run: AgentRun, focus: EventRecord | None, ques
     try:
         if not config.agent_enabled():
             raise AgentFailure("ANTHROPIC_API_KEY is not set")
+        if not GUARD.try_acquire("analysis"):
+            raise AgentFailure(LIMIT_REASON)
         run.log("info", f"Analysing with {config.AGENT_MODEL}")
         state.bump()
-        rec = await _claude_loop(state, run, focus, question)
+        try:  # one deadline for the whole analysis (all turns and retries), not per request
+            rec = await asyncio.wait_for(_claude_loop(state, run, focus, question), timeout=config.AGENT_TIMEOUT_S)
+        except (asyncio.TimeoutError, TimeoutError):  # wait_for has cancelled the Claude call
+            log.warning("agent run %s: Claude took longer than %.0f s, using the engine's plan", run.id, config.AGENT_TIMEOUT_S)
+            raise AgentFailure(SLOW_REASON) from None
         _finish(state, run, rec, engine="claude")
     except asyncio.CancelledError:
         raise
@@ -114,7 +131,7 @@ async def _run(state: WorldState, run: AgentRun, focus: EventRecord | None, ques
         reason = str(e) if isinstance(e, AgentFailure) else f"{type(e).__name__}: {e}"
         log.warning("agent run %s fell back to engine: %s", run.id, reason)
         run.error = reason[:300]
-        run.log("error", f"Claude unavailable ({reason[:200]}). Using the engine's best plan.")
+        run.log("error", _why(reason) + ".")
         _finish(state, run, _engine_recommendation(state, focus, reason, question), engine="engine_fallback")
 
 
@@ -362,11 +379,18 @@ def _engine_recommendation(
         situation=situation,
         options=options,
         recommended_index=0 if options else -1,
-        reasoning=f"Claude was unavailable ({reason[:120]}), so this is the engine's own best plan.{sent}{late}"
-        if options
-        else f"Claude was unavailable ({reason[:120]}). No trip needs a vehicle.{sent}{late}",
+        reasoning=f"{_why(reason)}.{sent}{late}" if options else f"{_why(reason)}. No trip needs a vehicle.{sent}{late}",
         escalation=escalation,
     )
+
+
+def _why(reason: str) -> str:
+    """Why the engine's plan is shown, in one sentence (the usage limit and the deadline say so plainly)."""
+    if reason == LIMIT_REASON:
+        return LIMIT_NOTE
+    if reason == SLOW_REASON:
+        return SLOW_NOTE
+    return f"Claude was unavailable ({reason[:120]}), so this is the engine's own best plan"
 
 
 def _finish(state: WorldState, run: AgentRun, rec: Recommendation, engine: str) -> None:

@@ -227,7 +227,9 @@ export function NavMap({ vehicle, detail, nav, incidents }: Props) {
       opacity: 0.9,
       minZoom: 9,
       maxZoom: 19,
-      maxNativeZoom: 18,
+      // A tablet following a vehicle at zoom 16-17 asked for ~170 new tiles every 2 minutes; zoom-15
+      // tiles scaled up show the same road colours for a quarter to a sixteenth of the TomTom quota
+      maxNativeZoom: 15,
       attribution: "Traffic &copy; TomTom",
       className: "traffic-layer",
     });

@@ -48,6 +48,7 @@ import { conditionText, LEVEL_LABEL, LEVEL_PRIORITY, LEVEL_RANK, LEVELS, levelOf
 import { ResponseLine, SeverityBadge } from "../SeverityBadge";
 import { doctorJobLine } from "../doctor";
 import { DoctorTag, OriginTag } from "../DoctorTag";
+import { bilingualLines } from "../ErrorText";
 import { SPEECH_LANGS, speechSecureContext, usePushToTalk, useSpeechInput } from "../voice";
 import "../voice.css";
 import "../tablet.css";
@@ -604,7 +605,7 @@ function CrewMessage({ world, vehicle, notify }: { world: World; vehicle: Vehicl
       setDraft("");
       notify(true, r.needs_clarification ? `Dispatch asks: ${r.needs_clarification}` : `Dispatch understood: ${r.understood_en}`);
     } catch (e) {
-      notify(false, `Not delivered: ${e instanceof Error ? e.message : String(e)}`);
+      notify(false, `Not delivered: ${bilingualLines(e instanceof Error ? e.message : String(e))}`);
     } finally {
       busyRef.current = false;
       setBusy(false);
