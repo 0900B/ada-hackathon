@@ -46,6 +46,34 @@ def tomtom_key() -> str | None:
     return os.getenv("TOMTOM_API_KEY") or None
 
 
+# --- Daily request budget (protects the free plan's monthly quota) ---------------------
+
+_usage: dict[str, Any] = {"day": None, "flow": 0, "incidents": 0}
+
+
+def usage() -> dict[str, Any]:
+    from .. import config
+
+    return {
+        "day": _usage["day"],
+        "flow": f"{_usage['flow']}/{config.TOMTOM_DAILY_FLOW_CAP}",
+        "incidents": f"{_usage['incidents']}/{config.TOMTOM_DAILY_INCIDENT_CAP}",
+    }
+
+
+def _spend(kind: str, n: int) -> None:
+    """Count n requests against today's cap, or refuse before making them."""
+    from .. import config
+
+    today = utcnow().date().isoformat()
+    if _usage["day"] != today:
+        _usage.update(day=today, flow=0, incidents=0)
+    cap = config.TOMTOM_DAILY_FLOW_CAP if kind == "flow" else config.TOMTOM_DAILY_INCIDENT_CAP
+    if _usage[kind] + n > cap:
+        raise RuntimeError(f"TomTom daily {kind} budget used ({_usage[kind]}/{cap}); using fallback until tomorrow")
+    _usage[kind] += n
+
+
 async def _get(client: httpx.AsyncClient, url: str, params: dict[str, Any]) -> dict[str, Any]:
     try:
         r = await client.get(url, params={**params, "key": tomtom_key()}, headers={"Accept-Encoding": "gzip"})
@@ -59,6 +87,7 @@ async def _get(client: httpx.AsyncClient, url: str, params: dict[str, Any]) -> d
 async def fetch_flow(state: WorldState, client: httpx.AsyncClient) -> None:
     """Weighted average of current/free-flow speed across the sample points -> state.traffic_factor."""
     try:
+        _spend("flow", len(FLOW_POINTS))
         results = await asyncio.gather(
             *(_get(client, FLOW_URL, {"point": f"{lat},{lon}", "unit": "kmph"}) for lat, lon in FLOW_POINTS.values()),
             return_exceptions=True,
@@ -97,6 +126,7 @@ async def fetch_flow(state: WorldState, client: httpx.AsyncClient) -> None:
 
 
 async def fetch_incidents(state: WorldState, client: httpx.AsyncClient) -> None:
+    _spend("incidents", 1)
     data = await _get(
         client,
         INCIDENTS_URL,

@@ -10,9 +10,13 @@ SIM_TICK_S = _float("SIM_TICK_S", 2.0)  # real seconds between simulation ticks
 SIM_SPEEDUP = _float("SIM_SPEEDUP", 5.0)  # simulated seconds per real second
 WEATHER_INTERVAL_S = _float("WEATHER_INTERVAL_S", 600)
 TRAFFIC_INTERVAL_S = _float("TRAFFIC_INTERVAL_S", 30)  # time-of-day profile (no TomTom key)
-# TomTom (when TOMTOM_API_KEY is set): 6 flow points + 1 incident call per interval.
-# At 300 s that is about 2,000 requests a day; check your TomTom plan's daily quota.
-TOMTOM_INTERVAL_S = _float("TOMTOM_INTERVAL_S", 300)
+# TomTom (when TOMTOM_API_KEY is set). Free plan, per month: Flow Segment Data 20,000 requests,
+# Incident Details 2,500. Defaults: 6 flow points every 5 min (~1,730/day) and incidents every
+# 10 min (~145/day), with daily caps; when a cap is hit the time-of-day profile takes over.
+TOMTOM_INTERVAL_S = _float("TOMTOM_INTERVAL_S", 300)  # flow
+TOMTOM_INCIDENTS_INTERVAL_S = _float("TOMTOM_INCIDENTS_INTERVAL_S", 600)
+TOMTOM_DAILY_FLOW_CAP = int(os.getenv("TOMTOM_DAILY_FLOW_CAP", "2000"))
+TOMTOM_DAILY_INCIDENT_CAP = int(os.getenv("TOMTOM_DAILY_INCIDENT_CAP", "150"))
 # NAP / promet.si (when NAP_USERNAME + NAP_PASSWORD are set); NAP updates events about every minute.
 NAP_INTERVAL_S = _float("NAP_INTERVAL_S", 120)
 RANDOM_SEED = int(os.getenv("RANDOM_SEED", "42"))

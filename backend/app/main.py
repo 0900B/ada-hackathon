@@ -77,7 +77,11 @@ async def lifespan(app: FastAPI):
             ),
             asyncio.create_task(
                 run_periodic(
-                    state, "tomtom_incidents", "live", config.TOMTOM_INTERVAL_S, lambda: tomtom.fetch_incidents(state, client)
+                    state,
+                    "tomtom_incidents",
+                    "live",
+                    config.TOMTOM_INCIDENTS_INTERVAL_S,
+                    lambda: tomtom.fetch_incidents(state, client),
                 ),
                 name="tomtom_incidents",
             ),
@@ -131,6 +135,7 @@ def health() -> dict:
         "ok": True,
         "sim_time": state.sim_time.isoformat(),
         "sources": {k: s.model_dump(mode="json") for k, s in state.sources.items()},
+        "tomtom_requests_today": tomtom.usage() if tomtom.tomtom_key() else None,
     }
 
 
