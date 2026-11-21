@@ -6,8 +6,9 @@ simply shows no traffic colours instead of breaking.
 """
 from __future__ import annotations
 
-import base64
+import struct
 import time
+import zlib
 from collections import OrderedDict
 
 import httpx
@@ -22,9 +23,18 @@ MIN_ZOOM, MAX_ZOOM = 9, 18
 TTL_S = 120
 CACHE_MAX = 3000
 
-TRANSPARENT_PNG = base64.b64decode(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
-)
+def _transparent_png() -> bytes:
+    """A fully transparent 1x1 RGBA PNG (alpha 0), built rather than pasted so it can't be wrong."""
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+
+    header = struct.pack(">IIBBBBB", 1, 1, 8, 6, 0, 0, 0)  # 1x1, 8-bit, RGBA
+    pixels = zlib.compress(b"\x00" + b"\x00\x00\x00\x00")  # filter byte + one transparent pixel
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", pixels) + chunk(b"IEND", b"")
+
+
+TRANSPARENT_PNG = _transparent_png()
 
 _cache: OrderedDict[tuple[str, int, int, int], tuple[float, bytes]] = OrderedDict()
 stats = {"served": 0, "fetched": 0, "cache_hits": 0, "errors": 0}
