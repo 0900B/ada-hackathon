@@ -262,6 +262,14 @@ function CrewConsole({
               </span>
             </div>
             {vehicle.type === "doctor" && <div className="crew-doctor">{doctorJobLine(vehicle, trip, placeName)}</div>}
+            {trip.call && (
+              <div className="crew-call">
+                <strong>{trip.call.call_id}</strong>
+                {trip.call.address && <> · {trip.call.address}</>}
+                {trip.call.text_sl && <div className="crew-words">»{trip.call.text_sl}«</div>}
+                {trip.call.text_en && trip.call.text_en !== trip.call.text_sl && <div className="muted small">{trip.call.text_en}</div>}
+              </div>
+            )}
             <div className="crew-sev">
               <SeverityBadge trip={trip} size="md" /> <DoctorTag trip={trip} vehicles={state.vehicles} now={state.sim_time} size="md" />
             </div>

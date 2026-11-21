@@ -479,3 +479,11 @@ kbd {
   text-decoration: none;
   color: var(--text);
 }
+
+.crew-call {
+  font-size: 14px;
+}
+.crew-words {
+  margin-top: 2px;
+  font-style: italic;
+}

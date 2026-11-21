@@ -79,6 +79,45 @@ export interface Trip {
   doctor_vehicle_id?: string | null; // D1, D2, or H1 (the helicopter has a doctor on board)
   doctor_eta?: string | null; // the doctor's arrival at the scene
   doctor_target_min?: number | null; // minutes from the call (15)
+  // The 112 call (or hospital request) behind the trip and its history; missing on older backends
+  call?: CallInfo | null;
+  timeline?: TimelineEntry[];
+}
+
+export interface CallTriage {
+  by: "ai" | "rules" | "dispatcher";
+  at: string;
+  severity: Trip["severity"];
+  condition: string | null;
+  condition_label: string | null;
+  modifiers: string[];
+  needs_doctor: boolean;
+  reason_en: string | null;
+  reason_sl: string | null;
+}
+
+export interface CallInfo {
+  call_id: string; // "112-0042"
+  kind: "112" | "hospital_request";
+  received_at: string;
+  caller_name: string | null;
+  address: string | null;
+  text_sl: string | null; // the caller's words
+  text_en: string | null;
+  triage: CallTriage | null;
+}
+
+export type TimelineKind =
+  | "received" | "triaged" | "dispatched" | "doctor_dispatched" | "rerouted" | "reassigned" | "delayed" | "unit_replaced"
+  | "proposal" | "approved" | "on_scene" | "doctor_on_scene" | "transporting" | "at_hospital" | "handover_done" | "closed" | "note";
+
+export interface TimelineEntry {
+  at: string;
+  kind: TimelineKind | string;
+  by: "caller" | "ai" | "rules" | "engine" | "dispatcher" | "crew" | string;
+  text: string;
+  vehicle_id?: string | null;
+  run_id?: string | null; // proposals and approvals: the AI run
 }
 
 export interface Incident {
@@ -278,6 +317,8 @@ export interface WorldSnapshot {
   kpis: Kpis;
   events: EventRecord[];
   agent: { enabled: boolean; model: string; auto: boolean; runs: AgentRun[] };
+  ai_triage?: boolean; // 112 calls classified by the AI (else by rules); missing on older backends
+  autopilot?: boolean; // the engine applies the AI's recommended plans by itself
 }
 
 // --- Live state over server-sent events --------------------------------------
@@ -378,6 +419,7 @@ export interface VehicleDetail {
   stops: VehicleStop[];
   legs: [number, number][][];
   detour_legs?: number[]; // indexes into legs that go around a road closure
+  responding_to?: { trip_id: string; call_id: string; severity: Trip["severity"]; condition_label: string | null; address: string | null; dropoff_name: string } | null;
 }
 
 /** In-vehicle tablet: next manoeuvres on the current leg (GET /{world}/vehicles/{id}/navigation). */
@@ -433,6 +475,14 @@ export interface MessageResult {
 }
 export const sendFieldMessage = (world: World, text: string, senderVehicleId: string | null) =>
   post<MessageResult>(`/${world}/messages`, { text, sender_vehicle_id: senderVehicleId, apply: true });
+
+/** A new 112 call: the caller's words and where. Returns the trip with its call and timeline. */
+export const postCall = (
+  world: World,
+  body: { text: string; address?: string; place_id?: string; lat?: number; lon?: number; caller_name?: string; dropoff_id?: string },
+) => post<Trip>(`/${world}/calls`, body);
+export const setAiTriage = (world: World, enabled: boolean) => post<{ ai_triage: boolean }>(`/${world}/admin/ai-triage`, { enabled });
+export const setAutopilot = (world: World, enabled: boolean) => post<{ autopilot: boolean }>(`/${world}/admin/autopilot`, { enabled });
 
 export const runScenario = (name: string) =>
   post<{ scenario: string; title: string; run_id: string | null; note?: string; vehicle_id?: string | null }>(

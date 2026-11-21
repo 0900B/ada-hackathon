@@ -960,3 +960,22 @@
   flex: 1;
   font-weight: 700;
 }
+
+/* The call behind the job: id, address and what the caller said */
+.mdt-call {
+  margin: 4px 0;
+}
+.mdt-call-id {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 15px;
+}
+.mdt-call-id span {
+  font-weight: 500;
+}
+.mdt-words {
+  margin: 4px 0 0;
+  padding: 4px 10px;
+  border-left: 3px solid var(--m-border);
+  font-size: 16px;
+}

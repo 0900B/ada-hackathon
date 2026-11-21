@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useState } from "react";
 import { CalendarClock, PhoneIncoming, RotateCcw } from "lucide-react";
 import { resetWorld, runScenario, SCENARIOS, setCalls, type WorldSnapshot } from "./api";
@@ -8,7 +9,7 @@ type Notify = (kind: "ok" | "error", text: string, sticky?: boolean) => void;
 const PREP = "equipment_en_route";
 
 /** Simulation only: operations mode and call stream, one-click demo scenarios, reset. */
-export function ScenariosPanel({ state, notify }: { state: WorldSnapshot; notify: Notify }) {
+export function ScenariosPanel({ state, notify, extra }: { state: WorldSnapshot; notify: Notify; extra?: ReactNode }) {
   const world = state.world;
   const [running, setRunning] = useState<string | null>(null);
   const mode = state.mode ?? "live_calls";
@@ -99,6 +100,7 @@ export function ScenariosPanel({ state, notify }: { state: WorldSnapshot; notify
         )}
       </div>
       {callsLine && <div className="muted ops-calls">{callsLine}</div>}
+      {extra}
 
       {prep && (
         <button className="scenario scenario-prep" disabled={running !== null} onClick={() => start(prep.name)}>

@@ -40,6 +40,10 @@ import { ShortcutsHelp } from "./ShortcutsHelp";
 import { CrewPage } from "./pages/CrewPage";
 import { ScenariosPanel } from "./ScenariosPanel";
 import { EmergencyPicker } from "./EmergencyPicker";
+import { CallsPanel } from "./CallsPanel";
+import { DemoButtons } from "./DemoButtons";
+import { MissingEndpoint, randomCall, randomIncident, useDemoApi } from "./demoInject";
+import { bilingualLines } from "./ErrorText";
 import { VehicleCard } from "./VehicleCard";
 import { VehicleStrip } from "./VehicleStrip";
 import { OpsControls } from "./OpsControls";
@@ -58,7 +62,7 @@ const TabletPage = lazy(() => import("./pages/TabletPage").then((m) => ({ defaul
 type Send = (event: Record<string, unknown>) => Promise<void>;
 type Toast = { kind: "ok" | "error"; text: string; sticky: boolean; n: number };
 type Notify = (kind: "ok" | "error", text: string, sticky?: boolean) => void;
-type Tab = "dispatch" | "scenarios" | "events" | "book" | "alerts";
+type Tab = "calls" | "dispatch" | "scenarios" | "events" | "book" | "alerts";
 
 const unassignedTotal = (k: Kpis) => k.unassigned.emergency + k.unassigned.urgent + k.unassigned.scheduled;
 
@@ -182,7 +186,59 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
   const [centerOn, setCenterOn] = useState<{ lat: number; lon: number; n: number } | null>(null);
   const [picked, setPicked] = useState(""); // vehicle chosen in the Events tab dropdown
   const [help, setHelp] = useState(false);
-  const [tab, setTab] = useState<Tab>("dispatch");
+  const [tab, setTab] = useState<Tab>("calls"); // the panel starts from the calls
+  const [callFocus, setCallFocus] = useState<{ tripId: string; n: number } | null>(null); // open this call's card
+  const [callPoint, setCallPoint] = useState<{ lat: number; lon: number; n: number } | null>(null); // new call: map point
+  const openCall = (tripId: string) => {
+    setTab("calls");
+    setCallFocus({ tripId, n: Date.now() });
+  };
+  // Demo injections (Simulation only; hidden until the backend has the endpoints)
+  const [demo, demoMissing] = useDemoApi(sim);
+  const [demoBusy, setDemoBusy] = useState(false);
+  const injectCall = async (severity?: string) => {
+    if (!demo.call || demoBusy) return;
+    setDemoBusy(true);
+    try {
+      const { trip, summary } = await randomCall(severity);
+      notify("ok", summary);
+      if (trip) {
+        openCall(trip.id);
+        if (trip.vehicle_id) select(trip.vehicle_id, false);
+      }
+    } catch (e) {
+      if (e instanceof MissingEndpoint) {
+        demoMissing("call");
+        notify("error", "Random calls need a newer backend: use E (emergency) instead.");
+      } else notify("error", bilingualLines(errorText(e)));
+    } finally {
+      setTimeout(() => setDemoBusy(false), 600);
+    }
+  };
+  const injectIncident = async (kind?: string) => {
+    if (!demo.incident || demoBusy) return;
+    setDemoBusy(true);
+    try {
+      const { event, summary } = await randomIncident(kind);
+      notify("ok", summary);
+      const tripId = event?.affected_trip_ids?.[0];
+      const vehicleId = (event as { payload?: { vehicle_id?: string } } | null)?.payload?.vehicle_id;
+      if (tripId) openCall(tripId);
+      if (vehicleId) select(vehicleId, false);
+      else if (tripId) {
+        const v = state.trips.find((t) => t.id === tripId)?.vehicle_id;
+        if (v) select(v, false);
+      }
+    } catch (e) {
+      if (e instanceof MissingEndpoint) {
+        demoMissing("incident");
+        notify("error", "Random failures need a newer backend: use the Events tab instead.");
+      } else notify("error", bilingualLines(errorText(e)));
+    } finally {
+      setTimeout(() => setDemoBusy(false), 600);
+    }
+  };
+  const demoButtons = <DemoButtons api={demo} busy={demoBusy} onCall={(s) => void injectCall(s)} onIncident={(k) => void injectIncident(k)} />;
   const [unseenRun, setUnseenRun] = useState(false);
   const micToggle = useRef<(() => void) | null>(null);
   const agentKeys = useRef<AgentKeys | null>(null);
@@ -213,7 +269,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
   useEffect(() => {
     if (!latestRun || latestRun.id === lastRunId.current) return;
     lastRunId.current = latestRun.id;
-    if (tab === "book") setUnseenRun(true);
+    if (tab === "book" || tab === "calls") setUnseenRun(true); // don't pull the dispatcher away from a form or a call
     else setTab("dispatch");
   }, [latestRun, tab]);
   useEffect(() => {
@@ -281,6 +337,8 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
     f: () => void send({ type: "fog", duration_min: 60 }),
     e: () => setMode((m) => (m === "emergency" ? null : "emergency")),
     c: () => setMode((m) => (m === "closure" ? null : "closure")),
+    r: () => void injectCall(),
+    x: () => void injectIncident(),
     Escape: () => {
       setMode(null);
       select(null);
@@ -294,6 +352,9 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
       void send({ type: "road_closure", lat, lon, radius_m: 400, description: "Road closed (operator report)" });
     } else if (mode === "emergency") {
       setPendingCall({ lat, lon }); // what kind of emergency: the picker sends it
+    } else if (mode === "call") {
+      setCallPoint({ lat, lon, n: Date.now() }); // the new 112 call's location (the form in the Calls tab)
+      setTab("calls");
     }
     setMode(null);
   };
@@ -302,7 +363,10 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
   const drMisses = doctorAlerts(state);
   const alertCount = misses.length + drMisses.length + state.alerts.length + state.incidents.filter((i) => i.active).length;
   const critical = misses.length > 0 || drMisses.length > 0 || state.alerts.some((a) => a.severity === "critical");
+  const activeCalls = state.trips.filter((t) => t.status !== "completed" && t.status !== "cancelled").length;
+  const waitingCalls = state.trips.filter((t) => t.status === "unassigned" && (t.severity === "critical" || t.severity === "serious")).length;
   const tabs: { id: Tab; label: string; badge?: string; hot?: boolean }[] = [
+    { id: "calls", label: "Calls", badge: activeCalls ? String(activeCalls) : undefined, hot: waitingCalls > 0 },
     { id: "dispatch", label: "Dispatch", badge: unseenRun ? "New" : undefined, hot: unseenRun },
     ...(sim ? [{ id: "scenarios" as Tab, label: "Scenarios" }] : []),
     { id: "events", label: sim ? "Events" : "Report" },
@@ -320,6 +384,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
           onSelect={(id) => select(id, false)}
           onCenter={centerVehicle}
           onOpenCard={(id) => select(id, true)}
+          onOpenCall={openCall}
           send={send}
           busy={busy}
         />
@@ -327,7 +392,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
         {mode && (
           <div className="map-hint">
             {mode === "closure" ? <Construction /> : <CircleAlert />}
-            Click the map to place the {mode === "closure" ? "road closure" : "emergency call"} ·{" "}
+            Click the map to place the {mode === "closure" ? "road closure" : mode === "call" ? "112 call's location" : "emergency call"} ·{" "}
             <button className="link" onClick={() => setMode(null)}>
               cancel (Esc)
             </button>
@@ -361,6 +426,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
             busy={busy}
             send={send}
             onClose={() => select(null)}
+            onOpenCall={openCall}
             onCenter={() => setCenterOn({ lat: detail.vehicle.lat, lon: detail.vehicle.lon, n: Date.now() })}
           />
         )}
@@ -392,6 +458,17 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
           ))}
         </div>
         {/* Every tab stays mounted (hidden), so forms, results and the mic hotkey survive switching */}
+        <div className="side-body" hidden={tab !== "calls"}>
+          <CallsPanel
+            state={state}
+            focus={callFocus}
+            picked={callPoint}
+            onPickOnMap={() => setMode("call")}
+            onSelectVehicle={(id, card) => select(id, card)}
+            notify={notify}
+            demo={demoButtons}
+          />
+        </div>
         <div className="side-body" hidden={tab !== "dispatch"}>
           <FieldMessage state={state} micToggleRef={micToggle} />
           <AgentPanel state={state} notify={notify} keysRef={agentKeys} />
@@ -399,7 +476,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
         {sim && (
           <div className="side-body" hidden={tab !== "scenarios"}>
             <Panel title="Scenarios">
-              <ScenariosPanel state={state} notify={notify} />
+              <ScenariosPanel state={state} notify={notify} extra={demoButtons} />
             </Panel>
           </div>
         )}
