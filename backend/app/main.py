@@ -17,7 +17,7 @@ from .engine.actions import ActionError
 from .engine.events import EventError, apply_event
 from .engine.plans import apply_plan, simulate_plan
 from .engine.projection import kpis, project_all
-from .fetchers import tomtom
+from .fetchers import nap, tomtom
 from .fetchers.base import run_periodic
 from .fetchers.traffic import update_traffic
 from .fetchers.weather import fetch_weather
@@ -77,9 +77,9 @@ async def lifespan(app: FastAPI):
             ),
             asyncio.create_task(
                 run_periodic(
-                    state, "incidents", "live", config.TOMTOM_INTERVAL_S, lambda: tomtom.fetch_incidents(state, client)
+                    state, "tomtom_incidents", "live", config.TOMTOM_INTERVAL_S, lambda: tomtom.fetch_incidents(state, client)
                 ),
-                name="incidents",
+                name="tomtom_incidents",
             ),
         ]
     else:
@@ -89,11 +89,24 @@ async def lifespan(app: FastAPI):
                 name="traffic",
             )
         )
+    if nap.nap_credentials():
+        tasks.append(
+            asyncio.create_task(
+                run_periodic(state, "promet.si", "live", config.NAP_INTERVAL_S, lambda: nap.fetch_events(state, client)),
+                name="promet.si",
+            )
+        )
     log.info(
-        "backend started: %d vehicles, %d trips, agent %s",
+        "backend started: %d vehicles, %d trips, agent %s, traffic feeds: %s",
         len(state.vehicles),
         len(state.trips),
         f"enabled ({config.AGENT_MODEL})" if config.agent_enabled() else "disabled (no ANTHROPIC_API_KEY): engine fallback only",
+        ", ".join(
+            name
+            for name, on in (("TomTom", tomtom.tomtom_key()), ("promet.si/NAP", nap.nap_credentials()))
+            if on
+        )
+        or "none (time-of-day profile)",
     )
     yield
     agent.cancel_all()

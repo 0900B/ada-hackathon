@@ -13,6 +13,8 @@ TRAFFIC_INTERVAL_S = _float("TRAFFIC_INTERVAL_S", 30)  # time-of-day profile (no
 # TomTom (when TOMTOM_API_KEY is set): 6 flow points + 1 incident call per interval.
 # At 300 s that is about 2,000 requests a day; check your TomTom plan's daily quota.
 TOMTOM_INTERVAL_S = _float("TOMTOM_INTERVAL_S", 300)
+# NAP / promet.si (when NAP_USERNAME + NAP_PASSWORD are set); NAP updates events about every minute.
+NAP_INTERVAL_S = _float("NAP_INTERVAL_S", 120)
 RANDOM_SEED = int(os.getenv("RANDOM_SEED", "42"))
 # MET Norway asks API clients to identify themselves; add a contact address here if you like.
 HTTP_USER_AGENT = os.getenv("HTTP_USER_AGENT", "adahack-transport-backend/0.1")

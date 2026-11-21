@@ -131,10 +131,17 @@ async def fetch_incidents(state: WorldState, client: httpx.AsyncClient) -> None:
             radius_m=max(150.0, min((props.get("length") or 300) / 2, 1000.0)),
             created_at=utcnow(),
             source="live",
+            provider="tomtom",
         )
-    severity = {"road_closure": 0, "accident": 1, "congestion": 2}
-    kept = dict(sorted(fresh.items(), key=lambda kv: severity[kv[1].kind])[:MAX_INCIDENTS])
-    # Replace previous live incidents; leave operator-injected ones alone.
-    for inc_id in [i for i, inc in state.incidents.items() if inc.source == "live"]:
+    replace_provider_incidents(state, "tomtom", fresh)
+
+
+SEVERITY = {"road_closure": 0, "accident": 1, "congestion": 2}
+
+
+def replace_provider_incidents(state: WorldState, provider: str, fresh: dict[str, Incident]) -> None:
+    """Swap in one feed's current incidents; other feeds' and operator-injected incidents stay."""
+    kept = dict(sorted(fresh.items(), key=lambda kv: SEVERITY[kv[1].kind])[:MAX_INCIDENTS])
+    for inc_id in [i for i, inc in state.incidents.items() if inc.provider == provider]:
         del state.incidents[inc_id]
     state.incidents.update(kept)

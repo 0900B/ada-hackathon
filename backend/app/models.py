@@ -73,6 +73,7 @@ class Incident(BaseModel):
     radius_m: float
     created_at: datetime
     source: Literal["live", "injected"] = "injected"
+    provider: str | None = None  # "tomtom", "promet.si" for live incidents; each feed replaces only its own
     active: bool = True
 
 
