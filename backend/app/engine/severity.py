@@ -103,7 +103,7 @@ BUSY_UNIT_MIN_GAIN_MIN = 3.0  # rule 1: a busy unit must beat the best free one 
 OVERRIDE_MIN_SAVING_MIN = {"critical": 3.0, "serious": 5.0}  # rule 2: time saved to divert from a lower level
 NEAR_PATIENT_MIN = 2.0  # rule 5: never divert a unit this close to (or at) its current patient
 HELICOPTER_GAIN_MIN = {"critical": 0.0, "serious": 10.0, "urgent": 15.0, "routine": float("inf")}  # rule 6
-HELICOPTER_REMOTE_KM = 15.0  # rule 6: urgent calls fly only when this remote
+HELICOPTER_REMOTE_KM = 15.0  # rule 6: urgent calls fly only this far from their destination hospital
 SWAP_MIN_GAIN_MIN = 5.0  # rule 4: propose a same-level swap if it saves at least this much
 WEIGHT_CLEARLY_HIGHER = 1.5  # rule 4: weights differing by at least this are "not comparable"
 

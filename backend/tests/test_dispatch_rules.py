@@ -11,8 +11,9 @@ import os
 import sys
 import time
 import traceback
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 os.environ["ROAD_ROUTING"] = "0"
 os.environ["AGENT_AUTO"] = "0"
@@ -38,8 +39,11 @@ W = main.sim
 AMBULANCES = ("A1", "A2", "A3")
 
 
+DAY = datetime(2026, 11, 23, 9, 0, tzinfo=ZoneInfo("Europe/Ljubljana"))  # fixed clock, by day: the helicopter flies 08:00-16:30
+
+
 def fresh() -> None:
-    seed_world(W, config.RANDOM_SEED, scheduled_day=True)  # these tests plan around a pre-planned day
+    seed_world(W, config.RANDOM_SEED, scheduled_day=True, start=DAY)  # these tests plan around a pre-planned day
     W.auto_analyze = False
 
 
@@ -167,10 +171,11 @@ def test_urgent_city_call_does_not_fly_but_a_remote_one_does():
 
 
 def test_remote_emergency_scenario_helicopter_flies_lands_and_delivers():
-    """Live-calls scenario: H1 is flying to an urgent skier when the hiker (serious, major trauma, 45 min
-    by road) is reported: the engine turns H1 around at once (doctrine rules 2 and 6); the skier is
-    taken over by whichever unit reaches it first (with the real on-scene and handover times, a road
-    ambulance rather than H1 after the hiker), still within its 60-min target."""
+    """Live-calls scenario: H1 is being activated at Brnik for an urgent skier when the hiker (serious,
+    major trauma, 45 min by road) is reported: the engine re-tasks H1 at once (doctrine rules 2 and 6);
+    the skier is taken over by whichever unit reaches it first (with the real on-scene and handover
+    times, a road ambulance rather than H1 after the hiker), still within its 60-min target. H1 takes
+    off only after its 13-min activation."""
     records = demo.prepare(W, "remote_emergency")
     W.auto_analyze = False
     t = W.trips[records[0].affected_trip_ids[0]]
@@ -185,14 +190,22 @@ def test_remote_emergency_scenario_helicopter_flies_lands_and_delivers():
         seen.append((h.status, t.status, round(h.lat, 4), round(h.lon, 4)))
         return t.status == "completed"
 
+    base = W.places[h.base_id]
+    assert h.base_id == "brnik" and (h.lat, h.lon) == (base.lat, base.lon), "still at Brnik: the crew gets it ready"
+    takeoff = h.busy_until
+    # activated for the skier's call (2 min before the hiker's): it takes off 13 min after that call
+    assert takeoff is not None and abs((takeoff - skier.pickup_after).total_seconds() / 60 - 13) <= 1, "13 min call to take-off"
+    assert "take-off in 11 min" in records[0].summary or "take-off in 12 min" in records[0].summary, records[0].summary
     assert run_until(step, 60)
     statuses = [s[0] for s in seen]
     assert statuses.index("to_pickup") < statuses.index("loading") < statuses.index("with_patient")
     loading = next(s for s in seen if s[0] == "loading")
     assert (loading[2], loading[3]) == (round(site.lat, 4), round(site.lon, 4)), "landed at the call location"
-    assert (h.lat, h.lon) == (ukc.lat, ukc.lon) and h.base_id == "ukc", "delivered at UKC, its base"
+    assert (h.lat, h.lon) == (ukc.lat, ukc.lon), "delivered at UKC (its base is Brnik)"
     flying = [s for s in seen if s[0] == "to_pickup"]
     assert len({(s[2], s[3]) for s in flying}) > 3, "it moves across the map while flying"
+    parked = [s for s in seen[: int(10 * 60 / 15)] if s[0] == "to_pickup"]
+    assert parked and {(s[2], s[3]) for s in parked} == {(round(base.lat, 4), round(base.lon, 4))}, "no take-off before 13 min"
     assert t.delay_min == 0
     assert skier.vehicle_id and skier.status != "unassigned", "the skier is served, not lost"
 

@@ -8,12 +8,13 @@ Epilog's data if they provide it.
 from __future__ import annotations
 
 import random
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from ..engine.actions import can_serve
 from ..engine.projection import LATE_ALERT_MIN, project_all, project_route, route_trip_ids
 from ..engine.service_times import EQUIPMENT_PICKUP_MIN, VAN_PATIENT_PICKUP_MIN
+from ..hems import HEMS_BASE
 from ..models import Needs, Place, Trip, Vehicle
 from ..routing import travel_minutes
 from .fleet_details import equip_fleet
@@ -51,6 +52,7 @@ PLACES = [
     ("base_private", "Private ambulance base Brezovica", "base", 46.0236, 14.4128),
     ("base_private_vic", "Private ambulance base Vič", "base", 46.0430, 14.4950),
     ("base_private_vans", "Private patient transport base Moste", "base", 46.0590, 14.5480),
+    HEMS_BASE,  # the helicopter's base: HNMP Brnik, Ljubljana airport (app/hems.py)
 ]
 
 FLEET = [
@@ -62,7 +64,7 @@ FLEET = [
     ("T3", "Transport 3", "transport", "base_center"),
     ("T4", "Transport 4", "transport", "base_west"),
     ("T5", "Transport 5", "transport", "base_center"),
-    ("H1", "Helicopter 1", "helicopter", "ukc"),  # HNMP, based at the hospital
+    ("H1", "Helicopter 1", "helicopter", "brnik"),  # HNMP, based at Brnik (airport); flies patients to UKC
     # Doctor cars (VUZ, ZD Ljubljana): an emergency physician and a nurse who join the ambulance crew.
     ("D1", "Doctor car 1", "doctor", "zd_center"),
     ("D2", "Doctor car 2", "doctor", "zd_siska"),
@@ -102,15 +104,21 @@ EQUIPMENT = [
 ]
 
 
-def seed_world(state: WorldState, seed: int, n_trips: int = 24, scheduled_day: bool | None = None) -> None:
+def seed_world(
+    state: WorldState, seed: int, n_trips: int = 24, scheduled_day: bool | None = None, start: datetime | None = None
+) -> None:
     """Places, fleet and crews; every unit idle at its base.
 
     scheduled_day (None = keep the world's current mode): True also books and pre-plans a day of
     scheduled trips on the vans (the brief's "initial plan"); False = live calls, no trips at all.
+    start: the world clock to start from (default: now). The helicopter flies by day only
+    (app/hems.py), so the benchmark and the helicopter scenarios start at a daytime clock.
     """
     if scheduled_day is not None:
         state.scheduled_day = scheduled_day
     state.reset_simulation()
+    if start is not None:
+        state.sim_time = start.astimezone(timezone.utc).replace(microsecond=0)
 
     for pid, name, kind, lat, lon in PLACES:
         state.places[pid] = Place(id=pid, name=name, kind=kind, lat=lat, lon=lon, specialty=SPECIALTY.get(pid))  # type: ignore[arg-type]

@@ -10,6 +10,7 @@ import random
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
+from ..hems import duty_end
 from ..models import CrewMember, VehicleType
 
 if TYPE_CHECKING:
@@ -60,6 +61,8 @@ def equip_fleet(state: WorldState, seed: int) -> None:
         for vtype, role, pos in _EXTRA_ROLES:
             if v.type == vtype:
                 v.crew.insert(pos, CrewMember(name=f"{_name(extra, used)} (fictional)", role=role))
+        if v.type == "helicopter":
+            v.shift_end = duty_end(state.sim_time)  # HNMP flies by day: its day ends at 16:30 (app/hems.py)
 
 
 def fuel_rate(vehicle_type: VehicleType | str) -> float:

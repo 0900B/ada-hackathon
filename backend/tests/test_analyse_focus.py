@@ -86,7 +86,8 @@ def test_a_later_event_wins_over_a_stale_scenario():
 def test_several_new_events_are_listed_together():
     fresh_with_scenario()
     analyse()  # the scenario has been looked at
-    vs = [v for v in W.vehicles.values() if v.current_trip_id][:2]
+    # Units with work: a current trip, or one queued (A2 finishing its cleaning before the stroke).
+    vs = [v for v in W.vehicles.values() if v.current_trip_id or v.queue][:2]
     assert len(vs) == 2
     r1, r2 = delay(vs[0], 10), delay(vs[1], 15)
     _, focus, question = analyse()

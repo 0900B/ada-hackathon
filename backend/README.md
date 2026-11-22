@@ -167,6 +167,15 @@ Severity and dispatch doctrine (`engine/severity.py`, `engine/dispatch.py`, rule
   serious, remote 15 min for urgent; stroke/STEMI judged by arrival at UKC. Same-level swaps are only
   proposed (`swap_options`: engine-fallback options and `proposed_swaps` in the agent's situation).
   The event summary says who, why, when, the helicopter check and the clinical reason.
+- **Helicopter H1** (`app/hems.py`, docs/SERVICE_TIMES.md): based at `brnik` (Ljubljana airport), 13 min
+  from the call to take-off when it starts from rest there (none when airborne), 200 km/h, 3 min to land
+  at the scene and 2 on a helipad; new calls only 08:00-16:30 local (world clock), a mission under way
+  is finished. Snapshot and vehicle card add, for helicopters only: `off_duty_until` (ISO, at night),
+  `unavailable` (`"night"` | `"fog"` | null), `unavailable_text` ("Unavailable (night): flies 08:00-16:30,
+  available 08:00"), `hours`. Summaries: "take-off in 13 min", "H1 checked: at the patient 13:22
+  (take-off in 13 min; not the closest)", "H1 not available: night (HNMP flies 08:00-16:30)"; the unit's
+  `status_text` while the crew gets ready: "crew to the aircraft, take-off 13:24"; navigation (flight
+  mode) adds `takeoff_at` then. Demo scenarios run at a daytime world clock (`demo.scenario_start`).
 - Slovenian practice: a red call predicted over 15 min raises `red_response_over_15_min`; the last free
   ambulance of an area is kept for red calls (a van takes the non-urgent call).
 - **Doctor cars** D1 (base `zd_center`) and D2 (`zd_siska`), `type: "doctor"` (VUZ: physician + nurse;
@@ -177,7 +186,8 @@ Severity and dispatch doctrine (`engine/severity.py`, `engine/dispatch.py`, rule
   `doctor_vehicle_id` and `doctor_eta` (projected while driving, the actual arrival once there); the
   summary says `+ doctor D1 (Rudnik, at the patient 22:45, 5 min after the ambulance)`. The helicopter
   has a doctor on board (`doctor_vehicle_id: "H1"`), unless it is over 15 min and a doctor car is
-  sooner (that car stands down when H1 lifts off). Doctor-car statuses: `to_pickup` = to the scene,
+  sooner (that car stands down when H1 lifts off). With its 13-min activation it is over 15 min from
+  rest, so in the city the doctor car usually stays; on a remote call its doctor is first. Doctor-car statuses: `to_pickup` = to the scene,
   `loading` = on scene with the crew, `with_patient` = escorting to hospital, then `returning`;
   `current_trip_id` = the supported trip; `trip.vehicle_id` stays the ambulance. A doctor car never
   transports and is never a plan step. No doctor within the target: alert `doctor_response_over_15_min`.

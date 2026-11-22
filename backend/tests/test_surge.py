@@ -18,8 +18,9 @@ import os
 import sys
 import time
 import traceback
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 os.environ["ROAD_ROUTING"] = "0"
 os.environ["AGENT_AUTO"] = "0"
@@ -45,10 +46,11 @@ for noisy in ("httpx", "httpx2"):
 client = TestClient(main.app)
 W = main.sim
 CONTRACTED = ("P1", "P2", "PV1", "PV2", "PV3")
+DAY = datetime(2026, 11, 23, 9, 0, tzinfo=ZoneInfo("Europe/Ljubljana"))  # fixed clock, by day: the helicopter flies 08:00-16:30
 
 
 def fresh() -> None:
-    seed_world(W, config.RANDOM_SEED, scheduled_day=False)
+    seed_world(W, config.RANDOM_SEED, scheduled_day=False, start=DAY)
     W.auto_analyze = False
     W.calls.enabled = False
 
@@ -138,7 +140,7 @@ def test_trigger_red_call_over_15_min_and_calls_past_target():
 
 
 def test_trigger_off_in_the_scheduled_day():
-    seed_world(W, config.RANDOM_SEED, scheduled_day=True)
+    seed_world(W, config.RANDOM_SEED, scheduled_day=True, start=DAY)
     for v in ("A1", "A2", "A3"):
         busy(v)
     project_all(W)
@@ -267,7 +269,10 @@ def test_call_surge_scenario_offers_surge_capacity_and_the_queue_clears():
     assert r.status_code == 200, r.text
     assert surge.active(W) and r.json()["decision"]["executed"][0].startswith("Surge capacity active until")
     on_private = {t.id: t.vehicle_id for t in W.trips.values() if t.vehicle_id in CONTRACTED}
-    assert {on_private.get(x) for x in red_waiting} <= {"P1", "P2"} and all(x in on_private for x in red_waiting), on_private
+    # The realistic helicopter (13 min to take off at Brnik) no longer takes the cardiac arrest: an
+    # ambulance is diverted to it, so three red calls wait; the two contracted ambulances take two.
+    moved = [x for x in red_waiting if x in on_private]
+    assert len(moved) >= 2 and {on_private[x] for x in moved} <= {"P1", "P2"}, (red_waiting, on_private)
     assert any(v.startswith("PV") for v in on_private.values()), "queued transports moved to the private vans"
     assert len(surge.demand(W)["red_over_15_min"]) < len(red_waiting)
 
