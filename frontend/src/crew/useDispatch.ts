@@ -114,5 +114,8 @@ export function useDispatch(state: WorldSnapshot, vehicle: Vehicle, world: World
       ? [...state.agent.runs].reverse().find((r) => idSeq(r.id) > sentSeq)
       : undefined;
 
-  return { busy, sent, result, error, direct, run, send };
+  // the ref, not the state: the state lags a render behind, and the speech callback must see a send that just started
+  const isBusy = () => busyRef.current;
+
+  return { busy, sent, result, error, direct, run, send, isBusy };
 }

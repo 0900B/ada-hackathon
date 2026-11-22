@@ -111,7 +111,7 @@ function CrewConsole({
 
   const speech = useSpeechInput({
     onFinal: (heard) => {
-      if (dispatch.busy) setDraft(heard); // a message is still in flight: keep it for manual send
+      if (dispatch.isBusy()) setDraft(heard); // a message is still in flight: keep it for manual send
       else void dispatch.send(heard);
     },
   });
