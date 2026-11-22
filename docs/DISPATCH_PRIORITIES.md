@@ -231,7 +231,7 @@ Every call has a **call record** (`Trip.call`) and a **timeline** (`Trip.timelin
   reassigned, delayed, unit replaced, proposal, approved, reviewed, override, on scene, doctor on scene,
   transporting, at hospital, handover done, closed, note; each says who (`by`: caller, ai, rules, engine,
   dispatcher, crew) and the source in a few words (`detail`: "rules engine, 0.1 s", "keyword rules,
-  0.0 s", "Claude, 12 s, checked by the engine", "dispatcher override").
+  <0.1 s", "Claude, 12 s, checked by the engine", "dispatcher override").
 - **Automatic follow-up of 112 calls** (`engine/followup.py`, every 30 world-seconds, logged by the
   engine): a call whose unit drops out is re-dispatched at once; a call no unit could take is
   dispatched as soon as one can; before arrival a **free** ambulance that reaches the patient **3 min
