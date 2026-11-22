@@ -149,6 +149,45 @@ svg.lucide {
   margin-left: auto;
   font-size: 12px;
 }
+/* Language switch "SL | EN" (header, tablet, crew phone): inherits the colour of its bar */
+.lang-toggle {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.lang-toggle-item {
+  display: inline-flex;
+  align-items: center;
+}
+.lang-toggle-sep {
+  opacity: 0.45;
+  padding: 0 1px;
+}
+.lang-toggle button {
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: inherit;
+  opacity: 0.6;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 3px 5px;
+  cursor: pointer;
+}
+.lang-toggle button:hover {
+  opacity: 1;
+}
+.lang-toggle button.on {
+  opacity: 1;
+  border-color: currentColor;
+}
+.header .lang-toggle {
+  color: var(--text-2);
+}
 .chips {
   display: flex;
   gap: 6px;

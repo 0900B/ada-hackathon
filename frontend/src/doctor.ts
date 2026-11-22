@@ -7,6 +7,7 @@
  * All fields are optional: older backends send none, and then nothing here shows.
  */
 import type { Trip, Vehicle } from "./api";
+import { liveRecord, t } from "./i18n";
 import { conditionText, LEVEL_LABEL, levelOf } from "./severity";
 
 /** Conditions that need a doctor (to preview it in the emergency picker before the backend answers). */
@@ -21,7 +22,7 @@ export const DOCTOR_CONDITIONS = new Set([
 ]);
 export const DOCTOR_TARGET_MIN = 15;
 
-export const ORIGIN_LABEL: Record<string, string> = { mutual_aid: "Mutual aid", private: "Private" };
+export const ORIGIN_LABEL: Record<string, string> = liveRecord(["mutual_aid", "private"] as const, (o) => t(`origin.${o}`));
 export const isOutside = (v: Pick<Vehicle, "origin"> | undefined) => Boolean(v?.origin && v.origin !== "own");
 
 export interface DoctorInfo {
@@ -50,30 +51,31 @@ export function doctorOf(t: Trip, vehicles: Vehicle[], now: string): DoctorInfo 
   return { state: arrived ? "on_scene" : "en_route", vehicle: id, minutes, target, waited, missed };
 }
 
-/** "Dr D1 7/15", "Dr needed", "Dr on H1". */
-export function doctorText(d: DoctorInfo): string {
-  if (d.state === "needed") return "Dr needed";
-  if (d.state === "helicopter") return `Dr on ${d.vehicle}`;
-  return `Dr ${d.vehicle}${d.minutes != null ? ` ${d.minutes}/${d.target}` : ""}`;
+/** "Dr D1 7/15", "Dr needed", "Dr on H1"; compact (the stethoscope stands for "Dr"): "D1 7/15", "needed", "on H1". */
+export function doctorText(d: DoctorInfo, compact = false): string {
+  if (d.state === "needed") return t(compact ? "dr.neededShort" : "dr.needed");
+  if (d.state === "helicopter") return t(compact ? "dr.heliShort" : "dr.heli", { v: d.vehicle });
+  const body = `${d.vehicle}${d.minutes != null ? ` ${d.minutes}/${d.target}` : ""}`;
+  return compact ? body : t("dr.car", { v: body });
 }
 
 export function doctorTitle(d: DoctorInfo): string {
-  if (d.state === "needed")
-    return `This call needs a doctor and no doctor car is assigned yet: waiting ${Math.round(d.waited)} min, target ${d.target} min to the scene.`;
-  if (d.state === "helicopter") return `The helicopter ${d.vehicle} brings its own doctor.`;
-  const when = d.minutes != null ? `${d.minutes} min after the call` : "time unknown";
-  return `Doctor car ${d.vehicle} ${d.state === "on_scene" ? "reached" : "reaches"} the scene ${when}; target ${d.target} min${
-    d.missed && d.minutes != null ? `: ${d.minutes - d.target} min over` : ""
-  }.`;
+  if (d.state === "needed") return t("dr.titleNeeded", { waited: Math.round(d.waited), target: d.target });
+  if (d.state === "helicopter") return t("dr.titleHeli", { v: d.vehicle });
+  const when = d.minutes != null ? t("dr.whenAfter", { m: d.minutes }) : t("dr.whenUnknown");
+  const over = d.missed && d.minutes != null ? d.minutes - d.target : null;
+  const reached = d.state === "on_scene";
+  const key = over != null ? (reached ? "dr.titleReachedOver" : "dr.titleReachesOver") : reached ? "dr.titleReached" : "dr.titleReaches";
+  return t(key, { v: d.vehicle, when, target: d.target, over });
 }
 
-/** What a doctor car is doing, in a few words ("doctor for TR-012", "on scene with A2", "escorting to UKC"). */
+/** What a doctor car is doing, in a few words ("Joining A2 at Bežigrad", "Escorting A2 to UKC"). */
 export function doctorJob(v: Vehicle, trip: Trip | undefined, place: (id: string) => string): string | null {
   if (v.type !== "doctor" || !trip) return null;
-  const unit = trip.vehicle_id ?? "the ambulance";
-  if (v.status === "to_pickup") return `Joining ${unit} at ${place(trip.pickup_id)}`;
-  if (v.status === "loading") return `On scene with ${unit} at ${place(trip.pickup_id)}`;
-  if (v.status === "with_patient") return `Escorting ${unit} to ${place(trip.dropoff_id)}`;
+  const unit = trip.vehicle_id ?? t("dr.theAmbulance");
+  if (v.status === "to_pickup") return t("dr.jobJoining", { unit, place: place(trip.pickup_id) });
+  if (v.status === "loading") return t("dr.jobOnScene", { unit, place: place(trip.pickup_id) });
+  if (v.status === "with_patient") return t("dr.jobEscorting", { unit, place: place(trip.dropoff_id) });
   return null;
 }
 
@@ -86,14 +88,10 @@ export function doctorJobLine(v: Vehicle, trip: Trip | undefined, place: (id: st
 }
 
 /** Status words for a doctor car (the statuses are shared with ambulances). */
-export const DOCTOR_STATUS: Record<string, string> = {
-  idle: "available",
-  to_pickup: "to scene",
-  loading: "on scene",
-  with_patient: "escorting",
-  returning: "returning",
-  out_of_service: "out of service",
-};
+export const DOCTOR_STATUS: Record<string, string> = liveRecord(
+  ["idle", "to_pickup", "loading", "with_patient", "returning", "out_of_service"] as const,
+  (s) => t(`dstatus.${s}`),
+);
 
 /** Open critical calls whose doctor will miss the target, worst first. */
 export function doctorMisses(trips: Trip[], vehicles: Vehicle[], now: string): { trip: Trip; d: DoctorInfo }[] {

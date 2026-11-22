@@ -9,10 +9,12 @@ import {
   modifierLabel,
   responseOf,
   responseText,
+  responseTitle,
   targetMin,
   timeWeight,
   type Graded,
 } from "./severity";
+import { t as tx, useLang, useT } from "./i18n";
 
 const MOD_ICON: Record<string, typeof Baby> = {
   child: Baby,
@@ -31,9 +33,9 @@ export function severityTitle(t: Graded): string {
   return [
     `${LEVEL_LABEL[level]}${cond ? ` · ${cond}` : ""}`,
     LEVEL_HELP[level],
-    w != null ? `Time sensitivity ${w}/10: how much waiting costs for this condition within its level (10 = cardiac arrest).` : "",
-    t.modifiers?.length ? `Case: ${t.modifiers.map(modifierLabel).join(", ")}` : "",
-    target != null ? `Response target: ${target} min to reach the patient.` : "",
+    w != null ? tx("sev.weightLine", { w }) : "",
+    t.modifiers?.length ? tx("sev.caseLine", { mods: t.modifiers.map(modifierLabel).join(", ") }) : "",
+    target != null ? tx("sev.targetLine", { target }) : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -41,8 +43,9 @@ export function severityTitle(t: Graded): string {
 
 /** Time sensitivity within the level as "T10"; stronger colour for the most time-critical conditions. */
 export function TimeWeight({ w }: { w: number }) {
+  const t = useT();
   return (
-    <span className={`sev-tw${w >= 8 ? " hi" : w >= 5 ? " mid" : ""}`} aria-label={`time sensitivity ${w} of 10`}>
+    <span className={`sev-tw${w >= 8 ? " hi" : w >= 5 ? " mid" : ""}`} aria-label={t("sev.weightAria", { w })}>
       T{w}
     </span>
   );
@@ -68,6 +71,7 @@ export function SeverityBadge({
   weight?: boolean;
   modifiers?: boolean;
 }) {
+  useLang(); // re-render on a language switch
   const level = levelOf(trip);
   const cond = condition && !compact ? conditionText(trip) : null;
   const w = weight && !compact ? timeWeight(trip) : null;
@@ -93,14 +97,10 @@ export function SeverityBadge({
 
 /** Whether the call reaches its patient within the response target ("reaches in 11 min · target 8"). */
 export function ResponseLine({ trip, now, compact = false }: { trip: Trip; now: string; compact?: boolean }) {
+  useLang(); // re-render on a language switch
   const r = responseOf(trip, now);
   if (!r) return null;
-  const title =
-    r.minutes == null
-      ? `No unit assigned yet: waiting ${Math.round(r.waited)} min, target ${r.target} min to reach the patient.`
-      : `From the call (or the ready time) to reaching the patient: ${r.minutes} min. Target ${r.target} min${
-          r.missed ? `: ${r.minutes - r.target} min over.` : "."
-        }`;
+  const title = responseTitle(r);
   if (compact)
     return (
       <span className={`resp${r.missed ? " missed" : " met"}`} title={title}>

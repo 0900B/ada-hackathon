@@ -16,6 +16,8 @@ import {
   type WorldSnapshot,
 } from "./api";
 import { AdminLock } from "./AdminLock";
+import { useLangRoot } from "./i18n";
+import { LangToggle } from "./LangToggle";
 import type { AgentKeys } from "./AgentPanel";
 import { BookingForm } from "./BookingForm";
 import {
@@ -80,6 +82,7 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** Layout: header with navigation, then the routed page. Each page opens its own live connection. */
 export default function App() {
+  useLangRoot(); // a language switch re-renders the whole tree (no remount: forms and selections stay)
   const crew = useMatch("/crew/*");
   const tablet = useMatch("/vehicle/*");
   const { pathname } = useLocation();
@@ -126,6 +129,7 @@ export default function App() {
           Press <kbd>?</kbd> for shortcuts
         </span>
         <AdminLock />
+        <LangToggle />
       </header>
       <Routes>
         <Route path="/" element={<Navigate to="/live" replace />} />
