@@ -1,7 +1,13 @@
 import { Check, CircleAlert, CloudCheck, CloudOff, Trash2, X } from "lucide-react";
 import { fmtTime } from "../format";
-import { useT } from "../i18n";
+import { tOr, useT } from "../i18n";
 import { ageMinutes, entryLabel, type ClinicalEntry } from "./clinicalLog";
+
+/** The row's text: events in the screen language (by key), everything else as logged. */
+function rowLabel(e: ClinicalEntry): string {
+  const key = e.type === "event" && e.content ? e.content.key : undefined;
+  return typeof key === "string" ? tOr(`pt.event.${key}`, entryLabel(e)) : entryLabel(e);
+}
 
 /**
  * The trip's log, newest first. Each row: world time and age, what was said or tapped (speech in
@@ -38,7 +44,7 @@ export function Timeline({
             </div>
             <div className="pt-tl-what">
               <span className={`pt-tl-label${spoken ? " pt-tl-spoken" : ""}`}>
-                {spoken ? `“${entryLabel(e)}”` : entryLabel(e)}
+                {spoken ? `“${entryLabel(e)}”` : rowLabel(e)}
               </span>
               <span className="pt-tl-tags">
                 <span className={`pt-tag pt-tag-${e.state}`}>{t(e.state === "heard" ? "pt.state.heard" : "pt.state.confirmed")}</span>

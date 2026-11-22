@@ -595,3 +595,269 @@
 .pt-foot .crew-world {
   margin-left: auto;
 }
+
+/* --- Vitals panel, tap-pad buttons and the pad sheets (a patient is on board) ----------------- */
+.pt-rec {
+  grid-area: vitals;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* ETA, log, vitals and pads, dispatch on a phone; ETA | vitals over log | dispatch on a tablet */
+.pt-stage-with_patient .pt-grid {
+  grid-template-areas: "eta" "log" "vitals" "dispatch";
+}
+@media (min-width: 900px) {
+  .pt-stage-with_patient .pt-grid {
+    grid-template-areas: "eta vitals" "log dispatch";
+  }
+}
+.pt-vp {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pt-vp-values {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.pt-vp-age {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 18px;
+  color: var(--text-2);
+}
+.pt-vp-overdue {
+  color: var(--warn);
+  font-weight: 600;
+}
+.pt .pt-vp-enter,
+.pt .pt-pad-buttons button {
+  min-height: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 20px;
+  font-weight: 600;
+}
+.pt .pt-vp-enter {
+  margin-top: 4px;
+}
+.pt-pad-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.pt-sheet-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(0, 0, 0, 0.6);
+}
+.pt-sheet {
+  width: 100%;
+  max-height: 94dvh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: var(--surface);
+  border-top: 2px solid var(--accent);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.pt-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pt-sheet-head h2 {
+  margin: 0;
+  font-size: 24px;
+}
+.pt .pt-sheet-close {
+  min-height: 64px;
+  min-width: 64px;
+  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.pt-pad-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px 24px;
+}
+@media (min-width: 900px) {
+  .pt-pad-cols {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 420px);
+    align-items: start;
+  }
+}
+.pt-pad-left,
+.pt-pad-right {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.pt-pad-label {
+  margin: 4px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pt-pad-hint {
+  margin: 0;
+  color: var(--text-2);
+}
+.pt-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pt .pt-chip {
+  min-height: 64px;
+  min-width: 64px;
+  padding: 0 18px;
+  font-size: 20px;
+}
+.pt .pt-chip[aria-pressed="true"],
+.pt .pt-vfield[aria-pressed="true"] {
+  background: var(--accent-bg);
+  border-color: var(--accent-bg);
+  color: #fff;
+  font-weight: 600;
+}
+.pt-pad-text {
+  min-height: 64px;
+  width: 100%;
+  padding: 0 14px;
+  font-size: 22px;
+}
+.pt-pad-display {
+  min-height: 64px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font-size: 22px;
+}
+.pt-pad-display strong {
+  color: var(--text);
+  font-size: 44px;
+  line-height: 1.1;
+}
+.pt-numpad {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.pt .pt-numkey {
+  min-height: 72px;
+  font-size: 30px;
+  font-weight: 600;
+}
+.pt .pt-numkey svg.lucide {
+  width: 30px;
+  height: 30px;
+}
+.pt-pad-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+.pt .pt-pad-save,
+.pt .pt-pad-next {
+  min-height: 72px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 22px;
+  font-weight: 600;
+  width: 100%;
+}
+.pt .pt-pad-save {
+  background: var(--accent-bg);
+  border-color: var(--accent-bg);
+  color: #fff;
+}
+.pt .pt-pad-save:disabled {
+  opacity: 0.45;
+}
+.pt-pad-right > .pt-pad-save {
+  margin-top: 0;
+}
+.pt-vfields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.pt .pt-vfield {
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
+  padding: 6px 14px;
+  text-align: left;
+}
+.pt-vfield-name {
+  font-size: 18px;
+  color: var(--text-2);
+}
+.pt .pt-vfield[aria-pressed="true"] .pt-vfield-name {
+  color: #fff;
+}
+.pt-vfield-val strong {
+  font-size: 28px;
+}
+.pt-vfield-val span {
+  font-size: 18px;
+  opacity: 0.8;
+}
+.pt-event-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+.pt .pt-event-btn {
+  min-height: 80px;
+  padding: 8px 14px;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+/* The language switch and the demo-lock chip come from the dashboard components (main); on the
+   patient tablet they are still touch targets of at least 64 px. The selectors repeat main's
+   (.crew .ui-lang.crew-uilang button, .adminlock[data-variant="crew"] .adminlock-btn) so they win
+   on specificity, not with !important. */
+.pt.crew .ui-lang.crew-uilang button,
+.pt .adminlock[data-variant="crew"] .adminlock-btn,
+.pt .adminlock-act {
+  min-height: 64px;
+  min-width: 64px;
+  padding: 2px 14px;
+  font-size: 18px;
+}

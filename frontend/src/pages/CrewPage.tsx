@@ -7,13 +7,14 @@ import {
   type World,
   type WorldSnapshot,
 } from "../api";
-import { Mic, NotebookPen, Plus, Radio } from "lucide-react";
+import { Mic, NotebookPen, Pill, Plus, Radio, Zap } from "lucide-react";
 import { fmtTime, nightText, vehicleStatusLabel } from "../format";
 import { tOr, useT } from "../i18n";
 import { LangToggle } from "../LangToggle";
 import { AdminLock } from "../AdminLock";
 import { Callsign } from "../icons";
 import { SeverityBadge } from "../SeverityBadge";
+import { levelOf } from "../severity";
 import { DoctorTag } from "../DoctorTag";
 import { useHotkeys } from "../hotkeys";
 import { DispatchPanel } from "../crew/DispatchPanel";
@@ -24,6 +25,11 @@ import { useWakeLock } from "../crew/useWakeLock";
 import { useClinicalLog } from "../crew/useClinicalLog";
 import { useVoiceChannels } from "../crew/useVoiceChannels";
 import { Timeline } from "../crew/Timeline";
+import { VitalsPanel } from "../crew/VitalsPanel";
+import { DrugPad } from "../crew/DrugPad";
+import { VitalsPad } from "../crew/VitalsPad";
+import { EventPad } from "../crew/EventPad";
+import { observedAt } from "../crew/padLogic";
 import { SPEECH_LANGS, speechSecureContext } from "../voice";
 import "../voice.css";
 import "../crew/crew.css";
@@ -127,6 +133,12 @@ function CrewConsole({
   const log = useClinicalLog(world, trip?.kind === "patient" ? trip.id : null, vehicle.id, state.sim_time);
   const [note, setNote] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
+  // The open tap pad. Closed when logging stops (the trip ended or changed), so a pad never
+  // saves into another patient's log.
+  const [pad, setPad] = useState<"drug" | "vitals" | "event" | null>(null);
+  useEffect(() => {
+    if (!logOn) setPad(null);
+  }, [logOn]);
   useEffect(() => {
     if (!notice) return;
     const timer = window.setTimeout(() => setNotice(null), 4000);
@@ -147,12 +159,17 @@ function CrewConsole({
   const logListening = channel === "log";
   const dispatchListening = channel === "dispatch";
 
-  useHotkeys({
-    ...Object.fromEntries(QUICK.map((q) => [q.key, () => void dispatch.send(q.sl, q.key)])),
-    m: () => {
-      if (logOn) toggle("log");
-    },
-  });
+  // No shortcuts while a pad is open: a keyboard digit must not send a quick report from behind it
+  useHotkeys(
+    pad
+      ? {}
+      : {
+          ...Object.fromEntries(QUICK.map((q) => [q.key, () => void dispatch.send(q.sl, q.key)])),
+          m: () => {
+            if (logOn) toggle("log");
+          },
+        },
+  );
 
   const addNote = () => {
     const text = note.trim();
@@ -197,7 +214,6 @@ function CrewConsole({
             <i className="dot" /> {connected ? t("tab.online") : t("tab.reconnecting")}
           </span>
           <AdminLock variant="crew" />
-          <LangToggle className="crew-uilang crew-uilang-end" />
         </div>
       </header>
 
@@ -263,6 +279,20 @@ function CrewConsole({
           )}
         </section>
 
+        {logOn && trip && (
+          <section className="pt-rec" aria-label={t("pt.vp.title")}>
+            <VitalsPanel entries={log.entries} nowIso={state.sim_time} level={levelOf(trip)} onEnter={() => setPad("vitals")} />
+            <div className="pt-pad-buttons">
+              <button type="button" onClick={() => setPad("drug")}>
+                <Pill /> {t("pt.pad.drug")}
+              </button>
+              <button type="button" onClick={() => setPad("event")}>
+                <Zap /> {t("pt.pad.event")}
+              </button>
+            </div>
+          </section>
+        )}
+
         <section className="pt-dispatch" aria-label={t("pt.dispatch")}>
           <h2 className="pt-section-title">
             <Radio /> {t("pt.dispatch")}
@@ -313,9 +343,38 @@ function CrewConsole({
         </section>
       </div>
 
+      {logOn && pad === "drug" && (
+        <DrugPad
+          onClose={() => setPad(null)}
+          onSave={(c) => {
+            log.add("drug_administered", c, { source: "crew_tap" });
+            setPad(null);
+          }}
+        />
+      )}
+      {logOn && pad === "vitals" && (
+        <VitalsPad
+          onClose={() => setPad(null)}
+          onSave={(c) => {
+            log.add("vitals", c, { source: "crew_tap" });
+            setPad(null);
+          }}
+        />
+      )}
+      {logOn && pad === "event" && (
+        <EventPad
+          onClose={() => setPad(null)}
+          onSave={(key, label, minutesAgo) => {
+            log.add("event", { key, label }, { source: "crew_tap", observed_t: minutesAgo > 0 ? observedAt(state.sim_time, minutesAgo) : null });
+            setPad(null);
+          }}
+        />
+      )}
+
       <footer className="pt-foot">
         <Link to={`/crew?world=${world}`}>{t("tab.switchVehicle")}</Link>
         <Link to={`/${world}`}>{t("crew.dashboard")}</Link>
+        <LangToggle className="crew-uilang" />
         <span className={`crew-world ${world}`}>{world === "sim" ? t("tab.chipSim") : t("tab.chipLive")}</span>
       </footer>
     </main>
