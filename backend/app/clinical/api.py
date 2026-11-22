@@ -4,13 +4,17 @@
     POST /{world}/clinical/entries/{seq}/confirm  a tap on "heard" / "inferred": a confirmed copy
     GET  /{world}/clinical/entries              catch-up read: ?since_seq=0&case_id=&limit=500
     GET  /{world}/er/board                      the ER read model (the same dict the snapshot carries)
-    GET  /{world}/er/cases/{case_id}            one card plus its full timeline
+    GET  /{world}/er/cases/{case_id}            one card, its full timeline and its alerts (beside the card)
     POST /{world}/er/cases/{case_id}/actions    reception: acknowledge, assign a bay, activate a team
 
 This module only translates HTTP to and from the service and the projection; every rule lives in
 service.py and every card in projection.py, so the screens cannot disagree. Every handler is an
 `async def` with no await inside: service.py relies on the single event loop (no threadpool) for
-its check-then-append to be atomic, and reads share it so they never see a half-applied write.
+its check-then-append to be atomic, and the clinical reads share it so they never see a half-applied
+write. That does not cover everything: the app's own `GET /{world}/state` and
+`POST /{world}/admin/reset` are plain `def` routes that run in a threadpool next to the event loop,
+so on a rare poll `snapshot()["clinical"]` can come back as `{"error": ...}` (this is why
+`snapshot_extra` has a guard), and a reset can swap the log while an append is in progress.
 
 `mount` is called by the app (a one-line seam in main.py). It does nothing when the clinical
 feature is switched off, looked up at call time. It never imports app.main. The routes are added
@@ -26,6 +30,7 @@ from ..models import Trip
 from ..state import WorldState
 from . import config
 from .models import ENTRY_IN, EntryBase, EntryIn, ERActionContent, Source
+from .alerts import compute_alerts
 from .projection import board, build_case, er_case_trips
 from .service import ClinicalError, confirm_entry, record_entry
 from .store import get_log
@@ -122,7 +127,12 @@ def mount(app: FastAPI, worlds: dict[str, WorldState]) -> None:
     async def er_case(case_id: str, state: WorldState = World) -> dict[str, Any]:
         trip = _er_case(state, case_id)
         entries = get_log(state).for_case(trip.id)
-        return {"case": build_case(state, trip, entries), "timeline": [e.model_dump(mode="json") for e in entries]}
+        card = build_case(state, trip, entries)
+        return {
+            "case": card,
+            "timeline": [e.model_dump(mode="json") for e in entries],
+            "alerts": compute_alerts(state, [card]),  # the card's own alert_ids, in full; not inside the card, which must equal its board copy
+        }
 
     @app.post(f"{PREFIX}/er/cases/{{case_id}}/actions", status_code=201, responses=replayable)
     async def er_action(case_id: str, body: ERActionBody, response: Response, state: WorldState = World) -> dict[str, Any]:

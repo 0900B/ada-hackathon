@@ -22,8 +22,10 @@ ARRIVING_UNACKED_MIN = 10.0
 # PLACEHOLDER (not clinical guidance; ER staff must set): minutes onboard a red case may go
 # without any recorded vitals before the board raises an alert.
 NO_VITALS_RED_MIN = 10.0
-# PLACEHOLDER (not clinical guidance; ER staff must set): minutes from stroke onset within which
-# a stroke team is still worth suggesting.
+# PLACEHOLDER (not clinical guidance; ER staff must set): the time window, in minutes from stroke
+# onset, for the `stroke_window` alert ONLY (it shows how long is left and closes at this limit).
+# Nothing else reads it: whether a stroke team is still worth calling later is a clinical decision
+# for the ER, not something this value decides.
 STROKE_WINDOW_MIN = 270.0
 # How many of the newest clinical entries the shared snapshot carries.
 SNAPSHOT_TAIL = 50

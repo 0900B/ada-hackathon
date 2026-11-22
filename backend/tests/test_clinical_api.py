@@ -309,7 +309,7 @@ def test_case_detail_has_timeline_and_non_er_trip_404():
     r = c.get(f"/sim/er/cases/{t.id}")
     assert r.status_code == 200, r.text
     body = r.json()
-    assert set(body) == {"case", "timeline"}
+    assert set(body) == {"case", "timeline", "alerts"}
     assert [e["seq"] for e in body["timeline"]] == [1, 2, 4]  # seq order, replaced entry 1 still listed
     assert {e["case_id"] for e in body["timeline"]} == {t.id}
     assert body["case"] == json.loads(json.dumps(build_case(w, t, get_log(w).for_case(t.id))))
@@ -318,6 +318,26 @@ def test_case_detail_has_timeline_and_non_er_trip_404():
     onko = non_er_trip(w)
     assert c.get(f"/sim/er/cases/{onko.id}").status_code == 404
     assert c.get("/sim/er/cases/TR-9999").status_code == 404
+
+
+def test_case_detail_returns_its_alerts_next_to_the_card():  # final review minor #7
+    c, w = make()
+    t = er_trip(w)
+    quiet = er_trip(w, pickup="home_vic")
+    assert c.post("/sim/clinical/entries", json=entry(t, type="event", content={"kind": "arrest"})).status_code == 201
+    assert c.post("/sim/clinical/entries", json=entry(t, content={"spo2": 80})).status_code == 201
+    body = c.get(f"/sim/er/cases/{t.id}").json()
+    assert set(body) == {"case", "timeline", "alerts"}
+    assert "alerts" not in body["case"]  # next to the card, not inside it
+    rules = {a["rule"] for a in body["alerts"]}
+    assert {"arrest", "vitals_out_of_limits"} <= rules
+    arrest = next(a for a in body["alerts"] if a["rule"] == "arrest")
+    assert arrest["id"] == f"er:{t.id}:arrest" and arrest["severity"] == "critical" and arrest["case_id"] == t.id
+    assert [a["id"] for a in body["alerts"]] == body["case"]["alert_ids"]  # same alerts, same order
+    board_json = c.get("/sim/er/board").json()
+    assert body["case"] == next(x for x in board_json["cases"] if x["case_id"] == t.id)  # the card is identical to its board copy
+    assert body["alerts"] == [a for a in board_json["alerts"] if a["case_id"] == t.id]
+    assert c.get(f"/sim/er/cases/{quiet.id}").json()["alerts"] == [a for a in board_json["alerts"] if a["case_id"] == quiet.id]
 
 
 def test_case_with_no_entries_still_has_a_card_and_an_empty_timeline():
