@@ -622,6 +622,19 @@ def test_modes_stats_and_every_entry_says_its_source():
     assert all("detail" in e for e in snap["timeline"])
 
 
+def test_snapshot_epoch_changes_on_reset() -> None:
+    """The dashboard drops its case selection when the world is reset (trip ids start again at TR-001):
+    the snapshot's epoch changes on every reset and scenario, and only then."""
+    fresh()
+    first = client.get("/sim/state").json()["epoch"]
+    assert client.get("/sim/state").json()["epoch"] == first
+    assert client.post("/sim/admin/reset", json={}).status_code == 200
+    second = client.get("/sim/state").json()["epoch"]
+    assert second != first
+    assert client.post("/sim/admin/scenario/same_level").status_code == 200
+    assert client.get("/sim/state").json()["epoch"] not in (first, second)
+
+
 if __name__ == "__main__":
     tests = [(n, f) for n, f in list(globals().items()) if n.startswith("test_") and callable(f)]
     failed = 0

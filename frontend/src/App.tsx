@@ -326,6 +326,19 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
     }
   }, [caseSel, caseUnitsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The world was reset (a scenario, Reset): the selected case and vehicle belonged to the old world (its
+  // trip ids start again at TR-001), so drop them rather than highlight an unrelated new call. (Declared
+  // after the effect above, so in the same render this one's clearing wins.)
+  const lastEpoch = useRef(state.epoch);
+  useEffect(() => {
+    if (state.epoch === undefined || state.epoch === lastEpoch.current) return;
+    lastEpoch.current = state.epoch;
+    setCaseSel(null);
+    setSelectedId(null);
+    setCardOpen(false);
+    setCallFocus(null);
+  }, [state.epoch]);
+
   // Selected vehicle: refresh its card and highlighted route every 3 s
   useEffect(() => {
     if (!selectedId) {

@@ -112,6 +112,15 @@ export function AiDispatcherPanel({
     requestAnimationFrame(() => cardRefs.current.get(c.trip.id)?.scrollIntoView({ block: "start", behavior: "smooth" }));
   }, [focus, state.version]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The world was reset (a scenario, Reset): the open card belonged to the old world's call with that id
+  const lastEpoch = useRef(state.epoch);
+  useEffect(() => {
+    if (state.epoch === undefined || state.epoch === lastEpoch.current) return;
+    lastEpoch.current = state.epoch;
+    setOpen(null);
+    setOverrideUnit(null);
+  }, [state.epoch]);
+
   // A map point was picked for the new call: show the form again
   useEffect(() => {
     if (picked) setForm(true);
@@ -127,7 +136,7 @@ export function AiDispatcherPanel({
 
   const card = (c: CallView, fresh: boolean) => (
     <CaseCard
-      key={c.trip.id}
+      key={`${state.epoch ?? 0}:${c.trip.id}`} // a reset world reuses trip ids: fresh cards, no old card state
       c={c}
       state={state}
       open={open === c.trip.id}
