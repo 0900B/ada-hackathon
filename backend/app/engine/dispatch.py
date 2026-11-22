@@ -16,7 +16,9 @@ Rules applied automatically (rules 1, 2, 6):
    rule 7). A busy unit must beat the best free one by BUSY_UNIT_MIN_GAIN_MIN.
 2. An override must save OVERRIDE_MIN_SAVING_MIN (3 min critical, 5 serious) against the best
    alternative, the displaced patient must still be reached within their own response target,
-   and no call is displaced twice (rule 3).
+   and no call is displaced twice (rule 3). A unit the dispatcher assigned by hand (engine/units.held)
+   is never diverted automatically: when it would have been the pick, the summary says so and the
+   dispatcher can divert it with Override.
 6. Helicopter: the absolute closest unit for a critical call (even in the city), 10 min faster for
    a serious one, 15 min and remote for an urgent one. Its times are the real service's (app/hems.py):
    based at Brnik, 13 min from the call to take-off, day only (08:00-16:30), so in practice it wins
@@ -84,6 +86,7 @@ class Option:
     displaced_wait: float | None = None  # minutes from that call until it is reached
     displaced_ok: bool = True
     displaced_late: bool = False  # re-dispatched, but only after its own target (see _best)
+    held: bool = False  # an override of a call the dispatcher gave this unit by hand: never automatic
     why_not: str | None = None
 
     @property
@@ -99,6 +102,7 @@ class Decision:
     options: list[Option]
     best_road: Option | None = None  # the best eligible ambulance option (what the helicopter must beat)
     private_reason: str | None = None  # set when a contracted ambulance was chosen (surge.private_reason)
+    held_best: Option | None = None  # the pick if the dispatcher's own units could be diverted (not done)
 
 
 def _kind(state: WorldState, cand: dict[str, Any]) -> str:
@@ -198,8 +202,29 @@ def decide(state: WorldState, trip: Trip) -> Decision:
         opt = Option(kind, c, reach, _mins(measure, state.sim_time), steps=[PlanStep(**c["step"])])
         if kind == "override":
             _override(state, opt)
+            opt.held = opt.displaced is not None and units.held(opt.displaced, opt.vehicle_id)
         options.append(opt)
 
+    held_best = None
+    if any(o.held for o in options):
+        # What the rules would pick if the dispatcher's own units could be diverted: said, never done.
+        why = [o.why_not for o in options]
+        would = _choose(state, trip, options, holds=False)[0]
+        held_best = would if would is not None and would.held else None
+        for o, w in zip(options, why):
+            o.why_not = w
+    chosen, best_road, why_private = _choose(state, trip, options)
+    free = [o for o in options if o.kind == "free" and not is_contracted(state.vehicles.get(o.vehicle_id))]
+    best_free = min(free, key=lambda o: o.rank) if free else None
+    return Decision(trip, chosen, best_free, options, best_road, why_private, held_best)
+
+
+def _choose(
+    state: WorldState, trip: Trip, options: list[Option], holds: bool = True
+) -> tuple[Option | None, Option | None, str | None]:
+    """The unit for this call among the options: (chosen, best road option, private reason).
+    holds=False: as if the dispatcher's own units could be diverted too (see decide)."""
+    lvl = trip.severity or "serious"
     # Contracted (private) ambulances do not compete like our own units: see the surge use rules below.
     contracted = [o for o in options if is_contracted(state.vehicles.get(o.vehicle_id))]
     public = [o for o in options if o not in contracted]
@@ -207,11 +232,11 @@ def decide(state: WorldState, trip: Trip) -> Decision:
     air = [o for o in public if flies(o.cand["vehicle_type"])]
     # For a critical call the helicopter is a real alternative: a road override must beat it too.
     air_alt = min((o for o in air if o.kind in ("free", "soon")), key=lambda o: o.rank, default=None) if lvl == "critical" else None
-    best_road = _best(trip, road, competitor=air_alt)
+    best_road = _best(trip, road, competitor=air_alt, holds=holds)
     chosen = best_road
     # Rule 6: the helicopter replaces the best road unit only by its level's rule.
     gain_needed = HELICOPTER_GAIN_MIN.get(lvl, float("inf"))
-    best_air = _best(trip, air, competitor=best_road)
+    best_air = _best(trip, air, competitor=best_road, holds=holds)
     if best_air is not None:
         if best_road is None:
             chosen = best_air
@@ -221,20 +246,19 @@ def decide(state: WorldState, trip: Trip) -> Decision:
             chosen = best_air
         else:
             best_air.why_not = f"not {gain_needed:.0f} min faster than {best_road.vehicle_id}" if lvl != "critical" else "not the closest"
-    free = [o for o in public if o.kind == "free"]
-    best_free = min(free, key=lambda o: o.rank) if free else None
     why_private = None
-    priv = _best(trip, contracted)
+    priv = _best(trip, contracted, holds=holds)
     if priv is not None:
         why_private = private_reason(trip, chosen.reach if chosen else None, chosen.vehicle_id if chosen else None, priv.reach)
         if why_private:
             chosen = priv
-    return Decision(trip, chosen, best_free, options, best_road, why_private)
+    return chosen, best_road, why_private
 
 
-def _best(trip: Trip, options: list[Option], competitor: Option | None = None) -> Option | None:
+def _best(trip: Trip, options: list[Option], competitor: Option | None = None, holds: bool = True) -> Option | None:
     """The best eligible option among these units (rules 1 to 3). competitor: the best unit of the
-    other kind, which an override must also beat."""
+    other kind, which an override must also beat. holds: a unit the dispatcher assigned by hand is
+    never diverted (False: as if it could be, see decide)."""
     lvl = trip.severity or "serious"
     free = [o for o in options if o.kind == "free"]
     best_free = min(free, key=lambda o: o.rank) if free else None
@@ -253,6 +277,9 @@ def _best(trip: Trip, options: list[Option], competitor: Option | None = None) -
     target = trip.response_target_min
     alt_misses = best_alt is None or (target is not None and _mins(best_alt.reach, trip.pickup_after) > target)
     for o in options:
+        if o.kind == "override" and o.held and holds:
+            o.why_not = f"assigned by the dispatcher to {o.displaced.id if o.displaced else 'its call'}"
+            continue
         if o.kind != "override" or not (o.displaced_ok or (o.displaced_late and alt_misses)):
             continue
         if saving_needed is None or o.displaced is None or level(o.displaced) <= level(trip):
@@ -270,14 +297,27 @@ def _who(trip: Trip) -> str:
     return "the patient" if trip.kind == "patient" else "the pickup"
 
 
+def _not_diverted(d: Decision) -> str:
+    """"A1 not diverted: assigned by the dispatcher to TR-003 (Override to divert)" when the rules would
+    have diverted a unit the dispatcher chose by hand; "" otherwise."""
+    h = d.held_best
+    if h is None or h.displaced is None:
+        return ""
+    return f"{h.vehicle_id} not diverted: assigned by the dispatcher to {h.displaced.id} (Override to divert)"
+
+
 def dispatch_call(state: WorldState, trip: Trip) -> str:
     """Decide (see decide) and apply at once. Returns a clause for the event summary: who goes,
     why, when, and the clinical reason. An urgent call no emergency unit can take is queued on
-    whichever vehicle (van or ambulance) reaches it first without diverting anyone."""
+    whichever vehicle (van or ambulance) reaches it first without diverting anyone. A unit the
+    dispatcher assigned by hand is never diverted: if it would have been the pick, the summary and
+    the chosen unit's reason say so."""
     from .candidates import find_candidates
     from .plans import _apply_steps
 
     d = decide(state, trip)
+    held = _not_diverted(d)
+    kept = f"; {held}" if held else ""  # its own clause in the summary, and after the unit's reason
     who = _who(trip)
     dest = state.places[trip.dropoff_id].name
     reason = f"; {_cap(clinical_reason(trip))}" if trip.severity in ("critical", "serious") else ""
@@ -307,26 +347,28 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
                 why = f"protect cover: {amb.id} is the last ambulance free near {state.places[amb.base_id].name}; van"
             else:
                 why = "no ambulance free; van"
-            units.note(state, trip, best["vehicle_id"], f"{why}, {best['pickup_in_min']:.0f} min")
+            units.note(state, trip, best["vehicle_id"], f"{why}, {best['pickup_in_min']:.0f} min{kept}")
             return (
                 f"; dispatched {best['vehicle_id']} ({why}, {best['insertion']}): at {who} "
                 f"{_hhmm(best['trip_eta_pickup'])} (in {best['pickup_in_min']:.0f} min), at {dest} {_hhmm(best['trip_eta_dropoff'])}"
+                + kept
             )
     if d.chosen is None:
         if trip.priority == "emergency":
             doctor = send_doctor(state, trip)  # the doctor car still goes: first on scene
             return ("; no ambulance or helicopter can take it: request one from a neighbouring station"
-                    + _helicopter_unavailable(state) + doctor + reason)
+                    + kept + _helicopter_unavailable(state) + doctor + reason)
         pool = [c for c in find_candidates(state, trip.id, limit=100) if not c["step"]["interrupt_current"]]
         if not pool:
-            return "; no vehicle can take it yet: left for the dispatcher to plan"
+            return "; no vehicle can take it yet: left for the dispatcher to plan" + kept
         best = pool[0]
         _apply_steps(state, Plan(steps=[PlanStep(**best["step"])]))
         trip.dispatched_at = state.sim_time
-        units.note(state, trip, best["vehicle_id"], f"no ambulance free: {best['insertion']}, {best['pickup_in_min']:.0f} min")
+        units.note(state, trip, best["vehicle_id"], f"no ambulance free: {best['insertion']}, {best['pickup_in_min']:.0f} min{kept}")
         return (
             f"; dispatched {best['vehicle_id']} (no ambulance free; {best['insertion']}): at {who} "
             f"{_hhmm(best['trip_eta_pickup'])} (in {best['pickup_in_min']:.0f} min), at {dest} {_hhmm(best['trip_eta_dropoff'])}"
+            + kept
         )
 
     o = d.chosen
@@ -392,8 +434,9 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
     if d.private_reason:  # surge capacity: a contracted ambulance, by the use rules
         clause = f"; dispatched {v.id} (contracted private ambulance: {d.private_reason}): {when}"
         unit_reason = f"contracted private ambulance: {d.private_reason}"
-    units.note(state, trip, v.id, unit_reason)
+    units.note(state, trip, v.id, unit_reason + kept)
     clause += send_doctor(state, trip, v.id, o.reach)  # " + doctor D1 (ZD Center, at the patient 22:05, ...)"
+    clause += kept
     wait = _mins(max(o.reach, trip.pickup_after), trip.pickup_after)
     if trip.severity in ("critical", "serious") and wait > RED_REFERENCE_MIN and per_call_reserve(state):
         names = ", ".join(f"{r.id} ({origin_label(state, r)})" for r in per_call_reserve(state))

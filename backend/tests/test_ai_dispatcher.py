@@ -576,6 +576,48 @@ def test_a_dispatcher_override_sticks_until_the_unit_drops_out():
     assert last(lone, "override").by == "dispatcher"
 
 
+def test_a_unit_the_dispatcher_assigned_is_never_diverted_automatically():
+    """A cardiac arrest right next to A1 would divert A1 from its urgent fall (the graded dispatch rule,
+    test_emergency_dispatch case c). When the dispatcher put A1 on that fall by hand, the engine sends
+    another unit and says why (the summary and the chosen unit's reason); Claude (autonomous) may not
+    divert it either; the dispatcher still can, with Override."""
+    fresh(("D1", "D2"))
+    _, fall = call112("urgent", "fall", place_id="home_polje")
+    assert fall.vehicle_id is None  # no ambulance in service yet: the dispatcher assigns one by hand
+    for vid in ("A1", "A3"):
+        W.vehicles[vid].status = "idle"
+    park("A3", "home_medvode", "idle")
+    r = client.post(f"/sim/trips/{fall.id}/assign", json={"vehicle_id": "A1", "mode": "replace", "role": "ambulance"})
+    assert r.status_code == 200 and fall.vehicle_id == "A1", r.text
+    run(2)
+    a1 = W.vehicles["A1"]
+    assert a1.current_trip_id == fall.id and fall.status == "en_route_pickup"
+    W.ai_mode = "autonomous"
+    fake = FakeClaude(lambda kw: change(holder["trip"].id, "A1", "Divert A1"))
+    holder: dict = {}
+
+    async def go():
+        holder["rec"], holder["trip"] = call112("critical", "cardiac_arrest", lat=round(a1.lat + 0.003, 5), lon=round(a1.lon + 0.004, 5))
+        main.ai_dispatcher.on_new_call(W, holder["rec"])
+        await settle()
+
+    with claude_on(fake):
+        asyncio.run(go())
+    rec, t = holder["rec"], holder["trip"]
+    assert t.vehicle_id not in (None, "A1") and "diverted from" not in rec.summary, rec.summary
+    note = f"A1 not diverted: assigned by the dispatcher to {fall.id} (Override to divert)"
+    assert f"; {note}" in rec.summary, rec.summary
+    assert unit(t, t.vehicle_id)["reason"].endswith(f"; {note}"), unit(t, t.vehicle_id)
+    assert a1.current_trip_id == fall.id and fall.vehicle_id == "A1" and fall.times_displaced == 0
+    # Claude wanted A1 for the arrest: refused, the dispatcher's decision stands.
+    assert fake.requests and t.vehicle_id != "A1"
+    refused = last(t, "note")
+    assert refused is not None and "not applied" in refused.text and f"assigned A1 to {fall.id} by hand" in refused.text, kinds(t)
+    # The dispatcher diverts it by hand: Override.
+    r = client.post(f"/sim/trips/{t.id}/assign", json={"vehicle_id": "A1", "mode": "replace"})
+    assert r.status_code == 200 and t.vehicle_id == "A1" and f"diverts {fall.id}" in r.json()["summary"], r.text
+
+
 # --- ai_stats, modes, detail -----------------------------------------------------------------------
 
 
