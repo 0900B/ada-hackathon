@@ -54,6 +54,7 @@ import { DoctorTag, OriginTag } from "./DoctorTag";
 import { MapView, type ClickMode } from "./MapView";
 import { AuditPage } from "./pages/AuditPage";
 import { FleetPage } from "./pages/FleetPage";
+import { ReportsPage } from "./pages/ReportsPage";
 
 // The tablet view loads separately: its navigation map patches Leaflet for rotation (leaflet-rotate)
 const TabletPage = lazy(() => import("./pages/TabletPage").then((m) => ({ default: m.TabletPage })));
@@ -116,6 +117,7 @@ export default function App() {
           <NavLink to="/live">Live</NavLink>
           <NavLink to="/sim">Simulation</NavLink>
           <NavLink to={`/fleet?world=${lastWorld}`}>Fleet</NavLink>
+          <NavLink to={`/reports?world=${lastWorld}`}>Reports</NavLink>
           <NavLink to="/audit">Audit</NavLink>
           <NavLink to={`/crew?world=${lastWorld === "live" ? "live" : "sim"}`}>Crew view</NavLink>
         </nav>
@@ -128,6 +130,7 @@ export default function App() {
         <Route path="/live" element={<WorldPage key="live" world="live" />} />
         <Route path="/sim" element={<WorldPage key="sim" world="sim" />} />
         <Route path="/fleet" element={<FleetRoute />} />
+        <Route path="/reports" element={<ReportsPage />} />
         <Route path="/audit" element={<AuditPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

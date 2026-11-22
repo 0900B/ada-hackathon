@@ -1,0 +1,451 @@
+/* Reports page (pages/ReportsPage.tsx, ReportCharts.tsx).
+   Colour only for meaning: within target is neutral, missed is red; severity levels keep their badge
+   colours; utilisation is one hue; the "who decided" parts are the engine (slate), Claude (blue) and the
+   dispatcher (white). Every text and mark meets WCAG AA contrast on the dark surfaces. */
+
+.reports {
+  --rp-crit: var(--sev-crit-bd);
+  --rp-ser: var(--sev-ser-fg);
+  --rp-urg: var(--prio-ur-fg);
+  --rp-rtn: var(--prio-sc-fg);
+  --rp-met: var(--text-2);
+  --rp-missed: var(--crit);
+  --rp-other: #4a586a;
+}
+
+.rp-bar {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin-bottom: 12px;
+}
+.rp-bar .page-title {
+  margin: 0;
+  flex-wrap: wrap;
+}
+.reports .rp-meta {
+  margin: 0 0 0 auto;
+  font-size: 12px;
+}
+.rp-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: opacity 0.15s;
+}
+.rp-body.refreshing {
+  opacity: 0.6;
+}
+
+/* KPI tiles */
+.rp-tiles {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+.rp-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.rp-tile-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+.rp-tile-value {
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--text);
+}
+.rp-tile-sub {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+/* Layout of the chart cards */
+.rp-grid-a {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: 12px;
+}
+.rp-grid-b {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 3.3fr) minmax(0, 3.7fr);
+  gap: 12px;
+}
+.rp-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.rp-card .panel-title {
+  margin-bottom: 2px;
+}
+.reports .rp-sub {
+  margin: 0 0 10px;
+  font-size: 12px;
+}
+.rp-card-body {
+  flex: 1;
+  min-width: 0;
+}
+.reports .rp-empty {
+  margin: 0;
+  padding: 28px 0;
+  text-align: center;
+  color: var(--muted);
+}
+.rp-fill {
+  width: 100%;
+}
+
+/* Rows: a label column next to a plot */
+.rp-chart {
+  position: relative;
+}
+.rp-row {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+.rp-chart.util .rp-row {
+  grid-template-columns: 72px minmax(0, 1fr);
+}
+.rp-row-label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
+.rp-chart.util .rp-row-label {
+  flex-direction: row;
+}
+.rp-row-sub {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+.rp-row-plot {
+  min-width: 0;
+}
+.rp-row-plot svg {
+  display: block;
+  overflow: visible;
+}
+.rp-axis-row .rp-row-plot {
+  margin-top: -2px;
+}
+.rp-axis-title {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Legend */
+.rp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.rp-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.rp-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.rp-dot.met {
+  background: var(--rp-met);
+}
+.rp-dot.missed {
+  background: var(--rp-missed);
+}
+.rp-line {
+  width: 2px;
+  height: 12px;
+  background: var(--text);
+}
+.rp-tri {
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 8px solid var(--accent);
+}
+.rp-sw {
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.rp-sw.met {
+  background: var(--rp-met);
+}
+.rp-sw.missed {
+  background: var(--rp-missed);
+}
+.rp-sw.other {
+  background: var(--rp-other);
+}
+.rp-sw.faded {
+  opacity: 0.55;
+}
+
+/* SVG parts */
+.rp-axis {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+.rp-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.rp-tick {
+  fill: var(--muted);
+  font-size: 11px;
+}
+.rp-target {
+  stroke: var(--text);
+  stroke-width: 1.5;
+}
+.rp-target-label {
+  fill: var(--text-2);
+  font-size: 11px;
+  font-weight: 600;
+}
+.rp-mark {
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+.rp-mark.met {
+  fill: var(--rp-met);
+}
+.rp-mark.missed {
+  fill: var(--rp-missed);
+}
+.rp-median {
+  fill: var(--accent);
+  stroke: var(--surface);
+  stroke-width: 1;
+}
+.rp-hit {
+  fill: transparent;
+  outline: none;
+}
+.rp-hit:focus-visible {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.rp-track {
+  fill: var(--surface-3);
+}
+.rp-use {
+  fill: var(--accent);
+}
+.rp-value {
+  fill: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+}
+.rp-value-sub {
+  fill: var(--muted);
+  font-size: 11px;
+}
+.rp-value-sm {
+  fill: var(--text-2);
+  font-size: 11px;
+  font-weight: 600;
+}
+.rp-seg.met {
+  fill: var(--rp-met);
+}
+.rp-seg.missed {
+  fill: var(--rp-missed);
+}
+.rp-seg.other {
+  fill: var(--rp-other);
+}
+.rp-partial {
+  opacity: 0.55;
+}
+.rp-pct {
+  fill: var(--text-2);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Who decided: the tall segmented bar and its legend */
+.rp-part.engine_only,
+.rp-sw.part.engine_only {
+  fill: #7d8b9c;
+  background: #7d8b9c;
+}
+.rp-part.claude_agreed,
+.rp-sw.part.claude_agreed {
+  fill: var(--accent-bg);
+  background: var(--accent-bg);
+}
+.rp-part.claude_changed,
+.rp-sw.part.claude_changed {
+  fill: var(--accent-text);
+  background: var(--accent-text);
+}
+.rp-part.dispatcher_overrode,
+.rp-sw.part.dispatcher_overrode {
+  fill: var(--text);
+  background: var(--text);
+}
+.rp-part-text {
+  font-size: 12px;
+  font-weight: 600;
+  fill: #0b0f14;
+}
+.rp-part-text.claude_agreed {
+  fill: #fff;
+}
+.rp-decided {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+.rp-decided li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.rp-decided .rp-sw {
+  align-self: center;
+}
+.rp-decided-name {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+}
+.reports .rp-decided-name .muted {
+  font-size: 12px;
+}
+.rp-decided-n {
+  font-weight: 600;
+  color: var(--text);
+}
+.reports .rp-assigned {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* Tooltip: the value leads, the label follows */
+.rp-tip {
+  position: absolute;
+  z-index: 5;
+  transform: translate(-50%, calc(-100% - 10px));
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 9px;
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+  pointer-events: none;
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+.rp-tip strong {
+  color: var(--text);
+  font-size: 13px;
+}
+.rp-tip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+.rp-tip-row span:last-child {
+  color: var(--text);
+}
+
+/* Table view: the same numbers as text */
+.rp-table {
+  margin-top: 10px;
+  font-size: 12px;
+}
+.rp-table summary {
+  cursor: pointer;
+  color: var(--muted);
+  width: max-content;
+}
+.rp-table summary:hover {
+  color: var(--text);
+}
+.rp-table table {
+  margin-top: 6px;
+  width: 100%;
+  border-collapse: collapse;
+}
+.rp-table th,
+.rp-table td {
+  padding: 3px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.rp-table th {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.rp-foot {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.reports .rp-foot p {
+  margin: 0 0 4px;
+  max-width: 110ch;
+}
+.reports .rp-foot p:first-child {
+  color: var(--text-2);
+}
+
+@media (max-width: 1240px) {
+  .rp-tiles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .rp-grid-b {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .rp-grid-b > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 900px) {
+  .rp-grid-a,
+  .rp-grid-b {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .rp-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
