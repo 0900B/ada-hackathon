@@ -1,6 +1,6 @@
-import { ArrowRight, Bot, Cpu, Loader2, PhoneIncoming, Radio, UserRound, X, Zap, type LucideIcon } from "lucide-react";
+import { AlertTriangle, ArrowRight, Bot, Check, Cpu, Gavel, Loader2, PencilLine, PhoneIncoming, Radio, UserRound, X, Zap, type LucideIcon } from "lucide-react";
 import type { TimelineEntry } from "./api";
-import { isClaude, sourceText, STEP_LABEL } from "./calls";
+import { isClaude, sourceText, STEP_LABEL, type CaseUnit } from "./calls";
 import { fmtTime } from "./format";
 import { useT } from "./i18n";
 
@@ -15,6 +15,7 @@ export function ReplanBox({
   mode = "disruption",
   timeline,
   since,
+  units,
   reviewing,
   proposal,
   busy,
@@ -25,6 +26,7 @@ export function ReplanBox({
   mode?: "disruption" | "new"; // a disruption hit the call, or a new call the AI dispatcher is handling
   timeline: TimelineEntry[];
   since: string; // the disruption entry's time (new: the "received" entry's time)
+  units: CaseUnit[]; // who serves the call now (the decision)
   reviewing: boolean; // Claude is reviewing this case right now
   proposal: string | null; // a pending proposal's title (Assisted mode)
   busy: boolean;
@@ -84,19 +86,117 @@ export function ReplanBox({
             </div>
           </li>
         )}
-        {proposal && (
-          <li className="replan-line proposal by-ai" style={{ animationDelay: `${(lines.length + 1) * STAGGER_S}s` }}>
-            <Bot className="replan-who" aria-hidden />
-            <div className="replan-main replan-proposal">
-              <span className="replan-text">{t("ai.replan.proposal", { title: proposal })}</span>
-              <button className="primary sm" onClick={onApprove} disabled={busy}>
-                {t("ai.replan.approve")}
-              </button>
-            </div>
-          </li>
-        )}
       </ol>
+      <Decision
+        units={units}
+        after={rest}
+        reviewing={reviewing}
+        proposal={proposal}
+        busy={busy}
+        onApprove={onApprove}
+        delay={(lines.length + (reviewing ? 1 : 0)) * STAGGER_S}
+        onSelectVehicle={onSelectVehicle}
+      />
     </section>
+  );
+}
+
+type VerdictKind = "reviewing" | "agreed" | "changed" | "refused" | "unavailable" | "proposed" | "override" | "none";
+
+/** What Claude made of the decision, from the timeline after the box's start. */
+function claudeVerdict(after: TimelineEntry[], reviewing: boolean, proposal: string | null): { kind: VerdictKind; text: string } {
+  if (reviewing) return { kind: "reviewing", text: "" };
+  for (let i = after.length - 1; i >= 0; i--) {
+    const e = after[i];
+    if (e.kind === "override" && e.by === "dispatcher") return { kind: "override", text: e.text };
+    if (e.kind === "reviewed" && isClaude(e.by)) {
+      const changed = /\bchanged:\s*/i.exec(e.text);
+      if (changed) return { kind: "changed", text: e.text.slice(changed.index + changed[0].length) };
+      const kept = /reviewed:\s*no change\s*[—-]?\s*/i.exec(e.text);
+      return { kind: "agreed", text: kept ? e.text.slice(kept.index + kept[0].length) : e.text };
+    }
+    if (e.kind === "note" && isClaude(e.by) && /decision stands/.test(e.text)) {
+      return { kind: "refused", text: e.text.replace(/^AI dispatcher \(Claude\)\s*/i, "") };
+    }
+    if (e.kind === "note" && /review not available/i.test(e.text)) return { kind: "unavailable", text: "" };
+  }
+  if (proposal) return { kind: "proposed", text: proposal };
+  return { kind: "none", text: "" };
+}
+
+const VERDICT_ICON: Record<VerdictKind, LucideIcon> = {
+  reviewing: Loader2,
+  agreed: Check,
+  changed: PencilLine,
+  refused: AlertTriangle,
+  unavailable: AlertTriangle,
+  proposed: Bot,
+  override: UserRound,
+  none: Bot,
+};
+
+/** The decision, prominent: who serves the call now and when, who decided, and Claude's check. */
+function Decision({
+  units,
+  after,
+  reviewing,
+  proposal,
+  busy,
+  onApprove,
+  delay,
+  onSelectVehicle,
+}: {
+  units: CaseUnit[];
+  after: TimelineEntry[];
+  reviewing: boolean;
+  proposal: string | null;
+  busy: boolean;
+  onApprove: () => void;
+  delay: number;
+  onSelectVehicle: (id: string) => void;
+}) {
+  const t = useT();
+  const v = claudeVerdict(after, reviewing, proposal);
+  const VIcon = VERDICT_ICON[v.kind];
+  return (
+    <div className="decision" style={{ animationDelay: `${delay}s` }}>
+      <div className="decision-head">
+        <Gavel aria-hidden />
+        <span className="decision-title">{t("ai.decision.title")}</span>
+      </div>
+      {units.length === 0 ? (
+        <div className="decision-none">{t("ai.decision.noUnit")}</div>
+      ) : (
+        <ul className="decision-units">
+          {units.map((u) => (
+            <li key={u.id}>
+              <button className="link decision-unit" onClick={() => onSelectVehicle(u.id)}>
+                {u.id}
+              </button>
+              <span className="decision-role">{u.roleLabel}</span>
+              <span className="decision-eta">
+                {u.etaLabel} <b>{u.eta ? fmtTime(u.eta) : "–"}</b>
+              </span>
+              <span className={`decision-by ${u.by === "dispatcher" ? "by-dispatcher" : "by-ai"}`}>
+                {u.by === "dispatcher" ? t("ai.decision.byDispatcher") : t("ai.replan.aiChip")}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className={`decision-claude v-${v.kind}`}>
+        <VIcon className={v.kind === "reviewing" ? "replan-spin" : undefined} aria-hidden />
+        <div className="decision-claude-main">
+          <span className="decision-claude-label">{t(`ai.decision.claude.${v.kind}`)}</span>
+          {v.text && <span className="decision-claude-text">{v.text}</span>}
+        </div>
+        {v.kind === "proposed" && (
+          <button className="primary sm" onClick={onApprove} disabled={busy}>
+            {t("ai.replan.approve")}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 

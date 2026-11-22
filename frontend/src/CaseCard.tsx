@@ -194,6 +194,7 @@ export function CaseCard({
           mode={replan.mode}
           timeline={c.timeline}
           since={replan.since}
+          units={c.units}
           reviewing={c.reviewing}
           proposal={proposal?.recommendation?.options[proposal.recommendation.recommended_index]?.title ?? null}
           busy={busy}
