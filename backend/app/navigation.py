@@ -155,7 +155,7 @@ async def _fetch(slot: _Slot, coords: list[tuple[float, float]], start_bearing: 
                 await asyncio.sleep(wait)
             _last_request = time.monotonic()
             if _client is None:
-                _client = httpx.AsyncClient(timeout=10.0, headers={"User-Agent": "plan-b-navigation"})
+                _client = httpx.AsyncClient(timeout=10.0, headers={"User-Agent": "bypass-navigation"})
             path = ";".join(f"{lon:.6f},{lat:.6f}" for lat, lon in coords)
             params: dict[str, str] = {"steps": "true", "overview": "false", "geometries": "geojson"}
             if len(coords) > 2:

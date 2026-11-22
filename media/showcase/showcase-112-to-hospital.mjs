@@ -188,7 +188,7 @@ try {
   await s.card({
     title: "When things go wrong, a new plan in seconds.",
     text: (aiOn ? "Claude understands and proposes" : "AI understands and proposes") + "; the engine computes every number; the dispatcher decides.",
-    pill: "Plan B · prototype",
+    pill: "Bypass · prototype",
   });
   await s.hold(4500);
 

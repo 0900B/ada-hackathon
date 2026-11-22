@@ -1,5 +1,5 @@
 /**
- * Showcase recorder: scripted Playwright sessions against the real Plan B UI, recorded with
+ * Showcase recorder: scripted Playwright sessions against the real Bypass UI, recorded with
  * Playwright's recordVideo and cut into an MP4 with ffmpeg (ffmpeg-static).
  *
  * What a script gets (see the showcase-*.mjs files for examples):
@@ -369,7 +369,7 @@ export class Session {
   /** Title card over the page (intro/outro). */
   async card({ title, text, pill, foot = ["AdaHack 2026 · Epilog Challenge 3", "Ljubljana Demo EMS (fictional) · simulated fleet and calls"] }) {
     const html =
-      `<div class="pb-mark">Plan B<span>AI dispatch co-pilot</span></div>` +
+      `<div class="pb-mark">Bypass<span>AI dispatch co-pilot</span></div>` +
       (title ? `<h1>${fmt(title)}</h1>` : "") +
       (text ? `<p>${fmt(text)}</p>` : "") +
       (pill ? `<div class="pb-pill">${fmt(pill)}</div>` : "") +
@@ -632,7 +632,7 @@ async function posterPage(browser, out, width, height, extraCss, layers, { title
   .play:after{content:"";margin-left:10px;border-top:26px solid transparent;border-bottom:26px solid transparent;border-left:40px solid #fff}
   ${extraCss}
   </style></head><body>${layers}
-  <div class="txt"><div class="mark">Plan B <span>AI dispatch co-pilot</span></div><div class="kick">${fmt(kicker)}</div>
+  <div class="txt"><div class="mark">Bypass <span>AI dispatch co-pilot</span></div><div class="kick">${fmt(kicker)}</div>
   <h1>${fmt(title)}</h1>${subtitle ? `<p>${fmt(subtitle)}</p>` : ""}
   <div class="meta">${duration ? `<span>${fmt(duration)}</span>` : ""}<span>Prototype · simulated data</span><span>AdaHack 2026 · Epilog Challenge 3</span></div></div>
   <div class="play"></div></body></html>`;

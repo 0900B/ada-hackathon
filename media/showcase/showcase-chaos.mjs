@@ -94,7 +94,7 @@ try {
   s.begin();
   await s.card({
     title: "Chaos on demand",
-    text: "Random 112 calls, an engine failure, fog, a surge of calls, a cardiac arrest next to a busy ambulance. Plan B answers each one at once.",
+    text: "Random 112 calls, an engine failure, fog, a surge of calls, a cardiac arrest next to a busy ambulance. Bypass answers each one at once.",
     pill: "Real UI · simulated fleet and calls",
   });
   await s.hold(3600);
@@ -204,12 +204,12 @@ try {
   await s.card({
     title: "Kaos na terenu. A new plan in seconds.",
     text: "Calls, failures, fog, surges and priorities: the engine re-plans at once and explains why. The dispatcher stays in charge.",
-    pill: "Plan B · prototype",
+    pill: "Bypass · prototype",
   });
   await s.hold(4500);
 
   const r = await s.finish({
-    poster: { title: "Chaos on demand", subtitle: "Random calls, an engine failure, fog, a call surge and a priority override: how Plan B answers each one.", duration: "Showcase · about 75 s" },
+    poster: { title: "Chaos on demand", subtitle: "Random calls, an engine failure, fog, a call surge and a priority override: how Bypass answers each one.", duration: "Showcase · about 75 s" },
   });
   console.log(JSON.stringify({ ...r, notes: s.notes }, null, 1));
 } catch (e) {

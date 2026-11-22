@@ -247,7 +247,7 @@ keeps its place in the queue, also with the patient on board):
 During a live pitch the URL is on a screen. Set `ADMIN_KEY` (Railway -> Variables; a long random string)
 and nobody who only has the URL can reset the simulation, inject failures, approve plans or spend AI
 tokens: every POST/PUT/PATCH/DELETE must carry the header `X-Plan-B-Key: <key>`, else it gets
-`401 {"detail": "Control actions need the admin key (Plan B demo lock)."}`. Reading stays open
+`401 {"detail": "Control actions need the admin key (Bypass demo lock)."}`. Reading stays open
 (GET/HEAD/OPTIONS: the dashboard, the SSE stream, `/health`, CORS preflight). There are no exemptions:
 crew phones and tablets are our devices and carry the key too.
 

@@ -1,6 +1,6 @@
-# Dispatch benchmark: Plan B against plain nearest-ambulance dispatch
+# Dispatch benchmark: Bypass against plain nearest-ambulance dispatch
 
-How much better does Plan B's dispatch do than the simple rule many dispatch systems start from,
+How much better does Bypass's dispatch do than the simple rule many dispatch systems start from,
 "send the nearest free ambulance"? We ran both on the same simulated calls and compared what
 matters to patients: how soon a unit reaches them.
 
@@ -29,13 +29,13 @@ and `results.json`.
 - **Travel:** `ROAD_ROUTING=0`, straight-line distances with the city's speed model (lights and
   sirens for emergencies), and the same service times (turnout, on scene, handover) for both
   policies. This is fast and deterministic; road routing is not used.
-- **No AI.** The AI dispatcher (Claude) is not in the loop. Plan B here is the engine's own
+- **No AI.** The AI dispatcher (Claude) is not in the loop. Bypass here is the engine's own
   rules, which apply at the moment a call comes in. The AI's options and swaps would come on top,
   only when a dispatcher approves them.
 
 ### The two policies
 
-| | Baseline: a simple CAD rule | Plan B: the engine's dispatch rules |
+| | Baseline: a simple CAD rule | Bypass: the engine's dispatch rules |
 |---|---|---|
 | Who goes | The nearest free suitable unit by arrival time at the moment of the call | The earliest arrival at the patient among free units, units available soon (finishing a drop-off nearby), and units it may divert; for stroke and heart attack, the earliest arrival at UKC |
 | Nothing free | The unit that becomes free first: first come, first served (the only ordering is emergency before other work) | A busy unit only if it beats the best free one by 3 min |
@@ -45,7 +45,7 @@ and `results.json`.
 | Bookings | Nearest free van, else the van free first | The engine's booking placement (best simulated fit, vans first) |
 | Doctor cars | The free doctor car that arrives first (same rule for both) | Same |
 
-Sources: [DISPATCH_PRIORITIES.md](DISPATCH_PRIORITIES.md) for Plan B's rules;
+Sources: [DISPATCH_PRIORITIES.md](DISPATCH_PRIORITIES.md) for Bypass's rules;
 `backend/app/engine/dispatch.py` and `backend/tools/benchmark.py` for the code.
 
 ## Results
@@ -55,7 +55,7 @@ Generated 22 Nov 2026 with the realistic helicopter (see "What changed" below fo
 
 ### Normal load (5 calls per hour)
 
-| Metric | Baseline | Plan B | Difference |
+| Metric | Baseline | Bypass | Difference |
 |---|---:|---:|---:|
 | Critical calls reached within target (8 min city / 15 outside) | 34.3 % | 53.8 % | +19.5 pp |
 | Critical: median / 90th percentile time to the patient | 12.4 / 45.2 min | 8.0 / 22.4 min | −4.4 / −22.8 min |
@@ -67,14 +67,14 @@ Generated 22 Nov 2026 with the realistic helicopter (see "What changed" below fo
 | Calls not reached by the end of the run | 30 | 0 | |
 | Ambulance utilisation (busy share of the call window) | 76.6 % | 66.4 % | |
 | Critical / serious calls served by the helicopter | 1.8 / 1.6 % | 17.2 / 16.8 % | |
-| Seeds where Plan B is better / same / worse: serious within 18 min | | | 83 / 16 / 1 |
+| Seeds where Bypass is better / same / worse: serious within 18 min | | | 83 / 16 / 1 |
 | ... critical within target | | | 30 / 54 / 1 |
 
 4,568 calls (169 critical, 1,737 serious, 2,662 urgent).
 
 ### High load (8.75 calls per hour)
 
-| Metric | Baseline | Plan B | Difference |
+| Metric | Baseline | Bypass | Difference |
 |---|---:|---:|---:|
 | Critical calls reached within target | 8.4 % | 37.3 % | +28.9 pp |
 | Critical: median / 90th percentile | 24.4 / 58.1 min | 10.2 / 26.5 min | −14.2 / −31.6 min |
@@ -95,7 +95,7 @@ Generated 22 Nov 2026 with the realistic helicopter (see "What changed" below fo
 
 Unchanged by the helicopter model (no helicopter in these runs):
 
-| Metric | Baseline | Plan B | Difference |
+| Metric | Baseline | Bypass | Difference |
 |---|---:|---:|---:|
 | Critical calls reached within target | 34.3 % | 42.6 % | +8.3 pp |
 | Critical: median / 90th percentile | 11.5 / 46.4 min | 9.0 / 33.9 min | −2.5 / −12.5 min |
@@ -110,7 +110,7 @@ Unchanged by the helicopter model (no helicopter in these runs):
 ## What changed: a realistic helicopter (22 Nov 2026)
 
 The first run (21 Nov) had a helicopter that sat at UKC, flew at any hour and needed only 3 minutes
-of take-off and landing per leg. Plan B sent it to about a third of the critical calls, even in the
+of take-off and landing per leg. Bypass sent it to about a third of the critical calls, even in the
 city, and most of the gain came from that. A jury from the service would rightly challenge it. The
 helicopter now follows the team's research ([EMS_RESEARCH.md](EMS_RESEARCH.md) section 4,
 [SERVICE_TIMES.md](SERVICE_TIMES.md) "Helicopter"): based at Brnik, 13 minutes from the call to
@@ -119,7 +119,7 @@ a helipad, new calls 08:00 to 16:30. A city call now costs it about 22 minutes; 
 Kamniška Bistrica about 20 (45 by road). The runs also start at a fixed 08:00 (a day shift) so they
 are reproducible.
 
-| Normal load, Plan B against the baseline | Before (helicopter at UKC, 3 min overhead) | Now (Brnik, 13 min to take-off, by day) |
+| Normal load, Bypass against the baseline | Before (helicopter at UKC, 3 min overhead) | Now (Brnik, 13 min to take-off, by day) |
 |---|---:|---:|
 | Critical calls within target | 74 % vs 35.5 % (+38.5 pp) | **53.8 % vs 34.3 % (+19.5 pp)** |
 | Critical: median time to the patient | 4.8 vs 10.9 min | 8.0 vs 12.4 min |
@@ -127,7 +127,7 @@ are reproducible.
 | Serious: median time to the patient | 8.2 vs 22.5 min | 11.8 vs 22.8 min |
 | Doctor on scene within 15 min | 73.9 % vs 47.6 % | 52.0 % vs 46.4 % |
 | Late transports | 5.3 % vs 20.5 % | 7.5 % vs 20.5 % |
-| Red calls served by the helicopter (Plan B) | about a third of critical, a quarter of serious | 17 % of critical and of serious |
+| Red calls served by the helicopter (Bypass) | about a third of critical, a quarter of serious | 17 % of critical and of serious |
 | Ground units only (critical within target) | 42.6 % vs 34.3 % | 42.6 % vs 34.3 % (unchanged) |
 
 The gain roughly halved, and the part due to the helicopter is now about the same size as the part
@@ -135,7 +135,7 @@ due to the ground rules (critical within target: +8.3 pp from the ground rules, 
 the helicopter). The doctor metric fell most: from rest the helicopter can no longer bring its doctor
 within 15 minutes (13 minutes to take off alone).
 
-**Where the helicopter goes now** (Plan B, 25 seeds, normal load, 78 of 461 red calls): about 40 %
+**Where the helicopter goes now** (Bypass, 25 seeds, normal load, 78 of 461 red calls): about 40 %
 remote calls (20 km or more from UKC), a third in the suburbs, and the rest in the city, which, with
 one exception, only when no ambulance was free at that moment, the indication "help when the local
 team is busy" of the 2013 activation guideline ([EMS_RESEARCH.md](EMS_RESEARCH.md) section 4).
@@ -143,7 +143,7 @@ team is busy" of the 2013 activation guideline ([EMS_RESEARCH.md](EMS_RESEARCH.m
 ## What this shows
 
 - **The gain is real without the helicopter, and the helicopter adds about as much again.** With
-  ground units only, Plan B reaches 42.6 % of critical patients within target against 34.3 %. With
+  ground units only, Bypass reaches 42.6 % of critical patients within target against 34.3 %. With
   the realistic helicopter it reaches 53.8 %; serious calls within 18 minutes go from 45.5 % (ground
   only) to 64.4 %. The baseline uses the helicopter only when no ambulance can take the call.
 - **The helicopter rule no longer wins city calls.** 13 minutes to take off at Brnik put it behind
@@ -154,7 +154,7 @@ team is busy" of the 2013 activation guideline ([EMS_RESEARCH.md](EMS_RESEARCH.m
   Without the helicopter, the slowest tenth of serious calls waits longer (90th percentile 74 vs
   67 min), because displaced and queued calls wait more. This is the trade-off the doctrine
   chooses (higher level first). We report it rather than hide it.
-- **Urgent calls and bookings** are about the same in both. Plan B's van-first rule keeps
+- **Urgent calls and bookings** are about the same in both. Bypass's van-first rule keeps
   ambulances free for red calls without delaying urgent work.
 - **Lower ambulance utilisation** in the full comparison means the helicopter and the vans did
   work the ambulances would otherwise have done. It is not a quality measure in itself.
@@ -175,7 +175,7 @@ team is busy" of the 2013 activation guideline ([EMS_RESEARCH.md](EMS_RESEARCH.m
 - **A day shift, no weather.** The runs fall inside the helicopter's hours and never use the fog
   event. At night, in fog or snow (fog on a fifth to a quarter of days at Brnik) there is no
   helicopter: then the ground-only table applies. The landing times are our assumption; the
-  activation time is the service's 2025 average (one value, not a distribution). Plan B also uses
+  activation time is the service's 2025 average (one value, not a distribution). Bypass also uses
   the helicopter for city calls when every ambulance is busy, which follows the "closest unit"
   principle; the real service is tasked by the dispatch centre and the helicopter doctor decides.
 - **Doctor cars** use the same rule in both policies, so their numbers follow the ambulance and
@@ -183,7 +183,7 @@ team is busy" of the 2013 activation guideline ([EMS_RESEARCH.md](EMS_RESEARCH.m
 
 ## One sentence that is safe to say on stage
 
-"In 100 simulated 8-hour day shifts with identical calls, Plan B's dispatch rules reached 54 % of
+"In 100 simulated 8-hour day shifts with identical calls, Bypass's dispatch rules reached 54 % of
 critical patients within the target, against 34 % with nearest-free-ambulance dispatch. That counts
 the helicopter as it really runs, 13 minutes to take off from Brnik and by day only; with ground units
 alone it is 43 % against 34 %."

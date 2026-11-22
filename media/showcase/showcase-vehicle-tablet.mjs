@@ -127,7 +127,7 @@ try {
   await s.card({
     title: "The crew always knows the plan.",
     text: "Every change the dispatcher approves reaches the vehicle at once, with the reason.",
-    pill: "Plan B · prototype",
+    pill: "Bypass · prototype",
   });
   await s.hold(4000);
 

@@ -4,7 +4,7 @@
 
 ### Normal load (5 calls per hour)
 
-| Metric | Baseline (nearest free) | Plan B (engine rules) | Difference |
+| Metric | Baseline (nearest free) | Bypass (engine rules) | Difference |
 |---|---:|---:|---:|
 | Critical calls reached within target (8 min city / 15 outside) | 34.3% | 53.8% | +19.5 pp (better) |
 | Critical: median time to the patient | 12.4 min | 8 min | -4.4 min (better) |
@@ -20,12 +20,12 @@
 | Critical calls served by the helicopter | 1.8% | 17.2% | +15.4 pp |
 | Serious calls served by the helicopter | 1.6% | 16.8% | +15.2 pp |
 | Calls (critical / serious / urgent) | 4568 (169 / 1737 / 2662) | 4568 (169 / 1737 / 2662) | |
-| Seeds where Plan B is better / same / worse (serious within 18 min) | | | 83 / 16 / 1 |
-| Seeds where Plan B is better / same / worse (critical within target) | | | 30 / 54 / 1 |
+| Seeds where Bypass is better / same / worse (serious within 18 min) | | | 83 / 16 / 1 |
+| Seeds where Bypass is better / same / worse (critical within target) | | | 30 / 54 / 1 |
 
 ### High load (8.75 calls per hour, 1.75× normal)
 
-| Metric | Baseline (nearest free) | Plan B (engine rules) | Difference |
+| Metric | Baseline (nearest free) | Bypass (engine rules) | Difference |
 |---|---:|---:|---:|
 | Critical calls reached within target (8 min city / 15 outside) | 8.4% | 37.3% | +28.9 pp (better) |
 | Critical: median time to the patient | 24.4 min | 10.2 min | -14.2 min (better) |
@@ -41,12 +41,12 @@
 | Critical calls served by the helicopter | 7.2% | 25.5% | +18.3 pp |
 | Serious calls served by the helicopter | 8.8% | 22.4% | +13.6 pp |
 | Calls (critical / serious / urgent) | 6988 (263 / 2669 / 4056) | 6988 (263 / 2669 / 4056) | |
-| Seeds where Plan B is better / same / worse (serious within 18 min) | | | 96 / 4 / 0 |
-| Seeds where Plan B is better / same / worse (critical within target) | | | 53 / 38 / 3 |
+| Seeds where Bypass is better / same / worse (serious within 18 min) | | | 96 / 4 / 0 |
+| Seeds where Bypass is better / same / worse (critical within target) | | | 53 / 38 / 3 |
 
 ### Normal load, ground units only (no helicopter for either policy, 5 calls per hour)
 
-| Metric | Baseline (nearest free) | Plan B (engine rules) | Difference |
+| Metric | Baseline (nearest free) | Bypass (engine rules) | Difference |
 |---|---:|---:|---:|
 | Critical calls reached within target (8 min city / 15 outside) | 34.3% | 42.6% | +8.3 pp (better) |
 | Critical: median time to the patient | 11.5 min | 9 min | -2.5 min (better) |
@@ -62,5 +62,5 @@
 | Critical calls served by the helicopter | 0% | 0% | +0 pp |
 | Serious calls served by the helicopter | 0% | 0% | +0 pp |
 | Calls (critical / serious / urgent) | 4568 (169 / 1737 / 2662) | 4568 (169 / 1737 / 2662) | |
-| Seeds where Plan B is better / same / worse (serious within 18 min) | | | 43 / 47 / 10 |
-| Seeds where Plan B is better / same / worse (critical within target) | | | 16 / 67 / 2 |
+| Seeds where Bypass is better / same / worse (serious within 18 min) | | | 43 / 47 / 10 |
+| Seeds where Bypass is better / same / worse (critical within target) | | | 16 / 67 / 2 |

@@ -2,7 +2,7 @@
 
 Slovenian practice (docs/AGENTIC_DISPATCH_DESIGN.md 5.4, docs/SURGE_AND_MULTI_SERVICE_COORDINATION.md,
 docs/DISPATCH_SCENARIOS.md): when demand outgrows the own fleet the dispatcher brings in contracted
-private units. Plan B models it in three parts:
+private units. Bypass models it in three parts:
 
 1. The demand trigger (live-calls mode): free own ambulances at most DEMAND_FREE_SHARE of those
    crewed, or a red call predicted to wait more than 15 min, or DEMAND_PAST_TARGET or more open calls

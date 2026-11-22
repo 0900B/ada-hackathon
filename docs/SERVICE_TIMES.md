@@ -1,6 +1,6 @@
-# Plan B: service times (the minutes a unit is not driving)
+# Bypass: service times (the minutes a unit is not driving)
 
-Every predicted and simulated time in Plan B is driving time plus these service times. They live in
+Every predicted and simulated time in Bypass is driving time plus these service times. They live in
 one place, `backend/app/engine/service_times.py`, and are used by the simulator, the projection (ETAs,
 delays, "available soon"), the dispatch rules, the tablet navigation, the doctor cars and the
 deadlines of new calls and bookings.

@@ -26,7 +26,7 @@ from starlette.responses import JSONResponse
 HEADER = b"x-plan-b-key"  # ASGI header names are lowercase bytes
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 CHECK_PATH = "/lock/check"
-LOCKED_DETAIL = "Control actions need the admin key (Plan B demo lock)."
+LOCKED_DETAIL = "Control actions need the admin key (Bypass demo lock)."
 
 
 def _key() -> bytes | None:

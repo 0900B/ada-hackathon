@@ -1,4 +1,4 @@
-# Plan B: promo, ads and showcase videos
+# Bypass: promo, ads and showcase videos
 
 Videos for promotion, social posts and as a fallback if the live demo fails. Sources live here;
 rendered videos go to `media/out/` (git-ignored, regenerate them with the commands below).
@@ -95,7 +95,7 @@ re-encoded smaller if over 24 MB) and `media/posters/<name>.png`.
 | Video | Command | Length |
 |---|---|---|
 | a. From 112 call to hospital | `node media/showcase/showcase-112-to-hospital.mjs` | ~100 s |
-| b. The crew speaks, Plan B re-plans | `node media/showcase/showcase-crew-replan.mjs` | ~60 s |
+| b. The crew speaks, Bypass re-plans | `node media/showcase/showcase-crew-replan.mjs` | ~60 s |
 | c. In the vehicle (tablet) | `node media/showcase/showcase-vehicle-tablet.mjs` | ~53 s |
 | d. Chaos on demand | `node media/showcase/showcase-chaos.mjs` | ~73 s |
 | all four, one after the other | `node media/showcase/record-all.mjs` | |

@@ -1,5 +1,5 @@
 /**
- * Where things are in the Plan B UI. Every entry is a list of candidates, tried in order, so a
+ * Where things are in the Bypass UI. Every entry is a list of candidates, tried in order, so a
  * renamed tab or button needs one more candidate here, not a change in every script.
  * Candidates are CSS selectors or functions of a Page / FrameLocator returning a Locator.
  */

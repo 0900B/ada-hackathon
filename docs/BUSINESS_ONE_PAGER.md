@@ -1,4 +1,4 @@
-# Plan B: AI dispatch co-pilot, business one-pager
+# Bypass: AI dispatch co-pilot, business one-pager
 
 AdaHack 2026, Challenge 3 (Epilog). Demo operator: the fictional "Ljubljana Demo EMS". **Tags:** **[S]** read in the original
 by our research; **[reported]** from news summaries, original not read; **simulated** from our model, not from Ljubljana;

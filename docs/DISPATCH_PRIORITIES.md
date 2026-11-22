@@ -1,15 +1,15 @@
-# Plan B: how calls are prioritised (and why)
+# Bypass: how calls are prioritised (and why)
 
-Plan B's dispatch rules follow how emergency dispatch centres and emergency physicians rank calls:
+Bypass's dispatch rules follow how emergency dispatch centres and emergency physicians rank calls:
 first by **severity level**, then, within the same level, by **how time-critical the specific
-condition is** and by the **individual case**. Plan B is decision support for a fictional
+condition is** and by the **individual case**. Bypass is decision support for a fictional
 operator. The weights below are a model built from published practice, not medical advice. A real
 deployment would use the operator's own protocol (in Slovenia, the SloIn NMP index) and its
 medical director's rules.
 
 ## 1. Severity levels
 
-| Plan B level | Slovenia (SloIn NMP) | UK Ambulance Response Programme | MPDS levels | Typical cases | Plan B response target (to reach the patient) |
+| Bypass level | Slovenia (SloIn NMP) | UK Ambulance Response Programme | MPDS levels | Typical cases | Bypass response target (to reach the patient) |
 |---|---|---|---|---|---|
 | **Critical** | I. prioriteta (red): life-threatening now | Category 1 (90% within 15 min; mean 7 min) | Echo, Delta | Cardiac or respiratory arrest, unconscious and not breathing normally, choking, catastrophic bleeding, anaphylaxis with airway compromise | ≤ 8 min in the city, ≤ 15 min outside |
 | **Serious** | I. prioriteta (red): may become life-threatening soon | Category 2 (mean 18 min; 90% within 40 min) | Delta, Charlie | Suspected stroke, chest pain or suspected heart attack, severe breathing difficulty, major trauma, ongoing seizure, suspected sepsis | ≤ 18 min |
@@ -22,7 +22,7 @@ are unchanged.
 ## 2. Same level, different urgency: time sensitivity per condition
 
 Even within one level, some conditions lose more per minute than others. MPDS gives different
-responses to different descriptors within the same level. Plan B gives every call a **condition**
+responses to different descriptors within the same level. Bypass gives every call a **condition**
 with a relative time-sensitivity weight:
 
 | Condition | Level | Weight | Why |
@@ -91,10 +91,10 @@ If a call is reported as better (e.g. the patient is breathing again), the dispa
 Our teammate's research on Slovenian EMS dispatch ([AGENTIC_DISPATCH_DESIGN.md](AGENTIC_DISPATCH_DESIGN.md)
 sections 5.2 to 5.10, with [DISPATCH_SCENARIOS.md](DISPATCH_SCENARIOS.md) and
 [LJUBLJANA_FLEET_AND_TEAMS.md](LJUBLJANA_FLEET_AND_TEAMS.md), citing the 2026 rulebook) agrees with the
-rules above and adds these points that Plan B now follows:
+rules above and adds these points that Bypass now follows:
 
 - **15-minute reference for red calls.** Critical and serious calls are both "red" (I. prioriteta).
-  Plan B keeps its tighter critical city target (8 min), and additionally flags any red call whose
+  Bypass keeps its tighter critical city target (8 min), and additionally flags any red call whose
   predicted arrival is over 15 min (alert `red_response_over_15_min`); the engine fallback then
   recommends asking a neighbouring station for an ambulance.
 - **Protect cover.** The last free ambulance of an area is not sent to a non-life-threatening call if
@@ -106,9 +106,9 @@ rules above and adds these points that Plan B now follows:
   fog it says so instead: "H1 not available: night (HNMP flies 08:00-16:30)".
 - **The helicopter flies by day only and starts at Brnik.** HNMP Brnik takes off on average 13 min
   after the call (2025; 12 to 16 min in 2021 to 2025) and flies 08:00 to sunset in winter (08:00 to
-  16:30 in 2026), with no night flying ([EMS_RESEARCH.md](EMS_RESEARCH.md) section 4). Plan B uses
+  16:30 in 2026), with no night flying ([EMS_RESEARCH.md](EMS_RESEARCH.md) section 4). Bypass uses
   these figures; a mission under way at 16:30 is finished, no new one starts.
-- **Handover at the hospital takes at most 15 minutes**, after which the crew reports free. Plan B
+- **Handover at the hospital takes at most 15 minutes**, after which the crew reports free. Bypass
   models a 15-minute handover, then 10 minutes of cleaning ("returning, unavailable"), and a 1-minute
   turnout for ambulances (5 for doctor cars): see [SERVICE_TIMES.md](SERVICE_TIMES.md).
 - **Doctor cars (VUZ).** The nurse-and-rescuer ambulance goes first; a doctor car (physician and nurse)
@@ -120,8 +120,8 @@ rules above and adds these points that Plan B now follows:
   dispatcher is offered a neighbouring station's ambulance or a private one (scenario D11 in
   [DISPATCH_SCENARIOS.md](DISPATCH_SCENARIOS.md)); they join only when the dispatcher approves.
 
-Where his document differs, Plan B keeps the rules above: for two red calls competing for one unit he
-minimises the total response time and asks the dispatcher when triage gives no clinical order. Plan B
+Where his document differs, Bypass keeps the rules above: for two red calls competing for one unit he
+minimises the total response time and asks the dispatcher when triage gives no clinical order. Bypass
 uses the condition weights (rule 4) and, when they are comparable, the worst wait relative to each
 target. In both cases the same-level decision is a **proposal to the dispatcher**, never automatic,
 which matches his rule.
@@ -148,7 +148,7 @@ which matches his rule.
 
 Slovenian dispatch has an escalation ladder for more demand than the area can handle
 ([AGENTIC_DISPATCH_DESIGN.md](AGENTIC_DISPATCH_DESIGN.md) 5.4,
-[SURGE_AND_MULTI_SERVICE_COORDINATION.md](SURGE_AND_MULTI_SERVICE_COORDINATION.md)). Plan B models its
+[SURGE_AND_MULTI_SERVICE_COORDINATION.md](SURGE_AND_MULTI_SERVICE_COORDINATION.md)). Bypass models its
 private-provider steps, proactively and always as the **dispatcher's decision**.
 
 **Demand trigger** (thresholds from the rules table in [DISPATCH_SCENARIOS.md](DISPATCH_SCENARIOS.md),
@@ -189,7 +189,7 @@ dispatcher's call in a sudden rise in demand [reported, SS]; a **2024 rule (Urad
 requires non-urgent transport providers to reserve 20 % of their capacity for the emergency dispatch
 service**. We have not read that text ourselves (the official gazette site failed its certificate check
 for us, as it did for Metelko with the 2026 rulebook). Whether private crews may take red calls outside
-a declared large disaster is an open point in the research; Plan B keeps them as the last option.
+a declared large disaster is an open point in the research; Bypass keeps them as the last option.
 
 **Measured** (8 world-hours, seeds 42 and 7; "with surge": a stand-in dispatcher activates it for 2 h
 whenever the trigger is on and patients are affected):

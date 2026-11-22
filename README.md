@@ -1,10 +1,10 @@
-# Plan B — AI dispatch co-pilot
+# Bypass — AI dispatch co-pilot
 
 [![CI](https://github.com/0900B/ada-hackathon/actions/workflows/ci.yml/badge.svg)](https://github.com/0900B/ada-hackathon/actions/workflows/ci.yml)
 
-**When something goes wrong in the field, a crew can simply say it in Slovenian. Plan B shows the dispatcher what is at risk and two or three simulated plans to approve. Every 112 call is dispatched the second it arrives, and an AI dispatcher reviews each case, with a human who can take over any decision.**
+**When something goes wrong in the field, a crew can simply say it in Slovenian. Bypass shows the dispatcher what is at risk and two or three simulated plans to approve. Every 112 call is dispatched the second it arrives, and an AI dispatcher reviews each case, with a human who can take over any decision.**
 
-Plan B is our entry for **AdaHack 2026** (Ljubljana, "Code for change"), **Challenge 3 by Epilog: "Kaos na terenu. Vaša rešitev ponudi nov plan."** ("Chaos in the field. Your solution offers a new plan."): an AI assistant for unexpected events in emergency medical transport. The full brief is in [docs/CHALLENGE.md](docs/CHALLENGE.md).
+Bypass is our entry for **AdaHack 2026** (Ljubljana, "Code for change"), **Challenge 3 by Epilog: "Kaos na terenu. Vaša rešitev ponudi nov plan."** ("Chaos in the field. Your solution offers a new plan."): an AI assistant for unexpected events in emergency medical transport. The full brief is in [docs/CHALLENGE.md](docs/CHALLENGE.md).
 
 It is built for a **fictional independent EMS operator, "Ljubljana Demo EMS"**. It is not an integration into Slovenia's 112 / dispatch-centre system. It is **integration-ready through APIs**: every input and output (vehicle GPS feed, orders, crew messages, decisions) is an HTTP endpoint, so it can run on its own or next to an existing dispatch centre.
 
@@ -79,7 +79,7 @@ Promo, ads and four recorded walkthrough videos of the real UI are generated fro
 
 Every event below goes through one engine, is applied to the world's state and re-projects every trip.
 
-| Event in the brief | What Plan B does |
+| Event in the brief | What Bypass does |
 |---|---|
 | Vehicle breakdown (*okvara vozila*) | The unit goes out of service and its jobs are released. A patient on board is collected at the roadside. **Equipment on board must first be collected by another vehicle at the breakdown site** (the brief's rule). 112 calls are re-dispatched at once; stranded equipment and bookings become a decision for the AI dispatcher and the dispatcher. |
 | Fog (*megla*) | Helicopters are grounded for 1 hour. Trips not yet picked up go to road units at once; a flight with a patient on board finishes. Fog is reported or injected (crew message, dispatcher, hotkey); it is not detected from weather data. |
@@ -225,11 +225,11 @@ The dispatch rules are a model built from published practice, not medical advice
 - Slovenian EMS research by our teammate Metelko: [EMS_RESEARCH.md](docs/EMS_RESEARCH.md), [LJUBLJANA_FLEET_AND_TEAMS.md](docs/LJUBLJANA_FLEET_AND_TEAMS.md), [AGENTIC_DISPATCH_DESIGN.md](docs/AGENTIC_DISPATCH_DESIGN.md), [DISPATCH_SCENARIOS.md](docs/DISPATCH_SCENARIOS.md), [SURGE_AND_MULTI_SERVICE_COORDINATION.md](docs/SURGE_AND_MULTI_SERVICE_COORDINATION.md), [DATA_FRESHNESS.md](docs/DATA_FRESHNESS.md). Some figures come from news summaries or could not be checked against the 2026 rulebook; each document tags its confidence.
 - Live-data probes: [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md).
 
-### Benchmark: Plan B's rules against nearest-free-ambulance dispatch
+### Benchmark: Bypass's rules against nearest-free-ambulance dispatch
 
 Same simulated calls for both policies, 100 seeds × 8 world-hours (day shifts, 08:00 to 16:00), normal load (5 calls per hour); reproduce with `cd backend && python tools/benchmark.py`.
 
-| Metric | Nearest free ambulance | Plan B rules |
+| Metric | Nearest free ambulance | Bypass rules |
 |---|---:|---:|
 | Critical calls reached within target (8 min city / 15 outside) | 34.3 % | 53.8 % |
 | Critical: median time to the patient | 12.4 min | 8.0 min |

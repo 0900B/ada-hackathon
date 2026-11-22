@@ -1,5 +1,5 @@
 /**
- * Showcase b: "The crew speaks, Plan B re-plans" (~60 s, 1920x1080).
+ * Showcase b: "The crew speaks, Bypass re-plans" (~60 s, 1920x1080).
  * Dashboard (left) and the crew's phone view of T1 (right) side by side. Prepare crew demo -> the
  * crew reports a breakdown with equipment on board -> analysis -> options -> approve -> vehicles move.
  *
@@ -67,7 +67,7 @@ try {
 
   s.begin();
   await s.card({
-    title: "The crew speaks. Plan B re-plans.",
+    title: "The crew speaks. Bypass re-plans.",
     text: "A van breaks down with blood products on board. The crew says it in Slovenian; the dispatcher gets a new plan to approve.",
     pill: "Real UI · simulated fleet",
   });
@@ -77,7 +77,7 @@ try {
 
   await s.steps([
     {
-      say: `**${UNIT}** is driving blood products from UKC to the Oncology Institute. The crew has Plan B on a phone.`,
+      say: `**${UNIT}** is driving blood products from UKC to the Oncology Institute. The crew has Bypass on a phone.`,
       run: async () => {
         await s.click(UI.vehicleChip(UNIT), { root: dash, what: `${UNIT} chip`, optional: true });
         await s.hold(1200);
@@ -161,7 +161,7 @@ try {
         await s.say(
           run.status === "approved"
             ? `Approved. The vehicles do exactly what the steps say${lines.length ? `: ${lines.slice(0, 2).map((l) => l.replace(/: picks up /, " to pick up ").replace(/\.$/, "")).join("; ")}` : ""}.`
-            : `Not approved: ${run.decision?.reason ?? run.error ?? run.status}. Plan B refuses a plan that no longer fits.`,
+            : `Not approved: ${run.decision?.reason ?? run.error ?? run.status}. Bypass refuses a plan that no longer fits.`,
         );
       },
       hold: 6000,
@@ -179,12 +179,12 @@ try {
   await s.card({
     title: "When things go wrong, a new plan in seconds.",
     text: "The crew speaks; the AI understands and proposes; the engine computes every number; the dispatcher decides.",
-    pill: "Plan B · prototype",
+    pill: "Bypass · prototype",
   });
   await s.hold(4500);
 
   const r = await s.finish({
-    poster: { title: "The crew speaks. Plan B re-plans.", subtitle: "A breakdown reported from the crew's phone, a new plan with before/after numbers, approved with one key.", duration: "Showcase · about 60 s" },
+    poster: { title: "The crew speaks. Bypass re-plans.", subtitle: "A breakdown reported from the crew's phone, a new plan with before/after numbers, approved with one key.", duration: "Showcase · about 60 s" },
   });
   console.log(JSON.stringify({ ...r, notes: s.notes }, null, 1));
 } catch (e) {

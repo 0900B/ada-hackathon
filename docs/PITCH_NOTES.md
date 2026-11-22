@@ -1,4 +1,4 @@
-# Plan B: pitch notes
+# Bypass: pitch notes
 
 For the presenter: the five points to land in the 3 minutes ([DEMO.md](../DEMO.md) is the script) and the five questions most
 likely to be hard. Every number is simulated unless it says otherwise; say "simulated" out loud. Full answers with proof lines:
@@ -49,7 +49,7 @@ Our first run did look too good (unrealistic helicopter, 74 % against 35.5 %); w
 We do not claim compliance: it is synthetic data. A 112 call's words and address go to Claude, Chrome's speech recognition goes to Google, and patient locations go to the public OSRM server; the caller's name, crew names and the audit log are never sent. Production means an EU region under a processing agreement with zero retention, redaction, and speech and routing on our own servers. → Q10, [RELIABILITY_AND_SECURITY.md](RELIABILITY_AND_SECURITY.md) section 2.
 
 **4. "Why not the existing dispatch software? Are you replacing 112?"**
-No: an independent operator, API-first, next to the dispatch centre; we have not seen Computel NMP 3000's feature list and claim nothing about it; Plan B replans a whole fleet when something breaks and understands a crew's Slovenian. → Q3, Q4, Q21.
+No: an independent operator, API-first, next to the dispatch centre; we have not seen Computel NMP 3000's feature list and claim nothing about it; Bypass replans a whole fleet when something breaks and understands a crew's Slovenian. → Q3, Q4, Q21.
 
 **5. "Who pays, and who is liable if a plan is wrong?"**
 A paid pilot with one independent transport provider first, shadow mode before advisory mode (the prices are illustrative and not validated with an operator); the dispatcher decides, as today, and in production each approval is signed with their identity; the medical rules would be the operator's own, and whether software like this is a medical device we have not assessed. → Q24, Q20, T5, [BUSINESS_ONE_PAGER.md](BUSINESS_ONE_PAGER.md).

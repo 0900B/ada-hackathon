@@ -1,4 +1,4 @@
-# Plan B: jury Q&A (spoken answers)
+# Bypass: jury Q&A (spoken answers)
 
 Prepared for the 3-minute demo at AdaHack 2026 (Challenge 3, Epilog: "Kaos na terenu"). The operator in the
 demo is fictional ("Ljubljana Demo EMS"). Every answer below is grounded in this repository; the line under
@@ -16,7 +16,7 @@ each answer says where, so you can open the page if a juror digs.
 
 | Say | Number | Always add |
 |---|---|---|
-| Critical patients reached within target | 53.8 % (Plan B rules) against 34.3 % (nearest free ambulance), normal load | simulated, 100 seeds x 8 h day shifts; helicopter as the real one runs (Brnik, 13 min to take-off, day only) |
+| Critical patients reached within target | 53.8 % (Bypass rules) against 34.3 % (nearest free ambulance), normal load | simulated, 100 seeds x 8 h day shifts; helicopter as the real one runs (Brnik, 13 min to take-off, day only) |
 | The same, ground units only | 42.6 % against 34.3 % | this is the conservative figure (night, fog) |
 | Serious patients reached within 18 min | 64.4 % against 43.1 % (ground only: 45.5 % against 43.1 %) | simulated |
 | Late transports | 7.5 % against 20.5 % (ground only: 18.5 % against 20.3 %) | simulated |
@@ -33,7 +33,7 @@ each answer says where, so you can open the page if a juror digs.
 ### Q1. What problem are you solving, and why does it matter?
 > When something goes wrong, a vehicle breaks down, a road closes, fog grounds the helicopter, calls pile up, the
 > dispatcher has to work out under pressure who is affected, who takes over, and what that does to everyone else.
-> Plan B does that work: it simulates the knock-on effects and puts two or three complete plans in front of the
+> Bypass does that work: it simulates the knock-on effects and puts two or three complete plans in front of the
 > dispatcher, each with real numbers, to approve with one key. In our rehearsals on the deployed system that took about
 > 15 seconds from a crew's spoken message to the options; the hard limit is 60 seconds, after which the engine's own
 > plan appears.
@@ -55,7 +55,7 @@ fallbacks), `notifications` in the output schema of [prompts.py](../backend/app/
 ### Q3. Why not just use the existing dispatch software, for example Computel NMP 3000?
 > Our research found that Slovenia's health dispatch runs on Computel's NMP 3000, that every ambulance must report GPS
 > to dispatch within 10 seconds, and that dispatch picks the nearest suitable team. We have not seen its feature
-> list, and the routing method is not published, so we do not claim it lacks anything. Plan B is a different layer:
+> list, and the routing method is not published, so we do not claim it lacks anything. Bypass is a different layer:
 > it replans a whole fleet when something breaks, it understands a crew's Slovenian sentence, and it works for an
 > independent operator. It does not replace dispatch, it sits next to it through APIs.
 
@@ -67,7 +67,7 @@ We have not verified what private transport providers use today.
 ### Q4. Is this a replacement for 112 or the dispatch centre?
 > No. In Slovenia the health dispatch centre at UKC does triage and dispatch, and our research says triage stays a
 > human step. We show an independent operator, a fictional one, with its own fleet and its own dispatcher. Every input
-> and output is an API (GPS feed, orders, crew messages, decisions), so Plan B can run alone or next to a dispatch centre.
+> and output is an API (GPS feed, orders, crew messages, decisions), so Bypass can run alone or next to a dispatch centre.
 
 *Proof:* [DEMO.md](../DEMO.md) (intro), [AGENTIC_DISPATCH_DESIGN.md](AGENTIC_DISPATCH_DESIGN.md) sections 1 and 10
 (human steps), [EMS_RESEARCH.md](EMS_RESEARCH.md) section 2 (112, ReCO, DCZ). Our 112 intake form with AI triage is
@@ -265,7 +265,7 @@ teammate's research and the rulebook text was not read by us.
 ## 5. Results
 
 ### Q18. What does the benchmark show?
-> In 100 simulated eight-hour day shifts with identical calls, Plan B's rules reached 54 percent of critical patients
+> In 100 simulated eight-hour day shifts with identical calls, Bypass's rules reached 54 percent of critical patients
 > within target against 34 percent for plain nearest-free-ambulance dispatch, and 64 against 43 percent of serious
 > patients within 18 minutes. The helicopter is modelled as the Brnik service runs it, 13 minutes from call to take-off
 > and by day only. With ground units only it is 42.6 against 34.3 percent for critical, and the slowest tenth of
@@ -284,7 +284,7 @@ teammate's research and the rulebook text was not read by us.
 *Proof:* [BENCHMARK.md](BENCHMARK.md) Method ("No AI") and Limits.
 
 ### Q20. What would you measure in a pilot?
-> First in shadow mode: replay a month of an operator's anonymised call and vehicle logs through Plan B with no effect
+> First in shadow mode: replay a month of an operator's anonymised call and vehicle logs through Bypass with no effect
 > on real dispatch. We would compare time to the patient by severity against the 15-minute red reference, the share of
 > late transports, and doctor-on-scene times; then in advisory mode on live events, how long it takes from event to an
 > approved plan and how often dispatchers change or reject the recommendation, and why. Alongside: AI fallback rate,
@@ -451,7 +451,7 @@ section 3 ("Works offline", **[planned]**), [LJUBLJANA_FLEET_AND_TEAMS.md](LJUBL
 standards, not measured Ljubljana data"), [DISPATCH_PRIORITIES.md](DISPATCH_PRIORITIES.md) ("not medical advice").
 
 ### T5. Who is liable if a plan is wrong?
-> The dispatcher decides, as today, and in production each approval is signed with their identity in the audit log. Plan B
+> The dispatcher decides, as today, and in production each approval is signed with their identity in the audit log. Bypass
 > is decision support: the medical rules would be the operator's own, in Slovenia the SloIn NMP index and the medical
 > director's protocol. Whether software like this counts as a medical device is something we have not assessed, and
 > we would settle it with legal advice before any live use.

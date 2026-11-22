@@ -25,7 +25,7 @@ export function conditionLabel(code: string): string {
   const key = `cond.${code}`;
   return hasKey(key) ? tx(key) : capitalise(code);
 }
-/** Plan B's response targets (minutes from the call to reaching the patient), used when the backend sends none. */
+/** Bypass's response targets (minutes from the call to reaching the patient), used when the backend sends none. */
 export const LEVEL_TARGET_MIN: Record<Level, number | null> = { critical: 8, serious: 18, urgent: 60, routine: null };
 /** The old three-step priority each level maps to (what older backends understand). */
 export const LEVEL_PRIORITY: Record<Level, Priority> = { critical: "emergency", serious: "emergency", urgent: "urgent", routine: "scheduled" };

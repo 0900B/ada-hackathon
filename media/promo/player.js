@@ -1,4 +1,4 @@
-// Plan B promo scene player.
+// Bypass promo scene player.
 //
 // index.html?cut=promo|bumper|vertical|poster-promo|poster-bumper|poster-vertical
 //   Preview: plays in real time, scaled to the window (click to pause, arrow keys to step 1 s).

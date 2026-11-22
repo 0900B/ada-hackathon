@@ -1,7 +1,7 @@
-# Plan B: reliability and security
+# Bypass: reliability and security
 
 A dispatch system must keep working when a data provider, the AI, or a network link fails.
-Plan B is built so that **every input has a second source and every step has a fallback**.
+Bypass is built so that **every input has a second source and every step has a fallback**.
 The dispatcher always gets an answer and always sees which source it came from.
 
 This page separates what the **prototype already does** (running today on our demo deployment)
@@ -86,7 +86,7 @@ For a real EMS operator, the same software would run like this:
 - **Secrets and data.** Keys in a secrets vault with rotation. Encryption at rest for the database and backups, daily off-site backups, and tested restores.
 - **AI data protection.** As listed at the end of section 2: an EU region and zero data retention under a data-processing agreement (or another provider or an on-premises model), redaction of free text before it is sent, EU or on-premises speech-to-text, self-hosted routing. Autonomous mode would be enabled only after a shadow-mode pilot has measured how often dispatchers change or reject the AI's decisions. The system stays fully usable with the AI switched off.
 - **Monitoring.** Alerts when a data source falls back, a quota runs low, the AI fails or a vehicle stops reporting.
-- **Integration stays open.** Every input and output is an API (GPS/AVL feed, orders, crew messages, decisions). Plan B can run on its own for an independent operator, or next to an existing dispatch centre.
+- **Integration stays open.** Every input and output is an API (GPS/AVL feed, orders, crew messages, decisions). Bypass can run on its own for an independent operator, or next to an existing dispatch centre.
 
 ## One-liner for the pitch
 

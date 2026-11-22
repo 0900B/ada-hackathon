@@ -1,4 +1,4 @@
-"""Dispatch benchmark: Plan B's engine rules against plain "nearest free ambulance" dispatch.
+"""Dispatch benchmark: Bypass's engine rules against plain "nearest free ambulance" dispatch.
 
 Same seeded call sequences from the live-calls generator (sim/calls.py), two policies:
 
@@ -6,7 +6,7 @@ Same seeded call sequences from the live-calls generator (sim/calls.py), two pol
   the unit that becomes free first (its queue's end: first come, first served; the only ordering
   is emergency before other work). No "available soon", no overrides, no swaps; the helicopter
   only if no ambulance can take the call. Bookings: the nearest free van, else the van free first.
-- PLAN B, the engine's own dispatch (engine/dispatch.py): severity-graded, units available soon,
+- BYPASS, the engine's own dispatch (engine/dispatch.py): severity-graded, units available soon,
   overrides with re-dispatch of the displaced call, the helicopter rules, protecting cover, and the
   engine's booking placement (engine/events.py).
 
@@ -264,7 +264,7 @@ ROWS = [
 
 
 def per_seed(runs: list[dict], key: str, higher_better: bool) -> dict:
-    """In how many seeds Plan B is better, the same, or worse on one metric."""
+    """In how many seeds Bypass is better, the same, or worse on one metric."""
     out = {"better": 0, "same": 0, "worse": 0}
     for seed in sorted({r["seed"] for r in runs}):
         b = metrics([r for r in runs if r["seed"] == seed and r["policy"] == "baseline"])[key]
@@ -276,7 +276,7 @@ def per_seed(runs: list[dict], key: str, higher_better: bool) -> dict:
 
 
 def table(load: str, base: dict, planb: dict) -> str:
-    lines = [f"### {load}", "", "| Metric | Baseline (nearest free) | Plan B (engine rules) | Difference |", "|---|---:|---:|---:|"]
+    lines = [f"### {load}", "", "| Metric | Baseline (nearest free) | Bypass (engine rules) | Difference |", "|---|---:|---:|---:|"]
     for label, key, unit, higher_better in ROWS:
         b, p = base.get(key), planb.get(key)
         if b is None and p is None:
@@ -293,7 +293,7 @@ def table(load: str, base: dict, planb: dict) -> str:
     for key, name in (("serious_within_18_pct", "serious within 18 min"), ("critical_within_target_pct", "critical within target")):
         w = planb.get(f"seeds_{key}")
         if w:
-            lines.append(f"| Seeds where Plan B is better / same / worse ({name}) | | | {w['better']} / {w['same']} / {w['worse']} |")
+            lines.append(f"| Seeds where Bypass is better / same / worse ({name}) | | | {w['better']} / {w['same']} / {w['worse']} |")
     return "\n".join(lines)
 
 

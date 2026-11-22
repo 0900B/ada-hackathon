@@ -812,7 +812,7 @@ async def export_audit(world: str | None = None, limit: int = 2000) -> Streaming
     return StreamingResponse(
         iter([body]),
         media_type="application/x-ndjson",
-        headers={"Content-Disposition": "attachment; filename=plan-b-audit.jsonl"},
+        headers={"Content-Disposition": "attachment; filename=bypass-audit.jsonl"},
     )
 
 

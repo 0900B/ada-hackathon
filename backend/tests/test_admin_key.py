@@ -31,7 +31,7 @@ from app.sim.seed import seed_world  # noqa: E402
 
 KEY = "demo-Key_0123456789/abcdef"
 HEADER = "X-Plan-B-Key"
-DETAIL = "Control actions need the admin key (Plan B demo lock)."
+DETAIL = "Control actions need the admin key (Bypass demo lock)."
 ORIGIN = {"Origin": "https://plan-b.example"}
 for noisy in ("httpx", "httpx2"):
     logging.getLogger(noisy).setLevel(logging.WARNING)
