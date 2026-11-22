@@ -25,6 +25,7 @@ from .agent.messages import FieldMessage, MessageError, parse_message, to_operat
 from .guard import GUARD, message_limit_detail
 from .audit import AUDIT
 from .engine import followup, surge, timeline
+from .clinical import api as clinical_api
 from .engine.actions import ActionError
 from .engine.events import EventError, apply_event, clear_expired_incidents, fill_incident_paths
 from .engine.plans import apply_plan, simulate_plan
@@ -809,3 +810,4 @@ async def export_audit(world: str | None = None, limit: int = 2000) -> Streaming
 
 
 app.include_router(router)
+clinical_api.mount(app, WORLDS)
