@@ -16,6 +16,7 @@ export function ReplanBox({
   timeline,
   since,
   units,
+  autonomous = false,
   reviewing,
   proposal,
   busy,
@@ -27,6 +28,7 @@ export function ReplanBox({
   timeline: TimelineEntry[];
   since: string; // the disruption entry's time (new: the "received" entry's time)
   units: CaseUnit[]; // who serves the call now (the decision)
+  autonomous?: boolean; // Autonomous mode: Claude checks cases by itself
   reviewing: boolean; // Claude is reviewing this case right now
   proposal: string | null; // a pending proposal's title (Assisted mode)
   busy: boolean;
@@ -95,6 +97,7 @@ export function ReplanBox({
         busy={busy}
         onApprove={onApprove}
         delay={(lines.length + (reviewing ? 1 : 0)) * STAGGER_S}
+        autonomous={autonomous}
         onSelectVehicle={onSelectVehicle}
       />
     </section>
@@ -144,6 +147,7 @@ function Decision({
   busy,
   onApprove,
   delay,
+  autonomous,
   onSelectVehicle,
 }: {
   units: CaseUnit[];
@@ -153,10 +157,12 @@ function Decision({
   busy: boolean;
   onApprove: () => void;
   delay: number;
+  autonomous: boolean;
   onSelectVehicle: (id: string) => void;
 }) {
   const t = useT();
   const v = claudeVerdict(after, reviewing, proposal);
+  const label = v.kind === "none" && autonomous ? t("ai.decision.claude.noneAuto") : t(`ai.decision.claude.${v.kind}`);
   const VIcon = VERDICT_ICON[v.kind];
   return (
     <div className="decision" style={{ animationDelay: `${delay}s` }}>
@@ -187,7 +193,7 @@ function Decision({
       <div className={`decision-claude v-${v.kind}`}>
         <VIcon className={v.kind === "reviewing" ? "replan-spin" : undefined} aria-hidden />
         <div className="decision-claude-main">
-          <span className="decision-claude-label">{t(`ai.decision.claude.${v.kind}`)}</span>
+          <span className="decision-claude-label">{label}</span>
           {v.text && <span className="decision-claude-text">{v.text}</span>}
         </div>
         {v.kind === "proposed" && (

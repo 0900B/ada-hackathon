@@ -16,13 +16,15 @@ Per world (state.ai_mode, POST /{world}/admin/ai-mode):
 - "assisted" (default): the same reviews run only with auto-analyse on, and their options stay
   proposals for the dispatcher.
 If the guard refuses, there is no API key, or Claude fails or times out, the engine's decision stands and
-the case's timeline says so. One review per case at a time, and none within REVIEW_GAP_MIN world-minutes
-of the last one for that case.
+the case's timeline says so. One review per case at a time; a disruption is not reviewed again within
+REVIEW_GAP_MIN world-minutes of the last disruption review of that case (a burst of events gets one review),
+but a disruption right after the new call's own review is reviewed.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
@@ -105,8 +107,8 @@ def _review(state: WorldState, trip: Trip, focus: EventRecord, question: str) ->
         run = next((r for r in state.agent_runs if r.id == last["run_id"]), None)
         if run is not None and run.status == "running":
             return False  # one review per case at a time
-        if state.sim_time - last["at"] < timedelta(minutes=REVIEW_GAP_MIN):
-            return False  # reviewed moments ago
+        if last.get("disruption") and focus.type in DISRUPTIONS and state.sim_time - last["at"] < timedelta(minutes=REVIEW_GAP_MIN):
+            return False  # a disruption of this case was reviewed moments ago
     if not config.agent_enabled():
         _engine_stands(state, trip, "no API key")
         return False
@@ -120,7 +122,7 @@ def _review(state: WorldState, trip: Trip, focus: EventRecord, question: str) ->
     except RuntimeError:  # a script without an event loop: nothing can run in the background
         return False
     run = runner.start_review(state, trip.id, focus, question)
-    state.reviews[trip.id] = {"run_id": run.id, "at": state.sim_time}
+    state.reviews[trip.id] = {"run_id": run.id, "at": state.sim_time, "disruption": focus.type in DISRUPTIONS}
     return True
 
 
@@ -194,8 +196,16 @@ def _why_not(run: AgentRun) -> str:
     return "Claude unavailable"
 
 
+_TOOL_NAMES = re.compile(r"\b(?:find_candidates|simulate_plan|simulate_options|get_[a-z_]+|list_[a-z_]+|tool_[a-z_]+)\b(?:\(\))?")
+
+
+def plain(text: str) -> str:
+    """Claude's words for the dispatcher: internal tool names become "the engine" ("per find_candidates")."""
+    return _TOOL_NAMES.sub("the engine", text or "")
+
+
 def _first_sentence(text: str) -> str:
-    text = " ".join((text or "").split())
+    text = " ".join(plain(text).split())
     for end in (". ", "; "):
         if end in text:
             text = text.split(end, 1)[0]

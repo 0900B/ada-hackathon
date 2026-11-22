@@ -337,8 +337,12 @@ def test_a_disruption_of_a_case_is_reviewed_once_at_a_time_and_not_too_often():
         body = await new_call()
         t = holder["trip"] = W.trips[body["trip"]["id"]]
         await settle()
-        # Within 2 world-min of the call's review: not reviewed again.
+        # Right after the call's own review a disruption is reviewed (a different question)...
         await main.post_event(DelayEvent(type="delay", vehicle_id=t.vehicle_id, minutes=4, note="traffic"), W)
+        await settle()
+        holder["after_delay_0"] = len(reviews_of(t))
+        # ...but a second disruption within 2 world-min of that disruption review is not.
+        await main.post_event(DelayEvent(type="delay", vehicle_id=t.vehicle_id, minutes=2, note="traffic"), W)
         holder["after_delay_1"] = len(reviews_of(t))
         W.sim_time += timedelta(minutes=3)
         project_all(W)
@@ -352,12 +356,12 @@ def test_a_disruption_of_a_case_is_reviewed_once_at_a_time_and_not_too_often():
     with claude_on(fake):
         asyncio.run(go())
     t = holder["trip"]
-    assert holder["after_delay_1"] == 1 and holder["while_running"] == 2, holder
+    assert holder["after_delay_0"] == 2 and holder["after_delay_1"] == 2 and holder["while_running"] == 3, holder
     second = reviews_of(t)[-1]
     assert second.event_id == holder["rec"].id and second.trigger == f"review:{t.id}"
     q = fake.requests[-1]["messages"][0]["content"]
     assert f"AI dispatcher review of critical call {t.id}" in q and "after this disruption" in q and "delayed by 5 min" in q, q
-    assert [e.kind for e in t.timeline].count("reviewed") == 2
+    assert [e.kind for e in t.timeline].count("reviewed") == 3  # the call, the first and the third disruption
 
 
 # --- trip.units ------------------------------------------------------------------------------------

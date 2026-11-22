@@ -195,6 +195,7 @@ export function CaseCard({
           timeline={c.timeline}
           since={replan.since}
           units={c.units}
+          autonomous={state.ai_mode === "autonomous"}
           reviewing={c.reviewing}
           proposal={proposal?.recommendation?.options[proposal.recommendation.recommended_index]?.title ?? null}
           busy={busy}
