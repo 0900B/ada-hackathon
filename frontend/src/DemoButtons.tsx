@@ -24,7 +24,7 @@ export function DemoButtons({
   onIncident: (kind?: string) => void;
   state?: WorldSnapshot; // with onTarget: offers "Choose unit…"
   preselect?: (string | null)[] | string | null; // the unit selected on the dashboard, else the selected case's unit
-  onTarget?: (vehicleId: string, kind: string) => Promise<boolean>;
+  onTarget?: TargetInject;
 }) {
   const t = useT();
   const [targeting, setTargeting] = useState(false);
@@ -59,6 +59,8 @@ export function DemoButtons({
 }
 
 type Tr = ReturnType<typeof useT>;
+/** Resolves to null when done (the popover closes), else the reason it did not fit (shown in it; "" = nothing to say). */
+export type TargetInject = (vehicleId: string, kind: string) => Promise<string | null>;
 
 interface JobUnit {
   v: Vehicle;
@@ -117,12 +119,13 @@ function TargetPopover({
   preselect: (string | null)[] | string | null;
   busy: boolean;
   onClose: (refocus?: boolean) => void;
-  onInject: (vehicleId: string, kind: string) => Promise<boolean>;
+  onInject: TargetInject;
 }) {
   const t = useT();
   const units = jobUnits(state, t);
   const [picked, setPicked] = useState<string | null>(() => [preselect].flat().find((id) => id && units.some((u) => u.v.id === id)) ?? null);
   const [kind, setKind] = useState("breakdown");
+  const [error, setError] = useState<string | null>(null); // why the last Inject did not fit (409), until another pick
   const box = useRef<HTMLDivElement>(null);
   // The unit on screen is always one on a job now (the picked one may have finished its job meanwhile)
   const cur = units.find((u) => u.v.id === picked) ?? units[0];
@@ -228,7 +231,10 @@ function TargetPopover({
                   role="radio"
                   aria-checked={u.v.id === cur?.v.id}
                   className={u.v.id === cur?.v.id ? "on" : ""}
-                  onClick={() => setPicked(u.v.id)}
+                  onClick={() => {
+                    setPicked(u.v.id);
+                    setError(null);
+                  }}
                   title={`${u.head} · ${u.call}`}
                 >
                   <b>{u.head}</b>
@@ -249,7 +255,10 @@ function TargetPopover({
                   className={k.value === chosen ? "on" : ""}
                   disabled={off !== null}
                   title={off ?? undefined}
-                  onClick={() => setKind(k.value)}
+                  onClick={() => {
+                    setKind(k.value);
+                    setError(null);
+                  }}
                 >
                   {k.label()}
                 </button>
@@ -266,13 +275,20 @@ function TargetPopover({
         </>
       )}
       </div>
+      {error && (
+        <p className="target-err" role="alert">
+          {error}
+        </p>
+      )}
       <div className="target-actions">
         <button onClick={() => onClose(true)}>{t("dash.target.cancel")}</button>
         <button
           className="primary"
           disabled={busy || !cur || !chosen}
           onClick={() => {
-            if (cur && chosen) void onInject(cur.v.id, chosen).then((ok) => ok && close.current(true));
+            if (!cur || !chosen) return;
+            setError(null);
+            void onInject(cur.v.id, chosen).then((err) => (err === null ? close.current(true) : setError(err || null)));
           }}
         >
           <Zap /> {t("dash.target.inject")}

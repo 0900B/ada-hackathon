@@ -46,7 +46,7 @@ import { ScenariosPanel } from "./ScenariosPanel";
 import { EmergencyPicker } from "./EmergencyPicker";
 import { AiDispatcherPanel, type CaseFocus } from "./AiDispatcherPanel";
 import { DemoButtons } from "./DemoButtons";
-import { MissingEndpoint, randomCall, randomIncident, useDemoApi } from "./demoInject";
+import { MissingEndpoint, randomCall, randomIncident, targetErrorText, useDemoApi } from "./demoInject";
 import { bilingualLines } from "./ErrorText";
 import { VehicleCard } from "./VehicleCard";
 import { VehicleStrip } from "./VehicleStrip";
@@ -285,9 +285,10 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
       setTimeout(() => setDemoBusy(false), 600);
     }
   };
-  // "Choose unit…": a failure aimed at one unit; the popover stays open (with the reason) when it does not fit
-  const injectTargeted = async (vehicleId: string, kind: string): Promise<boolean> => {
-    if (!demo.incident || demoBusy) return false;
+  // "Choose unit…": a failure aimed at one unit. null: done (the popover closes); text: why it did not fit,
+  // shown in the popover, which stays open ("": busy, nothing to say)
+  const injectTargeted = async (vehicleId: string, kind: string): Promise<string | null> => {
+    if (!demo.incident || demoBusy) return "";
     setDemoBusy(true);
     try {
       const { event, summary } = await randomIncident(kind, vehicleId);
@@ -295,10 +296,13 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
       const tripId = event?.affected_trip_ids?.[0];
       if (tripId) openCall(tripId);
       else select(vehicleId, false);
-      return true;
+      return null;
     } catch (e) {
-      notify("error", bilingualLines(errorText(e)));
-      return false;
+      if (e instanceof MissingEndpoint) {
+        demoMissing("incident");
+        return t("dash.err.randomFailuresBackend");
+      }
+      return targetErrorText(errorText(e));
     } finally {
       setTimeout(() => setDemoBusy(false), 600);
     }
