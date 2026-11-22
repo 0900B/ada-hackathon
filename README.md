@@ -12,7 +12,7 @@ It is built for a **fictional independent EMS operator, "Ljubljana Demo EMS"**. 
 
 The fleet, the crews and the 112 calls are **simulated** (synthetic, no real patient data). Weather, traffic, incidents and road routes come from real providers (with fallbacks), the same in both worlds. Details in [Limits and next steps](#limits-and-next-steps).
 
-**Live app:** [frontend-tau-rust-6kpoiztcvd.vercel.app](https://frontend-tau-rust-6kpoiztcvd.vercel.app/live) · [Demo script](DEMO.md) · [Pitch notes](docs/PITCH_NOTES.md) · [Architecture](#architecture) · [Run it](#run-it) · [Documentation index](#documentation-index)
+**Live app:** [frontend-tau-rust-6kpoiztcvd.vercel.app](https://frontend-tau-rust-6kpoiztcvd.vercel.app/live) · **API:** [ada-hackathon-production.up.railway.app](https://ada-hackathon-production.up.railway.app/docs) (`/docs`, `/health`) · [Demo script](DEMO.md) · [Pitch notes](docs/PITCH_NOTES.md) · [Architecture](#architecture) · [Run it](#run-it) · [Documentation index](#documentation-index)
 
 ## Judges: try it in 5 minutes
 
@@ -30,9 +30,9 @@ Tip: open the dispatcher and the ER board **side by side** (two windows), and th
 
 **Five steps (about 5 minutes)**
 
-1. **Start some calls.** Open the dispatcher at `/sim` → tab **Scenarios** → press **Surge** (seven calls at once, including a cardiac arrest). The simulation starts with the call stream paused, so nothing happens until you do this. A single call: **New 112 call**, or **Random call** (hotkey `R`).
-2. **See the AI dispatcher.** Tab **AI dispatcher**: every call is a case card with who classified it, which unit was sent and **why**, and who decided. Click a card to open its timeline. Press **Override** on a unit to see the ranked alternatives.
-3. **Break something.** **Random failure ▾ → Engine failure** (hotkey `X`). Watch the amber re-plan box, the unit swapping, and the unit's ETA change.
+1. **Start some calls.** Open the dispatcher at `/sim` → tab **Scenarios** → press **Surge** (seven calls at once, including a cardiac arrest). The Simulation world starts with its call stream off (header: "Call stream off"), so nothing happens until you do this. A single call: **New 112 call**, or **Random call** (hotkey `R`).
+2. **See the AI dispatcher.** Tab **AI dispatcher**: every call is a case card with who classified it, which unit was sent and **why**, and who decided. Click a card: a compact AI box shows the steps (*Classified* · *Dispatched, rules engine, under 0.1 s* · *Claude check*), then the decision with **Why** and Claude's verdict; the full timeline is below it. Press **Override** on a unit to see the ranked alternatives. Switch **Autonomous / Assisted** at the top of the tab.
+3. **Break something.** **Random failure ▾ → Engine failure** (hotkey `X`). Watch the amber **Disruption** box (*Impact +N min* → *Switched to A2* or *Recalculated: unit stays* → *Claude check*), the unit swapping and the ETA change. Also try **Random failure ▾ → Choose unit…** to hit a specific unit, or press `E` and click the map to place a 112 call yourself.
 4. **Open the ER board** (`/er/`). Every patient heading to UKC is a tile ordered by arrival time. Click a tile: live map of the ambulance, alerts, vitals with their age, and the reception actions (acknowledge, assign a bay, call a team).
 5. **Be the paramedic.** The ER tile shows which unit carries the patient (for example `A3`). Open `/crew/A3?world=sim`, tap **Enter vitals**, **Drug** or **Event**, or type a note in **Log**. Within about 2 seconds it shows on that patient's ER tile. Then press **Acknowledge** on the ER tile and watch the tablet change.
 
@@ -51,39 +51,37 @@ It adds triage, vitals every 5 world-minutes, a drug for emergencies, a cardiac 
 
 All screenshots show the Simulation world: synthetic calls, fictional crews, approximate coordinates.
 
-<!-- TODO(screenshots): dashboard-alerts.png, vehicle-card-timeline.png, tablet-navigation.png, tablet-helicopter.png and crew-phone.png were captured before the AI dispatcher tab and the lock chip; re-capture if time allows. The ER board, crew tablet, AI dispatcher, Scenarios and driver tablet images are current. -->
-
 <p align="center">
-  <img src="docs/images/dashboard-calls.png" alt="Dispatcher dashboard: a critical cardiac-arrest call as a case with its triage, dispatched unit, the caller's words in Slovenian and English, and the call timeline" width="900">
+  <img src="docs/images/dashboard-calls.png" alt="Dispatcher dashboard, AI dispatcher tab: two new calls as case cards (a critical cardiac arrest and a suspected heart attack) with who classified and who dispatched each, and the map popup of ambulance A1 with the reason it was sent" width="900">
 </p>
 
-**Dispatcher dashboard: every call as a case.** From the 112 call to the end: severity and condition, the unit sent and its arrival time, the caller's words (SL/EN), who classified it, and a timeline of who did what (caller, AI or rules, engine, dispatcher, crew).
+**Dispatcher dashboard: every call as a case.** From the 112 call to the end: severity and condition, the unit sent and its arrival time, who classified it (here the keyword rules, because this local capture had no Claude key; on the deployed app it is Claude), who dispatched it (rules engine), and a timeline of who did what (caller, AI or rules, engine, dispatcher, crew). Click a unit on the map for its popup with the reason it was sent and an **Override** button.
 
 <p align="center">
-  <img src="docs/images/dashboard-alerts.png" alt="Dispatcher dashboard, Alerts tab: red calls over the 15-minute reference with neighbouring-station suggestions, doctor cars and the helicopter on the map, event log with clinical reasons" width="900">
+  <img src="docs/images/dashboard-alerts.png" alt="Dispatcher dashboard, Alerts tab after a surge: red calls over the 15-minute reference with neighbouring-station suggestions, a high-demand alert with a button to activate contracted units, doctor-car and helicopter hints, and late trips" width="900">
 </p>
 
-**Alerts and event log under load.** Red calls predicted over the 15-minute reference ("ask a neighbouring station"), a doctor reaching a call late, the helicopter sent to a cardiac arrest, and the event log with the clinical reason for each decision.
+**Alerts under load.** After the Surge scenario: red calls predicted over the 15-minute reference ("ask a neighbouring station"), a high-demand alert with the button that activates contracted private units (the dispatcher's decision), "no doctor car free: consider the helicopter", and late trips. The event log with the clinical reason for each decision is below the alerts.
 
 <p align="center">
-  <img src="docs/images/vehicle-card-timeline.png" alt="Vehicle card for ambulance A1 responding to a suspected heart attack, with crew, next stops and the call timeline including doctor car D1" width="900">
+  <img src="docs/images/vehicle-card-timeline.png" alt="Vehicle popup for ambulance A1 responding to a critical cardiac arrest: the AI dispatcher's reason (diverted from a serious call to this critical one), Override, vehicle card, breakdown, crew and tablet buttons, beside the AI dispatcher tab" width="900">
 </p>
 
-**Vehicle card.** Click any vehicle: what it is responding to, its crew, fuel, next stops with ETAs, and the call timeline with the doctor car that was sent alongside.
+**Vehicle popup.** Click any vehicle on the map or in the strip: what it is responding to, **why the AI dispatcher sent it** (here: "Dispatched A1, diverted from TR-006 (serious) to this critical call"), an **Override** button, fuel, crew, and links to the vehicle card, the crew view and the tablet view.
 
 <table>
   <tr>
     <td width="42%" valign="top">
-      <img src="docs/images/tablet-navigation.png" alt="In-vehicle tablet for ambulance A1: current job with the caller's words, severity, doctor car, next stops, navigation map and quick reports">
-      <br><b>In-vehicle tablet.</b> Current job with the caller's words, next stops, map navigation (heading up, north up, overview), one-tap reports and a message to dispatch.
+      <img src="docs/images/tablet-navigation.png" alt="In-vehicle tablet for ambulance A1: an alert, current job with the caller's words, severity, next stops, crew, turn-by-turn navigation map and one-tap messages to dispatch">
+      <br><b>In-vehicle tablet.</b> Current job with the caller's words, alerts that touch this unit, next stops, map navigation (heading up, north up, overview), one-tap reports and a message to dispatch.
     </td>
     <td width="42%" valign="top">
-      <img src="docs/images/tablet-helicopter.png" alt="Tablet for helicopter H1 showing straight-line flight guidance to a skier at Krvavec">
-      <br><b>Helicopter H1.</b> Straight-line flight guidance (heading and distance) instead of road turns.
+      <img src="docs/images/tablet-helicopter.png" alt="Tablet for helicopter H1 showing straight-line flight guidance from the Brnik base to a hiker with a suspected spinal injury at Kamniška Bistrica">
+      <br><b>Helicopter H1.</b> Straight-line flight from the Brnik base to the patient (a hiker in the mountains) instead of road turns.
     </td>
     <td width="16%" valign="top">
-      <img src="docs/images/crew-phone.png" alt="Crew phone view: current job, hold to talk, Slovenian and English toggle, quick reports">
-      <br><b>Crew phone.</b> Hold to talk (SL/EN) or tap a quick report.
+      <img src="docs/images/crew-phone.png" alt="Crew phone view for transport van T1 carrying blood products: current job, next stop, log, hold to talk to dispatch with the Slovenian and English toggle">
+      <br><b>Crew phone.</b> The job, the next stop, hold to talk (SL/EN) or tap a quick report.
     </td>
   </tr>
 </table>
@@ -135,7 +133,7 @@ Promo, ads and four recorded walkthrough videos of the real UI are generated fro
 - **Constraints modelled:** vehicle capabilities (a van never takes an emergency, the helicopter never carries equipment or routine trips, doctor cars never transport), ready-at and due-by time windows, task priorities (four severity levels), several trips per vehicle (a queue per vehicle), pickup and delivery, and hospital admission capacity.
 - **Travel:** ambulances and vans on real road routes (OSRM, with TomTom as backup), adjusted for live traffic, weather and incidents; the helicopter in a straight line at **200 km/h**, after **13 minutes from the call to take-off** at its base (the HNMP average) and 2 to 3 minutes to land, **by day only** (new calls 08:00 to 16:30; at night it shows as unavailable): [docs/SERVICE_TIMES.md](docs/SERVICE_TIMES.md).
 - **Scheduled-day mode** (the brief's initial plan): the vans start with a pre-planned day of 24 synthetic booked trips and 4 equipment runs, placed greedily and then improved by a local search. The default seed starts with no late and no unassigned trips. Switch to it in the Simulation world's Scenarios tab, or with `POST /sim/admin/reset {"scheduled_day": true}`.
-- **Default mode is live calls:** there is no pre-planned day. Calls arrive about 5 per world-hour (`CALLS_PER_HOUR`; the Simulation world's clock runs 5× faster) and each is dispatched at once, which is closer to how emergency medical services work.
+- **Default mode is live calls:** there is no pre-planned day. Calls arrive about 5 per world-hour (`CALLS_PER_HOUR`; the Simulation world's clock runs 5× faster) and each is dispatched at once, which is closer to how emergency medical services work. The Live world's stream is on by default; the Simulation world's is off (`SIM_CALLS_ENABLED=0`): you start calls yourself or switch the stream on in the Scenarios tab.
 - **Crew availability** is shown (fictional crews and shifts on vehicle cards) but is **not yet a planning constraint**.
 
 ### Part 2: plan repair (*popravek plana*)
@@ -149,8 +147,8 @@ Every event below goes through one engine, is applied to the world's state and r
 | Urgent new task (*nova nujna naloga*) | A 112 call or a map click is dispatched at once by the doctrine below; a booking is placed on the van where it fits best. |
 | Reduced hospital capacity | Patients heading to a hospital that can admit fewer than are coming raise an alert. The most urgent keep their place; options redirect the rest to other general hospitals and state the cost. |
 | Patient priority change | A level change re-evaluates dispatch. Raised to emergency on a van: the van loses it and an ambulance is sent. |
-| Vehicle delays (*zamude*) | ETAs and knock-on delays are re-projected. For a 112 call, a free ambulance that is at least 3 minutes faster takes over. |
-| Road closures (*zaprte ceste*) | Vehicles are routed around the closure (orange on the map, TomTom routing with avoid areas). Without the detour service the route is kept with a slowdown. |
+| Vehicle delays (*zamude*) | ETAs and knock-on delays are re-projected. After **every** disruption the engine recalculates each 112 call it touched and says so on the timeline, also when nothing changes: a free ambulance at least 3 minutes sooner takes over, also from a unit the dispatcher chose when the disruption pushed that unit back by 3 minutes or more. |
+| Road closures (*zaprte ceste*) | Vehicles are routed around the closure (drawn along the blocked road on the map, like crashes and traffic jams; TomTom routing with avoid areas). Without the detour service the route is kept with a slowdown. |
 | Shortage of vehicles (*pomanjkanje vozil*) | A high-demand alert and options: a neighbouring station's ambulance (M1), a private ambulance (P1), or contracted surge capacity, and an honest statement of who waits. |
 
 ### Part 3: the Slovenian AI assistant
@@ -159,7 +157,7 @@ A crew member speaks or types, for example *"Vozilo je obstalo. Oprema je še v 
 
 ### Main features
 
-- **AI dispatcher tab** (the dashboard's first tab). Every call is a case card: the caller's words in Slovenian and English, who classified it (Claude, keyword rules or the dispatcher), the unit that was sent with **a one-line reason per unit** ("nearest free ambulance", "available soon: finishes at UKC, 12 min sooner than A2", "doctor needed for cardiac arrest: first doctor car on scene"; the arrival time next to it is the live one) and **who decided each step**, and a timeline. A switch sets the mode: **Autonomous** (Claude's recommendation is applied after the engine re-checks it) or **Assisted** (the default: a proposal to approve). **Override** lists every other unit ranked by the engine with its arrival time and cost ("free", "diverts TR-003, which then waits 12 min longer", "private ambulance"), and **Add unit** adds a doctor car, a further ambulance or the helicopter. A unit the dispatcher chose by hand sticks: the engine's follow-up and the AI do not change it, and the engine does not divert it to a higher-level call (it says so: "A1 not diverted: assigned by the dispatcher to TR-003 (Override to divert)"). Details: [docs/DISPATCH_PRIORITIES.md](docs/DISPATCH_PRIORITIES.md) section 8.
+- **AI dispatcher tab** (the dashboard's first tab). Every call is a case card: the caller's words in Slovenian and English, who classified it (Claude, keyword rules or the dispatcher), the unit that was sent with **a one-line reason per unit** ("nearest free ambulance", "available soon: finishes at UKC, 12 min sooner than A2", "doctor needed for cardiac arrest: first doctor car on scene"; the arrival time next to it is the live one) and **who decided each step**, and a timeline. A switch sets the mode: **Autonomous** (Claude's recommendation is applied after the engine re-checks it) or **Assisted** (the default: a proposal to approve). **Override** lists every other unit ranked by the engine with its arrival time and cost ("free", "diverts TR-003, which then waits 12 min longer", "private ambulance"), and **Add unit** adds a doctor car, a further ambulance or the helicopter. A unit the dispatcher chose by hand sticks: the AI does not change it, and the engine does not divert it to a higher-level call (it says so: "A1 not diverted: assigned by the dispatcher to TR-003 (Override to divert)"). The one exception is a disruption that holds that unit up by 3 minutes or more: a free ambulance at least 3 minutes sooner then takes over, and the timeline says "A1 was the dispatcher's choice but is held up". Details: [docs/DISPATCH_PRIORITIES.md](docs/DISPATCH_PRIORITIES.md) section 8.
 - **Live calls and 112 intake.** A call-taker types or dictates the call (address, known place or map point). Claude triages it into a severity, a condition, case modifiers, a doctor flag and a one-sentence clinical reason; keyword rules take over when Claude is off, limited or slow. The call then follows the normal dispatch path and gets a timeline.
 - **Severity levels and dispatch doctrine.** Critical, serious, urgent, routine, with 14 conditions weighted by time sensitivity (cardiac arrest 10, stroke and heart attack 6, ...) and response targets (critical 8 min in the city / 15 outside, serious 18, urgent 60). The engine sends the closest suitable unit by true arrival time (including one finishing a drop-off nearby), may divert a unit from a lower-level call when the saving is clear, evaluates the helicopter for every red call, and judges stroke and heart attack by arrival at UKC. A red call predicted over 15 minutes raises an alert. Rules and sources: [docs/DISPATCH_PRIORITIES.md](docs/DISPATCH_PRIORITIES.md).
 - **Doctor cars.** For red calls that need a doctor, a doctor car (VUZ: physician and nurse) joins the ambulance crew on scene; the helicopter carries a doctor.
@@ -168,13 +166,13 @@ A crew member speaks or types, for example *"Vozilo je obstalo. Oprema je še v 
 - **Helicopter H1** as the real service runs it: based at Brnik, 13 minutes from the call to take-off, 08:00–16:30 only (greyed out with "Unavailable at night until 08:00" otherwise), straight-line flight, fog grounding. In practice it serves remote calls, and city calls only when every ambulance is busy.
 - **Reports** (`/reports`): operational statistics per world over the last 1, 3 or 8 world-hours: response time against the target by severity, calls within target, doctor on scene within 15 minutes, late transports, unit utilisation, and who decided (rules engine, Claude, dispatcher override). `GET /{world}/reports`.
 - **Slovenian and English everywhere.** A switch in every header. The dashboard defaults to English, the crew phone and the tablet to Slovenian; `?lang=sl` or `?lang=en` in the address sets it for that device.
-- **Demo lock.** With `ADMIN_KEY` set, only devices that carry the key (opened once with `?key=`) can reset, inject, approve, override or spend AI tokens; everyone else sees a read-only dashboard. A shared demo key, not a login: [docs/RELIABILITY_AND_SECURITY.md](docs/RELIABILITY_AND_SECURITY.md).
+- **Demo lock (optional).** With `ADMIN_KEY` set, only devices that carry the key (opened once with `?key=`) can reset, inject, approve, override or spend AI tokens; everyone else sees a read-only dashboard. **The deployed backend currently runs without a key: the app is open to everyone and no lock chip is shown.** A shared demo key, not a login: [docs/RELIABILITY_AND_SECURITY.md](docs/RELIABILITY_AND_SECURITY.md).
 - **In-vehicle tablet** (`/vehicle/:id`): turn-by-turn navigation, current job, next stops, one-tap reports without AI, and messages from dispatch when the plan changes.
 - **Crew tablet and phone** (`/crew/:id`): push-to-talk in Slovenian or English (browser speech recognition), typed text, quick reports 1–5. The same page also carries the patient-compartment clinical log: tap pads for vitals, drugs and events, timers, the ETA to the ER and a 15-minute handover screen (design: [docs/superpowers/specs/2026-11-21-crew-patient-tablet-design.md](docs/superpowers/specs/2026-11-21-crew-patient-tablet-design.md)).
 - **ER inbound board** (`er-dashboard/`, served by the frontend at `/er/`): a separate screen for ER reception. One tile per patient on the way, ordered by arrival time, with the crew's clinical log, alerts, and reception actions (acknowledge, assign a bay, call a team). It reads the backend's `clinical` module (`GET /{world}/er/board`); data contract: [docs/superpowers/specs/2026-11-22-er-dashboard-api-contract.md](docs/superpowers/specs/2026-11-22-er-dashboard-api-contract.md), details: [er-dashboard/README.md](er-dashboard/README.md). All patient data is synthetic.
 - **Audit log:** every event, 112 call, crew message, interpreted event, AI recommendation, dispatcher decision and override, stored in PostgreSQL (memory only without `DATABASE_URL`), filterable on the Audit page and exportable as JSON lines.
 - **Live and Simulation worlds** (below), a status bar showing each data source as fresh, stale or down, a switchable base map and TomTom traffic layer, and keyboard shortcuts (press `?`).
-- **Demo tools (Simulation only):** 12 one-click scenarios, "Random call" (`R`) and "Random failure" (`X`) buttons, a call-stream switch, an AI-triage switch.
+- **Demo tools (Simulation only):** 12 one-click scenarios; **Random call** (`R`); **`E` + a click on the map**, which creates a real 112 call from the call library (picked condition and level) at that point; **Random failure** (`X`: crash, closure, traffic jam, fog, breakdown, delay, hospital capacity, equipment) and **Choose unit…** to aim a failure at one unit; a call-stream switch; an AI-triage switch.
 
 **Live vs Simulation.** Both worlds share the real weather, traffic and incident feeds. **Live** runs on the real clock and accepts only real operator reports. **Simulation** is the presentation sandbox: a 5× clock, hypothetical weather such as a snowstorm, demo scenarios and reset. In both, the fleet and the calls are generated by the simulator, which stands in for the vehicle GPS feed and the call centre.
 
@@ -275,7 +273,7 @@ Speech needs Chrome or Edge, HTTPS and a microphone permission. Without it, type
 
 - **It computes no numbers.** Every ETA, delay and late-trip count comes from the deterministic engine. Each option is re-simulated by the engine before the dispatcher sees it.
 - **It changes nothing directly.** The AI has read-only tools and a what-if simulator. Applying an option replays exactly the steps that were shown, re-checks them against the current situation, and is refused with the reason if the situation has changed for the worse.
-- **It does not override the dispatcher.** A unit the dispatcher assigned by hand is not changed by the AI or by the engine's follow-up. The dispatcher approves (`Y`) or rejects (`N`) proposals, and can replace any unit at any time. The engine itself acts without asking only at the moment of dispatch (closest unit, a clearly justified override, the helicopter) and in the automatic follow-up of 112 calls (re-dispatch when a unit drops out, a clearly faster free unit, a missing doctor car). Trade-offs such as swaps between same-level calls, reserve units, contracted surge capacity, and the plans for non-call work stay with the dispatcher, in either mode.
+- **It does not override the dispatcher.** A unit the dispatcher assigned by hand is not changed by the AI, and by the engine's follow-up only when a disruption holds that unit up by 3 minutes or more and a free ambulance is at least 3 minutes sooner. The dispatcher approves (`Y`) or rejects (`N`) proposals, and can replace any unit at any time. The engine itself acts without asking only at the moment of dispatch (closest unit, a clearly justified override, the helicopter) and in the automatic follow-up of 112 calls (re-dispatch when a unit drops out, a recalculation after every disruption, a free unit at least 3 minutes sooner, a missing doctor car). Trade-offs such as swaps between same-level calls, reserve units, contracted surge capacity, and the plans for non-call work stay with the dispatcher, in either mode.
 
 **When Claude is unavailable** (no key, error, refusal, timeout, or usage limit):
 
