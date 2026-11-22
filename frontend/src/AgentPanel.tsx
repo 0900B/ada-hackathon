@@ -466,9 +466,24 @@ export function AgentPanel({
     }
   };
   const analyse = () => act(() => analyzeNow(state.world), t("ai.rev.started"));
+  // A second Y (or click) before the snapshot shows the run as approved would get "Run … is approved;
+  // nothing to approve" and replace the success toast with an error: approve each run once (keyed by id +
+  // start time: run ids restart when the backend restarts)
+  const approving = useRef(new Set<string>());
   const approve = (i: number) => {
     if (!run || !rec) return;
-    void act(() => approveOption(state.world, run.id, i), t("ai.rev.optionApplied", { n: i + 1, title: rec.options[i].title }), run.id);
+    const id = run.id;
+    const key = `${id}@${run.started_at}`;
+    if (approving.current.has(key)) return;
+    approving.current.add(key);
+    void act(
+      () => approveOption(state.world, id, i).catch((e) => {
+        approving.current.delete(key); // refused (e.g. out of date): it may be tried again
+        throw e;
+      }),
+      t("ai.rev.optionApplied", { n: i + 1, title: rec.options[i].title }),
+      id,
+    );
   };
   const reject = () => run && act(() => rejectRun(state.world, run.id), t("ai.rev.rejectedToast"));
 
