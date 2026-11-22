@@ -411,8 +411,15 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
     elif o.kind == "soon":
         cur = state.trips[v.current_trip_id] if v.current_trip_id else None
         if cur and cur.status == "onboard":
-            drop = f"drops off at {state.places[cur.dropoff_id].name} {_hhmm(cur.eta_dropoff)}, "
+            from .service_times import after_dropoff_min
+
+            ready = cur.eta_dropoff + timedelta(minutes=after_dropoff_min(cur, v.type)) if cur.eta_dropoff else None
+            # the gap between the drop-off and the new patient is the handover and cleaning: say so
+            drop = f"drops off at {state.places[cur.dropoff_id].name} {_hhmm(cur.eta_dropoff)}, ready {_hhmm(ready)} after handover and cleaning, "
             where = f"finishes at {state.places[cur.dropoff_id].name}"
+        elif v.busy_until and v.busy_until > state.sim_time and v.busy_reason == "delay":
+            drop = f"held up until {_hhmm(v.busy_until)}, "  # a reported delay, not a handover
+            where = "held up, then free"
         elif v.busy_until and v.busy_until > state.sim_time:
             drop = f"ready {_hhmm(v.busy_until)} after handover and cleaning, "
             where = "ready after handover and cleaning"
