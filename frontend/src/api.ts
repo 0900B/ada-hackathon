@@ -371,7 +371,13 @@ export interface AiStats {
   last_decision_at: string | null;
 }
 
-// --- Live state over server-sent events --------------------------------------
+// --- Live state over server-sent events, with a polling fallback ----------------
+
+// Some networks (a proxy, an antivirus web shield, venue Wi-Fi) hold back a streaming response while plain
+// requests go through: the page would hang on "Connecting…". When the stream has delivered nothing for
+// STREAM_STALL_MS, the hook fetches /{world}/state every POLL_MS instead, and stops as soon as the stream speaks.
+const STREAM_STALL_MS = 5000;
+const POLL_MS = 1500;
 
 export function useWorldState(world: World) {
   const [state, setState] = useState<WorldSnapshot | null>(null);
@@ -379,14 +385,55 @@ export function useWorldState(world: World) {
 
   useEffect(() => {
     setState(null);
-    const es = new EventSource(`${API_URL}/${world}/stream`); // reconnects automatically
-    es.onopen = () => setConnected(true);
-    es.onerror = () => setConnected(false);
-    es.onmessage = (msg) => {
-      setState(JSON.parse(msg.data) as WorldSnapshot);
+    let closed = false;
+    let lastStreamMsg = 0; // 0: nothing yet, so the first poll comes after POLL_MS if the stream is silent
+    let shown: { epoch?: number; version?: number } | null = null;
+    let inflight = false;
+    let lastPollOk = 0;
+
+    // Never let an older snapshot replace a newer one (a poll can land after a stream message).
+    const apply = (s: WorldSnapshot) => {
+      const snap = s as WorldSnapshot & { epoch?: number; version?: number };
+      if (shown && snap.epoch === shown.epoch && (snap.version ?? 0) < (shown.version ?? 0)) return;
+      shown = { epoch: snap.epoch, version: snap.version };
+      setState(s);
       setConnected(true);
     };
-    return () => es.close();
+
+    const es = new EventSource(`${API_URL}/${world}/stream`); // reconnects automatically
+    es.onopen = () => setConnected(true);
+    es.onerror = () => {
+      if (Date.now() - lastPollOk > 2 * POLL_MS) setConnected(false); // while polling works, stay "Connected"
+    };
+    es.onmessage = (msg) => {
+      lastStreamMsg = Date.now();
+      apply(JSON.parse(msg.data) as WorldSnapshot);
+    };
+
+    const poll = async () => {
+      if (closed || inflight || Date.now() - lastStreamMsg < STREAM_STALL_MS) return;
+      inflight = true;
+      try {
+        const res = await fetch(`${API_URL}/${world}/state`, { cache: "no-store" });
+        if (closed) return;
+        if (res.ok) {
+          const s = (await res.json()) as WorldSnapshot;
+          lastPollOk = Date.now();
+          if (!closed && Date.now() - lastStreamMsg >= STREAM_STALL_MS) apply(s);
+        } else setConnected(false);
+      } catch {
+        if (!closed) setConnected(false);
+      } finally {
+        inflight = false;
+      }
+    };
+    const timer = window.setInterval(() => void poll(), POLL_MS);
+
+    return () => {
+      closed = true;
+      window.clearInterval(timer);
+      es.close();
+    };
   }, [world]);
 
   return { state, connected };

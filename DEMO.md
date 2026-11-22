@@ -79,6 +79,7 @@ break it and override it.
 | The scene looks odd, or T1 has already delivered the blood | **Reset simulation**, then repeat the step. **Prepare crew demo** can be pressed again | (nothing) |
 | Backend restarted | Cold start: reset the two switches (Autonomous, call stream off) and the form; 20 seconds | (nothing) |
 | Wi-Fi drops | Laptop and phone to the hotspot; the backend is on Railway, only the devices need the internet | (nothing) |
+| Page stuck on "Connecting to …railway.app" | Some networks hold back the live stream. The page switches to fetching the state every 1.5 s after about 5 s by itself; if it still hangs, turn the VPN on or use the phone hotspot (seen on 22 Nov: fixed by a VPN). **Test the venue Wi-Fi before the pitch.** | (nothing) |
 | Nothing works | Play `showcase-crew-replan.mp4` or `showcase-112-to-hospital.mp4` | "This is the same run, recorded." |
 
 ## 4. The honest benchmark sentence
