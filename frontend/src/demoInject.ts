@@ -30,6 +30,7 @@ export const FAILURES: readonly { value: string; label: string }[] = [
   option("", () => t("dash.demo.any")),
   option("crash", () => t("dash.demo.crash")),
   option("closure", () => t("dash.demo.closure")),
+  option("jam", () => t("dash.demo.jam")),
   option("fog", () => t("dash.demo.fog")),
   option("breakdown", () => t("dash.demo.breakdown")),
   option("delay", () => t("dash.demo.delay")),

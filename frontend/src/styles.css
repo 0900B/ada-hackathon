@@ -909,11 +909,6 @@ button.primary kbd {
 .lg-down {
   border-color: var(--crit);
 }
-.lg-closure {
-  border-radius: 50%;
-  border-color: var(--crit);
-  background: rgba(242, 85, 90, 0.25);
-}
 .lg-doctor {
   border-color: var(--doctor);
   background: #1b1430;
@@ -1034,6 +1029,58 @@ button.primary kbd {
   border: none;
   border-top: 3px solid var(--detour);
   border-radius: 0;
+}
+/* Road incidents in the legend: the line drawn along the road (incidentLayer.ts) */
+.lg-road {
+  width: 18px;
+  height: 6px;
+  border: none;
+  border-radius: 0;
+}
+.lg-closure.lg-road {
+  background: repeating-linear-gradient(90deg, #fff 0 3px, transparent 3px 6px) center / 100% 2px no-repeat, #e5484d;
+}
+.lg-crash.lg-road {
+  background: #e5484d;
+}
+.lg-jam.lg-road {
+  background: radial-gradient(circle, #2a1d00 1px, transparent 1.5px) 0 50% / 5px 6px repeat-x, #c9940a;
+}
+
+/* Incident markers on the maps (incidentLayer.ts): no-entry roundel, crash triangle, jam car */
+.inc-mk {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  background: #0f141b;
+  border: 1.5px solid #e5484d;
+  color: #ff9b9b;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+.inc-mk svg {
+  width: 68%;
+  height: 68%;
+}
+.inc-mk.closure {
+  border-radius: 50%;
+  background: #e5484d;
+  border: 1.5px solid #fff;
+}
+.inc-mk.closure span {
+  width: 60%;
+  height: 22%;
+  background: #fff;
+  border-radius: 1px;
+}
+.inc-mk.jam {
+  border-color: #c9940a;
+  color: #f2c14e;
+}
+.inc-mk.live {
+  border-style: dashed;
 }
 
 /* Alerts and events */

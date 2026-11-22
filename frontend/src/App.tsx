@@ -722,8 +722,14 @@ function MapLegend() {
       <span>
         <i className="lg lg-detour" /> {t("dash.legend.detour")}
       </span>
-      <span>
-        <i className="lg lg-closure" /> {t("dash.legend.closure")}
+      <span title={t("dash.legend.closureTitle")}>
+        <i className="lg lg-road lg-closure" /> {t("dash.legend.closure")}
+      </span>
+      <span title={t("dash.legend.crashTitle")}>
+        <i className="lg lg-road lg-crash" /> {t("dash.legend.crash")}
+      </span>
+      <span title={t("dash.legend.jamTitle")}>
+        <i className="lg lg-road lg-jam" /> {t("dash.legend.jam")}
       </span>
     </div>
   );
