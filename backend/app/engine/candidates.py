@@ -15,12 +15,11 @@ from .actions import ActionError, assign_trip, can_serve, check_redirect, level
 from .doctors import origin_label, per_call_reserve
 from .severity import HELICOPTER_GAIN_MIN
 from .plans import simulate_steps, step_details
-from .projection import DONE, PRIORITY_ORDER, kpis, over_capacity, project_all, route_trip_ids
+from .projection import DONE, kpis, over_capacity, project_all, route_trip_ids
 
 if TYPE_CHECKING:
     from ..state import WorldState
 
-PRIORITY_ORDER = {"emergency": 0, "urgent": 1, "scheduled": 2}
 HELICOPTER_LONG_TRIP_KM = 30.0  # (legacy) the helicopter no longer takes scheduled trips at all, see can_serve
 # The helicopter ranks first only if it reaches the patient at least this much sooner than the
 # best road vehicle: in-city calls stay with the ambulances, remote ones fly. 0 = always the fastest.

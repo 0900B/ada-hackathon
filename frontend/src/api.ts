@@ -704,7 +704,7 @@ export async function checkAdminKey(key: string): Promise<"ok" | "rejected" | "u
 
 export const runScenario = (name: string) =>
   post<{ scenario: string; title: string; run_id: string | null; note?: string; vehicle_id?: string | null }>(
-    `/sim/admin/scenario/${name}`,
+    `/sim/admin/scenario/${encodeURIComponent(name)}`,
   );
 
 export const SCENARIOS = [
