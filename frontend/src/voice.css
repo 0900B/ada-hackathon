@@ -1,12 +1,6 @@
 /* Voice input, keyboard-shortcut help and the mobile Crew view. Uses the theme variables from styles.css. */
 
 /* --- Mic controls in "Message from the field" ------------------------------------------- */
-.voice-row {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  flex-wrap: wrap;
-}
 .mic-btn,
 .ptt {
   touch-action: none;
@@ -213,9 +207,6 @@ kbd {
   color: var(--accent-text);
   border-color: var(--accent-text);
 }
-.crew .ui-lang.crew-uilang-end {
-  margin-left: auto;
-}
 .crew-world {
   font-size: 11px;
   font-weight: 700;
@@ -230,14 +221,6 @@ kbd {
 .crew-world.live {
   color: var(--ok);
 }
-.crew-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.crew-chips .chip {
-  font-size: 13px;
-}
 .chip.st-out_of_service {
   color: var(--bad);
 }
@@ -247,16 +230,6 @@ kbd {
 .chip.st-with_patient,
 .chip.st-loading {
   color: var(--ok);
-}
-.crew-trip {
-  border-top: 1px solid var(--border);
-  padding-top: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.crew-trip-who strong {
-  font-size: 18px;
 }
 .crew-route {
   font-size: 17px;

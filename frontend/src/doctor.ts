@@ -23,7 +23,6 @@ export const DOCTOR_CONDITIONS = new Set([
 export const DOCTOR_TARGET_MIN = 15;
 
 export const ORIGIN_LABEL: Record<string, string> = liveRecord(["mutual_aid", "private"] as const, (o) => t(`origin.${o}`));
-export const isOutside = (v: Pick<Vehicle, "origin"> | undefined) => Boolean(v?.origin && v.origin !== "own");
 
 export interface DoctorInfo {
   state: "needed" | "en_route" | "on_scene" | "helicopter";

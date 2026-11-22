@@ -63,19 +63,6 @@ export const CONDITIONS: Condition[] = [
   condition("fracture", "urgent", 2),
 ];
 
-export interface Modifier {
-  code: string;
-  label: string;
-}
-const modifier = (code: string): Modifier => ({
-  code,
-  get label() {
-    return modifierLabel(code);
-  },
-});
-/** Case modifiers that move a call up within its level (the first three can be set on a new call). */
-export const MODIFIERS: Modifier[] = ["child", "deteriorating", "multiple_patients", "late_stroke_window", "no_bystander_cpr"].map(modifier);
-
 export function modifierLabel(code: string): string {
   const key = `mod.${code}`;
   return hasKey(key) ? tx(key) : capitalise(code);
