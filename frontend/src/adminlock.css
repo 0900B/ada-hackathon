@@ -1,0 +1,135 @@
+/* Demo-lock indicator and key prompt (AdminLock.tsx): dashboard header, in-vehicle tablet, crew phone.
+   Colours come from whichever theme the host page defines (:root tokens, or --m-* inside .mdt). */
+
+.adminlock {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+.adminlock-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid var(--m-border, var(--border, #242e3a));
+  background: var(--m-panel-2, var(--surface-2, #161d26));
+  color: var(--m-muted, var(--muted, #8f9cab));
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.adminlock-btn svg.lucide {
+  width: 13px;
+  height: 13px;
+  vertical-align: 0;
+}
+.adminlock-btn.ok {
+  color: var(--m-ok, var(--ok, #3fb950));
+}
+.adminlock-btn.view {
+  color: var(--m-warn, var(--warn, #d6a23a));
+}
+.adminlock-btn.rejected {
+  color: var(--m-bad, var(--crit, #f2555a));
+}
+.adminlock[data-variant="crew"] .adminlock-btn {
+  min-height: 32px;
+  padding: 2px 10px;
+  font-size: 13px;
+}
+.adminlock[data-variant="tablet"] .adminlock-btn {
+  min-height: 44px;
+  padding: 4px 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.adminlock[data-variant="tablet"] .adminlock-btn svg.lucide {
+  width: 18px;
+  height: 18px;
+}
+
+/* The prompt is fixed under the button, at the right edge, so it never runs off a phone screen */
+.adminlock-pop {
+  position: fixed;
+  right: 8px;
+  z-index: 3000;
+  width: min(320px, calc(100vw - 16px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--m-border, var(--border-strong, #354253));
+  background: var(--m-panel, var(--surface, #11161d));
+  color: var(--m-text, var(--text, #e6ebf1));
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 400;
+  white-space: normal;
+}
+.adminlock-pop p {
+  margin: 0;
+}
+.adminlock-help {
+  color: var(--m-muted, var(--muted, #8f9cab));
+}
+.adminlock-note {
+  color: var(--m-warn, var(--warn, #d6a23a));
+}
+.adminlock-error {
+  color: var(--m-bad, var(--crit, #f2555a));
+}
+.adminlock-input {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--m-border, var(--border-strong, #354253));
+  background: var(--m-bg, var(--bg, #0b0f14));
+  color: inherit;
+  font: inherit;
+  font-size: 16px; /* 16 px: iOS does not zoom the page when the field gets focus */
+}
+.adminlock-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.adminlock-act {
+  min-height: 36px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--m-border, var(--border-strong, #354253));
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.adminlock-act.primary {
+  background: var(--m-accent, var(--accent-bg, #2563eb));
+  border-color: var(--m-accent, var(--accent-bg, #2563eb));
+  color: #fff;
+}
+.adminlock-act:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.adminlock[data-variant="tablet"] .adminlock-act,
+.adminlock[data-variant="crew"] .adminlock-act {
+  min-height: 44px;
+}
+
+/* Crew head: the lock sits beside the SIM / LIVE badge */
+.crew-head-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
