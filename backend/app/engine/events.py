@@ -32,7 +32,6 @@ from .service_times import on_scene_for, on_scene_min
 from .severity import DEFAULT_SEVERITY, DOCTOR_TARGET_MIN, SEVERITY_PRIORITY, SEVERITY_RANK, call_label, grade, severity_for
 from .projection import (
     DONE,
-    PRIORITY_ORDER,
     incoming_patients,
     kpis,
     over_capacity,

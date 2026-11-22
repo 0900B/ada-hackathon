@@ -352,14 +352,14 @@ class EventRecord(BaseModel):
 class BreakdownEvent(BaseModel):
     type: Literal["breakdown"]
     vehicle_id: str
-    note: str | None = None
+    note: str | None = Field(default=None, max_length=500)
 
 
 class DelayEvent(BaseModel):
     type: Literal["delay"]
     vehicle_id: str
     minutes: float = Field(gt=0, le=240)
-    note: str | None = None
+    note: str | None = Field(default=None, max_length=500)
 
 
 class RoadClosureEvent(BaseModel):
@@ -368,7 +368,7 @@ class RoadClosureEvent(BaseModel):
     lon: float
     radius_m: float = Field(default=400, gt=0, le=5000)
     kind: IncidentKind = "road_closure"
-    description: str = "Road closed"
+    description: str = Field(default="Road closed", max_length=300)
     # Optional: the affected road stretch (lat, lon) for the map; derived from the roads when not given
     path: list[tuple[float, float]] | None = Field(default=None, max_length=400)
     duration_min: float | None = Field(default=None, gt=0, le=24 * 60)  # clears by itself after this long
@@ -395,8 +395,8 @@ class TaskRequestEvent(BaseModel):
     priority: Literal["scheduled", "urgent"] = "scheduled"
     ready_in_min: float = Field(default=15, ge=0, le=1440)  # patient/cargo ready this many minutes from now
     due_in_min: float | None = Field(default=None, gt=0, le=2880)  # deadline from now; None = sensible default
-    label: str | None = None  # patient label (pseudonymous) or cargo description for equipment
-    note: str | None = None
+    label: str | None = Field(default=None, max_length=120)  # patient label (pseudonymous) or cargo description for equipment
+    note: str | None = Field(default=None, max_length=500)
     auto_assign: bool = True
     # If no vehicle can take it on time: "leave" it unassigned for the AI/dispatcher, or put it on
     # the vehicle that can collect it "soonest" (late; used for live calls, which must be served).
@@ -427,7 +427,7 @@ class UrgentRequestEvent(BaseModel):
     dropoff_id: str = "ukc"
     needs: Needs = "stretcher"
     priority: Literal["emergency", "urgent"] = "emergency"
-    note: str | None = None
+    note: str | None = Field(default=None, max_length=500)
     # Optional grading (docs/DISPATCH_PRIORITIES.md). severity sets the priority (critical/serious =
     # emergency, urgent = urgent); without it the condition's level, else serious/urgent by priority.
     severity: Literal["critical", "serious", "urgent"] | None = None
@@ -469,7 +469,7 @@ class FogEvent(BaseModel):
 
     type: Literal["fog"]
     duration_min: float = Field(default=60, gt=0, le=480)
-    note: str | None = None
+    note: str | None = Field(default=None, max_length=500)
 
 
 class PriorityChangeEvent(BaseModel):
@@ -483,7 +483,7 @@ class PriorityChangeEvent(BaseModel):
     priority: Priority | None = None
     severity: CallSeverity | None = None
     condition: str | None = None
-    note: str | None = None
+    note: str | None = Field(default=None, max_length=500)
 
     @model_validator(mode="after")
     def _one_given(self) -> PriorityChangeEvent:
@@ -503,7 +503,7 @@ class HospitalCapacityEvent(BaseModel):
     type: Literal["hospital_capacity"]
     place_id: str
     capacity: int | None = Field(default=None, ge=0, le=1000)
-    note: str | None = None
+    note: str | None = Field(default=None, max_length=500)
 
 
 OperatorEvent = Annotated[
@@ -612,12 +612,12 @@ class AgentRun(BaseModel):
 
 
 class AnalyzeRequest(BaseModel):
-    question: str | None = None
+    question: str | None = Field(default=None, max_length=1000)  # sent to Claude: bounded
 
 
 class ApproveRequest(BaseModel):
-    option_index: int
+    option_index: int  # range-checked in approvals.approve (400)
 
 
 class RejectRequest(BaseModel):
-    reason: str | None = None
+    reason: str | None = Field(default=None, max_length=500)
