@@ -16,9 +16,11 @@ metric shows the effect of the ambulance decisions only. Reserve units (mutual a
 a dispatcher's decision and are not used by either policy. The AI is not in the loop: these are
 engine rules only.
 
-Run (from backend/):  python tools/benchmark.py [--seeds 100] [--hours 8] [--workers 6]  (about 2 min)
+Run (from backend/):  python tools/benchmark.py [--seeds 100] [--hours 8] [--workers 6]  (about 4 min)
 ROAD_ROUTING=0 is forced: straight-line travel times with the city's speed model (fast and
-deterministic, no routing service).
+deterministic, no routing service). Every run starts at 08:00 local (START): a day shift, inside the
+helicopter's hours. The helicopter is the real service's (app/hems.py): based at Brnik, 13 min from
+the call to take-off, day only.
 """
 from __future__ import annotations
 
@@ -31,6 +33,7 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 os.environ["ROAD_ROUTING"] = "0"  # straight-line travel model: deterministic and fast
 os.environ.pop("ANTHROPIC_API_KEY", None)  # the AI is not part of this benchmark
@@ -58,6 +61,9 @@ except ImportError:  # pragma: no cover
     send_doctor = None  # type: ignore[assignment]
 
 OUT = Path(__file__).resolve().parent / "benchmark_results"
+# A day shift with a fixed clock (reproducible): calls 08:00-16:00 local, inside the helicopter's hours
+# (08:00-16:30, app/hems.py). At night the helicopter takes no calls: the ground-only rows apply.
+START = datetime(2026, 11, 23, 8, 0, tzinfo=ZoneInfo("Europe/Ljubljana"))
 TICK_S = 15.0  # simulated seconds per step
 DRAIN_H = 3.0  # after the call window: no new calls, until every call is finished (or this long)
 DOCTOR_TARGET_MIN = 15.0
@@ -124,7 +130,7 @@ def use_policy(name: str) -> None:
 def run_once(policy: str, seed: int, hours: float, per_hour: float, helicopter: bool = True) -> dict:
     use_policy(policy)
     state = WorldState(name="bench", speedup=1.0, hypothetical=True)
-    seed_world(state, seed, scheduled_day=False)
+    seed_world(state, seed, scheduled_day=False, start=START)
     if not helicopter:  # ground units only, for both policies (how much do the ground rules alone add?)
         for vid in [v.id for v in state.vehicles.values() if flies(v.type)]:
             del state.vehicles[vid]
@@ -212,6 +218,7 @@ def metrics(runs: list[dict]) -> dict:
         return [t["wait"] if t["wait"] is not None else never for t in trips if t["severity"] == level]
 
     crit = [t for t in trips if t["severity"] == "critical"]
+    serious = [t for t in trips if t["severity"] == "serious"]
     ser = waits("serious")
     urgent = [t for t in trips if t["severity"] == "urgent"]
     doctor = [t for t in trips if t["needs_doctor"]]
@@ -233,6 +240,9 @@ def metrics(runs: list[dict]) -> dict:
         "late_transports_pct": _pct([t["late"] for t in trips]),
         "not_reached": sum(1 for t in trips if t["wait"] is None),
         "ambulance_utilisation_pct": round(100 * statistics.mean(r["utilisation"] for r in runs), 1),
+        # who served the call in the end (the demo fleet's only helicopter is H1)
+        "helicopter_critical_pct": _pct([t["vehicle"] == "H1" for t in crit]),
+        "helicopter_serious_pct": _pct([t["vehicle"] == "H1" for t in serious]),
     }
 
 
@@ -248,6 +258,8 @@ ROWS = [
     ("Late transports (≥ 5 min after due)", "late_transports_pct", "%", False),
     ("Calls never reached", "not_reached", "", False),
     ("Ambulance utilisation (busy share of the call window)", "ambulance_utilisation_pct", "%", None),
+    ("Critical calls served by the helicopter", "helicopter_critical_pct", "%", None),
+    ("Serious calls served by the helicopter", "helicopter_serious_pct", "%", None),
 ]
 
 

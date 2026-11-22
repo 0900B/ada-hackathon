@@ -22,9 +22,10 @@ import os
 import sys
 import time
 import traceback
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace as NS
+from zoneinfo import ZoneInfo
 
 os.environ["ROAD_ROUTING"] = "0"
 os.environ["AGENT_AUTO"] = "0"
@@ -51,10 +52,11 @@ W = main.sim
 USAGE = NS(input_tokens=10, output_tokens=5, cache_read_input_tokens=0, cache_creation_input_tokens=0)
 ARREST = "Moj mož se je zgrudil, ne diha in se ne odziva!"
 ARREST_AT = "Dunajska cesta 50, Bežigrad"
+DAY = datetime(2026, 11, 23, 9, 0, tzinfo=ZoneInfo("Europe/Ljubljana"))  # fixed clock, by day: the helicopter flies 08:00-16:30
 
 
 def fresh(in_service: tuple[str, ...] | None = None) -> None:
-    seed_world(W, config.RANDOM_SEED, scheduled_day=False)
+    seed_world(W, config.RANDOM_SEED, scheduled_day=False, start=DAY)
     W.auto_analyze = False
     W.calls.enabled = False
     W.ai_triage = False
@@ -451,12 +453,18 @@ def test_alternatives_are_ranked_by_the_engine_with_their_cost():
     assert docs[t.doctor_vehicle_id]["current"] and docs[other]["cost_text"] == "free" and docs[other]["delta_min"] > 0
     assert client.get(f"/sim/trips/{t.id}/alternatives", params={"role": "van"}).status_code == 422
     assert client.get("/sim/trips/TR-999/alternatives").status_code == 404
-    # The helicopter (in service) for a serious call in the city: offered, with its doctor on board.
+    # The helicopter (in service) for a serious call in the city: offered, with its doctor on board and
+    # its activation at Brnik (13 min call to take-off), so much later than the ambulance.
     fresh()
     _, s = call112("serious", "stroke", place_id="home_moste")
     assert s.vehicle_id != "H1"
     (h1,) = alternatives(s, "helicopter")
-    assert h1["feasible"] and h1["free"] and h1["cost_text"] == "helicopter, doctor on board" and h1["delta_min"] is not None, h1
+    assert h1["feasible"] and h1["free"] and h1["cost_text"] == "helicopter, doctor on board, take-off in 13 min", h1
+    assert h1["delta_min"] is not None and h1["delta_min"] > 10 and h1["eta_minutes"] > 13, h1
+    # At night it is listed as unavailable, with why.
+    W.sim_time = W.sim_time.replace(hour=20)  # 21:00 local
+    (h1,) = alternatives(s, "helicopter")
+    assert not h1["feasible"] and h1["cost_text"] == "not available" and "unavailable (night)" in h1["note"], h1
 
 
 def test_the_dispatcher_replaces_and_adds_units_or_is_told_why_not():
@@ -500,7 +508,7 @@ def test_the_dispatcher_replaces_and_adds_units_or_is_told_why_not():
     assert r.json()["summary"].startswith(f"Dispatcher added H1 (helicopter) for a further patient: {linked.id}")
     units_now = {u["vehicle_id"]: u for u in r.json()["trip"]["units"]}
     assert set(units_now) == {"A1", other, "H1"} and units_now["H1"]["trip_id"] == linked.id
-    assert units_now["H1"]["reason"] == "added by the dispatcher: helicopter, doctor on board"
+    assert units_now["H1"]["reason"] == "added by the dispatcher: helicopter, doctor on board, take-off in 13 min"
     assert kinds(linked)[:2] == ["received", "override"] and last(t, "override").text == r.json()["summary"].split("; ")[0]
     assert W.ai_stats["overrides"] == 3
     # Refusals.

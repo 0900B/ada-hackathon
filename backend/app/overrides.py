@@ -4,8 +4,9 @@
   Every unit of that role, ranked by when it would reach the patient, computed by the engine
   (find_candidates simulates each option on a copy of the world): eta, minutes sooner or later than the
   current unit (delta_min, negative = sooner), whether it is free, and what it costs ("free",
-  "diverts TR-003 (urgent), which then waits 12 min longer", "helicopter, doctor on board",
-  "private, needs surge capacity"). Units that cannot take the call now are listed as infeasible with why.
+  "diverts TR-003 (urgent), which then waits 12 min longer", "helicopter, doctor on board, take-off in
+  13 min", "private, needs surge capacity"). Units that cannot take the call now are listed as infeasible
+  with why (e.g. the helicopter at night: "unavailable (night): HNMP flies 08:00-16:30 only").
 - assign(state, trip_id, vehicle_id, mode): POST /{world}/trips/{trip_id}/assign. "replace" swaps the
   transporting unit (or the doctor car, when vehicle_id is a doctor car); "add" adds a doctor car, or a
   further ambulance or the helicopter for another patient of the same call (a linked trip with the same
@@ -36,6 +37,7 @@ from .engine.projection import project_all
 from .engine.service_times import on_scene_min, turnout_min
 from .engine.severity import DOCTOR_TARGET_MIN, grade
 from .engine.units import role_of, trip_view
+from .hems import takeoff_in_min
 from .models import Plan, PlanStep, Trip
 from .routing import flies, travel_minutes
 
@@ -135,7 +137,8 @@ def _cost(state: WorldState, trip: Trip, c: dict[str, Any]) -> str:
     avail = _availability(state, trip, c)
     parts = []
     if flies(v.type):
-        parts.append("helicopter, doctor on board")
+        takeoff = takeoff_in_min(v, state.sim_time)  # from rest at its base: the call-to-take-off time (app/hems.py)
+        parts.append("helicopter, doctor on board" + (f", take-off in {takeoff:.0f} min" if takeoff is not None else ""))
     if v.origin == "private":
         parts.append("private (contracted surge unit)")
     if avail != "free" or not parts:
@@ -174,7 +177,7 @@ def _unit_alternatives(state: WorldState, trip: Trip, vtype: str) -> list[dict[s
             out.append(_entry(state, v, current_reach, current_reach, free=False, cost="current unit", feasible=True,
                               note="the patient is on board" if trip.status == "onboard" else "", current=True))
             continue
-        ok, why = can_serve(v, trip)
+        ok, why = can_serve(v, trip, state.sim_time)
         if trip.status == "onboard":
             why = f"the patient is on board {trip.vehicle_id}: the unit cannot be replaced"
         elif ok:
@@ -278,7 +281,7 @@ def assign(state: WorldState, trip_id: str, vehicle_id: str, mode: str, role: st
 
 
 def _candidate(state: WorldState, trip: Trip, v) -> dict[str, Any]:
-    ok, why = can_serve(v, trip)
+    ok, why = can_serve(v, trip, state.sim_time)
     if not ok:
         raise OverrideError(400, why or f"{v.id} cannot take {trip.id}")
     try:

@@ -25,9 +25,10 @@ import re
 import sys
 import time
 import traceback
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace as NS
+from zoneinfo import ZoneInfo
 
 os.environ["ROAD_ROUTING"] = "0"
 os.environ["AGENT_AUTO"] = "0"
@@ -66,8 +67,11 @@ client = TestClient(main.app)
 W = main.sim
 
 
+DAY = datetime(2026, 11, 23, 9, 0, tzinfo=ZoneInfo("Europe/Ljubljana"))  # fixed clock, by day: the helicopter flies 08:00-16:30
+
+
 def fresh() -> None:
-    seed_world(W, config.RANDOM_SEED, scheduled_day=False)
+    seed_world(W, config.RANDOM_SEED, scheduled_day=False, start=DAY)
     W.auto_analyze = False
     W.calls.enabled = False
     W.ai_triage = W.autopilot = False

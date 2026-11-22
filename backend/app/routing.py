@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Iterable
 
 from .geo import haversine_km, point_segment_distance_m  # noqa: F401 - re-exported for other modules
+from .hems import HEMS_HELIPAD_LANDING_MIN, HEMS_SCENE_LANDING_MIN
 from .models import Incident, Vehicle, VehicleType, WeatherNow
 from .roads import MAX_AVOID, ROADS, Avoid, Route, avoid_box, in_box, key, remaining_points
 
@@ -22,8 +23,11 @@ ROUTE_TYPE_FACTOR: dict[VehicleType, float] = {"ambulance": 1.0, "transport": 1.
 EMERGENCY_BONUS = 1.3  # lights and sirens
 INCIDENT_FACTORS = {"road_closure": 1.6, "accident": 1.35, "congestion": 1.25}  # detour/slowdown multipliers
 # Helicopters (HNMP) fly straight: no roads, so no traffic, incidents or lights-and-sirens bonus.
+# Each flight leg = cruise at 200 km/h (the challenge brief) + the landing at its end (app/hems.py:
+# a prepared helipad, or the scene). The activation from rest at the base (call to take-off,
+# hems.HEMS_ACTIVATION_MIN) is the helicopter's turnout (engine/service_times.py).
 HELICOPTER_SPEED_KMH = 200.0
-HELICOPTER_OVERHEAD_MIN = 3.0  # take-off and landing, added to every flight leg
+HELIPAD_KINDS = ("hospital", "base")  # where a flight ends on a prepared pad (hospital helipads, the HEMS base)
 
 
 def flies(vehicle_type: VehicleType) -> bool:
@@ -31,11 +35,20 @@ def flies(vehicle_type: VehicleType) -> bool:
     return vehicle_type == "helicopter"
 
 
-def flight_minutes(alat: float, alon: float, blat: float, blon: float) -> float:
+def flight_minutes(alat: float, alon: float, blat: float, blon: float, landing_min: float = HEMS_SCENE_LANDING_MIN) -> float:
+    """One flight leg: cruise in a straight line, then the landing at the destination."""
     km = haversine_km(alat, alon, blat, blon)
     if km < 0.01:
         return 0.0
-    return km / HELICOPTER_SPEED_KMH * 60 + HELICOPTER_OVERHEAD_MIN
+    return km / HELICOPTER_SPEED_KMH * 60 + landing_min
+
+
+def landing_min(state: WorldState, lat: float, lon: float) -> float:
+    """Approach and landing at (lat, lon): a prepared helipad (a hospital, the base) or the scene."""
+    for p in state.places.values():
+        if p.kind in HELIPAD_KINDS and abs(p.lat - lat) < 1e-5 and abs(p.lon - lon) < 1e-5:
+            return HEMS_HELIPAD_LANDING_MIN
+    return HEMS_SCENE_LANDING_MIN
 
 
 def weather_factor(w: WeatherNow | None) -> float:
@@ -250,7 +263,7 @@ def travel_minutes(
     emergency: bool = False,
 ) -> float:
     if flies(vehicle_type):
-        return flight_minutes(alat, alon, blat, blon)
+        return flight_minutes(alat, alon, blat, blon, landing_min(state, blat, blon))
     straight_km = haversine_km(alat, alon, blat, blon)
     if straight_km < 0.01:
         return 0.0

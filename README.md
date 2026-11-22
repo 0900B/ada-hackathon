@@ -59,10 +59,10 @@ All screenshots show the Simulation world: synthetic calls, fictional crews, app
 
 ### Part 1 of the brief: the initial plan (*začetni plan*)
 
-- **Fleet:** 3 emergency ambulances (A1–A3), 5 patient-transport vans (T1–T5), 1 helicopter (H1, based at UKC Ljubljana, the hospital) and 2 doctor cars (D1, D2). Reserve units (mutual aid, private ambulances and vans) join only when the dispatcher requests them.
+- **Fleet:** 3 emergency ambulances (A1–A3), 5 patient-transport vans (T1–T5), 1 helicopter (H1, based at Brnik, Ljubljana airport, like the real HNMP; it flies patients to UKC) and 2 doctor cars (D1, D2). Reserve units (mutual aid, private ambulances and vans) join only when the dispatcher requests them.
 - **Tasks:** patient transport (seated, wheelchair, stretcher), equipment transport (blood products, defibrillator, lab samples, ventilator) and urgent runs (emergency and urgent calls).
 - **Constraints modelled:** vehicle capabilities (a van never takes an emergency, the helicopter never carries equipment or routine trips, doctor cars never transport), ready-at and due-by time windows, task priorities (four severity levels), several trips per vehicle (a queue per vehicle), pickup and delivery, and hospital admission capacity.
-- **Travel:** ambulances and vans on real road routes (OSRM, with TomTom as backup), adjusted for live traffic, weather and incidents; the helicopter in a straight line at **200 km/h** plus 3 minutes of take-off and landing per leg.
+- **Travel:** ambulances and vans on real road routes (OSRM, with TomTom as backup), adjusted for live traffic, weather and incidents; the helicopter in a straight line at **200 km/h**, after **13 minutes from the call to take-off** at its base (the HNMP average) and 2 to 3 minutes to land, **by day only** (new calls 08:00 to 16:30): [docs/SERVICE_TIMES.md](docs/SERVICE_TIMES.md).
 - **Scheduled-day mode** (the brief's initial plan): the vans start with a pre-planned day of 24 synthetic booked trips and 4 equipment runs, placed greedily and then improved by a local search. The default seed starts with no late and no unassigned trips. Switch to it in the Simulation world's Scenarios tab, or with `POST /sim/admin/reset {"scheduled_day": true}`.
 - **Default mode is live calls:** there is no pre-planned day. Calls arrive about 5 per world-hour (`CALLS_PER_HOUR`) and each is dispatched at once, which is closer to how emergency medical services work.
 - **Crew availability** is shown (fictional crews and shifts on vehicle cards) but is **not yet a planning constraint**.
@@ -93,7 +93,7 @@ A crew member speaks or types, for example *"Vozilo je obstalo. Oprema je še v 
 - **Doctor cars.** For red calls that need a doctor, a doctor car (VUZ: physician and nurse) joins the ambulance crew on scene; the helicopter carries a doctor.
 - **Surge capacity.** A demand alert (with hysteresis) offers contracted private ambulances and vans for 2 hours. Activation is always the dispatcher's decision.
 - **Detours around closures,** including the loaded leg of a stroke patient.
-- **Helicopter H1** with straight-line travel and fog grounding.
+- **Helicopter H1** with straight-line travel, the real service's activation time and day-only hours, and fog grounding.
 - **In-vehicle tablet** (`/vehicle/:id`): turn-by-turn navigation, current job, next stops, one-tap reports without AI, and messages from dispatch when the plan changes.
 - **Crew phone** (`/crew/:id`): push-to-talk in Slovenian or English (browser speech recognition), typed text, quick reports 1–5.
 - **Audit log:** every event, crew message, interpreted event, AI recommendation and dispatcher decision, stored in PostgreSQL, filterable on the Audit page and exportable as JSON lines.
@@ -212,17 +212,17 @@ The dispatch rules are a model built from published practice, not medical advice
 
 ### Benchmark: Plan B's rules against nearest-free-ambulance dispatch
 
-Same simulated calls for both policies, 100 seeds × 8 world-hours, normal load (5 calls per hour); reproduce with `cd backend && python tools/benchmark.py`.
+Same simulated calls for both policies, 100 seeds × 8 world-hours (day shifts, 08:00 to 16:00), normal load (5 calls per hour); reproduce with `cd backend && python tools/benchmark.py`.
 
 | Metric | Nearest free ambulance | Plan B rules |
 |---|---:|---:|
-| Critical calls reached within target (8 min city / 15 outside) | 35.5 % | 74 % |
-| Critical: median time to the patient | 10.9 min | 4.8 min |
-| Serious calls reached within 18 min | 44.2 % | 81.5 % |
-| Doctor on scene within 15 min (calls that need one) | 47.6 % | 73.9 % |
-| Late transports | 20.5 % | 5.3 % |
+| Critical calls reached within target (8 min city / 15 outside) | 34.3 % | 53.8 % |
+| Critical: median time to the patient | 12.4 min | 8.0 min |
+| Serious calls reached within 18 min | 43.1 % | 64.4 % |
+| Doctor on scene within 15 min (calls that need one) | 46.4 % | 52.0 % |
+| Late transports | 20.5 % | 7.5 % |
 
-**Read the caveats before quoting this.** It is a simulation with a synthetic call mix, a small demo fleet (3 ambulances, 1 helicopter) and straight-line travel; the baseline is a plain "nearest free ambulance" rule, not today's dispatchers; the AI is not in the loop. **Most of the gain comes from the helicopter rule**, and the helicopter is always available in these runs. With ground units only, critical calls within target improve from 34.3 % to 42.6 %, serious calls within 18 min barely move (43.1 % to 45.5 %), and the slowest tenth of serious calls waits about 7 minutes longer, which is the trade-off the doctrine chooses (higher level first). Full tables and limits: [docs/BENCHMARK.md](docs/BENCHMARK.md).
+**Read the caveats before quoting this.** It is a simulation with a synthetic call mix, a small demo fleet (3 ambulances, 1 helicopter) and straight-line travel; the baseline is a plain "nearest free ambulance" rule, not today's dispatchers; the AI is not in the loop. The helicopter is modelled as the real service runs it: based at Brnik, 13 minutes from the call to take-off, by day only, so it goes to remote and suburban calls and to city calls only when every ambulance is busy (17 % of red calls). With ground units only, critical calls within target improve from 34.3 % to 42.6 %, serious calls within 18 min barely move (43.1 % to 45.5 %), and the slowest tenth of serious calls waits about 7 minutes longer, which is the trade-off the doctrine chooses (higher level first). An earlier run with an unrealistic helicopter (at UKC, any hour, 3 minutes overhead) showed 74 % against 35.5 %; we no longer quote it. Full tables and limits: [docs/BENCHMARK.md](docs/BENCHMARK.md).
 
 ---
 

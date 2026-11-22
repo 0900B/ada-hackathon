@@ -252,6 +252,8 @@ def navigation(state: WorldState, v: Vehicle) -> dict[str, Any]:
         return {**base, **timing, "mode": "flight" if flies(v.type) else "road", "status": "arrived", "remaining_m": 0}
 
     if flies(v.type):
+        # From rest at its base the crew needs the activation time first (app/hems.py): take-off then.
+        activating = v.status == "to_pickup" and bool(v.busy_until and v.busy_until > state.sim_time)
         return {
             **base,
             **timing,
@@ -259,6 +261,7 @@ def navigation(state: WorldState, v: Vehicle) -> dict[str, Any]:
             "status": "ok",
             "remaining_m": round(straight_m),
             "bearing_deg": round(bearing_deg(v.lat, v.lon, target["lat"], target["lon"])),
+            **({"takeoff_at": v.busy_until.isoformat()} if activating and v.busy_until else {}),
         }
 
     tkey = key(target["lat"], target["lon"])

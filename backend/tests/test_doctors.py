@@ -19,8 +19,9 @@ import random
 import sys
 import time
 import traceback
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 os.environ["ROAD_ROUTING"] = "0"
 os.environ["AGENT_AUTO"] = "0"
@@ -48,8 +49,11 @@ client = TestClient(main.app)
 W = main.sim
 
 
+DAY = datetime(2026, 11, 23, 9, 0, tzinfo=ZoneInfo("Europe/Ljubljana"))  # fixed clock, by day: the helicopter flies 08:00-16:30
+
+
 def fresh() -> None:
-    seed_world(W, config.RANDOM_SEED, scheduled_day=False)
+    seed_world(W, config.RANDOM_SEED, scheduled_day=False, start=DAY)
     W.auto_analyze = False
     W.calls.enabled = False
 
@@ -192,12 +196,22 @@ def test_helicopter_has_a_doctor_on_board():
 
 
 def test_plan_moving_a_call_to_the_helicopter_stands_the_doctor_car_down():
+    # A remote call sent by road (the helicopter was out of service): the doctor car needs ~45 min.
+    fresh()
+    W.vehicles["H1"].status = "out_of_service"
+    _, t = call(46.3085, 14.5910, "serious", "major_trauma")  # Kamniška Bistrica
+    d = W.vehicles[t.doctor_vehicle_id]
+    W.vehicles["H1"].status = "idle"  # back at Brnik: about 20 min with its activation
+    record = main.apply_plan(W, Plan(steps=[PlanStep(trip_id=t.id, vehicle_id="H1")]))
+    assert t.vehicle_id == "H1" and t.doctor_vehicle_id == "H1", record.summary
+    assert d.current_trip_id is None and d.status == "returning"
+    # In the city the helicopter needs 13 min to take off at Brnik alone, so it is past the 15-min
+    # doctor reference: the doctor car that is there sooner stays.
     fresh()
     _, t = call(*near("home_bezigrad", 0.004, 0.002), "serious", "stemi")
     d = W.vehicles[t.doctor_vehicle_id]
     record = main.apply_plan(W, Plan(steps=[PlanStep(trip_id=t.id, vehicle_id="H1")]))
-    assert t.vehicle_id == "H1" and t.doctor_vehicle_id == "H1", record.summary
-    assert d.current_trip_id is None and d.status == "returning"
+    assert t.vehicle_id == "H1" and t.doctor_vehicle_id == d.id and d.current_trip_id == t.id, record.summary
 
 
 def test_doctor_car_breakdown_sends_another_and_the_ambulance_keeps_the_call():

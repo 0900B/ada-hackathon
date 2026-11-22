@@ -8,8 +8,9 @@ import logging
 import os
 import sys
 import traceback
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 os.environ.setdefault("ROAD_ROUTING", "0")
 os.environ.pop("ANTHROPIC_API_KEY", None)
@@ -22,8 +23,11 @@ from app.sim.seed import seed_world  # noqa: E402
 W = main.sim
 
 
+DAY = datetime(2026, 11, 23, 9, 0, tzinfo=ZoneInfo("Europe/Ljubljana"))  # fixed clock, by day: the helicopter flies 08:00-16:30
+
+
 def fresh():
-    seed_world(W, config.RANDOM_SEED, scheduled_day=True)
+    seed_world(W, config.RANDOM_SEED, scheduled_day=True, start=DAY)
     W.calls.enabled = False
 
 

@@ -215,7 +215,7 @@ class WorldState:
     # --- serialisation -------------------------------------------------------
 
     def snapshot(self) -> dict[str, Any]:
-        from . import config  # local imports: these modules depend on this one's types
+        from . import config, hems  # local imports: these modules depend on this one's types
         from .engine import surge
         from .engine.projection import kpis
         from .engine.units import trip_view
@@ -251,7 +251,11 @@ class WorldState:
             # Contracted surge capacity: active, until, units, what an activation would add (engine/surge.py)
             "surge": surge.status(self),
             "places": dump(places),
-            "vehicles": [{**v.model_dump(mode="json"), "path": self.vehicle_path(v)} for v in self.vehicles.values()],
+            # helicopters also: off_duty_until, unavailable ("night" | "fog" | None), unavailable_text, hours
+            "vehicles": [
+                {**v.model_dump(mode="json"), "path": self.vehicle_path(v), **hems.availability(v, self.sim_time)}
+                for v in self.vehicles.values()
+            ],
             "trips": [trip_view(self, t) for t in trips],  # with `units` (engine/units.py)
             "incidents": dump(i for i in self.all_incidents() if i.active),
             "weather": {

@@ -81,6 +81,10 @@ def _primary_status(state: WorldState, v, trip: Trip) -> str:
         if v.waiting_until:
             return "at the pickup, waiting until it is ready"
         if v.busy_until and v.busy_until > state.sim_time:
+            if v.status == "to_pickup" and flies(v.type):  # activation at the base (app/hems.py)
+                from .timeline import hhmm  # local import: timeline imports this module
+
+                return f"crew to the aircraft, take-off {hhmm(v.busy_until)}"
             return "turning out" if v.status == "to_pickup" else "held up"
         return f"{moving} to the patient" if trip.kind == "patient" else f"{moving} to the pickup"
     route = route_trip_ids(v)

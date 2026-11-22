@@ -10,16 +10,16 @@ each answer says where, so you can open the page if a juror digs.
   **[assumption]** our choice, no source. **[reported]** from news or search summaries in our research; we did not
   read the original text.
 - Three rules for stage: say **"simulated"** about the fleet, the calls and the benchmark; say **"planned"** about
-  production hosting and login; never quote the 74 % figure without the helicopter sentence (Q18, T2).
+  production hosting and login; never quote the 54 % figure without the helicopter sentence (Q18, T2).
 
 **Numbers to have ready**
 
 | Say | Number | Always add |
 |---|---|---|
-| Critical patients reached within target | 74 % (Plan B rules) against 35.5 % (nearest free ambulance), normal load | simulated, 100 seeds x 8 h; mostly the helicopter rule |
-| The same, ground units only | 42.6 % against 34.3 % | this is the conservative figure |
-| Serious patients reached within 18 min | 81.5 % against 44.2 % (ground only: 45.5 % against 43.1 %) | simulated |
-| Late transports | 5.3 % against 20.5 % (ground only: 18.5 % against 20.3 %) | simulated |
+| Critical patients reached within target | 53.8 % (Plan B rules) against 34.3 % (nearest free ambulance), normal load | simulated, 100 seeds x 8 h day shifts; helicopter as the real one runs (Brnik, 13 min to take-off, day only) |
+| The same, ground units only | 42.6 % against 34.3 % | this is the conservative figure (night, fog) |
+| Serious patients reached within 18 min | 64.4 % against 43.1 % (ground only: 45.5 % against 43.1 %) | simulated |
+| Late transports | 7.5 % against 20.5 % (ground only: 18.5 % against 20.3 %) | simulated |
 | AI analysis deadline / triage deadline | 60 s / 12 s, then the engine or keyword rules answer | |
 | Claude usage guard | 12 calls per 5 min, 300 per day (defaults) | configurable by environment variable |
 | Cost of one AI analysis | about $0.15 | an estimate, arithmetic in Q25 |
@@ -239,11 +239,12 @@ teammate's research and the rulebook text was not read by us.
 ## 5. Results
 
 ### Q18. What does the benchmark show?
-> In 100 simulated eight-hour shifts with identical calls, Plan B's rules reached 74 percent of critical patients within
-> target against 35.5 percent for plain nearest-free-ambulance dispatch, and 81.5 against 44.2 percent of serious
-> patients within 18 minutes. Most of that gain is the helicopter rule: with ground units only it is 42.6 against 34.3
-> percent for critical, and the slowest tenth of serious calls actually waits longer, 74 against 67 minutes. It is a
-> simulation with synthetic calls, and the baseline is a plain rule, not today's dispatchers.
+> In 100 simulated eight-hour day shifts with identical calls, Plan B's rules reached 54 percent of critical patients
+> within target against 34 percent for plain nearest-free-ambulance dispatch, and 64 against 43 percent of serious
+> patients within 18 minutes. The helicopter is modelled as the Brnik service runs it, 13 minutes from call to take-off
+> and by day only. With ground units only it is 42.6 against 34.3 percent for critical, and the slowest tenth of
+> serious calls actually waits longer, 74 against 67 minutes. It is a simulation with synthetic calls, and the
+> baseline is a plain rule, not today's dispatchers.
 
 *Proof:* [BENCHMARK.md](BENCHMARK.md), [results.md](../backend/tools/benchmark_results/results.md). Reproduce with
 `cd backend && python tools/benchmark.py`. The one-line stage sentence is at the bottom of BENCHMARK.md.
@@ -384,19 +385,19 @@ Autopilot switched on (off by default) the engine approves the AI's recommended 
 re-checked and audited path.
 
 ### T2. Your helicopter numbers look too good.
-> You are right to be suspicious, and we say so ourselves: most of the simulated gain comes from the helicopter rule. In
-> our model the helicopter is always available and has no activation delay beyond three minutes of take-off and landing
-> per leg, with no daylight or crew-rest limits. The real Brnik service averages 12 to 16 minutes from call to take-off,
-> flies by day only, and is tasked through the dispatch centre. So quote the ground-only result, 43 against 34 percent for
-> critical calls, as the conservative number, and read the helicopter result as what the rule would be worth if the
-> helicopter were that available.
+> You are right to check, and our first run did deserve it: the helicopter sat at UKC, flew at any hour and needed only
+> three minutes per leg, and the result was 74 against 35.5 percent. We fixed the model: the helicopter is now based at
+> Brnik, needs 13 minutes from the call to take-off (the HNMP average for 2025), 2 to 3 minutes to land, and takes new
+> calls only from 08:00 to 16:30. A city call costs it about 22 minutes, so it no longer beats an ambulance in the
+> city; it goes to remote and suburban calls, and to city calls only when every ambulance is busy. The re-run gives 54
+> against 34 percent for critical calls; with ground units only, as at night or in fog, 43 against 34.
 
-*Proof:* [BENCHMARK.md](BENCHMARK.md) ("Where the gain comes from", Limits), `HELICOPTER_OVERHEAD_MIN` in
-[routing.py](../backend/app/routing.py) and [SERVICE_TIMES.md](SERVICE_TIMES.md) (no turnout for the helicopter),
+*Proof:* [BENCHMARK.md](BENCHMARK.md) ("What changed", "Where the gain comes from", Limits), `HEMS_ACTIVATION_MIN` and
+`HEMS_HOURS` in [hems.py](../backend/app/hems.py), [SERVICE_TIMES.md](SERVICE_TIMES.md) ("Helicopter"),
 [EMS_RESEARCH.md](EMS_RESEARCH.md) section 4 (call to take-off 15, 15, 12, 16, 13 min for 2021 to 2025; day only). Using the
-helicopter for city critical calls follows the MPDS "closest unit" principle, not Slovenian activation rules (the 2013
-guideline justifies it when road transport exceeds 45 minutes or 72 km). We have not re-run the benchmark with a
-realistic activation delay; we expect the helicopter share, and so the gain, to shrink.
+helicopter for a city critical call when no ambulance is free follows the MPDS "closest unit" principle and the 2013
+guideline's "help when the local team is busy"; the real service is tasked by the dispatch centre and the helicopter
+doctor decides. The landing times are our assumption.
 
 ### T3. What if the Wi-Fi fails?
 > On stage we switch to a phone hotspot; the backend runs in the cloud, so only the devices need internet. In real

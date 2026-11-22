@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
+from ..hems import any_flying
 from ..models import Alert, Severity, Trip, Vehicle
 from .service_times import after_dropoff_min, on_scene_min, turnout_min
 from .severity import RED_REFERENCE_MIN, SEVERITY_RANK
@@ -231,7 +232,11 @@ def compute_alerts(state: WorldState) -> list[Alert]:
             what = trip.condition_label or trip.severity
             who = trip.doctor_vehicle_id
             holder = state.vehicles.get(who) if who else None
-            advice = "ask a neighbouring station" if holder is not None and flies(holder.type) else "consider the helicopter"
+            advice = (
+                "ask a neighbouring station"
+                if (holder is not None and flies(holder.type)) or not any_flying(state)  # night or fog: no helicopter
+                else "consider the helicopter"
+            )
             alerts.append(
                 Alert(
                     id=f"doctor_response_over_15_min:{trip.id}",

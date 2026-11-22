@@ -11,15 +11,16 @@ import os
 import sys
 import time
 import traceback
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 os.environ["ROAD_ROUTING"] = "0"
 os.environ["AGENT_AUTO"] = "0"
 os.environ.pop("ANTHROPIC_API_KEY", None)
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app import config, main  # noqa: E402
+from app import config, hems, main  # noqa: E402
 from app.engine import service_times as st  # noqa: E402
 from app.engine.actions import assign_trip  # noqa: E402
 from app.engine.candidates import is_free  # noqa: E402
@@ -36,8 +37,11 @@ W = main.sim
 STEP_S = 15
 
 
+DAY = datetime(2026, 11, 23, 9, 0, tzinfo=ZoneInfo("Europe/Ljubljana"))  # fixed clock, by day: the helicopter flies 08:00-16:30
+
+
 def fresh() -> None:
-    seed_world(W, config.RANDOM_SEED, scheduled_day=False)
+    seed_world(W, config.RANDOM_SEED, scheduled_day=False, start=DAY)
     W.auto_analyze = False
     W.calls.enabled = False
 
@@ -67,7 +71,9 @@ def minutes(a, b) -> float:
 
 
 def test_the_values():
-    assert st.TURNOUT_MIN == {"ambulance": 1.0, "doctor": 5.0}
+    # The helicopter's turnout is its call-to-take-off time at Brnik (app/hems.py, HNMP 2025 average).
+    assert st.TURNOUT_MIN == {"ambulance": 1.0, "doctor": 5.0, "helicopter": 13.0}
+    assert (hems.HEMS_ACTIVATION_MIN, hems.HEMS_SCENE_LANDING_MIN, hems.HEMS_HELIPAD_LANDING_MIN) == (13.0, 3.0, 2.0)
     assert st.ON_SCENE_MIN == {"critical": 20.0, "serious": 15.0, "urgent": 12.0, "routine": 8.0}
     assert st.ON_SCENE_CONDITION_MIN == {"cardiac_arrest": 25.0, "stroke": 12.0}
     assert (st.VAN_PATIENT_PICKUP_MIN, st.EQUIPMENT_PICKUP_MIN) == (8.0, 5.0)

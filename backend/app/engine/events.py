@@ -640,7 +640,7 @@ def _priority_change(state: WorldState, ev: PriorityChangeEvent, affected: list[
     if v is not None and trip.status == "onboard":
         parts.append(f"stays on {v.id} (on board)")
     elif v is not None:
-        ok, why = can_serve(v, trip)
+        ok, why = can_serve(v, trip, state.sim_time)
         if not ok:
             detach_trip(state, trip)
             trip.status = "unassigned"
