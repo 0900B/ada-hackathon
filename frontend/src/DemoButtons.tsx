@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown, PhoneIncoming, X, Zap, type LucideIcon } from "lucide-react";
 import type { Trip, Vehicle, WorldSnapshot } from "./api";
 import { CALL_LEVELS, FAILURES, TARGET_ENTRY, TARGET_KINDS, type DemoApi } from "./demoInject";
@@ -139,7 +139,7 @@ function TargetPopover({
   // It must fit on screen (the right-hand panel is narrow and scrolls): as tall as the room below the buttons,
   // or above them when there is more room there; the units and kinds scroll inside, Cancel and Inject stay in view
   const [fit, setFit] = useState<{ up: boolean; max: number } | null>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const place = () => {
       const host = box.current?.parentElement;
       if (!host) return;
