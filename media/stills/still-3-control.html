@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plan B still: The dispatcher decides</title>
+<link rel="stylesheet" href="stills.css">
+</head>
+<body>
+<div id="stage">
+  <div class="proto top-tag"><span class="dot"></span>Prototype · simulated data</div>
+  <div class="abs col" style="left:64px; top:150px; width:560px; gap:10px; white-space:nowrap">
+    <h1 class="h-m" style="font-size:54px; color:var(--accent-text)">AI proposes.</h1>
+    <h1 class="h-m" style="font-size:54px">Engine computes.</h1>
+    <h1 class="h-m" style="font-size:54px; color:var(--ok)">Dispatcher decides.</h1>
+  </div>
+  <p class="lead abs" style="left:64px; top:410px; width:500px; font-size:28px">Claude reads the situation and proposes options. Every number comes from the deterministic engine, which re-simulates each option. Nothing changes until the dispatcher approves with one key.</p>
+  <div class="abs row" style="left:64px; top:800px; gap:22px">
+    <span class="key" style="width:96px; height:96px; font-size:54px; border-radius:18px; box-shadow:0 7px 0 #1b2532">Y</span>
+    <span class="lead" style="font-size:28px; color:var(--text)">approve</span>
+  </div>
+  <div class="frame" style="left:600px; top:120px; width:416px; height:820px">
+    <img id="panel" src="../promo/assets/panel-options.jpg" alt="" style="position:absolute; left:0; width:416px; height:auto; object-fit:initial">
+    <div class="label" style="left:12px; bottom:12px; font-size:15px"><span class="dot"></span>Real UI · engine plan</div>
+  </div>
+  <div class="foot">
+    <div class="wordmark">Plan B</div>
+    <div class="event"><b>AdaHack 2026 · Epilog Challenge 3</b><br>Fictional operator: Ljubljana Demo EMS</div>
+  </div>
+</div>
+<script data-wait>
+  // Crop the real panel screenshot so "Waiting for your decision" sits near the top (positions from the capture)
+  fetch("../promo/assets/layout.json")
+    .then((r) => r.json())
+    .then((l) => {
+      const info = l["panel-options.jpg"];
+      const img = document.getElementById("panel");
+      img.style.top = `${44 - info.boxes.waiting.y * (img.offsetWidth / info.width)}px`;
+    })
+    .catch(() => undefined)
+    .finally(() => (document.body.dataset.ready = "1"));
+</script>
+</body>
+</html>
