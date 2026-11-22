@@ -50,6 +50,7 @@ from .sim import calls, incidents
 from .sim.seed import seed_world
 from .sim.simulator import tick
 from .state import FeedState, WorldState
+from . import reports
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)  # its request log prints full URLs, incl. TomTom's ?key=
@@ -262,6 +263,13 @@ def get_alerts(state: WorldState = World) -> list[dict]:
 @router.get("/kpis")
 def get_kpis(state: WorldState = World) -> dict:
     return kpis(state)
+
+
+@router.get("/reports")
+def get_reports(hours: float = 3.0, state: WorldState = World) -> dict:
+    """Operational statistics over the last `hours` world-hours (0.25 to 24): response times against the
+    targets, doctor on time, late transports, unit utilisation, and who decided (app/reports.py)."""
+    return reports.build_report(state, hours)
 
 
 @router.get("/stream")

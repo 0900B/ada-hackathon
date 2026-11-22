@@ -65,6 +65,7 @@ Two worlds read them:
 | GET | `/{world}/state` | Full snapshot: vehicles (with road path), trips, places, incidents, weather, alerts, events |
 | GET | `/{world}/stream` | Server-sent events (SSE): a snapshot on every change, for the frontend |
 | GET | `/{world}/alerts`, `/{world}/kpis` | Current alerts, headline numbers |
+| GET | `/{world}/reports?hours=3` | Operational statistics for the Reports page: response times against the targets, doctor on time, late transports, unit utilisation, who decided (`app/reports.py`) |
 | POST | `/{world}/events` | Report/inject an event (see below) |
 | POST | `/{world}/plans/simulate` | What-if: before/after KPIs and per-trip changes |
 | POST | `/{world}/plans/apply` | Operator approved: apply the plan |

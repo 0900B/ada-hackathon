@@ -5,6 +5,7 @@ import math
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
+from .. import reports
 from ..engine import surge, timeline
 from ..engine.doctors import stand_down_reserve
 from ..engine.service_times import HANDOVER_MIN, after_dropoff_min, handover_min, on_scene_min, turnout_min
@@ -44,6 +45,7 @@ def tick(state: WorldState, dt_s: float) -> None:
         under_contract = v.contract_until is not None and not v.contract_ended and v.contract_until > state.sim_time
         if v.origin != "own" and v.status == "idle" and v.current_trip_id is None and not v.queue and not under_contract:
             stand_down_reserve(state, v)  # a mutual-aid or private unit is home again: it leaves our fleet
+    reports.sample(state)  # which units are busy now (utilisation on the Reports page)
 
 
 def _handover_done(state: WorldState, v: Vehicle) -> None:
@@ -252,5 +254,6 @@ def _advance(state: WorldState, v: Vehicle, dt_min: float) -> None:
         v.handover_trip_id, v.handover_until = trip.id, state.sim_time + timedelta(minutes=handover_min(trip, v.type))
         what = "handing over the patient" if trip.kind == "patient" else "unloading"
         timeline.log(state, trip, "at_hospital", "crew", f"{v.id} at {dest.name}: {what}", v.id)
+        reports.record_trip(state, trip)  # statistics for the Reports page (never in a what-if copy)
     elif v.status == "returning":
         v.status = "idle"
