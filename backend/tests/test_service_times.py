@@ -22,12 +22,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app import config, hems, main  # noqa: E402
 from app.engine import service_times as st  # noqa: E402
+from app.engine import units  # noqa: E402
 from app.engine.actions import assign_trip  # noqa: E402
 from app.engine.candidates import is_free  # noqa: E402
 from app.engine.events import apply_event  # noqa: E402
 from app.engine.projection import project_all  # noqa: E402
 from app.engine.severity import grade  # noqa: E402
-from app.models import Trip, UrgentRequestEvent  # noqa: E402
+from app.models import DelayEvent, Trip, UrgentRequestEvent  # noqa: E402
 from app.sim.seed import seed_world  # noqa: E402
 from app.sim.simulator import tick  # noqa: E402
 
@@ -92,17 +93,30 @@ def test_ambulance_turnout_on_scene_handover_and_cleaning_as_predicted():
     tick(W, STEP_S)  # it takes the job from rest: one minute before it moves
     assert a1.status == "to_pickup" and a1.busy_until is not None
     assert abs(minutes(a1.busy_until, start) - (STEP_S / 60 + 1)) < 0.05
+    assert a1.busy_reason == "turnout", "a normal turnout, not a hold-up (the UI shows it neutrally)"
+    assert units._primary_status(W, a1, t) == "turning out"
+    assert run(2, until=lambda: a1.busy_until is None) and a1.busy_reason is None and a1.status == "to_pickup", "on its way"
     assert run(30, until=lambda: t.status == "onboard")
     assert abs(minutes(t.eta_pickup, predicted_pickup)) <= 0.5, (t.eta_pickup, predicted_pickup)
     assert a1.status == "loading" and abs(minutes(a1.busy_until, t.eta_pickup) - 25) < 0.01  # resuscitation on scene
+    assert a1.busy_reason == "on_scene"
     assert run(60, until=lambda: t.status == "completed")
     assert abs(minutes(t.eta_dropoff, predicted_dropoff)) <= 0.5, (t.eta_dropoff, predicted_dropoff)
     assert a1.status == "returning" and abs(minutes(a1.busy_until, t.eta_dropoff) - 25) < 0.01  # 15 handover + 10 cleaning
+    assert a1.busy_reason == "handover"
     assert not is_free(W, a1), "handing over and cleaning: not available"
     run(24.5)
     assert not is_free(W, a1)
     run(1)
     assert is_free(W, a1), "free again after cleaning"
+    # A reported delay is a hold-up (amber in the UI), also during a turnout.
+    a2 = W.vehicles["A2"]
+    t2 = job("C2", "A2", "home_moste", "critical", "cardiac_arrest")
+    tick(W, STEP_S)
+    assert a2.status == "to_pickup" and a2.busy_reason == "turnout"
+    apply_event(W, DelayEvent(type="delay", vehicle_id="A2", minutes=10))
+    assert a2.busy_reason == "delay" and units._primary_status(W, a2, t2) == "held up"
+    assert next(v for v in W.snapshot()["vehicles"] if v["id"] == "A2")["busy_reason"] == "delay"
 
 
 def test_on_scene_by_severity_and_unit():
@@ -136,6 +150,7 @@ def test_doctor_car_turnout_from_rest():
     t = W.trips[rec.affected_trip_ids[0]]
     d = W.vehicles[t.doctor_vehicle_id]
     assert d.busy_until is not None and abs(minutes(d.busy_until, W.sim_time) - 5) < 0.01, "5 min to get going"
+    assert d.busy_reason == "turnout"
     predicted = t.doctor_eta
     assert run(30, until=lambda: d.status == "loading")
     assert abs(minutes(t.doctor_eta, predicted)) <= 0.5, (t.doctor_eta, predicted)

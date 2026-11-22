@@ -37,6 +37,9 @@ export interface Vehicle {
   current_trip_id: string | null;
   queue: string[];
   busy_until: string | null;
+  // Why busy_until is set: turnout (crew to the vehicle: normal, shown neutrally), on_scene, handover
+  // (handover and cleaning), delay (held up: shown as held). Absent on older backends.
+  busy_reason?: "turnout" | "on_scene" | "handover" | "delay" | null;
   grounded_until?: string | null; // helicopters: grounded by fog until then (no new flights)
   // Helicopter (HNMP, daytime only; backend app/hems.py): off duty at night until then (no new calls)
   off_duty_until?: string | null;

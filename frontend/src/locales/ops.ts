@@ -34,6 +34,7 @@ export const en = {
   "ops.st.unloading": "unloading",
   "ops.st.fog": "fog",
   "ops.st.held": "held",
+  "ops.st.turnout": "turnout",
 
   // Vehicle strip: where and why
   "ops.warnLate": { one: "{count} late trip (up to +{max} min)", other: "{count} late trips (up to +{max} min)" },
@@ -53,6 +54,7 @@ export const en = {
   "ops.waiting": "waiting",
   "ops.groundedUntil": "grounded until {time}",
   "ops.heldUntil": "until {time} · {text}",
+  "ops.turnoutAt": "leaves {time} · {text}",
   "ops.chipWarning": " · warning: {list}",
   "ops.stripAria": "Vehicles",
   "ops.warningAria": "Warning",
@@ -61,6 +63,7 @@ export const en = {
   "ops.popAria": "{name} details",
   "ops.popGrounded": " · grounded by fog until {time}",
   "ops.popHeld": " · held until {time}",
+  "ops.popTurnout": " · turnout, leaves {time}",
   "ops.popFuel": " · fuel {pct}%",
   "ops.popCrew": " · crew of {n}",
   "ops.popDoctorAtScene": "at the scene {time}",
@@ -247,6 +250,7 @@ export const sl: Translation<typeof en> = {
   "ops.st.unloading": "predaja",
   "ops.st.fog": "megla",
   "ops.st.held": "zadržano",
+  "ops.st.turnout": "izvoz",
 
   "ops.warnLate": {
     one: "{count} zamujen prevoz (do +{max} min)",
@@ -270,6 +274,7 @@ export const sl: Translation<typeof en> = {
   "ops.waiting": "čaka",
   "ops.groundedUntil": "na tleh do {time}",
   "ops.heldUntil": "do {time} · {text}",
+  "ops.turnoutAt": "odhod ob {time} · {text}",
   "ops.chipWarning": " · opozorilo: {list}",
   "ops.stripAria": "Vozila",
   "ops.warningAria": "Opozorilo",
@@ -277,6 +282,7 @@ export const sl: Translation<typeof en> = {
   "ops.popAria": "Podrobnosti: {name}",
   "ops.popGrounded": " · zaradi megle na tleh do {time}",
   "ops.popHeld": " · zadržano do {time}",
+  "ops.popTurnout": " · izvoz ob {time}",
   "ops.popFuel": " · gorivo {pct} %",
   "ops.popCrew": " · posadka: {n}",
   "ops.popDoctorAtScene": "na kraju ob {time}",

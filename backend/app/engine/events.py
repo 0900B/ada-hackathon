@@ -290,6 +290,7 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str], call: Call
         v = _vehicle(state, ev.vehicle_id)
         start = max(state.sim_time, v.busy_until or state.sim_time)
         v.busy_until = start + timedelta(minutes=ev.minutes)
+        v.busy_reason = "delay"
         return f"{v.name} delayed by {ev.minutes:.0f} min" + (f" ({ev.note})" if ev.note else "")
 
     if isinstance(ev, RoadClosureEvent):

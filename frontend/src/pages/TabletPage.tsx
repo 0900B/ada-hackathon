@@ -281,7 +281,9 @@ function NavBanner({ nav, vehicle, trip, state }: { nav: Navigation | null; vehi
         : t("tab.busy.patient")
       : vehicle.status === "returning"
         ? t("tab.busy.unloading")
-        : t("tab.busy.held");
+        : vehicle.busy_reason === "turnout"
+          ? t("tab.busy.turnout")
+          : t("tab.busy.held");
   const stopLine = (
     <div className="mdt-next-stop">
       {kindText(nav.target.kind)}: <strong>{nav.target.name}</strong>

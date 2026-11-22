@@ -134,6 +134,7 @@ def dispatch_doctor_car(state: WorldState, trip: Trip, v: Vehicle) -> datetime:
     v.current_trip_id, v.queue, v.status, v.waiting_until = trip.id, [], "to_pickup", None
     if turnout:
         v.busy_until = max(v.busy_until or state.sim_time, state.sim_time) + timedelta(minutes=turnout)
+        v.busy_reason = "turnout"
     trip.doctor_vehicle_id, trip.doctor_eta = v.id, at
     return at
 

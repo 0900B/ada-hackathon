@@ -418,7 +418,9 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       }
 
       const cls = `${selected ? " selected" : ""}${faded ? " faded" : ""}`;
-      const held = Boolean(v.busy_until) && v.status !== "loading" && !(v.status === "returning" && !v.current_trip_id);
+      // amber ring: held up (a delay); a normal turnout (crew to the vehicle) is not
+      const held =
+        Boolean(v.busy_until) && v.busy_reason !== "turnout" && v.status !== "loading" && !(v.status === "returning" && !v.current_trip_id);
       const html = vehicleHtml(v, cls, heli && flying && !grounded, grounded, held);
       const size: [number, number] = [(heli ? 72 : 60) + (v.origin && v.origin !== "own" ? 28 : 0), 24];
       const anchor: [number, number] = [size[0] / 2, size[1] / 2]; // constant: the element is never re-created

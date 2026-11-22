@@ -73,7 +73,10 @@ function summarize(v: Vehicle, state: WorldSnapshot, places: Map<string, Place>,
   }
   const base = places.get(v.base_id);
   const groundedUntil = v.grounded_until ? fmtTime(v.grounded_until) : null;
-  const held = v.busy_until && v.status !== "loading" && !(v.status === "returning" && !v.current_trip_id) ? fmtTime(v.busy_until) : null;
+  const busyAt = v.busy_until && v.status !== "loading" && !(v.status === "returning" && !v.current_trip_id) ? fmtTime(v.busy_until) : null;
+  // A normal turnout (crew to the vehicle) is shown neutrally; anything else (a delay) as held
+  const turnoutAt = busyAt && v.busy_reason === "turnout" ? busyAt : null;
+  const held = turnoutAt ? null : busyAt;
 
   let s: Summary;
   if (v.type === "doctor") {
@@ -132,6 +135,8 @@ function summarize(v: Vehicle, state: WorldSnapshot, places: Map<string, Place>,
     s = { ...s, tone: "grounded", status: tx("heli.nightShort"), text: night };
   } else if (held) {
     s = { ...s, tone: "held", status: tx("ops.st.held"), text: tx("ops.heldUntil", { time: held, text: s.text }) };
+  } else if (turnoutAt) {
+    s = { ...s, status: tx("ops.st.turnout"), text: tx("ops.turnoutAt", { time: turnoutAt, text: s.text }) };
   }
   return s;
 }
@@ -311,7 +316,7 @@ function VehiclePopover({
       <div className={`vpop-status tone-${s.tone}`}>
         {vehicleStatusText(v, state.trips)}
         {v.grounded_until ? t("ops.popGrounded", { time: fmtTime(v.grounded_until) }) : nightText(v) ? ` · ${nightText(v)}` : ""}
-        {v.busy_until && v.status !== "loading" ? t("ops.popHeld", { time: fmtTime(v.busy_until) }) : ""}
+        {v.busy_until && v.status !== "loading" ? t(v.busy_reason === "turnout" ? "ops.popTurnout" : "ops.popHeld", { time: fmtTime(v.busy_until) }) : ""}
         {t("ops.popFuel", { pct: Math.round(v.fuel_pct) })}
         {v.crew.length ? t("ops.popCrew", { n: v.crew.length }) : ""}
       </div>

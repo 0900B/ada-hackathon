@@ -35,7 +35,7 @@ def tick(state: WorldState, dt_s: float) -> None:
             continue
         if v.busy_until and state.sim_time < v.busy_until:
             continue
-        v.busy_until = None
+        v.busy_until = v.busy_reason = None
         before = (v.lat, v.lon)
         if v.type == "doctor":
             _advance_doctor(state, v, dt_s / 60)
@@ -105,6 +105,7 @@ def _advance_doctor(state: WorldState, v: Vehicle, dt_min: float) -> None:
         v.current_trip_id = None
         v.status = "returning"
         v.busy_until = state.sim_time + timedelta(minutes=HANDOVER_MIN)  # the doctor hands over with the crew
+        v.busy_reason = "handover"
 
 
 def _account_distance(state: WorldState, v: Vehicle, before: tuple[float, float]) -> None:
@@ -208,6 +209,7 @@ def _advance(state: WorldState, v: Vehicle, dt_min: float) -> None:
             v.status = "to_pickup"
             if turnout:
                 v.busy_until = state.sim_time + timedelta(minutes=turnout)
+                v.busy_reason = "turnout"
                 return
         elif v.status != "idle":
             v.status = "returning"
@@ -234,6 +236,7 @@ def _advance(state: WorldState, v: Vehicle, dt_min: float) -> None:
         trip.eta_pickup = state.sim_time
         v.status = "loading"  # on scene: assessment, treatment, loading
         v.busy_until = state.sim_time + timedelta(minutes=on_scene_min(trip, v.type))
+        v.busy_reason = "on_scene"
         where = state.places[trip.pickup_id].name
         if trip.kind == "equipment":
             timeline.log(state, trip, "on_scene", "crew", f"{v.id} at {where}: loading {trip.cargo or 'the equipment'}", v.id)
@@ -251,6 +254,7 @@ def _advance(state: WorldState, v: Vehicle, dt_min: float) -> None:
         v.current_trip_id = None
         v.status = "returning"  # handover, then cleaning and restocking: not available until busy_until
         v.busy_until = state.sim_time + timedelta(minutes=after_dropoff_min(trip, v.type))
+        v.busy_reason = "handover"
         v.handover_trip_id, v.handover_until = trip.id, state.sim_time + timedelta(minutes=handover_min(trip, v.type))
         what = "handing over the patient" if trip.kind == "patient" else "unloading"
         timeline.log(state, trip, "at_hospital", "crew", f"{v.id} at {dest.name}: {what}", v.id)

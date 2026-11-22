@@ -85,7 +85,7 @@ def _primary_status(state: WorldState, v, trip: Trip) -> str:
                 from .timeline import hhmm  # local import: timeline imports this module
 
                 return f"crew to the aircraft, take-off {hhmm(v.busy_until)}"
-            return "turning out" if v.status == "to_pickup" else "held up"
+            return "turning out" if v.status == "to_pickup" and v.busy_reason != "delay" else "held up"
         return f"{moving} to the patient" if trip.kind == "patient" else f"{moving} to the pickup"
     route = route_trip_ids(v)
     if trip.id in route:
