@@ -4,8 +4,10 @@ Everything here is computed on every read from the world's trips and the clinica
 stored and nothing is written (the log, the trips and the version are left untouched). The three
 screens (dispatch, tablet, ER) read this one projection, so they cannot disagree.
 
-A card is a plain JSON-safe dict whose keys never change shape. `handover`, `suggested_actions`
-and `alert_ids` (and the board's `alerts`) are placeholders until the alert rules fill them in.
+A card is a plain JSON-safe dict whose keys never change shape. `handover`, `suggested_actions` and
+`alert_ids` are filled in `build_case` itself (the alert rules are in alerts.py), and the board's
+`alerts` come from the same rules over the same cards, so a card built alone is identical to the
+same case's card on the board.
 """
 from __future__ import annotations
 
@@ -18,6 +20,7 @@ from ..engine.projection import DONE
 from ..models import Trip
 from ..state import SNAPSHOT_DONE_HOURS
 from . import config
+from .alerts import compute_alerts, handover_timer, suggested_actions
 from .models import ClinicalEntry
 from .store import get_log
 
@@ -116,6 +119,20 @@ def _level(trip: Trip, live: list[ClinicalEntry]) -> dict[str, Any]:
     return {"value": config.LEVEL_BY_PRIORITY.get(trip.priority), "inferred": True, "source": None}
 
 
+def _problem_type(live: list[ClinicalEntry]) -> str | None:
+    """The latest problem type any triage named. A later triage that only re-sets the level carries
+    the default "other", which must not wipe a problem type already given. "other" when triage
+    exists but names none, None when there is no triage at all."""
+    triages = [e for e in live if e.type == "triage"]
+    if not triages:
+        return None
+    for e in reversed(triages):
+        problem = e.content.get("problem_type")
+        if problem is not None and problem != "other":
+            return problem
+    return "other"
+
+
 def _vitals(state: WorldState, live: list[ClinicalEntry]) -> dict[str, dict[str, Any]]:
     """The latest reading of each metric. A partial entry only replaces the metrics it carries."""
     latest: dict[str, ClinicalEntry] = {}
@@ -162,19 +179,18 @@ def build_case(state: WorldState, trip: Trip, entries: list[ClinicalEntry]) -> d
     """One card. `entries` are the case's entries (as the log returns them); replaced ones are ignored."""
     live = _live(state, entries)
     stage, inferred = _stage(state, trip, live)
-    triage = _latest(live, "triage")
     severity = _latest(live, "severity")  # the on-scene severity entry, not the trip's own dispatch level
     arrived = trip.eta_dropoff if trip.status == "completed" else None
     minutes_to_arrival = None
     if arrived is None and trip.eta_dropoff is not None:
         minutes_to_arrival = max(0.0, round((trip.eta_dropoff - state.sim_time).total_seconds() / 60, 1))
-    return {
+    card = {
         "case_id": trip.id,
         "vehicle_id": trip.vehicle_id,
         "patient_label": trip.label,
         "priority": trip.priority,
         "level": _level(trip, live),
-        "problem": {"type": triage.content.get("problem_type") if triage else None, "note": trip.note},
+        "problem": {"type": _problem_type(live), "note": trip.note},
         "age_years": _patient_field(live, "age_years"),
         "sex": _patient_field(live, "sex"),
         "eta_dropoff": _when(trip.eta_dropoff),
@@ -209,10 +225,13 @@ def build_case(state: WorldState, trip: Trip, entries: list[ClinicalEntry]) -> d
         "acknowledged": any(e.type == "er_action" and e.content.get("action") == "acknowledge" for e in live),
         "bay": _bay(live),
         "teams_activated": _teams(live),
-        "handover": None,  # placeholder: the handover timer is added with the alert rules
-        "suggested_actions": [],  # placeholder, as above
-        "alert_ids": [],  # placeholder, as above
+        "handover": handover_timer(state, arrived, _latest(live, "handover")),
+        "suggested_actions": [],  # filled below, from the card itself
+        "alert_ids": [],  # filled below, from the alerts of this one case
     }
+    card["suggested_actions"] = suggested_actions(card)
+    card["alert_ids"] = [a["id"] for a in compute_alerts(state, [card])]
+    return card
 
 
 # --- Board -------------------------------------------------------------------------------------
@@ -229,12 +248,13 @@ def _board_order(state: WorldState, trips: list[Trip]) -> list[Trip]:
 
 def board(state: WorldState) -> dict[str, Any]:
     log = get_log(state)
+    cases = [build_case(state, t, log.for_case(t.id)) for t in _board_order(state, er_case_trips(state))]
     return {
         "world": state.name,
         "as_of": state.sim_time.isoformat(),
         "seq": log.last_seq,
-        "cases": [build_case(state, t, log.for_case(t.id)) for t in _board_order(state, er_case_trips(state))],
-        "alerts": [],  # placeholder: filled in by the alert rules
+        "cases": cases,
+        "alerts": compute_alerts(state, cases),  # the same rules over the same cards as each card's alert_ids
         "entries_tail": [e.model_dump(mode="json") for e in log.tail(config.SNAPSHOT_TAIL)],
     }
 

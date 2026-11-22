@@ -356,7 +356,9 @@ def test_eta_arrival_and_placeholders_on_the_card():
     assert c["case_id"] == t.id and c["vehicle_id"] == t.vehicle_id and c["patient_label"] == t.label
     assert c["priority"] == "emergency" and c["eta_dropoff"] == t.eta_dropoff.isoformat()
     assert c["minutes_to_arrival"] == 12.3 and c["arrived_at"] is None
-    assert c["handover"] is None and c["suggested_actions"] == [] and c["alert_ids"] == []
+    # not arrived, 12 min out: no handover timer and no alert; reception can still acknowledge and give a bay
+    assert c["handover"] is None and c["alert_ids"] == []
+    assert [a["action"] for a in c["suggested_actions"]] == ["acknowledge", "bay_assigned"]
     t.status = "completed"
     t.eta_dropoff = w.sim_time - timedelta(minutes=5)
     c = card_of(w, t)
