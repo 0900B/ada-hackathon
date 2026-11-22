@@ -68,7 +68,6 @@ export interface Report {
 }
 
 export const WINDOWS = [1, 3, 8] as const;
-export type WindowHours = (typeof WINDOWS)[number];
 export const REFRESH_MS = 15_000;
 
 /** The report of one world, refreshed every REFRESH_MS. The previous report stays while a new one loads. */
