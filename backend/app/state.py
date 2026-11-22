@@ -80,6 +80,12 @@ class WorldState:
         from . import config  # config only reads environment variables
 
         self.auto_analyze = config.AGENT_AUTO
+        # 112 calls (app/intake.py): triage generated and demo calls with Claude (guarded; else the
+        # keyword rules), and approve the recommended option of analyses about an active call by itself.
+        # Both off by default; they survive a reset like auto_analyze.
+        self.ai_triage = False
+        self.autopilot = False
+        self.epoch = 0  # +1 on every reset: async work started before a reset is dropped
         # Operating mode: live calls (False, default) or a pre-planned scheduled day for the vans.
         # Set on (re)seeding: seed_world(..., scheduled_day=...), POST /{world}/admin/reset.
         self.scheduled_day = config.SCHEDULED_DAY
@@ -97,7 +103,15 @@ class WorldState:
         # the snapshot) until a dispatcher's approved plan requests one; back here when it is home.
         self.reserve_vehicles: dict[str, Vehicle] = {}
         self.surge_until: datetime | None = None  # contracted surge capacity active until (engine/surge.py)
-        self.demand_was_high = False  # the demand trigger's last state (an analysis may start when it turns on)
+        self.demand_was_high = False  # the high-demand alert's last state seen by the loop (an analysis may start when it turns on)
+        # High-demand alert with hysteresis (engine/surge.update_demand_alert): raw trigger on since /
+        # off since (world time), and whether the alert is raised.
+        self.demand_high_since: datetime | None = None
+        self.demand_low_since: datetime | None = None
+        self.demand_alert = False
+        self.call_seq: dict[str, int] = {}  # per-world call id counters ("112", "REQ")
+        self.followup_at: datetime | None = None  # next automatic follow-up check (engine/followup.py)
+        self.epoch = getattr(self, "epoch", 0) + 1
         self.trips: dict[str, Trip] = {}
         self.incidents: dict[str, Incident] = {}  # this world's operator-reported/injected incidents
         self.weather_override: WeatherNow | None = None
@@ -145,11 +159,14 @@ class WorldState:
         return [[round(lat, 5), round(lon, 5)] for lat, lon in thinned]
 
     def clone_for_simulation(self) -> WorldState:
-        """A what-if copy: vehicles and trips are deep-copied, everything else is shared read-only."""
+        """A what-if copy: vehicles and trips are copied, everything else is shared read-only.
+
+        A trip's call record and timeline are shared, not copied (they are only ever written in the
+        real world, see engine/timeline.py); its other fields are scalars, except the modifiers list."""
         clone = copy.copy(self)
         clone.vehicles = {k: v.model_copy(deep=True) for k, v in self.vehicles.items()}
         clone.reserve_vehicles = {k: v.model_copy(deep=True) for k, v in self.reserve_vehicles.items()}
-        clone.trips = {k: t.model_copy(deep=True) for k, t in self.trips.items()}
+        clone.trips = {k: t.model_copy(update={"modifiers": list(t.modifiers)}) for k, t in self.trips.items()}
         clone.places = dict(self.places)
         clone.incidents = dict(self.incidents)
         clone.alerts = []
@@ -189,6 +206,8 @@ class WorldState:
             "real_time": utcnow().isoformat(),
             "mode": "scheduled_day" if self.scheduled_day else "live_calls",
             "calls": self.calls.status(self),
+            "ai_triage": self.ai_triage,  # generated/demo calls triaged by Claude (guarded), else by the rules
+            "autopilot": self.autopilot,  # the engine approves the recommended option of analyses about a call
             # Contracted surge capacity: active, until, units, what an activation would add (engine/surge.py)
             "surge": surge.status(self),
             "places": dump(places),

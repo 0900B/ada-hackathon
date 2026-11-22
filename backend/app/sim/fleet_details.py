@@ -24,32 +24,42 @@ _FIRST = ["Ana", "Luka", "Maja", "Nejc", "Tina", "Jure", "Eva", "Rok", "Nina", "
 _LAST = ["Novak", "Horvat", "Kranjc", "Zupan", "Potočnik", "Kos", "Vidmar", "Golob", "Turk", "Kralj", "Zajc", "Božič"]
 
 _ROLES: dict[str, list[str]] = {
-    # Slovenian NRV crew: a nurse or health technician leads, a medical rescuer drives. A doctor
-    # comes in a separate doctor car (VUZ) when the call needs one.
-    "ambulance": ["Medical rescuer (driver)", "Nurse, team leader"],
-    "transport": ["Driver", "Medical technician"],
-    "helicopter": ["Pilot", "Emergency physician", "Flight paramedic"],
+    # Slovenian NRV crew: a medical technician leads, a medical rescuer drives. A doctor comes in a
+    # separate doctor car (VUZ: an emergency physician and a nurse who drives) when the call needs one.
+    # The same crews for mutual-aid and contracted (private) ambulances and vans.
+    "ambulance": ["Medical technician (team leader)", "Medical rescuer (driver)"],
+    "transport": ["Driver", "Patient attendant"],
+    "helicopter": ["Pilot", "Emergency physician", "Nurse"],
     "doctor": ["Emergency physician", "Nurse (driver)"],
 }
+# Extra crew drawn from a second stream after everyone else, so the first stream (and the fuel and
+# shifts it also draws) stays exactly as it was: (vehicle type, role, position in the crew list).
+_EXTRA_ROLES = [("helicopter", "Co-pilot", 1)]
+
+
+def _name(rng: random.Random, used: set[str]) -> str:
+    while True:
+        name = f"{rng.choice(_FIRST)} {rng.choice(_LAST)}"
+        if name not in used:
+            used.add(name)
+            return name
 
 
 def equip_fleet(state: WorldState, seed: int) -> None:
     """Crews, fuel and shifts for the fleet and for the reserve units (mutual aid, private)."""
     rng = random.Random(seed + 7919)  # separate stream: must not change the seeded trips
     used: set[str] = set()
-    for v in [*state.vehicles.values(), *state.reserve_vehicles.values()]:
-        crew = []
-        for role in _ROLES.get(v.type, ["Driver"]):
-            while True:
-                name = f"{rng.choice(_FIRST)} {rng.choice(_LAST)}"
-                if name not in used:
-                    used.add(name)
-                    break
-            crew.append(CrewMember(name=f"{name} (fictional)", role=role))
-        v.crew = crew
+    fleet = [*state.vehicles.values(), *state.reserve_vehicles.values()]
+    for v in fleet:
+        v.crew = [CrewMember(name=f"{_name(rng, used)} (fictional)", role=role) for role in _ROLES.get(v.type, ["Driver"])]
         v.fuel_pct = float(rng.randint(45, 95))
         v.km_today = 0.0
         v.shift_end = state.sim_time.replace(minute=0, second=0) + timedelta(hours=rng.choice([6, 8, 10]))
+    extra = random.Random(seed + 104729)
+    for v in fleet:
+        for vtype, role, pos in _EXTRA_ROLES:
+            if v.type == vtype:
+                v.crew.insert(pos, CrewMember(name=f"{_name(extra, used)} (fictional)", role=role))
 
 
 def fuel_rate(vehicle_type: VehicleType | str) -> float:

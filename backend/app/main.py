@@ -18,16 +18,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from . import config, demo
+from . import approvals, config, demo, intake
 from .agent import runner as agent
 from .agent.messages import FieldMessage, MessageError, parse_message, to_operator_events
 from .guard import GUARD, message_limit_detail
 from .audit import AUDIT
-from .engine import surge
+from .engine import followup, surge
 from .engine.actions import ActionError
 from .engine.events import EventError, apply_event
-from .agent.context import hhmm
-from .engine.plans import apply_plan, simulate_plan, stale_reasons
+from .engine.plans import apply_plan, simulate_plan
 from .engine.projection import kpis, project_all
 from .fetchers import nap, tomtom
 from .fetchers.base import run_periodic
@@ -46,7 +45,7 @@ from .models import (
 from .roads import ROADS
 from . import navigation, tiles
 from .vehicles import vehicle_detail
-from .sim import calls
+from .sim import calls, incidents
 from .sim.seed import seed_world
 from .sim.simulator import tick
 from .state import FeedState, WorldState
@@ -68,27 +67,40 @@ def bump_all() -> None:
         w.bump()
 
 
+def call_problem(w: WorldState, record: EventRecord) -> None:
+    """A generated call that needs a dispatcher's attention: audited; with auto-analyse on (rate-limited)
+    an analysis starts."""
+    problem = calls.problem_of(w, record)
+    if problem is None:
+        return
+    AUDIT.record(w.name, "event", f"{record.summary} [needs attention: {problem}]", ref=record.id, payload=record)
+    if calls.may_analyse(w):
+        agent.start_run(w, trigger=f"call:{record.id}", focus=record, question=f"A live call needs attention: {problem}.")
+
+
+def _defer_to_ai(w: WorldState, ev, call) -> bool:
+    return intake.defer_generated(w, ev, call, call_problem)
+
+
 def take_calls(w: WorldState) -> None:
     """Live-calls mode: new calls come in and the engine dispatches each at once. A routine call
     never starts an AI analysis; a genuine problem (no unit can take it, or it will be late) may,
-    and only if this world's auto-analyse is on (at most one such run every 15 world-minutes)."""
-    for record, problem in calls.step(w):
-        if problem is None:
-            continue
-        AUDIT.record(w.name, "event", f"{record.summary} [needs attention: {problem}]", ref=record.id, payload=record)
-        if calls.may_analyse(w):
-            agent.start_run(w, trigger=f"call:{record.id}", focus=record, question=f"A live call needs attention: {problem}.")
-    # The demand trigger (engine/surge.py) turning on: logged, and with auto-analyse on (rate-limited
-    # like call problems) an analysis may propose surge capacity. Nothing is activated automatically.
-    d = surge.demand(w)
-    if d["high"] and not w.demand_was_high:
+    and only if this world's auto-analyse is on (at most one such run every 15 world-minutes).
+    With ai_triage on, Claude triages a 112 call first (guarded; app/intake.py)."""
+    for record, _problem in calls.step(w, intake=_defer_to_ai if w.ai_triage else None):
+        call_problem(w, record)
+    # The high-demand alert (engine/surge.py, with hysteresis) turning on: logged, and with auto-analyse
+    # on (rate-limited like call problems) an analysis may propose surge capacity. Nothing is activated
+    # automatically.
+    on = surge.alert_on(w)
+    if on and not w.demand_was_high:
+        d = surge.demand(w)
         AUDIT.record(w.name, "event", "High demand: " + "; ".join(d["reasons"]), ref="high_demand", payload=d)
-        patients_affected = bool(d["red_over_15_min"]) or len(d["past_target"]) >= surge.DEMAND_PAST_TARGET
-        if patients_affected and not surge.active(w) and calls.may_analyse(w):  # not for "no ambulance free" alone
+        if surge.patients_affected(d) and not surge.active(w) and calls.may_analyse(w):  # not for "no ambulance free" alone
             agent.start_run(w, trigger="demand", question=(
                 "High demand: " + "; ".join(d["reasons"]) + ". Consider activating the contracted surge capacity "
                 "(an option with activate_surge true) rather than displacing patients."))
-    w.demand_was_high = d["high"]
+    w.demand_was_high = on
 
 
 async def sim_loop() -> None:
@@ -101,6 +113,7 @@ async def sim_loop() -> None:
             try:
                 tick(w, config.SIM_TICK_S * w.speedup)
                 take_calls(w)
+                followup.check(w)  # 112 calls: re-dispatch, a faster free unit, a doctor car (engine/followup.py)
                 project_all(w)
             except Exception as e:  # noqa: BLE001 - keep the loop alive, surface the error in /health
                 log.exception("simulation tick failed (%s)", w.name)
@@ -434,6 +447,95 @@ def set_calls(req: CallsRequest, state: WorldState = World) -> dict:
     return {"world": state.name, **state.calls.status(state)}
 
 
+class SwitchRequest(BaseModel):
+    enabled: bool
+
+
+@router.post("/admin/ai-triage")
+def set_ai_triage(req: SwitchRequest, state: WorldState = World) -> dict:
+    """Generated and demo (random) 112 calls: triage by Claude (guarded; else the keyword rules) or by the
+    rules only (default). Calls typed by the call-taker (POST /calls) always try Claude first."""
+    state.ai_triage = req.enabled
+    AUDIT.record(state.name, "setting", f"AI triage {'on' if req.enabled else 'off'}")
+    state.bump()
+    return {"world": state.name, "ai_triage": state.ai_triage}
+
+
+@router.post("/admin/autopilot")
+def set_autopilot(req: SwitchRequest, state: WorldState = World) -> dict:
+    """Autopilot: the recommended feasible option of every analysis about an active call is approved by
+    the engine (same path as the dispatcher's approval, audited). Surge capacity stays manual."""
+    state.autopilot = req.enabled
+    AUDIT.record(state.name, "setting", f"Autopilot {'on' if req.enabled else 'off'}")
+    state.bump()
+    return {"world": state.name, "autopilot": state.autopilot}
+
+
+@router.post("/calls")
+async def post_call(req: intake.CallRequest, state: WorldState = World) -> dict:
+    """A 112 call typed by the call-taker: the caller's words and where. Claude triages it (through the
+    usage guard); when Claude is off, limited, slow or fails, the keyword rules do (never fails the call).
+    Then the normal dispatch path. Returns {trip (with call and timeline), summary}."""
+    try:
+        record, result = await intake.take_call(state, req)
+    except intake.LocationError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except EventError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    call_problem(state, record)
+    return intake.response(state, record, result)
+
+
+class RandomCallRequest(BaseModel):
+    severity: Literal["critical", "serious", "urgent"] | None = None
+
+
+@router.post("/admin/random-call")
+async def random_call(req: RandomCallRequest | None = None, state: WorldState = World) -> dict:
+    """Demo: one 112 call from the library (sim/calls.py: caller, street address, Slovenian words),
+    through the same intake path (Claude triages only with ai_triage on). Simulation only."""
+    if not state.hypothetical:
+        raise HTTPException(status_code=400, detail="Demo calls run in the simulation, not in live mode")
+    try:
+        record, result = await intake.random_call(state, req.severity if req else None)
+    except EventError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    call_problem(state, record)
+    return intake.response(state, record, result)
+
+
+class RandomIncidentRequest(BaseModel):
+    kind: Literal["crash", "closure", "fog", "breakdown", "delay", "capacity", "equipment"] | None = None
+
+
+@router.post("/admin/random-incident")
+def random_incident(req: RandomIncidentRequest | None = None, state: WorldState = World) -> dict:
+    """Demo: a disruption that hits current operations (sim/incidents.py), applied through the normal
+    event path. The event's payload names the unit hit (vehicle_id) and its call comes first in
+    affected_trip_ids. 409 when nothing is happening to disrupt. Simulation only."""
+    if not state.hypothetical:
+        raise HTTPException(status_code=400, detail="Demo incidents run in the simulation, not in live mode")
+    project_all(state)
+    target, note = incidents.pick(state, state.calls.text_rng, req.kind if req else None)
+    if target is None:
+        raise HTTPException(status_code=409, detail=note)
+    try:
+        record = apply_event(state, target.event, reported_by=target.reported_by)
+    except EventError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    record.payload["vehicle_id"] = target.vehicle_id
+    record.payload["incident_kind"] = target.kind
+    if target.trip_id:
+        record.affected_trip_ids = [target.trip_id] + [t for t in record.affected_trip_ids if t != target.trip_id]
+    follow = followup.check(state, force=True)  # the engine's automatic reaction, now rather than at the next check
+    summary = " ".join(filter(None, [note, record.summary])) + (f"; engine: {'; '.join(follow)}" if follow else "")
+    AUDIT.record(state.name, "event", f"Demo incident ({target.kind}): {summary}", ref=record.id, payload=record)
+    if state.auto_analyze and record.type in DISRUPTIVE_EVENTS:
+        agent.start_run(state, trigger=f"event:{record.id}", focus=record)
+    state.bump()
+    return {"event": record.model_dump(mode="json"), "summary": summary, "kind": target.kind}
+
+
 class SurgeRequest(BaseModel):
     ambulances: int = Field(default=len(surge.SURGE_AMBULANCES), ge=0, le=len(surge.SURGE_AMBULANCES))
     vans: int = Field(default=len(surge.SURGE_VANS), ge=0, le=len(surge.SURGE_VANS))
@@ -553,77 +655,17 @@ def get_run(run_id: str, state: WorldState = World) -> AgentRun:
     return _find_run(state, run_id)
 
 
-def _out_of_date(state: WorldState, run: AgentRun, why: str) -> HTTPException:
-    """The world moved on since the option was checked: say what changed and start a fresh analysis."""
-    run.log("info", f"Approval refused, plan out of date: {why}"[:600])
-    fresh = None
-    if state.auto_analyze:  # analysis on demand otherwise: the operator presses Analyse
-        fresh = agent.start_run(
-            state, trigger=f"stale:{run.id}", question=f"The operator wanted to approve a plan that is out of date ({why}). Re-plan."
-        )
-    state.bump()
-    tail = f" A new analysis has started ({fresh.id})." if fresh else " Ask for a new analysis."
-    return HTTPException(status_code=409, detail=why + tail)
-
-
 @router.post("/agent/runs/{run_id}/approve")
 async def approve(run_id: str, req: ApproveRequest, state: WorldState = World) -> AgentRun:
-    """Operator approves one option: its steps are re-checked against the current world and applied.
-
-    The steps carry anchors (before_trip_id) from when the engine checked them, so the vehicles do
-    the jobs in the order that was shown even if they moved on meanwhile. If the outcome is now
-    clearly worse than shown (e.g. a vehicle loaded a patient and can no longer turn around), the
-    approval is refused with the reason (409) and, if auto-analyse is on, a fresh analysis starts.
-    """
+    """Operator approves one option: its steps are re-checked against the current world and applied
+    (app/approvals.py; the autopilot uses the same path). If the outcome is now clearly worse than
+    shown, the approval is refused with the reason (409) and, with auto-analyse on, a fresh analysis
+    starts."""
     run = _find_run(state, run_id)
-    if run.status != "done" or run.recommendation is None:
-        raise HTTPException(status_code=409, detail=f"Run {run_id} is {run.status}; nothing to approve")
-    options = run.recommendation.options
-    if not 0 <= req.option_index < len(options):
-        raise HTTPException(status_code=400, detail="option_index out of range")
-    option = options[req.option_index]
-    applied_event = None
-    executed: list[str] = []
-    if option.activate_surge and not surge.active(state):
-        # The dispatcher's decision: contracted surge capacity joins first, then the option's steps.
-        surge_event = surge.activate(state)
-        AUDIT.record(state.name, "surge", surge_event.summary, ref=surge_event.id, payload=surge_event)
-        executed.append(surge_event.summary)
-        applied_event = surge_event
-    if option.steps:
-        plan = Plan(steps=option.steps, rationale=f"Approved: {option.title}")
-        project_all(state)
-        preview = simulate_plan(state, plan)
-        checked = run.recommendation.checked_at
-        since = f" (checked at {hhmm(checked)}, now {hhmm(state.sim_time)})" if checked else ""
-        if not preview["feasible"]:
-            # e.g. a patient was picked up meanwhile, or the vehicle broke down.
-            raise _out_of_date(state, run, f"Plan no longer valid{since}: {'; '.join(preview['errors'])}.")
-        if stale := stale_reasons(option.step_details, preview["step_details"]):
-            raise _out_of_date(state, run, f"Plan is out of date{since}: {'; '.join(stale)}.")
-        try:
-            applied_event = apply_plan(state, plan)
-        except ActionError as e:
-            raise _out_of_date(state, run, f"Plan no longer valid{since}: {e}.") from e
-        executed += [d["text"] for d in preview["step_details"]]
-    run.status = "approved"
-    run.decision = {
-        "option_index": req.option_index,
-        "title": option.title,
-        "event_id": applied_event.id if applied_event else None,
-        "at": utcnow().isoformat(),
-        "executed": executed,  # what each step does as applied (same wording as step_details[].text)
-    }
-    run.log("info", f"Operator approved option {req.option_index + 1}: {option.title}")
-    AUDIT.record(
-        state.name,
-        "decision_approved",
-        f"Operator approved option {req.option_index + 1}: {option.title}",
-        ref=run.id,
-        payload={"option": option, "decision": run.decision},
-    )
-    state.bump()
-    return run
+    try:
+        return approvals.approve(state, run, req.option_index, by="dispatcher")
+    except approvals.ApprovalError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from e
 
 
 @router.post("/agent/runs/{run_id}/reject")

@@ -296,7 +296,8 @@ def _faster_unit_option(state: WorldState, t, gain: float, c: dict) -> list[Reco
 def _surge_option(state: WorldState) -> RecommendationOption | None:
     """The demand trigger is on: offer the contracted surge capacity, with its effect simulated on a copy."""
     d = surge.demand(state)
-    if not d["high"] or surge.active(state) or not any(surge.available(state).values()):
+    # Offered when the high-demand alert is raised (sustained and affecting patients), not at every busy moment.
+    if not d["high"] or not surge.alert_on(state) or surge.active(state) or not any(surge.available(state).values()):
         return None
     sim = state.clone_for_simulation()
     record = surge.activate(sim)
@@ -468,4 +469,57 @@ def _finish(state: WorldState, run: AgentRun, rec: Recommendation, engine: str) 
             "trace": run.steps,
         },
     )
+    _log_proposal(state, run, rec, engine)
+    if state.autopilot:
+        _autopilot(state, run, rec)
     state.bump()
+
+
+def _run_trips(state: WorldState, run: AgentRun, rec: Recommendation) -> list:
+    """The open trips a run is about: those its options move, and its focus event's own trips."""
+    from ..engine.projection import DONE
+
+    ids = [s.trip_id for o in rec.options for s in o.steps]
+    if run.event_id:
+        ev = next((e for e in reversed(state.events) if e.id == run.event_id), None)
+        if ev is not None:
+            ids += ev.affected_trip_ids[:3]
+    return [state.trips[t] for t in dict.fromkeys(ids) if t in state.trips and state.trips[t].status not in DONE]
+
+
+def _log_proposal(state: WorldState, run: AgentRun, rec: Recommendation, engine: str) -> None:
+    """A "proposal" entry (with the run id) on the timeline of every trip the options move."""
+    from ..engine import timeline
+
+    if rec.recommended_index < 0 or not rec.options:
+        return
+    best = rec.options[rec.recommended_index]
+    moved = {s.trip_id for o in rec.options for s in o.steps}
+    who = "AI" if engine == "claude" else "Engine"
+    for trip in _run_trips(state, run, rec):
+        if trip.id in moved:
+            timeline.log(state, trip, "proposal", "ai" if engine == "claude" else "engine",
+                         f"{who} proposal ({len(rec.options)} option(s)), recommended: {best.title}", trip.vehicle_id, run.id)
+
+
+def _autopilot(state: WorldState, run: AgentRun, rec: Recommendation) -> None:
+    """Autopilot on: approve the recommended feasible option of a run about an active call, by the same
+    path as the dispatcher (approvals.approve: re-checked, applied, audited). Contracted surge capacity
+    stays the dispatcher's decision."""
+    from ..approvals import ApprovalError, approve
+
+    if rec.recommended_index < 0 or not rec.options:
+        return
+    if not any(t.call is not None for t in _run_trips(state, run, rec)):
+        run.log("info", "Autopilot: not about an active call, left for the dispatcher")
+        return
+    option = rec.options[rec.recommended_index]
+    if option.activate_surge:
+        run.log("info", "Autopilot: activating contracted surge capacity is left to the dispatcher")
+        return
+    if option.feasible is False or not option.steps:
+        return
+    try:
+        approve(state, run, rec.recommended_index, by="autopilot")
+    except ApprovalError as e:
+        run.log("info", f"Autopilot could not approve: {e.detail}"[:600])

@@ -1,7 +1,8 @@
 """Claude usage guard for the live demo: one in-memory limiter for every path that calls Claude.
 
 Counted: each AI analysis that reaches Claude (operator, event, call, field message, scenario,
-stale-plan re-analysis) and each field message Claude parses. Shared by both worlds. Limits:
+stale-plan re-analysis), each field message Claude parses and each 112 call Claude triages ("triage",
+app/intake.py: over the limit the keyword rules triage the call instead). Shared by both worlds. Limits:
 CLAUDE_MAX_PER_5MIN (default 12) per rolling CLAUDE_WINDOW_S (default 300 s) and
 CLAUDE_MAX_PER_DAY (default 300) per UTC day. One analysis may make several API requests (tool
 turns, at most AGENT_MAX_TURNS) but counts once. In memory: a restart resets the counts.
@@ -57,6 +58,11 @@ class ClaudeGuard:
         """Would one more Claude call be allowed now? (Counts nothing.)"""
         self._roll(self.clock())
         return len(self._recent) < self.per_window and self._today < self.per_day
+
+    def headroom(self) -> int:
+        """How many more Claude calls are allowed now (in the window and today)."""
+        self._roll(self.clock())
+        return max(0, min(self.per_window - len(self._recent), self.per_day - self._today))
 
     def try_acquire(self, kind: str) -> bool:
         """Count one Claude call of this kind ("analysis" or "message"), or refuse it."""

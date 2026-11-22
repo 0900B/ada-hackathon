@@ -68,6 +68,9 @@ Two worlds read them:
 | POST | `/{world}/plans/apply` | Operator approved: apply the plan |
 | POST | `/{world}/admin/reset` | Re-seed that world; optional `{"scheduled_day": true\|false}` switches the mode |
 | POST | `/{world}/admin/calls` | Live-calls generator: `{"enabled": bool, "per_hour": number}` (both optional) |
+| POST | `/{world}/calls` | A 112 call: `{"text", "address"?, "place_id"?, "lat"?, "lon"?, "caller_name"?, "dropoff_id"?}` → Claude triage (rules when unavailable) → dispatch; returns `{trip, summary}` (422: location not found) |
+| POST | `/{world}/admin/ai-triage`, `/{world}/admin/autopilot` | Switches `{"enabled": bool}` (snapshot: `ai_triage`, `autopilot`; both off by default) |
+| POST | `/sim/admin/random-call`, `/sim/admin/random-incident` | Demo: a random call (`{"severity"?}`) or a disruption hitting current operations (`{"kind"?}`: crash, closure, fog, breakdown, delay, capacity, equipment); 400 in live, 409 when nothing fits |
 | GET/POST | `/sim/admin/scenarios`, `/sim/admin/scenario/{name}` | Demo scenarios (simulation only) |
 | POST | `/{world}/agent/analyze` | Ask the Claude agent to review the situation (`{"question": "..."}` optional) |
 | GET | `/{world}/agent/runs` | Agent runs, newest first (also in `/state` and `/stream` under `agent`) |

@@ -238,11 +238,14 @@ GRADING_KEYWORDS: list[tuple[tuple[str, ...], str, str]] = [
     (("se duši", "zaduši", "dušenje", "choking"), "choking", "critical"),
     (("močno krvavi", "masivna krvavitev", "huda krvavitev", "bleeding heavily", "heavy bleeding"), "catastrophic_bleeding", "critical"),
     (("anafilak", "alergijski šok", "anaphyla"), "anaphylaxis", "critical"),
-    (("sum na kap", "možganska kap", "povešen ustni kot", "povešen kot ust", "stroke"), "stroke", "serious"),
-    (("bolečina v prsih", "bolečine v prsih", "boli v prsih", "infarkt", "srčni napad", "chest pain", "heart attack"), "stemi", "serious"),
+    (("sum na kap", "možganska kap", "možgansko kap", "možganske kapi", "povešen ustni kot", "povešen kot ust", "stroke"),
+     "stroke", "serious"),
+    (("bolečina v prsih", "bolečine v prsih", "bolečino v prsih", "boli v prsih", "v prsih", "infarkt", "srčni napad",
+      "chest pain", "heart attack"), "stemi", "serious"),
     (("težko diha", "težave z dihanjem", "težko dihanje", "difficulty breathing", "short of breath"), "breathing_difficulty", "serious"),
-    (("padec z višine", "prometna nesreča", "huda poškodba", "politravm", "major trauma"), "major_trauma", "serious"),
-    (("krči", "epilept", "seizure"), "seizure", "serious"),
+    (("padec z višine", "z višine", "prometna nesreča", "prometni nesreči", "huda poškodba", "hudo poškodb", "politravm",
+      "zbil avto", "povozil", "major trauma"), "major_trauma", "serious"),
+    (("krč", "epilept", "seizure"), "seizure", "serious"),
     (("sepsa", "sepso", "sepsis"), "sepsis", "serious"),
     (("zlom", "fractur"), "fracture", "urgent"),
     (("padec", "padel", "padla", "a fall"), "fall", "urgent"),
@@ -252,6 +255,8 @@ MODIFIER_KEYWORDS: dict[str, tuple[str, ...]] = {
     "multiple_patients": ("več poškodovanih", "več oseb", "dva poškodovana", "trije poškodovani", "several injured"),
     "deteriorating": ("se slabša", "slabša se", "poslabša", "poslabšuje", "getting worse"),
     "no_bystander_cpr": ("nihče ne oživlja", "brez oživljanja", "no cpr", "nobody is doing cpr"),
+    "late_stroke_window": ("pred več kot tremi urami", "pred več kot 3 urami", "več kot tri ure", "more than three hours ago",
+                           "over 3 hours ago"),
 }
 
 

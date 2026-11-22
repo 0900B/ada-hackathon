@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from ..models import (
     BreakdownEvent,
+    CallRecord,
     ClearIncidentEvent,
     DelayEvent,
     EventRecord,
@@ -23,10 +24,11 @@ from ..models import (
 )
 from ..roads import ROADS, remaining_points
 from ..routing import flies, leg_route, points_hit, travel_minutes
+from . import timeline
 from .actions import LJ, ActionError, assign_trip, can_serve, detach_trip, level
 from .doctors import release as release_doctor, send_doctor
 from .service_times import on_scene_for, on_scene_min
-from .severity import DEFAULT_SEVERITY, SEVERITY_PRIORITY, SEVERITY_RANK, call_label, grade, severity_for
+from .severity import DEFAULT_SEVERITY, DOCTOR_TARGET_MIN, SEVERITY_PRIORITY, SEVERITY_RANK, call_label, grade, severity_for
 from .projection import (
     DONE,
     PRIORITY_ORDER,
@@ -49,14 +51,22 @@ class EventError(ValueError):
     pass
 
 
-def apply_event(state: WorldState, ev: OperatorEvent) -> EventRecord:
+def apply_event(
+    state: WorldState, ev: OperatorEvent, call: CallRecord | None = None, reported_by: str = "dispatcher"
+) -> EventRecord:
+    """Apply one event. call: the 112 call or hospital request behind a new urgent_request or
+    task_request (app/intake.py); reported_by: who reported the event, for the call timeline
+    (dispatcher, crew). Every change to a trip is logged on its timeline (engine/timeline.py)."""
     project_all(state)  # fresh baseline, so feed updates since the last tick don't count as event effects
     before = {t.id: (t.status, t.vehicle_id, t.eta_dropoff) for t in state.trips.values()}
     kpis_before = kpis(state)
     created: list[str] = []
+    tracker = timeline.Tracker(state)
+    graded = {t.id: (t.severity, t.condition_label) for t in state.trips.values() if t.call is not None}
 
-    summary = _handle(state, ev, created)
+    summary = _handle(state, ev, created, call)
     project_all(state)
+    _log_event(state, ev, summary, created, tracker, graded, reported_by)
 
     affected: list[str] = list(dict.fromkeys(created))  # the event's own trips first (e.g. the new call)
     for t in state.trips.values():
@@ -91,7 +101,117 @@ def _vehicle(state: WorldState, vehicle_id: str):
     return v
 
 
-def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
+def is_112(trip: Trip) -> bool:
+    """A trip behind a 112 call: the engine follows it up by itself (re-dispatch when its unit drops
+    out, a faster free unit, a doctor car; engine/followup.py). Scenario jobs and bookings have none."""
+    return trip.call is not None and trip.call.kind == "112"
+
+
+def _log_event(
+    state: WorldState, ev: OperatorEvent, summary: str, created: list[str], tracker: timeline.Tracker,
+    graded: dict[str, tuple], reported_by: str,
+) -> None:
+    """The event on the timelines of the trips it touched (real world only)."""
+    if state.is_simulation:
+        return
+    for tid in created:
+        trip = state.trips.get(tid)
+        if trip is None or trip.timeline:
+            continue
+        c = trip.call
+        if c is None:
+            timeline.log(state, trip, "received", reported_by, summary.split("; ")[0])
+            continue
+        words = c.text_en or c.text_sl
+        if c.kind == "112":
+            text = f"Call {c.call_id} received" + (f' from {c.caller_name}' if c.caller_name else "") + (f': "{words}"' if words else "")
+        else:
+            text = f"Request {c.call_id}" + (f" from {c.caller_name}" if c.caller_name else "") + (f': "{words}"' if words else "")
+        timeline.log(state, trip, "received", "caller", text, at=c.received_at)
+        if c.triage is not None:
+            timeline.log(state, trip, "triaged", c.triage.by, triage_text(c.triage), at=c.triage.at)
+    tracker.log_changes("engine", summary, created)
+    if isinstance(ev, DelayEvent):
+        v = state.vehicles.get(ev.vehicle_id)
+        for tid in route_trip_ids(v) if v else []:
+            t = state.trips[tid]
+            if t.status == "onboard":
+                when = f": at {state.places[t.dropoff_id].name} {timeline.hhmm(t.eta_dropoff)}"
+            else:
+                when = f": at {'the patient' if t.kind == 'patient' else 'the pickup'} {timeline.hhmm(t.eta_pickup)}" if t.eta_pickup else ""
+            timeline.log(state, t, "delayed", reported_by, f"{ev.vehicle_id} delayed {ev.minutes:.0f} min"
+                         + (f" ({ev.note})" if ev.note else "") + when, ev.vehicle_id)
+    elif isinstance(ev, RoadClosureEvent) and ev.kind == "road_closure":
+        inc = next(reversed(state.incidents.values()), None)
+        for v in state.vehicles.values():
+            if inc is None or not v.current_trip_id or not crosses(state, v, inc):
+                continue
+            trip = state.trips.get(v.current_trip_id)
+            if ROADS.detours_available():
+                timeline.log(state, trip, "rerouted", "engine", f"{v.id}: {ev.description} ahead, rerouting around it", v.id)
+            else:
+                timeline.log(state, trip, "delayed", "engine", f"{v.id}: {ev.description} on the route, slower until it clears", v.id)
+    elif isinstance(ev, FogEvent):
+        for v in state.vehicles.values():
+            trip = state.trips.get(v.current_trip_id) if flies(v.type) and v.current_trip_id else None
+            if trip is not None and trip.status == "onboard":
+                timeline.log(state, trip, "note", reported_by, f"Fog: {v.id} flies the patient in, then stays on the ground", v.id)
+    elif isinstance(ev, PriorityChangeEvent):
+        trip = state.trips.get(ev.trip_id)
+        if trip is not None:
+            old = graded.get(trip.id)
+            if trip.call is not None and trip.call.triage is not None and old and old != (trip.severity, trip.condition_label):
+                from ..agent.triage import regrade  # local import: the triage module imports the agent package
+
+                regrade(state, trip, f"{old[0]} → {trip.severity}")
+                timeline.log(state, trip, "triaged", "dispatcher", triage_text(trip.call.triage))
+            else:
+                timeline.log(state, trip, "note", reported_by, summary.split("; ")[0], trip.vehicle_id)
+    elif isinstance(ev, HospitalCapacityEvent):
+        place = state.places.get(ev.place_id)
+        for tid in created:
+            if (t := state.trips.get(tid)) is not None and place is not None:
+                timeline.log(state, t, "note", reported_by, f"{place.name} can admit only {ev.capacity} more patient(s): "
+                             "this patient may need another hospital", t.vehicle_id)
+
+
+def triage_text(tr) -> str:
+    """'Critical, doctor needed — Cardiac arrest: about 6% survival lost ...' for the timeline."""
+    from .severity import MODIFIER_SHORT
+
+    head = tr.severity.capitalize() + (", doctor needed" if tr.needs_doctor else "")
+    if tr.reason_en:
+        return f"{head} — {tr.reason_en}"
+    mods = ", ".join(MODIFIER_SHORT.get(m, m.replace("_", " ")) for m in tr.modifiers)
+    return f"{head} — " + ", ".join(filter(None, [tr.condition_label, mods])) if tr.condition_label or mods else head
+
+
+def crosses(state: WorldState, v, inc: Incident) -> bool:
+    """Does the rest of the leg v is driving (its road route, else the straight line to its target)
+    pass through the incident?"""
+    if v.status == "out_of_service" or flies(v.type):
+        return False
+    if _drives_through(state, v, inc):
+        return True
+    if leg_route(state, v) is not None:
+        return False
+    target = tuple(v.path_to) if v.path_to is not None else _target(state, v)
+    if target is None:
+        return False
+    return bool(points_hit([(v.lat, v.lon), target], [inc]))
+
+
+def _target(state: WorldState, v) -> tuple[float, float] | None:
+    trip = state.trips.get(v.current_trip_id) if v.current_trip_id else None
+    if trip is None and v.queue:
+        trip = state.trips.get(v.queue[0])
+    if trip is None:
+        return None
+    p = state.places[trip.dropoff_id if trip.status == "onboard" else trip.pickup_id]
+    return (p.lat, p.lon)
+
+
+def _handle(state: WorldState, ev: OperatorEvent, created: list[str], call: CallRecord | None = None) -> str:
     if isinstance(ev, BreakdownEvent):
         v = _vehicle(state, ev.vehicle_id)
         if v.status == "out_of_service":
@@ -107,8 +227,10 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
                 extra = f"; {supported.id} needs another doctor" + (send_doctor(state, supported) or ": none needed")
             return f"{v.name} broke down{extra}" + (f" ({ev.note})" if ev.note else "")
         stranded = None
+        released: list[Trip] = []
         for tid in ([v.current_trip_id] if v.current_trip_id else []) + v.queue:
             trip = state.trips[tid]
+            released.append(trip)
             if trip.status == "onboard":
                 # The patient (or equipment) is inside the broken vehicle: another vehicle must
                 # first collect it at the breakdown site, then deliver it.
@@ -143,6 +265,13 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
             extra = f"; patient of {stranded.id} stranded on board"
             if stranded.priority == "emergency":  # an emergency patient can't wait for an analysis
                 extra += dispatch_call(state, stranded)
+        # 112 calls are re-dispatched at once (highest level first). Scenario jobs and bookings (no
+        # call record) and hospital requests stay for the dispatcher/AI, as before.
+        for trip in sorted(released, key=level):
+            if trip is stranded and stranded.priority == "emergency":
+                continue  # already dispatched above
+            if is_112(trip) and trip.status == "unassigned":
+                extra += f"; {trip.id}" + dispatch_call(state, trip).replace(";", ":", 1)
         return f"{v.name} broke down{extra}" + (f" ({ev.note})" if ev.note else "")
 
     if isinstance(ev, DelayEvent):
@@ -165,7 +294,7 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
         what = f"{ev.kind.replace('_', ' ').capitalize()}: {ev.description}"
         if inc.kind != "road_closure":
             return what
-        crossing = [v.id for v in state.vehicles.values() if _drives_through(state, v, inc)]
+        crossing = [v.id for v in state.vehicles.values() if crosses(state, v, inc)]
         if not crossing:
             return what
         how = "rerouting around it" if ROADS.detours_available() else "slower until it clears (no detour service)"
@@ -212,14 +341,20 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
             modifiers=list(ev.modifiers),
         )
         grade(state, trip)  # level, label and response target (critical: 8 min in the city, 15 outside)
+        if ev.needs_doctor and trip.kind == "patient" and trip.severity in ("critical", "serious"):
+            trip.needs_doctor, trip.doctor_target_min = True, DOCTOR_TARGET_MIN  # asked for by the call-taker/triage
         state.trips[trip.id] = trip
         created.append(trip.id)
+        _attach_call(trip, call)
         label = call_label(trip)  # e.g. "Cardiac arrest, child"
         what = f" ({label})" if label else ""
         return f"New {trip.severity} call {trip.id}{what}: {pickup.name} → {dropoff.name}" + dispatch_call(state, trip)
 
     if isinstance(ev, TaskRequestEvent):
-        return _book_task(state, ev, created)
+        text = _book_task(state, ev, created)
+        if call is not None and created:
+            _attach_call(state.trips[created[-1]], call)
+        return text
 
     if isinstance(ev, WeatherOverrideEvent):
         if not state.hypothetical:
@@ -267,6 +402,16 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str]) -> str:
 
 def _hhmm(dt) -> str:
     return dt.astimezone(LJ).strftime("%H:%M") if dt else "?"
+
+
+def _attach_call(trip: Trip, call: CallRecord | None) -> None:
+    """The call record joins its trip; its triage then shows the trip's final grading."""
+    if call is None:
+        return
+    trip.call = call
+    from ..agent.triage import sync_triage  # local import: the triage module imports the agent package
+
+    sync_triage(trip)
 
 
 def dispatch_call(state: WorldState, trip: Trip) -> str:

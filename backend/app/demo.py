@@ -373,6 +373,9 @@ def _surge(state: WorldState) -> list[EventRecord]:
             )
         )
         _fast_forward(state, 0.5)
+    from .engine import surge
+
+    surge.assume_sustained(state)  # the demand built up before the scenario's moment: the alert shows at once
     return records
 
 

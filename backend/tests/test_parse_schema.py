@@ -47,9 +47,22 @@ def test_objects_are_strict():
                 walk(v)
 
     walk(PARSE_SCHEMA)
+    from app.agent.triage import TRIAGE_SCHEMA
+
+    walk(TRIAGE_SCHEMA)
+
+
+def test_triage_schema_within_union_limit():
+    """The 112-call triage schema (app/agent/triage.py): plain strings and required booleans only."""
+    from app.agent.triage import TRIAGE_SCHEMA
+
+    n = union_params(TRIAGE_SCHEMA)
+    assert n <= MAX_UNION_PARAMS, f"{n} union-typed parameters (limit {MAX_UNION_PARAMS})"
+    print(f"triage schema union-typed parameters: {n} (limit {MAX_UNION_PARAMS})")
 
 
 if __name__ == "__main__":
     test_parse_schema_within_union_limit()
     test_objects_are_strict()
-    print("2/2 passed")
+    test_triage_schema_within_union_limit()
+    print("3/3 passed")
