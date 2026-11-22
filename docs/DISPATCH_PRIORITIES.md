@@ -279,9 +279,11 @@ helicopter for another patient of the same call becomes a linked trip with the s
 Refused with the reason when it cannot be done (a patient on board, a doctor car busy with another
 call). Timeline `override` by `dispatcher`. **The dispatcher's choice sticks**: a unit assigned by the
 dispatcher (an override, or a plan they approved) is not changed by the engine's follow-up (a faster
-free unit), by the autonomous AI dispatcher or by the autopilot (refused, with a timeline note); only
-if that unit drops out (breakdown, fog) does the engine replace it at once, and from then on the call
-is followed up as usual.
+free unit), by the autonomous AI dispatcher or by the autopilot (refused, with a timeline note). Two
+exceptions: if that unit drops out (breakdown, fog) the engine replaces it at once; and if a disruption
+pushes that unit back by 3 min or more, the basis of the choice has changed, so the engine's
+recalculation may switch to a free unit at least 3 min sooner ("A2 was the dispatcher's choice but is
+held up: ...", engine/followup.recheck). From then on the call is followed up as usual.
 
 **Why each unit**: every call's `units` (snapshot) name the transporting unit, the doctor car and any
 linked unit with one line of reason written where the decision was made ("nearest free ambulance",
