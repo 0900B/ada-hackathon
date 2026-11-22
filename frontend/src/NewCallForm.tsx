@@ -3,6 +3,7 @@ import { MapPin, Mic, PhoneCall, PhoneIncoming, X } from "lucide-react";
 import { postCall, type Trip, type WorldSnapshot } from "./api";
 import { BY_LABEL } from "./calls";
 import { ErrorText } from "./ErrorText";
+import { t as tx, useLang, useT } from "./i18n";
 import { SeverityBadge } from "./SeverityBadge";
 import { SPEECH_LANGS, useSpeechInput } from "./voice";
 
@@ -20,6 +21,8 @@ export function NewCallForm({
   onClose: () => void;
   onCreated: (trip: Trip) => void;
 }) {
+  const t = useT();
+  const lang = useLang();
   const [text, setText] = useState("");
   const [address, setAddress] = useState("");
   const [point, setPoint] = useState<{ lat: number; lon: number } | null>(null);
@@ -27,13 +30,13 @@ export function NewCallForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Trip | null>(null);
-  const speech = useSpeechInput({ lang: "sl-SI", onFinal: (heard) => setText((t) => (t ? `${t} ${heard}` : heard)) });
+  const speech = useSpeechInput({ lang: "sl-SI", onFinal: (heard) => setText((prev) => (prev ? `${prev} ${heard}` : heard)) });
   const places = state.places.filter((p) => p.kind !== "call_location" && p.kind !== "incident_site");
 
   useEffect(() => {
     if (picked) {
       setPoint({ lat: picked.lat, lon: picked.lon });
-      setAddress((a) => a || "Point on the map");
+      setAddress((a) => a || tx("ai.nc.mapPoint"));
     }
   }, [picked]);
 
@@ -53,7 +56,7 @@ export function NewCallForm({
       setTimeout(() => onCreated(trip), 2500); // show the triage, then open the case card
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setError(/not found|405|method not allowed/i.test(msg) && !/address/i.test(msg) ? "This backend has no 112 intake yet: press E and click the map to place an emergency." : msg);
+      setError(/not found|405|method not allowed/i.test(msg) && !/address/i.test(msg) ? t("ai.nc.noIntake") : msg);
     } finally {
       setBusy(false);
     }
@@ -61,34 +64,36 @@ export function NewCallForm({
 
   const ok = text.trim().length >= 3 && (point || address.trim().length >= 2);
   const triageBy = result?.call?.triage?.by;
+  // The AI's clinical reason: Slovenian from the backend when the UI is Slovenian
+  const reason = (lang === "sl" ? result?.call?.triage?.reason_sl : null) || result?.call?.triage?.reason_en;
   return (
     <div className="call-form">
       <div className="call-form-head">
-        <PhoneCall /> <strong>New 112 call</strong>
-        <button className="link vc-close" onClick={onClose} aria-label="Close">
+        <PhoneCall /> <strong>{t("ai.newCall")}</strong>
+        <button className="link vc-close" onClick={onClose} aria-label={t("common.close")}>
           <X />
         </button>
       </div>
       <label className="field-label" htmlFor="call-words">
-        What the caller says
+        {t("ai.nc.words")}
       </label>
       <textarea
         id="call-words"
         rows={3}
-        placeholder="»Moj mož se je zgrudil in ne diha!« · Ctrl+Enter sends"
+        placeholder={t("ai.nc.placeholder")}
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && ok && !busy) void submit();
         }}
       />
-      {speech.listening && <div className="voice-interim">{speech.interim || "Listening… speak now"}</div>}
+      {speech.listening && <div className="voice-interim">{speech.interim || t("ai.fm.speakNow")}</div>}
       {speech.supported && (
         <div className="row call-voice">
           <button type="button" className={`mic-btn${speech.listening ? " listening" : ""}`} onClick={speech.toggle} aria-pressed={speech.listening}>
-            <Mic /> {speech.listening ? "Listening…" : "Speak"}
+            <Mic /> {speech.listening ? t("ai.listening") : t("ai.fm.speak")}
           </button>
-          <span className="lang-toggle" role="group" aria-label="Speech language">
+          <span className="lang-toggle" role="group" aria-label={t("ai.fm.speechLang")}>
             {SPEECH_LANGS.map((l) => (
               <button key={l.code} type="button" aria-pressed={speech.lang === l.code} onClick={() => speech.setLang(l.code)}>
                 {l.label}
@@ -98,13 +103,13 @@ export function NewCallForm({
         </div>
       )}
       <label className="field-label" htmlFor="call-address">
-        Where
+        {t("ai.nc.where")}
       </label>
       <div className="row">
         <input
           id="call-address"
           list="call-places"
-          placeholder="Address or place (e.g. Bežigrad)"
+          placeholder={t("ai.nc.addressPh")}
           value={address}
           onChange={(e) => {
             setAddress(e.target.value);
@@ -116,18 +121,14 @@ export function NewCallForm({
             <option key={p.id} value={p.name} />
           ))}
         </datalist>
-        <button type="button" onClick={onPickOnMap} title="Click the map where the patient is">
-          <MapPin /> Pick on map
+        <button type="button" onClick={onPickOnMap} title={t("ai.nc.pickTitle")}>
+          <MapPin /> {t("ai.nc.pick")}
         </button>
       </div>
-      {point && (
-        <div className="muted small">
-          Map point {point.lat.toFixed(4)}, {point.lon.toFixed(4)}
-        </div>
-      )}
-      <input placeholder="Caller's name (optional)" value={caller} onChange={(e) => setCaller(e.target.value)} aria-label="Caller's name" />
+      {point && <div className="muted small">{t("ai.nc.point", { lat: point.lat.toFixed(4), lon: point.lon.toFixed(4) })}</div>}
+      <input placeholder={t("ai.nc.callerPh")} value={caller} onChange={(e) => setCaller(e.target.value)} aria-label={t("ai.nc.callerAria")} />
       <button className="primary" disabled={!ok || busy} onClick={() => void submit()}>
-        <PhoneIncoming /> {busy ? "Classifying…" : "Classify and dispatch"}
+        <PhoneIncoming /> {busy ? t("ai.nc.classifying") : t("ai.nc.submit")}
       </button>
       {error && (
         <div className="message error">
@@ -138,12 +139,13 @@ export function NewCallForm({
         <div className="call-result">
           <div className="sev-row">
             <SeverityBadge trip={result} size="md" />
-            {result.call?.triage?.needs_doctor && <span className="call-kind">Doctor needed</span>}
+            {result.call?.triage?.needs_doctor && <span className="call-kind">{t("ai.doctorNeeded")}</span>}
             {triageBy && <span className={`src-tag ${triageBy === "ai" ? "claude" : "rules"}`}>{BY_LABEL[triageBy] ?? triageBy}</span>}
           </div>
-          {result.call?.triage?.reason_en && <div className="muted">{result.call.triage.reason_en}</div>}
+          {reason && <div className="muted">{reason}</div>}
           <div>
-            {result.timeline?.find((e) => e.kind === "dispatched")?.text ?? (result.vehicle_id ? `${result.vehicle_id} dispatched` : "No unit yet: dispatch is looking for one")}
+            {result.timeline?.find((e) => e.kind === "dispatched")?.text ??
+              (result.vehicle_id ? t("ai.nc.dispatched", { v: result.vehicle_id }) : t("ai.nc.noUnit"))}
           </div>
         </div>
       )}

@@ -1,6 +1,7 @@
 /** The Reports page's data: GET /{world}/reports?hours=N (backend/app/reports.py). */
 import { useEffect, useState } from "react";
 import { API_URL, type World } from "./api";
+import { fmtNum, getLang, t } from "./i18n";
 import type { Level } from "./severity";
 
 export interface ResponseSample {
@@ -83,7 +84,7 @@ export function useReport(world: World, hours: number) {
     const load = async () => {
       try {
         const res = await fetch(`${API_URL}/${world}/reports?hours=${hours}`, { signal: ctl.signal });
-        if (res.status === 404) throw new Error("This backend has no reports yet (GET /{world}/reports)");
+        if (res.status === 404) throw new Error(t("rep.noBackend"));
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as Report;
         if (!stop) {
@@ -110,5 +111,10 @@ export function useReport(world: World, hours: number) {
   return { report, error, loading, fetchedAt };
 }
 
-export const fmtPct = (v: number | null | undefined) => (v == null ? "–" : `${Math.round(v)}%`);
-export const fmtMin = (v: number | null | undefined) => (v == null ? "–" : `${v < 10 ? v.toFixed(1) : Math.round(v)} min`);
+/** "45%" in English, "45 %" (narrow no-break space) in Slovenian. */
+export const fmtPct = (v: number | null | undefined) => (v == null ? "–" : `${Math.round(v)}${getLang() === "sl" ? " " : ""}%`);
+/** "7.5 min" / "7,5 min" (decimal comma in Slovenian). */
+export const fmtMin = (v: number | null | undefined) => (v == null ? "–" : `${v < 10 ? fmtNum(v, 1) : Math.round(v)} min`);
+/** A raw table number with the language's decimal separator (English unchanged). */
+export const fmtRaw = (v: number | null | undefined): string | number =>
+  v == null ? "–" : getLang() === "sl" ? String(v).replace(".", ",") : v;

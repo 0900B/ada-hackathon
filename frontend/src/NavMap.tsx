@@ -6,6 +6,7 @@ import { Crosshair, Map as MapIcon, Navigation as NavIcon, Route } from "lucide-
 import { trafficTileUrl, type Incident, type Navigation, type Vehicle, type VehicleDetail } from "./api";
 import { baseMaps, saveBase, savedBase, type BaseId } from "./basemaps";
 import { GLYPH } from "./glyphs";
+import { t as tx, useLang, useT } from "./i18n";
 
 const ROUTE = "#4f8ff7"; // the leg being driven
 const DETOUR = "#f0883e"; // legs that go around a road closure
@@ -146,8 +147,12 @@ function offset(p: [number, number], deg: number, m: number): [number, number] {
  * Markers (vehicle, stops, closures) stay upright; only tiles and lines turn.
  */
 export function NavMap({ vehicle, detail, nav, incidents }: Props) {
+  const t = useT();
+  const lang = useLang();
   const box = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
+  // The layer switcher, rebuilt on a language switch (its labels are plain text inside Leaflet)
+  const switcher = useRef<{ bases: ReturnType<typeof baseMaps>; traffic: L.TileLayer; control: L.Control.Layers | null } | null>(null);
   const layers = useRef<{
     route: L.LayerGroup;
     incidents: L.LayerGroup;
@@ -234,13 +239,7 @@ export function NavMap({ vehicle, detail, nav, incidents }: Props) {
       className: "traffic-layer",
     });
     if (!heli) traffic.addTo(map);
-    L.control
-      .layers(
-        Object.fromEntries((Object.keys(bases) as BaseId[]).map((k) => [bases[k].label, bases[k].layer])),
-        { "Traffic (TomTom)": traffic },
-        { position: "topright" },
-      )
-      .addTo(map);
+    switcher.current = { bases, traffic, control: null }; // the layer switcher is added by the effect below
     layers.current = { route: L.layerGroup().addTo(map), incidents: L.layerGroup().addTo(map), marker: null, markerKey: "", driven: null };
     // Panning by hand pauses following; zooming by hand stops auto-zoom (both until Re-centre)
     map.on("dragstart", () => setFollow(false));
@@ -258,8 +257,24 @@ export function NavMap({ vehicle, detail, nav, incidents }: Props) {
       map.remove();
       mapRef.current = null;
       layers.current = null;
+      switcher.current = null;
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- once per vehicle (the page is keyed by it)
+
+  // --- the layer switcher, in the UI language (rebuilt on a switch; the chosen layers stay) ----
+  useEffect(() => {
+    const map = mapRef.current;
+    const sw = switcher.current;
+    if (!map || !sw) return;
+    sw.control?.remove();
+    sw.control = L.control
+      .layers(
+        Object.fromEntries((Object.keys(sw.bases) as BaseId[]).map((k) => [sw.bases[k].label, sw.bases[k].layer])),
+        { [tx("tab.map.traffic")]: sw.traffic },
+        { position: "topright" },
+      )
+      .addTo(map);
+  }, [lang]);
 
   // --- position and heading from each snapshot ----------------------------------------------
   useEffect(() => {
@@ -498,33 +513,38 @@ export function NavMap({ vehicle, detail, nav, incidents }: Props) {
   return (
     <div className="nav-wrap">
       <div ref={box} className="nav-map" />
-      <div className="nav-views" role="group" aria-label="Map view">
+      <div className="nav-views" role="group" aria-label={t("tab.map.views")}>
         <button
           className={`mdt-btn${view === "heading" ? " on" : ""}`}
           aria-pressed={view === "heading"}
           onClick={() => setView("heading")}
-          title="Heading up: the map turns with the vehicle"
+          title={t("tab.map.headingTitle")}
         >
-          <NavIcon /> Heading up
+          <NavIcon /> {t("tab.map.heading")}
         </button>
         <button
           className={`mdt-btn${view === "north" ? " on" : ""}`}
           aria-pressed={view === "north"}
           onClick={() => setView("north")}
-          title="North up, following the vehicle"
+          title={t("tab.map.northTitle")}
         >
-          <MapIcon /> North up
+          <MapIcon /> {t("tab.map.north")}
         </button>
         <button
           className={`mdt-btn${view === "overview" ? " on" : ""}`}
           aria-pressed={view === "overview"}
           onClick={() => setView("overview")}
-          title="The whole remaining route"
+          title={t("tab.map.overviewTitle")}
         >
-          <Route /> Overview
+          <Route /> {t("tab.map.overview")}
         </button>
       </div>
-      <button className="mdt-btn nav-compass" onClick={() => setView("north")} title="North up" aria-label={`Compass, map bearing ${compass}°: tap for north up`}>
+      <button
+        className="mdt-btn nav-compass"
+        onClick={() => setView("north")}
+        title={t("tab.map.north")}
+        aria-label={t("tab.map.compass", { deg: compass })}
+      >
         <svg viewBox="0 0 40 40" style={{ transform: `rotate(${compass}deg)` }} aria-hidden>
           <path className="needle-n" d="M20 4 L26 20 L14 20 Z" />
           <path className="needle-s" d="M20 36 L26 20 L14 20 Z" />
@@ -532,7 +552,7 @@ export function NavMap({ vehicle, detail, nav, incidents }: Props) {
       </button>
       {paused && (
         <button className="mdt-btn nav-recentre" onClick={recentre}>
-          <Crosshair /> {view === "overview" ? "Follow" : "Re-centre"}
+          <Crosshair /> {view === "overview" ? t("tab.map.follow") : t("tab.map.recentre")}
         </button>
       )}
     </div>

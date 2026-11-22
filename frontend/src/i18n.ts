@@ -15,6 +15,7 @@ import * as dashboard from "./locales/dashboard";
 import * as dispatch from "./locales/dispatch";
 import * as pages from "./locales/pages";
 import * as field from "./locales/field";
+import * as ops from "./locales/ops";
 
 export type Lang = "en" | "sl";
 export const LANGS: Lang[] = ["sl", "en"];
@@ -25,9 +26,9 @@ export type Msg = string | Plural;
 /** The Slovenian side of a dictionary: every English key, nothing else. */
 export type Translation<T> = { [K in keyof T]: Msg };
 
-const EN = { ...common.en, ...dashboard.en, ...dispatch.en, ...pages.en, ...field.en };
+const EN = { ...common.en, ...dashboard.en, ...ops.en, ...dispatch.en, ...pages.en, ...field.en };
 export type TKey = keyof typeof EN;
-const SL: Record<TKey, Msg> = { ...common.sl, ...dashboard.sl, ...dispatch.sl, ...pages.sl, ...field.sl };
+const SL: Record<TKey, Msg> = { ...common.sl, ...dashboard.sl, ...ops.sl, ...dispatch.sl, ...pages.sl, ...field.sl };
 const DICT: Record<Lang, Record<TKey, Msg>> = { en: EN, sl: SL };
 
 export type Params = Record<string, string | number | null | undefined>;
@@ -136,6 +137,9 @@ export const fmtNum = (n: number, digits = 1, lang: Lang = getLang()): string =>
   const s = n.toFixed(digits);
   return lang === "sl" ? s.replace(".", ",") : s;
 };
+
+/** A number as it is (no rounding), with the decimal separator of the language ("0.25" / "0,25"). */
+export const fmtDec = (n: number, lang: Lang = getLang()): string => (lang === "sl" ? String(n).replace(".", ",") : String(n));
 
 /**
  * Rich text: `{name}` placeholders replaced by React nodes, e.g.

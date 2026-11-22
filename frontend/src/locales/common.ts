@@ -199,7 +199,7 @@ export const sl: Translation<typeof en> = {
   "tstatus.unassigned": "brez enote",
   "tstatus.assigned": "dodeljeno",
   "tstatus.en_route_pickup": "na poti k pacientu",
-  "tstatus.onboard": "pacient v vozilu",
+  "tstatus.onboard": "v vozilu",
   "tstatus.completed": "zaključeno",
   "tstatus.cancelled": "preklicano",
   "vtype.ambulance": "reševalno vozilo",
@@ -209,7 +209,7 @@ export const sl: Translation<typeof en> = {
 
   "origin.mutual_aid": "Sosednja postaja",
   "origin.private": "Zasebno",
-  "origin.mutual_aidShort": "Sos.",
+  "origin.mutual_aidShort": "Pomoč",
   "origin.privateShort": "Zas.",
   "origin.titleMutualAid": "Medsebojna pomoč: reševalno vozilo sosednje postaje",
   "origin.titleContractEnded": "Pogodbena dodatna zmogljivost: pogodba je potekla; dokonča trenutno nalogo in odide",

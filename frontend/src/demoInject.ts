@@ -6,26 +6,36 @@
 import { useState } from "react";
 import { controlFetch } from "./adminKey";
 import { API_URL, MissingEndpoint, type EventRecord, type Trip } from "./api";
+import { t } from "./i18n";
+import { LEVEL_LABEL } from "./severity";
 
 export { MissingEndpoint };
 
-export const CALL_LEVELS = [
-  { value: "", label: "Any" },
-  { value: "critical", label: "Critical" },
-  { value: "serious", label: "Serious" },
-  { value: "urgent", label: "Urgent" },
-] as const;
+/** A menu option whose label follows the UI language. */
+const option = (value: string, label: () => string) => ({
+  value,
+  get label() {
+    return label();
+  },
+});
 
-export const FAILURES = [
-  { value: "", label: "Any" },
-  { value: "crash", label: "Car crash" },
-  { value: "closure", label: "Road closure" },
-  { value: "fog", label: "Fog" },
-  { value: "breakdown", label: "Engine failure" },
-  { value: "delay", label: "Delay" },
-  { value: "capacity", label: "Hospital full" },
-  { value: "equipment", label: "Stranded equipment" },
-] as const;
+export const CALL_LEVELS: readonly { value: string; label: string }[] = [
+  option("", () => t("dash.demo.any")),
+  option("critical", () => LEVEL_LABEL.critical),
+  option("serious", () => LEVEL_LABEL.serious),
+  option("urgent", () => LEVEL_LABEL.urgent),
+];
+
+export const FAILURES: readonly { value: string; label: string }[] = [
+  option("", () => t("dash.demo.any")),
+  option("crash", () => t("dash.demo.crash")),
+  option("closure", () => t("dash.demo.closure")),
+  option("fog", () => t("dash.demo.fog")),
+  option("breakdown", () => t("dash.demo.breakdown")),
+  option("delay", () => t("dash.demo.delay")),
+  option("capacity", () => t("dash.demo.capacity")),
+  option("equipment", () => t("dash.demo.equipment")),
+];
 
 export interface DemoApi {
   call: boolean; // POST /sim/admin/random-call exists
@@ -53,12 +63,15 @@ async function post(path: string, body: Record<string, unknown>): Promise<Record
 export async function randomCall(severity?: string): Promise<{ trip: Trip | null; summary: string }> {
   const data = await post("/sim/admin/random-call", severity ? { severity } : {});
   const trip = (data.trip as Trip | undefined) ?? ("id" in data && "pickup_id" in data ? (data as unknown as Trip) : null);
-  return { trip, summary: String(data.summary ?? (trip ? `New call ${trip.call?.call_id ?? trip.id}` : "New call")) };
+  return {
+    trip,
+    summary: String(data.summary ?? (trip ? t("dash.demo.newCallId", { id: trip.call?.call_id ?? trip.id }) : t("dash.demo.newCall"))),
+  };
 }
 
 /** A random failure (optionally of one kind). The backend answers {event, summary} or the event record. */
 export async function randomIncident(kind?: string): Promise<{ event: EventRecord | null; summary: string }> {
   const data = await post("/sim/admin/random-incident", kind ? { kind } : {});
   const event = (data.event as EventRecord | undefined) ?? ("affected_trip_ids" in data ? (data as unknown as EventRecord) : null);
-  return { event, summary: String(data.summary ?? event?.summary ?? "Failure injected") };
+  return { event, summary: String(data.summary ?? event?.summary ?? t("dash.demo.failureInjected")) };
 }

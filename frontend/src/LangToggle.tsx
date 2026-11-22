@@ -5,11 +5,11 @@ export function LangToggle({ className = "" }: { className?: string }) {
   const lang = useLang();
   const t = useT();
   return (
-    <div className={`lang-toggle ${className}`} role="group" aria-label={t("lang.label")}>
+    <div className={`ui-lang ${className}`} role="group" aria-label={t("lang.label")}>
       {LANGS.map((l, i) => (
-        <span key={l} className="lang-toggle-item">
+        <span key={l} className="ui-lang-item">
           {i > 0 && (
-            <span className="lang-toggle-sep" aria-hidden>
+            <span className="ui-lang-sep" aria-hidden>
               |
             </span>
           )}

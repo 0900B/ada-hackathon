@@ -5,9 +5,13 @@
  * a useful list. Also says, honestly, who did what: Claude, the rules engine, or the dispatcher.
  */
 import type { AgentRun, TimelineEntry, Trip, Vehicle, WorldSnapshot } from "./api";
+import { getLang, liveRecord, t as tx, translate, type TKey } from "./i18n";
 import { compareTrips } from "./severity";
 
 export type CallStatus = "waiting" | "dispatched" | "en route" | "on scene" | "transporting" | "at hospital" | "closed" | "cancelled";
+
+/** A case status in the UI language ("en route" / "na poti"); the codes themselves stay English. */
+export const callStatusLabel = (s: CallStatus): string => tx(`ai.cs.${s.replace(/ /g, "_")}` as TKey);
 
 export type Phase = "next" | "to_scene" | "on_scene" | "to_hospital" | "escort" | "done";
 
@@ -52,73 +56,55 @@ const BOOKING = new Set(["transfer", "equipment"]);
 const ASSIGN_KINDS = new Set(["dispatched", "reassigned", "unit_replaced", "doctor_dispatched", "override"]);
 const INTERVENTIONS = new Set(["override", "reassigned", "unit_replaced", "dispatched", "doctor_dispatched", "rerouted", "approved"]);
 
-/** Who did it, for people: Claude is Claude, the deterministic parts are named as rules. */
-export const BY_LABEL: Record<string, string> = {
-  caller: "Caller",
-  ai: "Claude",
-  claude: "Claude",
-  rules: "Keyword rules",
-  engine: "Rules engine",
-  rules_engine: "Rules engine",
-  autopilot: "Autopilot",
-  dispatcher: "Dispatcher",
-  crew: "Crew",
+/** Who-codes and their dictionary entries (full label, short label for the timeline's "who" column). */
+const BY_KEYS: Record<string, [TKey, TKey]> = {
+  caller: ["ai.by.caller", "ai.byShort.caller"],
+  ai: ["ai.by.claude", "ai.by.claude"],
+  claude: ["ai.by.claude", "ai.by.claude"],
+  rules: ["ai.by.rules", "ai.byShort.rules"],
+  engine: ["ai.by.engine", "ai.byShort.engine"],
+  rules_engine: ["ai.by.engine", "ai.byShort.engine"],
+  autopilot: ["ai.by.autopilot", "ai.byShort.autopilot"],
+  dispatcher: ["ai.by.dispatcher", "ai.byShort.dispatcher"],
+  crew: ["ai.by.crew", "ai.byShort.crew"],
 };
+const BY_CODES = Object.keys(BY_KEYS);
+
+/** Who did it, for people: Claude is Claude, the deterministic parts are named as rules (follows the UI language). */
+export const BY_LABEL: Record<string, string> = liveRecord(BY_CODES, (k) => tx(BY_KEYS[k][0]));
 
 /** Short form for the timeline's "who" column. */
-export const BY_SHORT: Record<string, string> = {
-  caller: "Caller",
-  ai: "Claude",
-  claude: "Claude",
-  rules: "Rules",
-  engine: "Engine",
-  rules_engine: "Engine",
-  autopilot: "Autopilot",
-  dispatcher: "Dispatcher",
-  crew: "Crew",
-};
+export const BY_SHORT: Record<string, string> = liveRecord(BY_CODES, (k) => tx(BY_KEYS[k][1]));
 
 export const isClaude = (by: string | null | undefined) => by === "ai" || /^claude/i.test(by ?? "");
 
 /** "Rules engine · 0.1 s" from who and the timeline's detail ("rules engine, 0.1 s"). */
 export function sourceText(by: string | null | undefined, detail?: string | null): string {
-  const who = by ? (BY_LABEL[by] ?? by) : "Rules engine";
+  const who = by ? (BY_LABEL[by] ?? by) : tx("ai.by.engine");
   if (!detail) return who;
   const d = detail.trim();
-  // the detail usually names the actor already ("rules engine, 0.1 s"): don't say it twice
-  if (d.toLowerCase().startsWith(who.toLowerCase()) || (isClaude(by) && /^claude/i.test(d))) return d[0].toUpperCase() + d.slice(1).replace(/,\s*/, " · ");
+  // the detail (English, from the backend) usually names the actor already ("rules engine, 0.1 s"): don't say it twice
+  const whoEn = by ? (BY_KEYS[by] ? translate("en", BY_KEYS[by][0]) : by) : translate("en", "ai.by.engine");
+  const named = d.toLowerCase().startsWith(whoEn.toLowerCase()) || (isClaude(by) && /^claude/i.test(d));
+  if (named) {
+    if (getLang() === "en") return d[0].toUpperCase() + d.slice(1).replace(/,\s*/, " · ");
+    // Slovenian: the actor in Slovenian, the rest (timings) as sent
+    const head = isClaude(by) && /^claude/i.test(d) ? "claude".length : whoEn.length;
+    const rest = d.slice(head).replace(/^[,\s]+/, "");
+    return rest ? `${who} · ${rest}` : who;
+  }
   if (d.toLowerCase() === "dispatcher") return who;
   return `${who} · ${d}`;
 }
 
-export const STEP_LABEL: Record<string, string> = {
-  received: "Call received",
-  triaged: "Classified",
-  dispatched: "Dispatched",
-  doctor_dispatched: "Doctor sent",
-  rerouted: "Rerouted",
-  reassigned: "Reassigned",
-  delayed: "Delayed",
-  unit_replaced: "Unit replaced",
-  proposal: "Proposal",
-  approved: "Approved",
-  reviewed: "Claude review",
-  override: "Override",
-  on_scene: "On scene",
-  doctor_on_scene: "Doctor on scene",
-  transporting: "Transporting",
-  at_hospital: "At hospital",
-  handover_done: "Handover done",
-  closed: "Closed",
-  note: "Note",
-};
+const STEP_KINDS = [
+  "received", "triaged", "dispatched", "doctor_dispatched", "rerouted", "reassigned", "delayed", "unit_replaced", "proposal",
+  "approved", "reviewed", "override", "on_scene", "doctor_on_scene", "transporting", "at_hospital", "handover_done", "closed", "note",
+] as const;
+/** Timeline step names (follow the UI language). */
+export const STEP_LABEL: Record<string, string> = liveRecord(STEP_KINDS, (k) => tx(`ai.step.${k}`));
 
-const ROLE_LABEL: Record<string, string> = {
-  ambulance: "Ambulance",
-  transport: "Transport van",
-  helicopter: "Helicopter",
-  doctor: "Doctor car",
-};
+const ROLE_LABEL: Record<string, string> = liveRecord(["ambulance", "transport", "helicopter", "doctor"] as const, (r) => tx(`ai.role.${r}`));
 
 function statusOf(t: Trip, vehicles: Map<string, Vehicle>): CallStatus {
   if (t.status === "cancelled") return "cancelled";
@@ -134,15 +120,21 @@ function statusOf(t: Trip, vehicles: Map<string, Vehicle>): CallStatus {
 
 /** The timeline from the trip's own fields (older backends without Trip.timeline). */
 function synthTimeline(t: Trip, received: string, place: (id: string) => string): TimelineEntry[] {
-  const out: TimelineEntry[] = [{ at: received, kind: "received", by: "caller", text: `Call received: ${t.note ?? t.label}` }];
-  if (t.vehicle_id) out.push({ at: t.dispatched_at ?? received, kind: "dispatched", by: "engine", text: `${t.vehicle_id} dispatched`, vehicle_id: t.vehicle_id });
+  const out: TimelineEntry[] = [{ at: received, kind: "received", by: "caller", text: tx("ai.synth.received", { what: t.note ?? t.label }) }];
+  if (t.vehicle_id) out.push({ at: t.dispatched_at ?? received, kind: "dispatched", by: "engine", text: tx("ai.synth.dispatched", { v: t.vehicle_id }), vehicle_id: t.vehicle_id });
   if (t.doctor_vehicle_id && t.doctor_vehicle_id !== t.vehicle_id)
-    out.push({ at: t.dispatched_at ?? received, kind: "doctor_dispatched", by: "engine", text: `Doctor ${t.doctor_vehicle_id} sent`, vehicle_id: t.doctor_vehicle_id });
+    out.push({
+      at: t.dispatched_at ?? received,
+      kind: "doctor_dispatched",
+      by: "engine",
+      text: tx("ai.synth.doctor", { v: t.doctor_vehicle_id }),
+      vehicle_id: t.doctor_vehicle_id,
+    });
   if ((t.status === "onboard" || t.status === "completed") && t.eta_pickup)
-    out.push({ at: t.eta_pickup, kind: "on_scene", by: "crew", text: `${t.vehicle_id ?? "Unit"} on scene`, vehicle_id: t.vehicle_id });
+    out.push({ at: t.eta_pickup, kind: "on_scene", by: "crew", text: tx("ai.synth.onScene", { v: t.vehicle_id ?? tx("ai.synth.unit") }), vehicle_id: t.vehicle_id });
   if (t.status === "completed" && t.eta_dropoff) {
-    out.push({ at: t.eta_dropoff, kind: "at_hospital", by: "crew", text: `At ${place(t.dropoff_id)}`, vehicle_id: t.vehicle_id });
-    out.push({ at: t.eta_dropoff, kind: "closed", by: "engine", text: "Closed" });
+    out.push({ at: t.eta_dropoff, kind: "at_hospital", by: "crew", text: tx("ai.synth.atPlace", { place: place(t.dropoff_id) }), vehicle_id: t.vehicle_id });
+    out.push({ at: t.eta_dropoff, kind: "closed", by: "engine", text: tx("ai.synth.closed") });
   }
   return out;
 }
@@ -183,14 +175,10 @@ function unitPhase(t: Trip, v: Vehicle | undefined, role: string): Phase {
   return "to_scene";
 }
 
-const PHASE_STEP: Record<Phase, string> = {
-  next: "Next: finishing another job first",
-  to_scene: "En route to the patient",
-  on_scene: "On scene",
-  to_hospital: "Transporting",
-  escort: "Escorting the ambulance",
-  done: "Done",
-};
+const PHASE_STEP: Record<Phase, string> = liveRecord(
+  ["next", "to_scene", "on_scene", "to_hospital", "escort", "done"] as const,
+  (p) => tx(`ai.phase.${p}`),
+);
 
 function buildUnit(
   t: Trip,
@@ -207,7 +195,7 @@ function buildUnit(
   let role = roleIn && roleIn !== "unit" ? roleIn : doctorSlot ? "doctor" : (v?.type ?? "ambulance");
   if (doctorSlot && v?.type === "helicopter") role = "helicopter";
   const doctorOnBoard = v?.type === "helicopter" && t.doctor_vehicle_id === vid; // the helicopter brings the doctor
-  const roleLabel = doctorOnBoard ? "Helicopter (doctor on board)" : (ROLE_LABEL[role] ?? role);
+  const roleLabel = doctorOnBoard ? tx("ai.role.heliDoctor") : (ROLE_LABEL[role] ?? role);
   const phase = unitPhase(t, v, doctorSlot ? "doctor" : role);
   const entry = [...timeline].reverse().find((e) => e.vehicle_id === vid && ASSIGN_KINDS.has(e.kind));
   const by = extra?.assigned_by ?? entry?.by ?? (t.vehicle_id === vid && t.dispatched_at ? "engine" : null);
@@ -217,7 +205,8 @@ function buildUnit(
   const hospital = place(t.dropoff_id).replace(/ Ljubljana$/, "");
   const now = Date.parse(state.sim_time);
   let eta: string | null = null;
-  let etaLabel = "at the patient";
+  let etaLabel = tx("ai.eta.patient");
+  const atHospital = tx("ai.eta.hospital", { place: hospital });
   let progress: number | null = null;
   if (phase === "to_scene" || phase === "next") {
     eta = etaScene;
@@ -227,7 +216,7 @@ function buildUnit(
     } else progress = 0;
   } else if (phase === "to_hospital") {
     eta = etaHospital;
-    etaLabel = `at ${hospital}`;
+    etaLabel = atHospital;
     const left = [...timeline].reverse().find((e) => e.kind === "transporting")?.at ?? null;
     if (etaHospital && left) {
       const total = mins(Date.parse(etaHospital), Date.parse(left));
@@ -235,15 +224,15 @@ function buildUnit(
     }
   } else if (phase === "on_scene") {
     eta = doctorSlot ? null : etaHospital;
-    etaLabel = doctorSlot ? "on scene" : `at ${hospital}`;
+    etaLabel = doctorSlot ? tx("ai.eta.onScene") : atHospital;
     progress = 1;
   } else if (phase === "escort") {
     eta = t.eta_dropoff;
-    etaLabel = `at ${hospital}`;
+    etaLabel = atHospital;
   }
   let rawReason = extra?.reason ?? entry?.text ?? null;
   // "Dispatcher override: A2 replaces A1, …" next to the "Dispatcher" tag: say it once
-  if (rawReason && by === "dispatcher") rawReason = rawReason.replace(/^Dispatcher(?: override)?:\s*/i, "Override: ");
+  if (rawReason && by === "dispatcher") rawReason = rawReason.replace(/^Dispatcher(?: override)?:\s*/i, tx("ai.reasonOverride"));
   return {
     id: vid,
     role,
@@ -251,7 +240,8 @@ function buildUnit(
     type: v?.type ?? (role === "doctor" ? "doctor" : null),
     name: v?.name ?? vid,
     phase,
-    step: extra?.status_text || PHASE_STEP[phase],
+    // The backend's step text is English: in Slovenian show the phase's own label instead
+    step: (getLang() === "en" ? extra?.status_text : null) || PHASE_STEP[phase],
     eta,
     etaLabel,
     progress,
@@ -332,7 +322,11 @@ const fmtHm = (iso: string) =>
 function srcOf(entries: TimelineEntry[]): { src: string; tone: BadgeTone } {
   const claude = entries.some((e) => isClaude(e.by));
   const rules = entries.some((e) => !isClaude(e.by));
-  return claude && rules ? { src: "rules engine + Claude", tone: "claude" } : claude ? { src: "Claude", tone: "claude" } : { src: "rules engine", tone: "rules" };
+  return claude && rules
+    ? { src: tx("ai.src.rulesClaude"), tone: "claude" }
+    : claude
+      ? { src: "Claude", tone: "claude" }
+      : { src: tx("ai.src.rules"), tone: "rules" };
 }
 
 const lines = (entries: TimelineEntry[]) =>
@@ -346,35 +340,48 @@ export function badgesOf(c: CallView): Badge[] {
   if (c.kind === "112" && (c.triageBy || triaged)) {
     const by = c.triageBy ?? triaged?.by ?? null;
     const how = sourceText(by === "rules" ? "rules" : by, c.triageDetail);
-    if (by === "dispatcher") out.push({ key: "class", label: "Dispatcher classified", src: null, tone: "dispatcher", title: `Classified by the dispatcher${triaged ? `\n${triaged.text}` : ""}` });
+    if (by === "dispatcher")
+      out.push({
+        key: "class",
+        label: tx("ai.badge.dispClassified"),
+        src: null,
+        tone: "dispatcher",
+        title: `${tx("ai.badge.dispClassifiedTitle")}${triaged ? `\n${triaged.text}` : ""}`,
+      });
     else
       out.push({
         key: "class",
-        label: "AI classified",
-        src: isClaude(by) ? "Claude" : "rules",
+        label: tx("ai.badge.aiClassified"),
+        src: isClaude(by) ? "Claude" : tx("ai.badge.srcRules"),
         tone: isClaude(by) ? "claude" : "rules",
-        title: `Classified by ${how}${isClaude(by) ? "" : "\nNot Claude: AI triage is off, or Claude was unavailable"}${triaged ? `\n${triaged.text}` : ""}`,
+        title: `${tx("ai.triage.classifiedBy", { source: how })}${isClaude(by) ? "" : `\n${tx("ai.badge.notClaude")}`}${triaged ? `\n${triaged.text}` : ""}`,
       });
   }
   const disp = tl.find((e) => e.kind === "dispatched");
   if (disp) {
-    if (disp.by === "dispatcher") out.push({ key: "disp", label: "Dispatcher dispatched", src: null, tone: "dispatcher", title: lines([disp]) });
+    if (disp.by === "dispatcher") out.push({ key: "disp", label: tx("ai.badge.dispDispatched"), src: null, tone: "dispatcher", title: lines([disp]) });
     else {
       const s = srcOf([disp]);
-      out.push({ key: "disp", label: "AI dispatched", src: s.src, tone: s.tone, title: `Dispatched by ${sourceText(disp.by, disp.detail)}\n${disp.text}` });
+      out.push({
+        key: "disp",
+        label: tx("ai.badge.aiDispatched"),
+        src: s.src,
+        tone: s.tone,
+        title: `${tx("ai.badge.dispatchedBy", { source: sourceText(disp.by, disp.detail) })}\n${disp.text}`,
+      });
     }
   } else if (c.status === "waiting") {
-    out.push({ key: "disp", label: "Waiting for a unit", src: null, tone: "warn", title: "No unit could take this call yet: the AI keeps looking" });
+    out.push({ key: "disp", label: tx("ai.badge.waiting"), src: null, tone: "warn", title: tx("ai.badge.waitingTitle") });
   }
   const reroutes = tl.filter((e) => e.kind === "rerouted" && e.by !== "dispatcher");
   if (reroutes.length) {
     const s = srcOf(reroutes);
-    out.push({ key: "rer", label: `AI rerouted ${reroutes.length}×`, src: s.src, tone: s.tone, title: lines(reroutes) });
+    out.push({ key: "rer", label: tx("ai.badge.rerouted", { n: reroutes.length }), src: s.src, tone: s.tone, title: lines(reroutes) });
   }
   const reassigned = tl.filter((e) => (e.kind === "reassigned" || e.kind === "unit_replaced") && e.by !== "dispatcher");
   if (reassigned.length) {
     const s = srcOf(reassigned);
-    out.push({ key: "rea", label: `AI reassigned ${reassigned.length}×`, src: s.src, tone: s.tone, title: lines(reassigned) });
+    out.push({ key: "rea", label: tx("ai.badge.reassigned", { n: reassigned.length }), src: s.src, tone: s.tone, title: lines(reassigned) });
   }
   const reviews = tl.filter((e) => e.kind === "reviewed");
   const lastReview = reviews[reviews.length - 1];
@@ -382,31 +389,37 @@ export function badgesOf(c: CallView): Badge[] {
     const changed = !/no change|agrees?|confirmed|keeps?\b/i.test(lastReview.text) && /chang|instead|swap|moved|replac|redirect/i.test(lastReview.text);
     out.push(
       changed
-        ? { key: "claude", label: `Claude changed: ${lastReview.text.replace(/^Claude (changed|reviewed)[^:]*:\s*/i, "")}`, src: null, tone: "claude", title: lines(reviews) }
-        : { key: "claude", label: "Claude reviewed", src: null, tone: "claude", title: lines(reviews), check: true },
+        ? {
+            key: "claude",
+            label: tx("ai.badge.claudeChanged", { text: lastReview.text.replace(/^Claude (changed|reviewed)[^:]*:\s*/i, "") }),
+            src: null,
+            tone: "claude",
+            title: lines(reviews),
+          }
+        : { key: "claude", label: tx("ai.badge.claudeReviewed"), src: null, tone: "claude", title: lines(reviews), check: true },
     );
   } else {
     const proposals = tl.filter((e) => e.kind === "proposal");
     if (proposals.length) {
       const s = srcOf(proposals);
-      out.push({ key: "claude", label: "AI proposed a plan", src: s.src, tone: s.tone, title: lines(proposals) });
+      out.push({ key: "claude", label: tx("ai.badge.proposed"), src: s.src, tone: s.tone, title: lines(proposals) });
     }
   }
   const auto = tl.filter((e) => e.kind === "approved" && e.by !== "dispatcher");
-  if (auto.length) out.push({ key: "auto", label: "AI applied the plan", src: "autopilot", tone: "rules", title: lines(auto) });
+  if (auto.length) out.push({ key: "auto", label: tx("ai.badge.applied"), src: tx("ai.badge.srcAutopilot"), tone: "rules", title: lines(auto) });
   // The dispatcher's interventions in the AI's work (entering the call or reporting a delay is not one)
   const mine = tl.filter((e) => e.by === "dispatcher" && INTERVENTIONS.has(e.kind));
   const overrides = mine.filter((e) => e.kind === "override" || e.kind === "reassigned" || e.kind === "unit_replaced");
   const approvals = mine.filter((e) => e.kind === "approved");
   if (overrides.length) {
-    out.push({ key: "me", label: `Dispatcher overrode at ${fmtHm(overrides[overrides.length - 1].at)}`, src: null, tone: "dispatcher", title: lines(overrides) });
+    out.push({ key: "me", label: tx("ai.badge.overrode", { time: fmtHm(overrides[overrides.length - 1].at) }), src: null, tone: "dispatcher", title: lines(overrides) });
   } else if (approvals.length) {
-    out.push({ key: "me", label: `Dispatcher approved at ${fmtHm(approvals[approvals.length - 1].at)}`, src: null, tone: "dispatcher", title: lines(approvals) });
+    out.push({ key: "me", label: tx("ai.badge.approved", { time: fmtHm(approvals[approvals.length - 1].at) }), src: null, tone: "dispatcher", title: lines(approvals) });
   } else if (mine.length) {
     const last = mine[mine.length - 1];
-    out.push({ key: "me", label: `Dispatcher acted at ${fmtHm(last.at)}`, src: null, tone: "dispatcher", title: lines(mine) });
+    out.push({ key: "me", label: tx("ai.badge.acted", { time: fmtHm(last.at) }), src: null, tone: "dispatcher", title: lines(mine) });
   } else {
-    out.push({ key: "me", label: "Dispatcher: —", src: null, tone: "idle", title: "The dispatcher has not intervened on this case" });
+    out.push({ key: "me", label: tx("ai.badge.idle"), src: null, tone: "idle", title: tx("ai.badge.idleTitle") });
   }
   return out;
 }

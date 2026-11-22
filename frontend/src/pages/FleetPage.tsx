@@ -1,26 +1,28 @@
 import { Link } from "react-router";
 import type { WorldSnapshot } from "../api";
-import { fmtTime, vehicleStatusText } from "../format";
+import { fmtTime, humanize, vehicleStatusText, vehicleTypeLabel } from "../format";
 import { Callsign } from "../icons";
 import { ResponseLine, SeverityBadge } from "../SeverityBadge";
 import { doctorJobLine } from "../doctor";
 import { DoctorTag, OriginTag } from "../DoctorTag";
+import { tOr, useT } from "../i18n";
 
 /** Every vehicle with its current trip and projected queue (Live or Simulation: ?world=). */
 export function FleetPage({ state }: { state: WorldSnapshot }) {
-  const trips = new Map(state.trips.map((t) => [t.id, t]));
+  const t = useT();
+  const trips = new Map(state.trips.map((x) => [x.id, x]));
   const place = new Map(state.places.map((p) => [p.id, p.name]));
 
   return (
     <main className="page">
       <h2 className="page-title">
-        Fleet · {state.hypothetical ? "Simulation" : "Live"}
+        {t("fleet.title", { world: t(state.hypothetical ? "rep.worldSim" : "rep.worldLive") })}
         <span className="page-switch">
           <Link to="/fleet?world=live" className={state.hypothetical ? "" : "on"}>
-            Live
+            {t("rep.worldLive")}
           </Link>
           <Link to="/fleet?world=sim" className={state.hypothetical ? "on" : ""}>
-            Simulation
+            {t("rep.worldSim")}
           </Link>
         </span>
       </h2>
@@ -37,33 +39,33 @@ export function FleetPage({ state }: { state: WorldSnapshot }) {
                 <p className="vc-doctor">{doctorJobLine(v, trips.get(v.current_trip_id ?? ""), (id) => place.get(id) ?? id)}</p>
               )}
               <p className="muted">
-                {v.type} · {vehicleStatusText(v, state.trips)} · base {place.get(v.base_id) ?? v.base_id}
-                {v.busy_until ? ` · busy until ${fmtTime(v.busy_until)}` : ""}
-                {v.grounded_until ? ` · grounded by fog until ${fmtTime(v.grounded_until)}` : ""}
+                {vehicleTypeLabel(v.type)} · {vehicleStatusText(v, state.trips)} · {t("fleet.base", { place: place.get(v.base_id) ?? v.base_id })}
+                {v.busy_until ? t("fleet.busyUntil", { time: fmtTime(v.busy_until) }) : ""}
+                {v.grounded_until ? t("fleet.groundedUntil", { time: fmtTime(v.grounded_until) }) : ""}
               </p>
               {route.length === 0 ? (
-                <p className="muted">No trips.</p>
+                <p className="muted">{t("fleet.noTrips")}</p>
               ) : (
                 <ol className="schedule">
                   {route.map((id) => {
-                    const t = trips.get(id);
-                    if (!t) return null;
-                    const late = (t.delay_min ?? 0) >= 5;
+                    const trip = trips.get(id);
+                    if (!trip) return null;
+                    const late = (trip.delay_min ?? 0) >= 5;
                     return (
                       <li key={id} className={late ? "late" : ""}>
-                        <strong>{t.id}</strong> <SeverityBadge trip={t} /> <DoctorTag trip={t} vehicles={state.vehicles} now={state.sim_time} />{" "}
-                        <span className="muted">{t.kind === "equipment" ? t.label : t.needs}</span>
+                        <strong>{trip.id}</strong> <SeverityBadge trip={trip} /> <DoctorTag trip={trip} vehicles={state.vehicles} now={state.sim_time} />{" "}
+                        <span className="muted">{trip.kind === "equipment" ? trip.label : tOr(`fleet.needs.${trip.needs}`, humanize(trip.needs))}</span>
                         <br />
-                        {place.get(t.pickup_id)} → {place.get(t.dropoff_id)}
+                        {place.get(trip.pickup_id)} → {place.get(trip.dropoff_id)}
                         <br />
                         <span className="muted">
-                          pickup {fmtTime(t.eta_pickup)} · drop-off {fmtTime(t.eta_dropoff)} · due {fmtTime(t.due_by)}
-                          {late ? ` · +${Math.round(t.delay_min ?? 0)} min late` : ""}
+                          {t("fleet.times", { pickup: fmtTime(trip.eta_pickup), dropoff: fmtTime(trip.eta_dropoff), due: fmtTime(trip.due_by) })}
+                          {late ? t("fleet.late", { min: Math.round(trip.delay_min ?? 0) }) : ""}
                         </span>
-                        {t.status !== "onboard" && (
+                        {trip.status !== "onboard" && (
                           <>
                             <br />
-                            <ResponseLine trip={t} now={state.sim_time} />
+                            <ResponseLine trip={trip} now={state.sim_time} />
                           </>
                         )}
                       </li>

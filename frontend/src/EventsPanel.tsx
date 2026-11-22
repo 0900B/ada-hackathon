@@ -2,6 +2,8 @@ import { useState } from "react";
 import { CircleAlert, CloudSnow, Construction, Sun, Timer, Wrench } from "lucide-react";
 import type { WorldSnapshot } from "./api";
 import { FogControl } from "./FogControl";
+import { vehicleStatusLabel } from "./format";
+import { useT } from "./i18n";
 import type { ClickMode } from "./MapView";
 
 type Send = (event: Record<string, unknown>) => Promise<void>;
@@ -29,15 +31,16 @@ export function EventsPanel({
   const vehicleId = inService.some((v) => v.id === picked) ? picked : (inService[0]?.id ?? "");
   const sim = state.hypothetical;
   const snowing = state.weather.overridden;
+  const t = useT();
 
   return (
     <div className="controls">
-      <div className="field-label">Vehicle</div>
+      <div className="field-label">{t("ops.ev.vehicle")}</div>
       <div className="row">
-        <select aria-label="Vehicle" value={vehicleId} onChange={(e) => setPicked(e.target.value)}>
+        <select aria-label={t("ops.ev.vehicle")} value={vehicleId} onChange={(e) => setPicked(e.target.value)}>
           {inService.map((v) => (
             <option key={v.id} value={v.id}>
-              {v.id} · {v.name} ({v.status.replace(/_/g, " ")})
+              {v.id} · {v.name} ({vehicleStatusLabel(v.status)})
             </option>
           ))}
         </select>
@@ -47,43 +50,43 @@ export function EventsPanel({
           disabled={busy || !vehicleId}
           onClick={() => send({ type: "breakdown", vehicle_id: vehicleId, note: "reported by operator" })}
         >
-          <Wrench /> Breakdown
+          <Wrench /> {t("ops.breakdown")}
         </button>
         <input
           type="number"
-          aria-label="Delay in minutes"
-          title="Delay in minutes"
+          aria-label={t("ops.ev.delayMinutes")}
+          title={t("ops.ev.delayMinutes")}
           min={1}
           max={240}
           value={minutes}
           onChange={(e) => setMinutes(Math.max(1, Math.round(Number(e.target.value) || 1)))}
         />
         <button disabled={busy || !vehicleId} onClick={() => send({ type: "delay", vehicle_id: vehicleId, minutes })}>
-          <Timer /> Delay
+          <Timer /> {t("ops.ev.delay")}
         </button>
       </div>
 
-      <div className="field-label">On the map</div>
+      <div className="field-label">{t("ops.ev.onMap")}</div>
       <div className="row">
         <button
           className={mode === "emergency" ? "active" : ""}
           aria-pressed={mode === "emergency"}
           onClick={() => setMode(mode === "emergency" ? null : "emergency")}
-          title="Then click the map where the patient is (hotkey E)"
+          title={t("ops.ev.emergencyTitle")}
         >
-          <CircleAlert /> Emergency (click map)
+          <CircleAlert /> {t("ops.ev.emergency")}
         </button>
         <button
           className={mode === "closure" ? "active" : ""}
           aria-pressed={mode === "closure"}
           onClick={() => setMode(mode === "closure" ? null : "closure")}
-          title="Then click the map where the road is closed (hotkey C)"
+          title={t("ops.ev.closureTitle")}
         >
-          <Construction /> Closure (click map)
+          <Construction /> {t("ops.ev.closure")}
         </button>
       </div>
 
-      <div className="field-label">Weather</div>
+      <div className="field-label">{t("ops.ev.weather")}</div>
       <div className="row">
         <FogControl send={send} busy={busy} />
         {sim && (
@@ -93,17 +96,17 @@ export function EventsPanel({
           >
             {snowing ? (
               <>
-                <Sun /> End snowstorm
+                <Sun /> {t("ops.ev.endSnow")}
               </>
             ) : (
               <>
-                <CloudSnow /> Snowstorm
+                <CloudSnow /> {t("ops.ev.snow")}
               </>
             )}
           </button>
         )}
       </div>
-      {!sim && <p className="muted small">Live uses real weather and traffic. Hypothetical scenarios run in Simulation.</p>}
+      {!sim && <p className="muted small">{t("ops.ev.liveNote")}</p>}
     </div>
   );
 }

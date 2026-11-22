@@ -23,6 +23,7 @@ import { doctorJobLine } from "./doctor";
 import { DoctorTag, OriginTag } from "./DoctorTag";
 import { CrewRoles, RespondingTo } from "./RespondingTo";
 import { UnitReason } from "./UnitReason";
+import { fmtNum, tOr, useT } from "./i18n";
 
 type Send = (event: Record<string, unknown>) => Promise<void>;
 
@@ -48,7 +49,9 @@ export function VehicleCard({
   send: Send;
   busy: boolean;
 }) {
+  const tt = useT(); // (`t` is the current trip here)
   const v = detail.vehicle;
+  const flightKind = (kind: string) => tOr(`ops.flight.${kind}`, kind);
   // the snapshot's copy of the current trip is newer than the detail's (refreshed every 3 s)
   const t = detail.current_trip ? (state.trips.find((x) => x.id === detail.current_trip!.id) ?? detail.current_trip) : null;
   const tripOf = (id: string | null) => (id ? state.trips.find((x) => x.id === id) : undefined);
@@ -71,7 +74,7 @@ export function VehicleCard({
         <strong>{v.name}</strong>
         <OriginTag v={v} />
         <span className="muted">· {vehicleStatusText(v, state.trips)}</span>
-        <button className="link vc-close" onClick={onClose} title="Close (Esc)">
+        <button className="link vc-close" onClick={onClose} title={tt("ops.closeEsc")} aria-label={tt("common.close")}>
           <X />
         </button>
       </div>
@@ -82,33 +85,36 @@ export function VehicleCard({
         <div className={`vc-flight${v.grounded_until ? " grounded" : ""}`}>
           {v.grounded_until ? <CloudFog /> : <Plane />}
           {v.grounded_until
-            ? `Grounded by fog until ${fmtTime(v.grounded_until)}: no new flights${flight ? ` (finishing: ${flight.kind} ${flight.place.name})` : ""}`
+            ? `${tt("ops.heliGrounded", { time: fmtTime(v.grounded_until) })}${
+                flight ? tt("ops.heliFinishing", { kind: flightKind(flight.kind), place: flight.place.name }) : ""
+              }`
             : flight
-              ? `${v.busy_until ? "On the ground, next" : "Flying"} to ${flight.kind === "base" ? "base" : flight.kind}: ${flight.place.name} · straight line, 200 km/h`
-              : "Parked at base, ready to fly (straight line, 200 km/h)"}
+              ? tt(v.busy_until ? "ops.heliGroundNext" : "ops.heliFlying", { kind: flightKind(flight.kind), place: flight.place.name })
+              : tt("ops.heliParked")}
         </div>
       )}
 
       <div className="vc-fuel">
         <div className="vc-fuel-label">
-          <Fuel /> Fuel {detail.fuel.pct.toFixed(0)}%{detail.fuel.range_km != null && <span className="muted"> · ~{detail.fuel.range_km} km range</span>}
+          <Fuel /> {tt("ops.fuel", { pct: detail.fuel.pct.toFixed(0) })}
+          {detail.fuel.range_km != null && <span className="muted">{tt("ops.range", { km: detail.fuel.range_km })}</span>}
         </div>
         <div className="vc-bar">
           <div className={`vc-bar-fill ${fuelClass}`} style={{ width: `${Math.max(2, detail.fuel.pct)}%` }} />
         </div>
         <div className="muted">
-          {v.km_today.toFixed(1)} km today · base {detail.base}
-          {v.shift_end ? ` · shift until ${fmtTime(v.shift_end)}` : ""}
+          {tt("ops.kmToday", { km: fmtNum(v.km_today, 1), base: detail.base })}
+          {v.shift_end ? tt("ops.shiftUntil", { time: fmtTime(v.shift_end) }) : ""}
         </div>
       </div>
 
       <div className="vc-section">
-        <div className="vc-title">Crew</div>
+        <div className="vc-title">{tt("ops.crew")}</div>
         <CrewRoles crew={v.crew} capabilities={detail.capabilities} />
       </div>
 
       <div className="vc-section">
-        <div className="vc-title">Now</div>
+        <div className="vc-title">{tt("ops.now")}</div>
         {t ? (
           <>
             {v.type === "doctor" && (
@@ -128,24 +134,24 @@ export function VehicleCard({
             )}
           </>
         ) : (
-          <div className="muted">{down ? "Out of service" : "No active job"}</div>
+          <div className="muted">{down ? tt("ops.popOutOfService") : tt("ops.noActiveJob")}</div>
         )}
         {(detail.detour_legs?.length ?? 0) > 0 && (
           <div className="vc-detour">
-            <CornerUpRight /> {detail.detour_legs?.includes(0) ? "Rerouted" : "Will be rerouted"} around a road closure (orange on the map)
+            <CornerUpRight /> {tt(detail.detour_legs?.includes(0) ? "ops.rerouted" : "ops.willReroute")}
           </div>
         )}
       </div>
 
       {detail.stops.length > 0 && (
         <div className="vc-section">
-          <div className="vc-title">Next stops (highlighted on the map)</div>
+          <div className="vc-title">{tt("ops.nextStops")}</div>
           <ol className="vc-stops">
             {detail.stops.map((s, i) => {
               const StopIcon = STOP_ICON[s.kind];
               return (
               <li key={i} className={(s.delay_min ?? 0) >= 5 ? "late" : ""}>
-                <span className="vc-num">{i + 1}</span> <StopIcon aria-label={s.kind} /> {s.eta ? fmtTime(s.eta) : "—"} · {s.place}
+                <span className="vc-num">{i + 1}</span> <StopIcon aria-label={tOr(`ops.stop.${s.kind}`, s.kind)} /> {s.eta ? fmtTime(s.eta) : "—"} · {s.place}
                 {s.trip_id && <span className="muted"> · {s.trip_id}</span>}
                 {s.kind === "pickup" && tripOf(s.trip_id) && levelOf(tripOf(s.trip_id)!) !== "routine" && (
                   <>
@@ -163,29 +169,29 @@ export function VehicleCard({
 
       <div className="row vc-actions">
         <button onClick={onCenter}>
-          <Crosshair /> Centre
+          <Crosshair /> {tt("ops.centre")}
         </button>
         <button
           disabled={busy || down}
-          title="Delay this vehicle by 10 minutes (hotkey D)"
+          title={tt("ops.delayTitle")}
           onClick={() => send({ type: "delay", vehicle_id: v.id, minutes: 10, note: "reported from vehicle card" })}
         >
           <Timer /> +10 min
         </button>
         <button
           disabled={busy || down}
-          title="Report a breakdown of this vehicle (hotkey B)"
+          title={tt("ops.breakdownTitle")}
           onClick={() => send({ type: "breakdown", vehicle_id: v.id, note: "reported from vehicle card" })}
         >
-          <Wrench /> Breakdown
+          <Wrench /> {tt("ops.breakdown")}
         </button>
       </div>
       <div className="vc-links">
         <a className="button-link" href={`/vehicle/${encodeURIComponent(v.id)}?world=${state.world}`} target="_blank" rel="noopener">
-          <Tablet /> Tablet view <ExternalLink />
+          <Tablet /> {tt("ops.tabletView")} <ExternalLink />
         </a>
         <a className="button-link" href={`/crew/${encodeURIComponent(v.id)}?world=${state.world}`} target="_blank" rel="noopener">
-          <Smartphone /> Crew phone <ExternalLink />
+          <Smartphone /> {tt("ops.crewPhone")} <ExternalLink />
         </a>
       </div>
     </div>

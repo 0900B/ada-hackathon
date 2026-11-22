@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Baby, Stethoscope, TrendingDown, Users, X } from "lucide-react";
 import { DOCTOR_CONDITIONS } from "./doctor";
-import { CONDITIONS, LEVEL_HELP, LEVEL_LABEL, LEVEL_PRIORITY, LEVEL_TARGET_MIN, type Condition, type Level } from "./severity";
+import { hasKey, t as tx, tr, translate, useT } from "./i18n";
+import { CONDITIONS, LEVEL_HELP, LEVEL_LABEL, LEVEL_PRIORITY, LEVEL_TARGET_MIN, modifierLabel, type Condition, type Level } from "./severity";
 
 type PickLevel = Exclude<Level, "routine">;
 
@@ -11,10 +12,13 @@ const LEVEL_KEYS: { level: PickLevel; key: string }[] = [
   { level: "urgent", key: "u" },
 ];
 const MOD_KEYS = [
-  { code: "child", label: "Child", key: "k", icon: Baby },
-  { code: "deteriorating", label: "Getting worse", key: "w", icon: TrendingDown },
-  { code: "multiple_patients", label: "Several patients", key: "p", icon: Users },
+  { code: "child", key: "k", icon: Baby },
+  { code: "deteriorating", key: "w", icon: TrendingDown },
+  { code: "multiple_patients", key: "p", icon: Users },
 ];
+
+/** The English label of a condition or modifier (the note sent to the backend stays English). */
+const english = (key: string, fallback: string) => (hasKey(key) ? translate("en", key) : fallback);
 const QUICK: { level: PickLevel; code: string }[] = [
   { level: "critical", code: "cardiac_arrest" },
   { level: "serious", code: "stroke" },
@@ -22,7 +26,7 @@ const QUICK: { level: PickLevel; code: string }[] = [
 
 /** What the picker sends: an urgent_request with the severity fields (older backends use priority and the note). */
 export function emergencyEvent(lat: number, lon: number, c: Condition, modifiers: string[]): Record<string, unknown> {
-  const mods = MOD_KEYS.filter((m) => modifiers.includes(m.code)).map((m) => m.label.toLowerCase());
+  const mods = MOD_KEYS.filter((m) => modifiers.includes(m.code)).map((m) => english(`mod.${m.code}`, m.code).toLowerCase());
   return {
     type: "urgent_request",
     lat,
@@ -33,7 +37,7 @@ export function emergencyEvent(lat: number, lon: number, c: Condition, modifiers
     severity: c.level,
     condition: c.code,
     modifiers,
-    note: [c.label, ...mods].join(", "),
+    note: [english(`cond.${c.code}`, c.label), ...mods].join(", "),
   };
 }
 
@@ -51,6 +55,7 @@ export function EmergencyPicker({
   onSend: (event: Record<string, unknown>) => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const [level, setLevel] = useState<PickLevel>("critical");
   const [mods, setMods] = useState<string[]>([]);
   const list = CONDITIONS.filter((c) => c.level === level);
@@ -86,13 +91,13 @@ export function EmergencyPicker({
   useEffect(() => box.current?.focus(), []);
 
   return (
-    <div className="epick" ref={box} tabIndex={-1} role="dialog" aria-label="New emergency call">
+    <div className="epick" ref={box} tabIndex={-1} role="dialog" aria-label={t("dash.pick.title")}>
       <div className="epick-head">
-        <strong>New emergency call</strong>
+        <strong>{t("dash.pick.title")}</strong>
         <span className="muted small">
-          {at.lat.toFixed(4)}, {at.lon.toFixed(4)} · to UKC
+          {at.lat.toFixed(4)}, {at.lon.toFixed(4)} · {t("dash.pick.toUkc")}
         </span>
-        <button className="link epick-close" onClick={onCancel} aria-label="Cancel (Esc)" title="Cancel (Esc)">
+        <button className="link epick-close" onClick={onCancel} aria-label={t("dash.pick.cancel")} title={t("dash.pick.cancel")}>
           <X />
         </button>
       </div>
@@ -100,14 +105,19 @@ export function EmergencyPicker({
         {QUICK.map((q) => {
           const c = CONDITIONS.find((x) => x.code === q.code)!;
           return (
-            <button key={q.code} className={`epick-q sev-${q.level}`} onClick={() => send(c)} title={`Send now: ${LEVEL_LABEL[q.level]} · ${c.label}`}>
+            <button
+              key={q.code}
+              className={`epick-q sev-${q.level}`}
+              onClick={() => send(c)}
+              title={t("dash.pick.sendNow", { level: LEVEL_LABEL[q.level], cond: c.label })}
+            >
               <span className="sev-level">{LEVEL_LABEL[q.level]}</span> {c.label}
               {DOCTOR_CONDITIONS.has(c.code) && <DoctorNeeded short />}
             </button>
           );
         })}
       </div>
-      <div className="epick-levels" role="tablist" aria-label="Severity">
+      <div className="epick-levels" role="tablist" aria-label={t("dash.pick.severity")}>
         {LEVEL_KEYS.map(({ level: l, key }) => (
           <button
             key={l}
@@ -115,7 +125,7 @@ export function EmergencyPicker({
             aria-selected={level === l}
             className={`epick-level sev-${l}${level === l ? " on" : ""}`}
             onClick={() => setLevel(l)}
-            title={`${LEVEL_HELP[l]} (key ${key.toUpperCase()})`}
+            title={t("dash.pick.levelTitle", { help: LEVEL_HELP[l], key: key.toUpperCase() })}
           >
             <span className="sev-level">{LEVEL_LABEL[l]}</span>
             <kbd>{key.toUpperCase()}</kbd>
@@ -125,7 +135,7 @@ export function EmergencyPicker({
       <ol className="epick-conds">
         {list.map((c, i) => (
           <li key={c.code}>
-            <button onClick={() => send(c)} title={`Send: ${LEVEL_LABEL[c.level]} · ${c.label}, time sensitivity ${c.weight}/10`}>
+            <button onClick={() => send(c)} title={t("dash.pick.send", { level: LEVEL_LABEL[c.level], cond: c.label, w: c.weight })}>
               <kbd>{i + 1}</kbd>
               <span className="epick-cond">{c.label}</span>
               {DOCTOR_CONDITIONS.has(c.code) && <DoctorNeeded short />}
@@ -134,17 +144,18 @@ export function EmergencyPicker({
           </li>
         ))}
       </ol>
-      <div className="epick-mods" aria-label="Case">
-        {MOD_KEYS.map(({ code, label, key, icon: Icon }) => (
+      <div className="epick-mods" aria-label={t("dash.pick.case")}>
+        {MOD_KEYS.map(({ code, key, icon: Icon }) => (
           <button key={code} className={`epick-mod${mods.includes(code) ? " on" : ""}`} aria-pressed={mods.includes(code)} onClick={() => toggle(code)}>
-            <Icon /> {label} <kbd>{key.toUpperCase()}</kbd>
+            <Icon /> {modifierLabel(code)} <kbd>{key.toUpperCase()}</kbd>
           </button>
         ))}
       </div>
       <div className="epick-foot muted small">
-        Target to reach the patient: {LEVEL_TARGET_MIN[level]} min
-        {list.some((c) => DOCTOR_CONDITIONS.has(c.code)) && " · Dr: a doctor car also goes (target 15 min)"} · <kbd>1</kbd>–<kbd>{list.length}</kbd> or a click sends ·{" "}
-        <kbd>Enter</kbd> sends {list[0]?.label} · <kbd>Esc</kbd> cancels
+        {t("dash.pick.target", { min: LEVEL_TARGET_MIN[level] })}
+        {list.some((c) => DOCTOR_CONDITIONS.has(c.code)) && t("dash.pick.doctorGoes")} ·{" "}
+        {tr("dash.pick.keysSend", { first: <kbd>1</kbd>, last: <kbd>{list.length}</kbd> })} ·{" "}
+        {tr("dash.pick.enterSends", { enter: <kbd>Enter</kbd> }, { cond: list[0]?.label })} · {tr("dash.pick.escCancels", { esc: <kbd>Esc</kbd> })}
       </div>
     </div>
   );
@@ -153,9 +164,9 @@ export function EmergencyPicker({
 /** This condition brings a doctor: a doctor car (VUZ) joins the ambulance crew on scene. */
 function DoctorNeeded({ short = false }: { short?: boolean }) {
   return (
-    <span className="epick-dr" title="Doctor needed: a doctor car (doctor + nurse) is sent too and joins the ambulance crew on scene">
+    <span className="epick-dr" title={tx("dash.pick.drTitle")}>
       <Stethoscope aria-hidden />
-      {short ? "Dr" : "Doctor needed"}
+      {short ? tx("dash.pick.drShort") : tx("dash.pick.drLong")}
     </span>
   );
 }

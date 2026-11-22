@@ -16,7 +16,8 @@ import {
   type WorldSnapshot,
 } from "./api";
 import { AdminLock } from "./AdminLock";
-import { useLangRoot } from "./i18n";
+import { fmtDec, fmtNum, t as tx, tOr, tr, useLang, useLangRoot, useT } from "./i18n";
+import { tripStatusLabel } from "./format";
 import { LangToggle } from "./LangToggle";
 import type { AgentKeys } from "./AgentPanel";
 import { BookingForm } from "./BookingForm";
@@ -72,10 +73,14 @@ const unassignedTotal = (k: Kpis) => k.unassigned.emergency + k.unassigned.urgen
 function describe(rec: EventRecord): string {
   const b = rec.kpis_before;
   const a = rec.kpis_after;
-  return (
-    `${rec.summary}. ${rec.affected_trip_ids.length} trip(s) affected · ` +
-    `late ${b.late_trips} → ${a.late_trips} · unassigned ${unassignedTotal(b)} → ${unassignedTotal(a)}`
-  );
+  return tx("dash.describe", {
+    summary: rec.summary, // the backend's own words (English)
+    count: rec.affected_trip_ids.length,
+    lateBefore: b.late_trips,
+    lateAfter: a.late_trips,
+    unBefore: unassignedTotal(b),
+    unAfter: unassignedTotal(a),
+  });
 }
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -83,6 +88,7 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 /** Layout: header with navigation, then the routed page. Each page opens its own live connection. */
 export default function App() {
   useLangRoot(); // a language switch re-renders the whole tree (no remount: forms and selections stay)
+  const t = useT();
   const crew = useMatch("/crew/*");
   const tablet = useMatch("/vehicle/*");
   const { pathname } = useLocation();
@@ -100,7 +106,7 @@ export default function App() {
         <Route
           path="/vehicle/:vehicleId?"
           element={
-            <Suspense fallback={<div className="loading">Loading the tablet view…</div>}>
+            <Suspense fallback={<div className="loading">{t("dash.loadingTablet")}</div>}>
               <TabletPage />
             </Suspense>
           }
@@ -113,21 +119,19 @@ export default function App() {
       <header className="header">
         <div className="brand">
           <h1 className="wordmark">{BRAND.product}</h1>
-          <span className="brand-sub">
+          <span className="brand-sub" title={`${BRAND.tagline} · ${BRAND.operator}`}>
             {BRAND.tagline} · <strong>{BRAND.operator}</strong>
           </span>
         </div>
         <nav className="nav">
-          <NavLink to="/live">Live</NavLink>
-          <NavLink to="/sim">Simulation</NavLink>
-          <NavLink to={`/fleet?world=${lastWorld}`}>Fleet</NavLink>
-          <NavLink to={`/reports?world=${lastWorld}`}>Reports</NavLink>
-          <NavLink to="/audit">Audit</NavLink>
-          <NavLink to={`/crew?world=${lastWorld === "live" ? "live" : "sim"}`}>Crew view</NavLink>
+          <NavLink to="/live">{t("dash.nav.live")}</NavLink>
+          <NavLink to="/sim">{t("dash.nav.sim")}</NavLink>
+          <NavLink to={`/fleet?world=${lastWorld}`}>{t("dash.nav.fleet")}</NavLink>
+          <NavLink to={`/reports?world=${lastWorld}`}>{t("dash.nav.reports")}</NavLink>
+          <NavLink to="/audit">{t("dash.nav.audit")}</NavLink>
+          <NavLink to={`/crew?world=${lastWorld === "live" ? "live" : "sim"}`}>{t("dash.nav.crew")}</NavLink>
         </nav>
-        <span className="header-help muted">
-          Press <kbd>?</kbd> for shortcuts
-        </span>
+        <span className="header-help muted">{tr("dash.header.help", { key: <kbd>?</kbd> })}</span>
         <AdminLock />
         <LangToggle />
       </header>
@@ -145,8 +149,9 @@ export default function App() {
 }
 
 function WorldPage({ world }: { world: World }) {
+  const t = useT();
   const { state, connected } = useWorldState(world);
-  if (!state) return <div className="loading">Connecting to {API_URL} …</div>;
+  if (!state) return <div className="loading">{t("common.connecting", { url: API_URL })}</div>;
   return (
     <>
       <StatusBar state={state} connected={connected} />
@@ -162,8 +167,9 @@ function FleetRoute() {
 }
 
 function FleetWorld({ world }: { world: World }) {
+  const t = useT();
   const { state, connected } = useWorldState(world);
-  if (!state) return <div className="loading">Connecting to {API_URL} …</div>;
+  if (!state) return <div className="loading">{t("common.connecting", { url: API_URL })}</div>;
   return (
     <>
       <StatusBar state={state} connected={connected} />
@@ -173,15 +179,17 @@ function FleetWorld({ world }: { world: World }) {
 }
 
 function NotFound() {
+  const t = useT();
   return (
     <main className="page">
-      <h2>Page not found</h2>
-      <Link to="/">Back to the dashboard</Link>
+      <h2>{t("dash.notFound")}</h2>
+      <Link to="/">{t("dash.backToDashboard")}</Link>
     </main>
   );
 }
 
 function Dashboard({ state }: { state: WorldSnapshot }) {
+  const t = useT();
   const world = state.world;
   const sim = state.hypothetical;
   const [mode, setMode] = useState<ClickMode>(null);
@@ -237,7 +245,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
     } catch (e) {
       if (e instanceof MissingEndpoint) {
         demoMissing("call");
-        notify("error", "Random calls need a newer backend: use E (emergency) instead.");
+        notify("error", t("dash.err.randomCallsBackend"));
       } else notify("error", bilingualLines(errorText(e)));
     } finally {
       setTimeout(() => setDemoBusy(false), 600);
@@ -256,7 +264,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
     } catch (e) {
       if (e instanceof MissingEndpoint) {
         demoMissing("incident");
-        notify("error", "Random failures need a newer backend: use the Events tab instead.");
+        notify("error", t("dash.err.randomFailuresBackend"));
       } else notify("error", bilingualLines(errorText(e)));
     } finally {
       setTimeout(() => setDemoBusy(false), 600);
@@ -351,8 +359,8 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
   // B/D act on the vehicle selected on the map (marker or trip row), never on some other vehicle
   const selectedVehicle = selectedId ? state.vehicles.find((v) => v.id === selectedId) : undefined;
   const onSelected = (what: string, fn: (id: string) => void) => {
-    if (!selectedVehicle) notify("error", `Select a vehicle first (its marker, its chip above the map or a trip row), then press the key to ${what}.`);
-    else if (selectedVehicle.status === "out_of_service") notify("error", `${selectedVehicle.name} is already out of service.`);
+    if (!selectedVehicle) notify("error", t("dash.err.selectVehicleFirst", { what }));
+    else if (selectedVehicle.status === "out_of_service") notify("error", t("dash.err.alreadyOut", { name: selectedVehicle.name }));
     else fn(selectedVehicle.id);
   };
 
@@ -379,9 +387,10 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
       showReview();
       agentKeys.current?.reject();
     },
-    b: () => onSelected("report a breakdown", (id) => void send({ type: "breakdown", vehicle_id: id, note: "reported by the operator, hotkey" })),
+    b: () =>
+      onSelected(t("dash.err.whatBreakdown"), (id) => void send({ type: "breakdown", vehicle_id: id, note: "reported by the operator, hotkey" })),
     d: () =>
-      onSelected("delay it 10 min", (id) => void send({ type: "delay", vehicle_id: id, minutes: 10, note: "reported by the operator, hotkey" })),
+      onSelected(t("dash.err.whatDelay"), (id) => void send({ type: "delay", vehicle_id: id, minutes: 10, note: "reported by the operator, hotkey" })),
     f: () => void send({ type: "fog", duration_min: 60 }),
     e: () => setMode((m) => (m === "emergency" ? null : "emergency")),
     c: () => setMode((m) => (m === "closure" ? null : "closure")),
@@ -416,15 +425,15 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
   const tabs: { id: Tab; label: string; badge?: string; hot?: boolean; title?: string }[] = [
     {
       id: "ai",
-      label: "AI dispatcher",
-      badge: unseenRun ? "New" : activeCalls ? String(activeCalls) : undefined,
+      label: t("dash.tab.ai"),
+      badge: unseenRun ? t("dash.tab.new") : activeCalls ? String(activeCalls) : undefined,
       hot: unseenRun || waitingCalls > 0,
-      title: `${activeCalls} active case${activeCalls === 1 ? "" : "s"}${waitingCalls ? `, ${waitingCalls} red without a unit` : ""}${unseenRun ? " · a new analysis" : ""}`,
+      title: `${t("dash.tab.aiTitle", { count: activeCalls })}${waitingCalls ? t("dash.tab.aiTitleRed", { count: waitingCalls }) : ""}${unseenRun ? t("dash.tab.aiTitleNew") : ""}`,
     },
-    ...(sim ? [{ id: "scenarios" as Tab, label: "Scenarios" }] : []),
-    { id: "events", label: sim ? "Events" : "Report" },
-    { id: "book", label: "Book" },
-    { id: "alerts", label: "Alerts", badge: alertCount ? String(alertCount) : undefined, hot: critical },
+    ...(sim ? [{ id: "scenarios" as Tab, label: t("dash.tab.scenarios") }] : []),
+    { id: "events", label: sim ? t("dash.tab.events") : t("dash.tab.report") },
+    { id: "book", label: t("dash.tab.book") },
+    { id: "alerts", label: t("dash.tab.alerts"), badge: alertCount ? String(alertCount) : undefined, hot: critical },
   ];
 
   return (
@@ -446,9 +455,9 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
         {mode && (
           <div className="map-hint">
             {mode === "closure" ? <Construction /> : <CircleAlert />}
-            Click the map to place the {mode === "closure" ? "road closure" : mode === "call" ? "112 call's location" : "emergency call"} ·{" "}
+            {t(mode === "closure" ? "dash.hint.closure" : mode === "call" ? "dash.hint.call" : "dash.hint.emergency")} ·{" "}
             <button className="link" onClick={() => setMode(null)}>
-              cancel (Esc)
+              {t("dash.hint.cancel")}
             </button>
           </div>
         )}
@@ -491,7 +500,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
           <div className={`toast ${toast.kind}`} role="status" aria-live="polite">
             {toast.kind === "ok" ? <CircleCheck /> : <CircleAlert />}
             <span>{toast.text}</span>
-            <button className="link toast-close" onClick={() => setToast(null)} aria-label="Dismiss">
+            <button className="link toast-close" onClick={() => setToast(null)} aria-label={t("common.dismiss")}>
               <X />
             </button>
           </div>
@@ -500,7 +509,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
       </section>
       <aside className="side">
         <KpiRow kpis={state.kpis} />
-        <div className="side-tabs" role="tablist" aria-label="Dashboard sections">
+        <div className="side-tabs" role="tablist" aria-label={t("dash.tabs.aria")}>
           {tabs.map((t) => (
             <button
               key={t.id}
@@ -539,34 +548,34 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
         </div>
         {sim && (
           <div className="side-body" hidden={tab !== "scenarios"}>
-            <Panel title="Scenarios">
+            <Panel title={t("dash.panel.scenarios")}>
               <ScenariosPanel state={state} notify={notify} extra={demoButtons} />
             </Panel>
           </div>
         )}
         <div className="side-body" hidden={tab !== "events"}>
-          <Panel title={sim ? "What-if events (hypothetical)" : "Report an event"}>
+          <Panel title={sim ? t("dash.panel.whatIf") : t("dash.panel.reportEvent")}>
             <EventsPanel state={state} busy={busy} mode={mode} setMode={setMode} send={send} picked={picked} setPicked={setPicked} />
           </Panel>
-          <Panel title="Priority & capacity">
+          <Panel title={t("dash.panel.priority")}>
             <OpsControls state={state} send={send} busy={busy} />
           </Panel>
         </div>
         <div className="side-body" hidden={tab !== "book"}>
-          <Panel title="Book transport">
+          <Panel title={t("dash.panel.book")}>
             <BookingForm state={state} />
           </Panel>
         </div>
         <div className="side-body" hidden={tab !== "alerts"}>
           {!sim && (
-            <Panel title="Live conditions">
+            <Panel title={t("dash.panel.conditions")}>
               <Conditions state={state} />
             </Panel>
           )}
-          <Panel title={`Alerts (${alertCount})`}>
+          <Panel title={t("dash.panel.alerts", { count: alertCount })}>
             <Alerts state={state} send={send} />
           </Panel>
-          <Panel title="Event log">
+          <Panel title={t("dash.panel.eventLog")}>
             <EventLog events={state.events} trips={state.trips} />
           </Panel>
         </div>
@@ -580,20 +589,21 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
 
 /** Where the calls come from: the demo's synthetic call stream (both worlds), or the scheduled day. */
 function CallsChip({ state }: { state: WorldSnapshot }) {
+  const t = useT();
   const c = state.calls;
   if (!c) return null;
   const text =
     state.mode === "scheduled_day"
-      ? "Scheduled day (no call stream)"
+      ? t("dash.calls.scheduledDay")
       : !c.enabled
-        ? "Call stream off"
+        ? t("dash.calls.off")
         : c.paused_until
-          ? `Synthetic calls paused until ${fmtTime(c.paused_until)}`
-          : `Synthetic calls ${c.per_hour}/h`;
+          ? t("dash.calls.pausedUntil", { time: fmtTime(c.paused_until) })
+          : t("dash.calls.perHour", { count: c.per_hour });
   const title =
-    "Demo call generator: synthetic emergency calls and urgent transports, each dispatched at once by the engine" +
-    (c.next_at ? `\nNext call ${fmtTime(c.next_at)}` : "") +
-    `\n${c.generated} calls so far`;
+    t("dash.calls.title") +
+    (c.next_at ? `\n${t("dash.calls.titleNext", { time: fmtTime(c.next_at) })}` : "") +
+    `\n${t("dash.calls.titleSoFar", { count: c.generated })}`;
   return (
     <span className="chip" title={title}>
       <PhoneIncoming /> {text}
@@ -603,11 +613,12 @@ function CallsChip({ state }: { state: WorldSnapshot }) {
 
 /** Contracted surge capacity in the fleet: until when, and a stand-down action (the dispatcher's decision). */
 function SurgeChip({ state }: { state: WorldSnapshot }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const s = state.surge;
   if (!s?.active || !s.until) return null;
   const standDown = async () => {
-    if (!window.confirm("Stand down the contracted units now?\n\nThey finish their current job, return to their bases and leave the fleet.")) return;
+    if (!window.confirm(t("dash.surge.confirmStandDown"))) return;
     setBusy(true);
     try {
       await standDownSurge(state.world);
@@ -618,10 +629,10 @@ function SurgeChip({ state }: { state: WorldSnapshot }) {
     }
   };
   return (
-    <span className="chip warn surge-chip" title={`Contracted units in the fleet: ${s.units.join(", ")}`}>
-      <Users /> Surge capacity active until {fmtTime(s.until)}
-      <button className="link" disabled={busy} onClick={() => void standDown()} title="End the contract now">
-        Stand down
+    <span className="chip warn surge-chip" title={t("dash.surge.unitsTitle", { units: s.units.join(", ") })}>
+      <Users /> {t("dash.surge.activeUntil", { time: fmtTime(s.until) })}
+      <button className="link" disabled={busy} onClick={() => void standDown()} title={t("dash.surge.endTitle")}>
+        {t("dash.surge.standDown")}
       </button>
     </span>
   );
@@ -629,6 +640,8 @@ function SurgeChip({ state }: { state: WorldSnapshot }) {
 
 /** The demand trigger's alert, with the one-click offer of contracted surge capacity. */
 function HighDemandAlert({ alert, state }: { alert: Alert; state: WorldSnapshot }) {
+  const t = useT();
+  const lang = useLang();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const s = state.surge;
@@ -636,14 +649,18 @@ function HighDemandAlert({ alert, state }: { alert: Alert; state: WorldSnapshot 
   const vans = s?.available.vans.length ?? 0;
   const hours = s?.default.hours ?? 2;
   const canActivate = Boolean(s && !s.active && amb + vans > 0);
-  const label = `Activate contracted units (${amb} ambulance${amb === 1 ? "" : "s"}, ${vans} van${vans === 1 ? "" : "s"} · ${hours} h)`;
+  const label = t("dash.surge.activate", {
+    ambulances: t("dash.surge.ambulances", { count: amb }),
+    vans: t("dash.surge.vans", { count: vans }),
+    hours,
+  });
   const activate = async () => {
-    const offer = s?.offer ?? label;
-    if (!window.confirm(`${offer}?\n\nThey join now; waiting calls that they reach sooner move to them at once.`)) return;
+    const offer = (lang === "en" ? s?.offer : null) ?? label; // the backend's offer is English
+    if (!window.confirm(t("dash.surge.confirmActivate", { offer }))) return;
     setBusy(true);
     try {
       const r = await activateSurge(state.world, { hours });
-      setNote(r.event?.summary ?? "Surge capacity active");
+      setNote(r.event?.summary ?? t("dash.surge.active"));
     } catch (e) {
       setNote(e instanceof Error ? e.message : String(e));
     } finally {
@@ -655,7 +672,7 @@ function HighDemandAlert({ alert, state }: { alert: Alert; state: WorldSnapshot 
       <div>{alert.message}</div>
       {canActivate && (
         <button className="primary surge-button" disabled={busy} onClick={() => void activate()}>
-          <Users /> {busy ? "Activating…" : label}
+          <Users /> {busy ? t("dash.surge.activating") : label}
         </button>
       )}
       {note && <div className="muted surge-note">{note}</div>}
@@ -664,62 +681,69 @@ function HighDemandAlert({ alert, state }: { alert: Alert; state: WorldSnapshot 
 }
 
 function MapLegend() {
+  const t = useT();
   return (
-    <div className="map-legend" aria-label="Map legend">
-      <span title="Open critical call (life-threatening now), until a unit reaches the patient">
-        <i className="lg lg-crit" /> Critical call
+    <div className="map-legend" aria-label={t("dash.legend.aria")}>
+      <span title={t("dash.legend.criticalTitle")}>
+        <i className="lg lg-crit" /> {t("dash.legend.critical")}
       </span>
-      <span title="Open serious call (may become life-threatening soon), until a unit reaches the patient">
-        <i className="lg lg-ser" /> Serious call
+      <span title={t("dash.legend.seriousTitle")}>
+        <i className="lg lg-ser" /> {t("dash.legend.serious")}
       </span>
-      <span title="Doctor car (doctor + nurse): drives to the scene, joins the ambulance crew, escorts the patient">
-        <i className="lg lg-doctor" /> Doctor car
-      </span>
-      <span>
-        <i className="lg lg-idle" /> Available
+      <span title={t("dash.legend.doctorTitle")}>
+        <i className="lg lg-doctor" /> {t("dash.legend.doctor")}
       </span>
       <span>
-        <i className="lg lg-moving" /> To pickup
+        <i className="lg lg-idle" /> {t("dash.legend.available")}
       </span>
       <span>
-        <i className="lg lg-loaded" /> Patient on board
+        <i className="lg lg-moving" /> {t("dash.legend.toPickup")}
       </span>
       <span>
-        <i className="lg lg-down" /> Out of service
+        <i className="lg lg-loaded" /> {t("dash.legend.onBoard")}
       </span>
       <span>
-        <i className="lg lg-detour" /> Detour
+        <i className="lg lg-down" /> {t("dash.legend.out")}
       </span>
       <span>
-        <i className="lg lg-closure" /> Closure
+        <i className="lg lg-detour" /> {t("dash.legend.detour")}
+      </span>
+      <span>
+        <i className="lg lg-closure" /> {t("dash.legend.closure")}
       </span>
     </div>
   );
 }
 
 function StatusBar({ state, connected }: { state: WorldSnapshot; connected: boolean }) {
+  const t = useT();
   const w = state.weather.now;
   const sources = Object.values(state.sources);
   const unhealthy = sources.filter((s) => s.health !== "fresh");
+  const health = (h: string) => tOr(`dash.health.${h}`, h);
   const sourcesTitle =
-    sources.map((s) => `${s.name}: ${s.health}${s.last_error ? ` (${s.last_error})` : ` · ${s.kind} · ${s.age_s ?? "–"} s old`}`).join("\n") +
-    `\nRoad routes cached (OSRM / TomTom): ${state.roads.routes_cached}`;
+    sources
+      .map(
+        (s) =>
+          `${s.name}: ${health(s.health)}${s.last_error ? ` (${s.last_error})` : t("dash.status.sourceAge", { kind: s.kind, age: s.age_s ?? "–" })}`,
+      )
+      .join("\n") + `\n${t("dash.status.routesCached", { count: state.roads.routes_cached })}`;
   return (
     <div className={`statusbar ${state.hypothetical ? "is-sim" : "is-live"}`}>
       <span className="mode-badge">
-        {state.hypothetical ? `Simulation · hypothetical · ${state.speedup}× speed` : "Live · real weather, traffic and incidents"}
+        {state.hypothetical ? t("dash.status.sim", { speed: state.speedup }) : t("dash.status.live")}
       </span>
       <div className="chips">
         <span className={`chip ${connected ? "ok" : "bad"}`}>
-          <i className="dot" /> {connected ? "Connected" : "Reconnecting"}
+          <i className="dot" /> {connected ? t("dash.status.connected") : t("dash.status.reconnecting")}
         </span>
         <span className="chip chip-strong">
-          {state.hypothetical ? "Sim time" : "Time"} {fmtTime(state.sim_time)}
+          {state.hypothetical ? t("dash.status.simTime") : t("dash.status.time")} {fmtTime(state.sim_time)}
         </span>
         {w && (
           <span className={`chip ${state.weather.overridden ? "warn" : ""}`}>
-            <WeatherIcon w={w} /> {w.temperature_c.toFixed(1)} °C ·{" "}
-            {w.precipitation_mm} mm · {state.weather.overridden ? "demo override" : w.source}
+            <WeatherIcon w={w} /> {fmtNum(w.temperature_c, 1)} °C ·{" "}
+            {fmtDec(w.precipitation_mm)} mm · {state.weather.overridden ? t("dash.status.demoOverride") : w.source}
           </span>
         )}
         <span
@@ -729,7 +753,8 @@ function StatusBar({ state, connected }: { state: WorldSnapshot; connected: bool
             state.traffic.source
           }
         >
-          <Car /> Traffic ×{state.traffic.factor.toFixed(2)} · {state.traffic.source === "tomtom" ? "TomTom live" : "profile"}
+          <Car /> {t("dash.status.traffic")} ×{fmtNum(state.traffic.factor, 2)} ·{" "}
+          {state.traffic.source === "tomtom" ? t("dash.status.tomtomLive") : t("dash.status.profile")}
         </span>
         <CallsChip state={state} />
         <SurgeChip state={state} />
@@ -739,8 +764,8 @@ function StatusBar({ state, connected }: { state: WorldSnapshot; connected: bool
         >
           <Database />
           {unhealthy.length
-            ? unhealthy.map((s) => `${s.name}: ${s.health}`).join(" · ")
-            : "Data feeds fresh"}
+            ? unhealthy.map((s) => `${s.name}: ${health(s.health)}`).join(" · ")
+            : t("dash.status.feedsFresh")}
         </span>
         <TilesChip />
       </div>
@@ -750,6 +775,7 @@ function StatusBar({ state, connected }: { state: WorldSnapshot; connected: bool
 
 /** The TomTom traffic layer's daily tile cap (from /health, once a minute): a quiet note when it's reached. */
 function TilesChip() {
+  const t = useT();
   const [tiles, setTiles] = useState<{ capped?: boolean; used?: string } | null>(null);
   useEffect(() => {
     let stop = false;
@@ -767,8 +793,8 @@ function TilesChip() {
   }, []);
   if (!tiles?.capped) return null;
   return (
-    <span className="chip warn" title={`TomTom traffic tiles today: ${tiles.used ?? "?"}. The free plan's quota is protected; the map shows no traffic colours until tomorrow (UTC).`}>
-      <Car /> Traffic layer paused: daily tile limit
+    <span className="chip warn" title={t("dash.tiles.title", { used: tiles.used ?? "?" })}>
+      <Car /> {t("dash.tiles.paused")}
     </span>
   );
 }
@@ -783,6 +809,7 @@ function IncidentIcon({ kind }: { kind: string }) {
 
 /** Live page: what the real world looks like right now. */
 function Conditions({ state }: { state: WorldSnapshot }) {
+  const t = useT();
   const w = state.weather.now;
   const nextHours = state.weather.forecast.filter((h) => new Date(h.time).getTime() > Date.now()).slice(0, 4);
   const live = state.incidents.filter((i) => i.source === "live");
@@ -791,22 +818,28 @@ function Conditions({ state }: { state: WorldSnapshot }) {
       {w && (
         <div>
           <strong>
-            <WeatherIcon w={w} /> {w.temperature_c.toFixed(1)} °C
+            <WeatherIcon w={w} /> {fmtNum(w.temperature_c, 1)} °C
           </strong>{" "}
-          · {w.precipitation_mm} mm · wind {Math.round(w.wind_speed_kmh)} km/h <span className="muted">({w.source})</span>
+          · {fmtDec(w.precipitation_mm)} mm · {t("dash.cond.wind", { speed: Math.round(w.wind_speed_kmh) })}{" "}
+          <span className="muted">({w.source})</span>
           {nextHours.length > 0 && (
             <div className="muted">
-              Next hours:{" "}
+              {t("dash.cond.nextHours")}{" "}
               {nextHours
-                .map((h) => `${fmtTime(h.time)} ${Math.round(h.temperature_c)}°${h.snowfall_cm > 0 ? " snow" : h.precipitation_mm > 0 ? " rain" : ""}`)
+                .map(
+                  (h) =>
+                    `${fmtTime(h.time)} ${Math.round(h.temperature_c)}°${h.snowfall_cm > 0 ? t("dash.cond.snow") : h.precipitation_mm > 0 ? t("dash.cond.rain") : ""}`,
+                )
                 .join(" · ")}
             </div>
           )}
         </div>
       )}
       <div>
-        <strong>Traffic ×{state.traffic.factor.toFixed(2)}</strong>{" "}
-        <span className="muted">({state.traffic.source === "tomtom" ? "TomTom live" : state.traffic.source})</span>
+        <strong>
+          {t("dash.status.traffic")} ×{fmtNum(state.traffic.factor, 2)}
+        </strong>{" "}
+        <span className="muted">({state.traffic.source === "tomtom" ? t("dash.status.tomtomLive") : state.traffic.source})</span>
         {state.traffic.samples.length > 0 && (
           <ul className="roads">
             {state.traffic.samples.map((s) => (
@@ -818,7 +851,7 @@ function Conditions({ state }: { state: WorldSnapshot }) {
         )}
       </div>
       <div>
-        <strong>{live.length} live incident(s)</strong>
+        <strong>{t("dash.cond.liveIncidents", { count: live.length })}</strong>
         {live.slice(0, 5).map((i) => (
           <div key={i.id} className="muted">
             <IncidentIcon kind={i.kind} /> {i.description}
@@ -830,12 +863,13 @@ function Conditions({ state }: { state: WorldSnapshot }) {
 }
 
 function KpiRow({ kpis }: { kpis: Kpis }) {
+  const t = useT();
   const items: [string, string | number, boolean][] = [
-    ["Open trips", kpis.open_trips, false],
-    ["Late", kpis.late_trips, kpis.late_trips > 0],
-    ["Delay min", Math.round(kpis.total_delay_min), kpis.total_delay_min >= 15],
-    ["Unassigned", unassignedTotal(kpis), unassignedTotal(kpis) > 0],
-    ["In service", kpis.vehicles_in_service, false],
+    [t("dash.kpi.open"), kpis.open_trips, false],
+    [t("dash.kpi.late"), kpis.late_trips, kpis.late_trips > 0],
+    [t("dash.kpi.delay"), Math.round(kpis.total_delay_min), kpis.total_delay_min >= 15],
+    [t("dash.kpi.unassigned"), unassignedTotal(kpis), unassignedTotal(kpis) > 0],
+    [t("dash.kpi.inService"), kpis.vehicles_in_service, false],
   ];
   return (
     <div className="kpis">
@@ -871,11 +905,12 @@ function doctorAlerts(state: WorldSnapshot): { trip: Trip; d: DoctorInfo }[] {
 }
 
 function Alerts({ state, send }: { state: WorldSnapshot; send: Send }) {
+  useLang(); // texts below use tx(): `t` is the trip here
   const incidents = state.incidents.filter((i) => i.active);
   const misses = responseAlerts(state);
   const drMisses = doctorAlerts(state);
   if (misses.length === 0 && drMisses.length === 0 && state.alerts.length === 0 && incidents.length === 0)
-    return <p className="muted">All clear.</p>;
+    return <p className="muted">{tx("dash.alerts.allClear")}</p>;
   return (
     <ul className="alerts">
       {misses.map(({ trip: t, r }) => (
@@ -886,8 +921,13 @@ function Alerts({ state, send }: { state: WorldSnapshot; send: Send }) {
           </div>
           <div>
             {r.minutes == null
-              ? `No unit yet: waiting ${Math.round(r.waited)} min, target ${r.target} min.`
-              : `${t.vehicle_id ?? "The unit"} reaches the patient ${r.minutes} min after the call: target ${r.target} min, ${r.minutes - r.target} min over.`}
+              ? tx("dash.alerts.noUnit", { waited: Math.round(r.waited), target: r.target })
+              : tx("dash.alerts.late", {
+                  unit: t.vehicle_id ?? tx("dash.alerts.theUnit"),
+                  m: r.minutes,
+                  target: r.target,
+                  over: r.minutes - r.target,
+                })}
           </div>
         </li>
       ))}
@@ -900,8 +940,8 @@ function Alerts({ state, send }: { state: WorldSnapshot; send: Send }) {
           </div>
           <div>
             {d.minutes == null
-              ? `Needs a doctor and none is free: waiting ${Math.round(d.waited)} min, target ${d.target} min to the scene.`
-              : `Doctor ${d.vehicle} reaches the scene ${d.minutes} min after the call: target ${d.target} min, ${d.minutes - d.target} min over.`}
+              ? tx("dash.alerts.drNone", { waited: Math.round(d.waited), target: d.target })
+              : tx("dash.alerts.drLate", { v: d.vehicle, m: d.minutes, target: d.target, over: d.minutes - d.target })}
           </div>
         </li>
       ))}
@@ -912,7 +952,7 @@ function Alerts({ state, send }: { state: WorldSnapshot; send: Send }) {
           </span>
           {inc.source === "injected" && (
             <button className="link" onClick={() => send({ type: "clear_incident", incident_id: inc.id })}>
-              clear
+              {tx("dash.alerts.clear")}
             </button>
           )}
         </li>
@@ -931,7 +971,8 @@ function Alerts({ state, send }: { state: WorldSnapshot; send: Send }) {
 }
 
 function EventLog({ events, trips }: { events: EventRecord[]; trips: Trip[] }) {
-  if (events.length === 0) return <p className="muted">No events yet.</p>;
+  useLang(); // describe() and the texts here use tx(): `t` is a trip here
+  if (events.length === 0) return <p className="muted">{tx("dash.events.none")}</p>;
   const byId = new Map(trips.map((t) => [t.id, t]));
   // The most severe call an event touches (a new call, a priority change, a breakdown's patients…)
   const worst = (e: EventRecord) =>
@@ -962,26 +1003,28 @@ function TripTable({
   selectedId: string | null;
   onSelect: (vehicleId: string | null) => void;
 }) {
+  useLang(); // texts below use tx(): `t` is the trip here
   const place = new Map(state.places.map((p) => [p.id, p.name]));
   const vehicleById = new Map(state.vehicles.map((v) => [v.id, v]));
   // Most severe first, then the most time-critical condition, then the earliest due
   const open = state.trips.filter((t) => t.status !== "completed" && t.status !== "cancelled").sort(compareTrips);
   const done = state.trips.length - open.length;
+  const needs = (n: string) => tOr(`dash.needs.${n}`, n);
 
   return (
     <table className="trip-table">
       <thead>
         <tr>
-          <th>Trip</th>
-          <th>Patient / load</th>
-          <th>Severity</th>
-          <th title="Minutes from the call to reaching the patient / response target">Resp.</th>
-          <th>Route</th>
-          <th>Vehicle</th>
-          <th>Status</th>
-          <th>Due</th>
-          <th>ETA</th>
-          <th>Delay</th>
+          <th>{tx("dash.trips.trip")}</th>
+          <th>{tx("dash.trips.patient")}</th>
+          <th>{tx("dash.trips.severity")}</th>
+          <th title={tx("dash.trips.respTitle")}>{tx("dash.trips.resp")}</th>
+          <th>{tx("dash.trips.route")}</th>
+          <th>{tx("dash.trips.vehicle")}</th>
+          <th>{tx("dash.trips.status")}</th>
+          <th>{tx("dash.trips.due")}</th>
+          <th>{tx("dash.trips.eta")}</th>
+          <th>{tx("dash.trips.delay")}</th>
         </tr>
       </thead>
       <tbody>
@@ -995,12 +1038,12 @@ function TripTable({
                 t.vehicle_id && t.vehicle_id === selectedId ? " row-selected" : ""
               }${t.vehicle_id ? " clickable" : ""}`}
               onClick={() => t.vehicle_id && onSelect(t.vehicle_id)}
-              title={t.vehicle_id ? `Show ${t.vehicle_id} on the map` : undefined}
+              title={t.vehicle_id ? tx("dash.trips.showOnMap", { v: t.vehicle_id }) : undefined}
             >
               <td className="id">{t.id}</td>
-              <td className="cell-clip" title={`${t.label ?? t.patient ?? ""}${t.kind === "patient" ? ` · ${t.needs}` : ""}`}>
+              <td className="cell-clip" title={`${t.label ?? t.patient ?? ""}${t.kind === "patient" ? ` · ${needs(t.needs)}` : ""}`}>
                 {t.label ?? t.patient}
-                {t.kind === "patient" && <span className="muted"> · {t.needs}</span>}
+                {t.kind === "patient" && <span className="muted"> · {needs(t.needs)}</span>}
               </td>
               <td className="cell-sev">
                 <SeverityBadge trip={t} />
@@ -1016,10 +1059,12 @@ function TripTable({
                 {t.vehicle_id ?? "—"}
                 <OriginTag v={vehicleById.get(t.vehicle_id ?? "")} compact />
               </td>
-              <td>{t.status === "en_route_pickup" ? "to pickup" : t.status === "onboard" ? "on board" : t.status.replace(/_/g, " ")}</td>
+              <td>{tripStatusLabel(t.status)}</td>
               <td>{fmtTime(t.due_by)}</td>
               <td>{fmtTime(t.eta_dropoff)}</td>
-              <td className={late ? "late" : ""}>{t.delay_min == null ? "—" : late ? `+${Math.round(t.delay_min)} min` : "on time"}</td>
+              <td className={late ? "late" : ""}>
+                {t.delay_min == null ? "—" : late ? `+${Math.round(t.delay_min)} min` : tx("dash.trips.onTime")}
+              </td>
             </tr>
           );
         })}
@@ -1027,7 +1072,10 @@ function TripTable({
       <tfoot>
         <tr>
           <td colSpan={10} className="muted">
-            {open.length} open · {done} completed · click a row to show its vehicle
+            {tx("dash.trips.footer", {
+              open: tx("dash.trips.open", { count: open.length }),
+              done: tx("dash.trips.done", { count: done }),
+            })}
           </td>
         </tr>
       </tfoot>

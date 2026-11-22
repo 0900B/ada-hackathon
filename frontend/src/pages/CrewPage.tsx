@@ -27,7 +27,9 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react";
-import { fmtTime, humanize, vehicleStatusText } from "../format";
+import { fmtTime, vehicleStatusLabel, vehicleStatusText } from "../format";
+import { t as tx, tOr, useLang, useT } from "../i18n";
+import { LangToggle } from "../LangToggle";
 import { Callsign } from "../icons";
 import { LEVEL_PRIORITY, levelOf, levelUp, severitySupported } from "../severity";
 import { ResponseLine, SeverityBadge } from "../SeverityBadge";
@@ -94,11 +96,12 @@ export function CrewPage() {
   const [params] = useSearchParams();
   const world: World = params.get("world") === "live" ? "live" : "sim";
   const { state, connected } = useWorldState(world);
+  const t = useT();
 
   if (!state) {
     return (
       <main className="crew">
-        <p className="crew-loading">Connecting to {API_URL} …</p>
+        <p className="crew-loading">{t("common.connecting", { url: API_URL })}</p>
       </main>
     );
   }
@@ -108,16 +111,20 @@ export function CrewPage() {
 }
 
 function VehiclePicker({ state, world, missing }: { state: WorldSnapshot; world: World; missing: string }) {
+  const t = useT();
   const here = missing ? `/crew/${encodeURIComponent(missing)}` : "/crew";
   return (
     <main className="crew">
       <section className="crew-card">
-        {missing ? (
-          <h1 className="crew-title">Vehicle “{missing}” not found</h1>
-        ) : (
-          <h1 className="crew-title">Crew view</h1>
-        )}
-        <p className="muted">Choose your vehicle ({world === "sim" ? "simulation" : "live"}):</p>
+        <div className="crew-head-top">
+          {missing ? (
+            <h1 className="crew-title">{t("tab.notFound", { id: missing })}</h1>
+          ) : (
+            <h1 className="crew-title">{t("crew.title")}</h1>
+          )}
+          <LangToggle className="crew-uilang" />
+        </div>
+        <p className="muted">{t("crew.choose", { world: t(world === "sim" ? "tab.worldSim" : "tab.worldLive") })}</p>
       </section>
       <ul className="crew-pick">
         {state.vehicles.map((v) => (
@@ -125,19 +132,19 @@ function VehiclePicker({ state, world, missing }: { state: WorldSnapshot; world:
             <Link to={`/crew/${encodeURIComponent(v.id)}?world=${world}`}>
               <Callsign v={v} />
               <span className="crew-pick-name">{v.name}</span>
-              <span className="muted">{humanize(v.status)}</span>
+              <span className="muted">{vehicleStatusLabel(v.status)}</span>
             </Link>
           </li>
         ))}
       </ul>
       <p className="crew-foot muted">
-        World:{" "}
+        {t("tab.worldLabel")}{" "}
         <Link to={`${here}?world=sim`} className={world === "sim" ? "on" : ""}>
-          simulation
+          {t("tab.worldSim")}
         </Link>{" "}
         ·{" "}
         <Link to={`${here}?world=live`} className={world === "live" ? "on" : ""}>
-          live
+          {t("tab.worldLive")}
         </Link>
       </p>
     </main>
@@ -148,11 +155,11 @@ function VehiclePicker({ state, world, missing }: { state: WorldSnapshot; world:
 function nextStop(v: Vehicle, trip: Trip | undefined, queued: Trip | undefined, place: (id: string) => string) {
   if (trip) {
     return trip.status === "onboard"
-      ? { label: `Drop-off: ${place(trip.dropoff_id)}`, eta: trip.eta_dropoff }
-      : { label: `Pickup: ${place(trip.pickup_id)}`, eta: trip.eta_pickup };
+      ? { label: tx("crew.dropoffAt", { place: place(trip.dropoff_id) }), eta: trip.eta_dropoff }
+      : { label: tx("crew.pickupAt", { place: place(trip.pickup_id) }), eta: trip.eta_pickup };
   }
-  if (queued) return { label: `Next trip ${queued.id}: pickup at ${place(queued.pickup_id)}`, eta: queued.eta_pickup };
-  if (v.status === "returning") return { label: `Back to base: ${place(v.base_id)}`, eta: v.busy_until };
+  if (queued) return { label: tx("crew.nextTrip", { id: queued.id, place: place(queued.pickup_id) }), eta: queued.eta_pickup };
+  if (v.status === "returning") return { label: tx("crew.backToBase", { place: place(v.base_id) }), eta: v.busy_until };
   return null;
 }
 
@@ -167,6 +174,8 @@ function CrewConsole({
   world: World;
   connected: boolean;
 }) {
+  const t = useT();
+  const lang = useLang();
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState<string | null>(null);
@@ -174,7 +183,8 @@ function CrewConsole({
   const [error, setError] = useState<string | null>(null);
   const [direct, setDirect] = useState<string | null>(null); // sent as a plain event (AI unavailable)
   const busyRef = useRef(false);
-  const tripById = (id: string | null | undefined) => (id ? state.trips.find((t) => t.id === id) : undefined);
+  const tripById = (id: string | null | undefined) => (id ? state.trips.find((x) => x.id === id) : undefined);
+  const needsText = (needs: string) => tOr(`tab.needs.${needs}`, needs);
   const trip = tripById(vehicle.current_trip_id);
 
   const send = async (raw: string, quickKey?: string): Promise<boolean> => {
@@ -245,24 +255,25 @@ function CrewConsole({
             <Callsign v={vehicle} /> {vehicle.name}
           </h1>
           <div className="crew-head-right">
+            <LangToggle className="crew-uilang" />
             <AdminLock variant="crew" />
-            <span className={`crew-world ${world}`}>{world === "sim" ? "SIM" : "LIVE"}</span>
+            <span className={`crew-world ${world}`}>{world === "sim" ? t("tab.chipSim") : t("tab.chipLive")}</span>
           </div>
         </div>
         <div className="crew-chips">
           <span className={`chip st-${vehicle.status}`}>{vehicleStatusText(vehicle, state.trips)}</span>
           <span className={`chip ${connected ? "ok" : "bad"}`}>
-            <i className="dot" /> {connected ? "Online" : "Reconnecting"}
+            <i className="dot" /> {connected ? t("tab.online") : t("tab.reconnecting")}
           </span>
-          {vehicle.grounded_until && <span className="chip warn">Grounded by fog until {fmtTime(vehicle.grounded_until)}</span>}
+          {vehicle.grounded_until && <span className="chip warn">{t("tab.grounded", { time: fmtTime(vehicle.grounded_until) })}</span>}
         </div>
 
         {trip ? (
           <div className="crew-trip">
             <div className="crew-trip-who">
-              <strong>{trip.kind === "equipment" ? (trip.cargo ?? "equipment") : trip.patient}</strong>{" "}
+              <strong>{trip.kind === "equipment" ? (trip.cargo ?? t("tab.equipment")) : trip.patient}</strong>{" "}
               <span className="muted">
-                {trip.kind === "equipment" ? "equipment" : trip.needs} · {trip.id}
+                {trip.kind === "equipment" ? t("tab.equipment") : needsText(trip.needs)} · {trip.id}
               </span>
             </div>
             {vehicle.type === "doctor" && <div className="crew-doctor">{doctorJobLine(vehicle, trip, placeName)}</div>}
@@ -284,21 +295,22 @@ function CrewConsole({
               <div className="crew-eta">
                 {vehicle.status === "to_pickup" ? (
                   <>
-                    At the scene <strong>{fmtTime(trip.doctor_eta ?? null)}</strong> · {trip.vehicle_id ?? "no ambulance yet"}
-                    {trip.vehicle_id && trip.status !== "onboard" && <> at {fmtTime(trip.eta_pickup)}</>}
+                    {t("crew.atScene")} <strong>{fmtTime(trip.doctor_eta ?? null)}</strong> · {trip.vehicle_id ?? t("tab.noAmbulanceYet")}
+                    {trip.vehicle_id && trip.status !== "onboard" && t("crew.atTime", { time: fmtTime(trip.eta_pickup) })}
                   </>
                 ) : (
                   <>
-                    Hospital <strong>{fmtTime(trip.eta_dropoff)}</strong> · with {trip.vehicle_id ?? "the ambulance"}
+                    {t("crew.hospital")} <strong>{fmtTime(trip.eta_dropoff)}</strong> ·{" "}
+                    {trip.vehicle_id ? t("crew.withUnit", { unit: trip.vehicle_id }) : t("crew.withAmbulance")}
                   </>
                 )}
               </div>
             ) : (
               <div className={`crew-eta${late ? " late" : ""}`}>
-                {trip.status === "onboard" ? "Drop-off" : "Pickup"} ETA{" "}
+                {trip.status === "onboard" ? t("crew.etaDropoff") : t("crew.etaPickup")}{" "}
                 <strong>{fmtTime(trip.status === "onboard" ? trip.eta_dropoff : trip.eta_pickup)}</strong>
-                {trip.status !== "onboard" && <> · drop-off {fmtTime(trip.eta_dropoff)}</>}
-                {late && <> · +{Math.round(trip.delay_min ?? 0)} min late</>}
+                {trip.status !== "onboard" && t("crew.dropoffEta", { time: fmtTime(trip.eta_dropoff) })}
+                {late && t("crew.late", { min: Math.round(trip.delay_min ?? 0) })}
               </div>
             )}
             {trip.status !== "onboard" && vehicle.type !== "doctor" && (
@@ -308,14 +320,14 @@ function CrewConsole({
             )}
           </div>
         ) : (
-          <p className="muted crew-trip">No current trip.</p>
+          <p className="muted crew-trip">{t("crew.noTrip")}</p>
         )}
         {stop && (
           <div className="crew-next">
-            <ArrowRight /> Next stop: <strong>{stop.label}</strong>
+            <ArrowRight /> {t("crew.nextStop")} <strong>{stop.label}</strong>
             {stop.eta && <> · {fmtTime(stop.eta)}</>}
             {vehicle.queue.length > (trip ? 0 : 1) && (
-              <span className="muted"> · {vehicle.queue.length - (trip ? 0 : 1)} more queued</span>
+              <span className="muted">{t("crew.moreQueued", { count: vehicle.queue.length - (trip ? 0 : 1) })}</span>
             )}
             {!trip && queued && (
               <div className="crew-sev">
@@ -339,11 +351,11 @@ function CrewConsole({
               <span className="ptt-icon">
                 <Mic />
               </span>
-              <span>{speech.listening ? "Listening… release to send" : "Hold to talk"}</span>
-              <span className="ptt-sub">{speech.listening ? "or tap to stop" : "or tap once and speak"}</span>
+              <span>{speech.listening ? t("crew.pttListening") : t("crew.pttHold")}</span>
+              <span className="ptt-sub">{speech.listening ? t("crew.pttTapStop") : t("crew.pttTapOnce")}</span>
             </button>
             <div className="crew-talk-bar">
-              <span className="lang-toggle big" role="group" aria-label="Speech language">
+              <span className="lang-toggle big" role="group" aria-label={t("tab.speechLang")}>
                 {SPEECH_LANGS.map((l) => (
                   <button
                     key={l.code}
@@ -355,14 +367,14 @@ function CrewConsole({
                   </button>
                 ))}
               </span>
-              <span className="muted">Speaks: {speech.lang === "sl-SI" ? "slovenščina" : "English"}</span>
+              <span className="muted">{t("crew.speaks", { lang: t(speech.lang === "sl-SI" ? "crew.speaksSl" : "crew.speaksEn") })}</span>
             </div>
-            {!speechSecureContext() && <div className="warn-box">Voice input needs HTTPS (or localhost).</div>}
+            {!speechSecureContext() && <div className="warn-box">{t("crew.needsHttps")}</div>}
             {speech.listening && <div className="voice-interim big">{speech.interim || "Govorite… / Speak now…"}</div>}
             {speech.error && <div className="message error">{speech.error}</div>}
           </>
         ) : (
-          <div className="warn-box">Voice input needs Chrome or Edge. Use the buttons or type below.</div>
+          <div className="warn-box">{t("crew.needsChrome")}</div>
         )}
       </section>
 
@@ -376,26 +388,26 @@ function CrewConsole({
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="Sporočilo dispečerju…"
+          placeholder={t("tab.msgPlaceholder")}
           enterKeyHint="send"
-          aria-label="Message to the dispatcher"
+          aria-label={t("crew.msgAria")}
         />
         <button type="submit" className="primary" disabled={busy || draft.trim().length < 2}>
-          <Send /> Send
+          <Send /> {t("tab.send")}
         </button>
       </form>
 
       {(busy || result || error || direct) && (
         <section className="crew-card crew-response" aria-live="polite">
-          {sent && <div className="crew-sent">“{sent}”</div>}
+          {sent && <div className="crew-sent">{t("crew.quoted", { text: sent })}</div>}
           {busy && (
             <div>
-              <span className="spinner" /> AI is interpreting the message…
+              <span className="spinner" /> {t("crew.interpreting")}
             </div>
           )}
           {error && (
             <div className="message error">
-              Not delivered: <ErrorText text={error} />
+              {t("crew.notDelivered")} <ErrorText text={error} />
             </div>
           )}
           {direct && (
@@ -404,7 +416,7 @@ function CrewConsole({
                 <Check /> {direct}
               </div>
               <div className="crew-notified">
-                <Radio /> Sent to dispatch as a status report (AI message reading unavailable)
+                <Radio /> {t("crew.sentDirect")}
               </div>
             </>
           )}
@@ -412,15 +424,25 @@ function CrewConsole({
         </section>
       )}
 
-      <section className="crew-quick" aria-label="Quick status">
+      {/* The quick reports are always SENT in Slovenian (what the AI message reader expects); the
+          button shows the UI language first and the other one under it */}
+      <section className="crew-quick" aria-label={t("crew.quickAria")}>
         {QUICK.map((q) => (
-          <button key={q.key} type="button" disabled={busy} onClick={() => void send(q.sl, q.key)} title={`${q.sl} (key ${q.key})`}>
+          <button
+            key={q.key}
+            type="button"
+            disabled={busy}
+            onClick={() => void send(q.sl, q.key)}
+            title={t("crew.keyTitle", { text: q.sl, key: q.key })}
+          >
             <span className="q-icon">
               <q.icon />
             </span>
             <span className="q-text">
-              <span>{q.sl}</span>
-              <span className="muted">{q.en}</span>
+              <span lang={lang === "sl" ? "sl" : "en"}>{lang === "sl" ? q.sl : q.en}</span>
+              <span className="muted" lang={lang === "sl" ? "en" : "sl"}>
+                {lang === "sl" ? q.en : q.sl}
+              </span>
             </span>
             <kbd>{q.key}</kbd>
           </button>
@@ -428,32 +450,31 @@ function CrewConsole({
       </section>
 
       <p className="crew-foot muted">
-        <Link to={`/crew?world=${world}`}>Switch vehicle</Link> · <Link to={`/${world}`}>Dispatcher dashboard</Link>
+        <Link to={`/crew?world=${world}`}>{t("tab.switchVehicle")}</Link> · <Link to={`/${world}`}>{t("crew.dashboard")}</Link>
       </p>
     </main>
   );
 }
 
-const RUN_STATUS: Record<AgentRun["status"], string> = {
-  running: "AI is replanning…",
-  done: "New plan proposed: waiting for the dispatcher's approval",
-  approved: "Dispatcher approved the new plan",
-  rejected: "Dispatcher rejected the proposal",
-  superseded: "Replaced by a newer analysis",
-  error: "AI analysis failed; the dispatcher decides manually",
-};
-
 function MessageOutcome({ result, run }: { result: MessageResult; run: AgentRun | undefined }) {
+  const t = useT();
+  const lang = useLang();
+  // What the AI understood, in both languages (the backend sends both): the UI language first
+  const sl = (
+    <div key="sl" className={lang === "sl" ? undefined : "muted"}>
+      <span className="lang-tag">SL</span>
+      {result.understood_sl}
+    </div>
+  );
+  const en = (
+    <div key="en" className={lang === "sl" ? "muted" : undefined}>
+      <span className="lang-tag">EN</span>
+      {result.understood_en}
+    </div>
+  );
   return (
     <>
-      <div>
-        <span className="lang-tag">SL</span>
-        {result.understood_sl}
-      </div>
-      <div className="muted">
-        <span className="lang-tag">EN</span>
-        {result.understood_en}
-      </div>
+      {lang === "sl" ? [sl, en] : [en, sl]}
       {result.needs_clarification && (
         <div className="warn-box">
           <CircleHelp /> <span>{result.needs_clarification}</span>
@@ -467,20 +488,20 @@ function MessageOutcome({ result, run }: { result: MessageResult; run: AgentRun 
       {result.error && <div className="message error">{result.error}</div>}
       {result.run_id || run ? (
         <div className="crew-notified">
-          <Radio /> Dispatcher notified{result.run_id || run?.status === "running" ? ": AI is replanning" : ""}
+          <Radio /> {result.run_id || run?.status === "running" ? t("crew.notifiedReplanning") : t("crew.notified")}
           {run && (
             <div className={`crew-run run-${run.status}`}>
-              {run.status === "running" && <span className="spinner" />} {RUN_STATUS[run.status]}
+              {run.status === "running" && <span className="spinner" />} {t(`crew.run.${run.status}`)}
               {run.status === "approved" && run.decision?.title ? `: ${run.decision.title}` : ""}
             </div>
           )}
         </div>
       ) : result.applied.length > 0 ? (
         <div className="crew-notified">
-          <Radio /> Dispatcher notified
+          <Radio /> {t("crew.notified")}
         </div>
       ) : (
-        !result.error && <div className="muted">Nothing changed in the plan.</div>
+        !result.error && <div className="muted">{t("crew.nothingChanged")}</div>
       )}
     </>
   );

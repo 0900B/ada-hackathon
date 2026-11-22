@@ -18,8 +18,10 @@ import {
   type ReactNode,
 } from "react";
 import type { Vehicle } from "./api";
+import { vehicleTypeLabel } from "./format";
+import { t as tx, useT } from "./i18n";
 import { Callsign } from "./icons";
-import { fmtMin, fmtPct, type AiDecided, type HourBucket, type SeverityStats, type UnitUse } from "./reports";
+import { fmtMin, fmtPct, fmtRaw, type AiDecided, type HourBucket, type SeverityStats, type UnitUse } from "./reports";
 import { LEVEL_LABEL, LEVEL_TARGET_MIN, type Level } from "./severity";
 
 const TZ = "Europe/Ljubljana";
@@ -120,9 +122,10 @@ export function LevelChip({ level }: { level: Level }) {
 
 /** The chart's text twin: the same numbers as a table (collapsed; opens with a click or the keyboard). */
 export function TableView({ head, rows }: { head: string[]; rows: (string | number)[][] }) {
+  const t = useT();
   return (
     <details className="rp-table">
-      <summary>Table view</summary>
+      <summary>{t("rep.tableView")}</summary>
       <table>
         <thead>
           <tr>
@@ -158,8 +161,9 @@ function PlotRow({ label, height, children, className = "" }: { label: ReactNode
   );
 }
 
-export function Empty({ children = "No closed calls yet in this window." }: { children?: ReactNode }) {
-  return <p className="rp-empty">{children}</p>;
+export function Empty({ children }: { children?: ReactNode }) {
+  const t = useT();
+  return <p className="rp-empty">{children ?? t("rep.emptyCalls")}</p>;
 }
 
 /** Rounded at the data end (right), square at the baseline (left). */
@@ -209,23 +213,25 @@ function swarm(xs: number[]): number[] {
 const ROW_LEVELS: Level[] = ["critical", "serious", "urgent"];
 
 export function ResponseChart({ stats }: { stats: SeverityStats[] }) {
+  const t = useT();
   return (
     <ChartBox>
       <div className="rp-legend" aria-hidden>
-        <span><i className="rp-dot met" /> within target</span>
-        <span><i className="rp-dot missed" /> missed</span>
-        <span><i className="rp-line" /> target</span>
-        <span><i className="rp-tri" /> median</span>
+        <span><i className="rp-dot met" /> {t("rep.withinTarget")}</span>
+        <span><i className="rp-dot missed" /> {t("rep.missed")}</span>
+        <span><i className="rp-line" /> {t("rep.target")}</span>
+        <span><i className="rp-tri" /> {t("rep.median")}</span>
       </div>
       {ROW_LEVELS.map((level) => (
         <ResponseRow key={level} level={level} s={stats.find((x) => x.severity === level)} />
       ))}
-      <p className="rp-axis-title">Minutes from the call to the first unit at the patient</p>
+      <p className="rp-axis-title">{t("rep.respAxis")}</p>
     </ChartBox>
   );
 }
 
 function ResponseRow({ level, s }: { level: Level; s: SeverityStats | undefined }) {
+  const tl = useT();
   const tip = useTip();
   const timed = s?.responses ?? [];
   const label = (
@@ -234,18 +240,18 @@ function ResponseRow({ level, s }: { level: Level; s: SeverityStats | undefined 
       <span className="rp-row-sub">
         {s ? (
           <>
-            {s.n} {s.n === 1 ? "call" : "calls"}
+            {tl("rep.nCalls", { count: s.n })}
             {s.median_response != null && (
               <>
                 <br />
-                median {fmtMin(s.median_response)}
+                {tl("rep.medianLine", { m: fmtMin(s.median_response) })}
                 <br />
                 p90 {fmtMin(s.p90_response)}
               </>
             )}
           </>
         ) : (
-          "no calls"
+          tl("rep.noCalls")
         )}
       </span>
     </>
@@ -264,7 +270,16 @@ function ResponseRow({ level, s }: { level: Level; s: SeverityStats | undefined 
         const sorted = [...timed].sort((a, b) => a.min - b.min);
         const lanes = swarm(sorted.map((r) => sx(r.min)));
         return (
-          <svg width={w} height={80} role="img" aria-label={`${LEVEL_LABEL[level]} response times: ${s ? `${s.n_timed} calls, median ${fmtMin(s.median_response)}` : "no calls"}`}>
+          <svg
+            width={w}
+            height={80}
+            role="img"
+            aria-label={
+              s
+                ? tl("rep.respAria", { level: LEVEL_LABEL[level], n: s.n_timed, median: fmtMin(s.median_response) })
+                : tl("rep.respAriaNone", { level: LEVEL_LABEL[level] })
+            }
+          >
             <line className="rp-axis" x1={x0} x2={x1} y1={axisY} y2={axisY} />
             {scale.ticks.map((t, i) => (
               <g key={t}>
@@ -277,7 +292,7 @@ function ResponseRow({ level, s }: { level: Level; s: SeverityStats | undefined 
             ))}
             {!timed.length && (
               <text className="rp-tick" x={x0} y={midY + 4}>
-                No closed calls in this window
+                {tl("rep.noClosedInWindow")}
               </text>
             )}
             {targets.map((t, i) => {
@@ -286,7 +301,7 @@ function ResponseRow({ level, s }: { level: Level; s: SeverityStats | undefined 
                 <g key={t}>
                   <line className="rp-target" x1={sx(t)} x2={sx(t)} y1={14} y2={axisY} />
                   <text className="rp-target-label" x={sx(t) + (nearEdge ? -5 : 5)} y={11} textAnchor={nearEdge ? "end" : "start"}>
-                    {i === 0 ? `target ${t} min` : `${t} min outside the city`}
+                    {i === 0 ? tl("rep.targetMin", { t }) : tl("rep.outsideMin", { t })}
                   </text>
                 </g>
               );
@@ -296,11 +311,11 @@ function ResponseRow({ level, s }: { level: Level; s: SeverityStats | undefined 
               const cy = midY + lanes[i] * LANE_GAP;
               const body = (
                 <TipRows
-                  title={`${fmtMin(r.min)} to the patient`}
+                  title={tl("rep.toPatient", { m: fmtMin(r.min) })}
                   rows={[
-                    ["Level", LEVEL_LABEL[level]],
-                    ["Target", `${r.target} min`],
-                    ["Result", r.met ? "within target" : `missed by ${fmtMin(r.min - r.target)}`],
+                    [tl("rep.colLevel"), LEVEL_LABEL[level]],
+                    [tl("rep.colTarget"), `${r.target} min`],
+                    [tl("rep.colResult"), r.met ? tl("rep.withinTarget") : tl("rep.missedBy", { m: fmtMin(r.min - r.target) })],
                   ]}
                 />
               );
@@ -313,7 +328,7 @@ function ResponseRow({ level, s }: { level: Level; s: SeverityStats | undefined 
             })}
             {s?.median_response != null && (
               <path className="rp-median" d={`M${sx(s.median_response) - 5},${axisY - 9} h10 l-5,8 z`}>
-                <title>{`Median ${fmtMin(s.median_response)}`}</title>
+                <title>{tl("rep.medianTitle", { m: fmtMin(s.median_response) })}</title>
               </path>
             )}
           </svg>
@@ -324,19 +339,27 @@ function ResponseRow({ level, s }: { level: Level; s: SeverityStats | undefined 
 }
 
 export const withinTable = (stats: SeverityStats[]) => ({
-  head: ["Level", "Within target", "Calls with a target", "Share"],
+  head: [tx("rep.colLevel"), tx("rep.colWithin"), tx("rep.withinHead2"), tx("rep.colShare")],
   rows: stats.map((s) => [LEVEL_LABEL[s.severity], s.responses.filter((r) => r.met).length, s.n_timed, fmtPct(s.pct_within_target)]),
 });
 
 export const responseTable = (stats: SeverityStats[]) => ({
-  head: ["Level", "Calls", "Timed", "Target (min)", "Median (min)", "p90 (min)", "Within target"],
+  head: [
+    tx("rep.colLevel"),
+    tx("rep.respHeadCalls"),
+    tx("rep.respHeadTimed"),
+    tx("rep.respHeadTarget"),
+    tx("rep.respHeadMedian"),
+    tx("rep.respHeadP90"),
+    tx("rep.colWithin"),
+  ],
   rows: stats.map((s) => [
     LEVEL_LABEL[s.severity],
     s.n,
     s.n_timed,
     s.target_min ?? "–",
-    s.median_response ?? "–",
-    s.p90_response ?? "–",
+    fmtRaw(s.median_response),
+    fmtRaw(s.p90_response),
     fmtPct(s.pct_within_target),
   ]),
 });
@@ -351,15 +374,17 @@ const LEVEL_FILL: Record<Level, string> = {
 };
 
 export function WithinTargetChart({ stats }: { stats: SeverityStats[] }) {
+  const t = useT();
   return (
     <ChartBox>
       <WithinTargetRows stats={stats} />
-      <p className="rp-axis-title">Share of calls that reached the patient within their own target</p>
+      <p className="rp-axis-title">{t("rep.withinAxis")}</p>
     </ChartBox>
   );
 }
 
 function WithinTargetRows({ stats }: { stats: SeverityStats[] }) {
+  const tl = useT();
   const tip = useTip();
   return (
     <>
@@ -373,7 +398,7 @@ function WithinTargetRows({ stats }: { stats: SeverityStats[] }) {
             label={
               <>
                 <LevelChip level={level} />
-                <span className="rp-row-sub">target {s?.target_min ?? LEVEL_TARGET_MIN[level] ?? "–"} min</span>
+                <span className="rp-row-sub">{tl("rep.targetMin", { t: s?.target_min ?? LEVEL_TARGET_MIN[level] ?? "–" })}</span>
               </>
             }
             height={44}
@@ -384,16 +409,25 @@ function WithinTargetRows({ stats }: { stats: SeverityStats[] }) {
               const fill = pct == null ? 0 : (pct / 100) * trackW;
               const body = (
                 <TipRows
-                  title={`${LEVEL_LABEL[level]}: ${fmtPct(pct)} within target`}
+                  title={tl("rep.withinTip", { level: LEVEL_LABEL[level], pct: fmtPct(pct) })}
                   rows={[
-                    ["Within target", s ? `${met} of ${s.n_timed}` : "–"],
-                    ["Median", fmtMin(s?.median_response)],
+                    [tl("rep.colWithin"), s ? tl("rep.ofN", { a: met, b: s.n_timed }) : "–"],
+                    [tl("rep.colMedian"), fmtMin(s?.median_response)],
                     ["p90", fmtMin(s?.p90_response)],
                   ]}
                 />
               );
               return (
-                <svg width={w} height={44} role="img" aria-label={`${LEVEL_LABEL[level]}: ${pct == null ? "no calls" : `${fmtPct(pct)} within target`}`}>
+                <svg
+                  width={w}
+                  height={44}
+                  role="img"
+                  aria-label={
+                    pct == null
+                      ? tl("rep.withinAriaNone", { level: LEVEL_LABEL[level] })
+                      : tl("rep.withinAria", { level: LEVEL_LABEL[level], pct: fmtPct(pct) })
+                  }
+                >
                   <rect className="rp-track" x={0} y={15} width={trackW} height={14} rx={4} />
                   {fill > 0 && <path d={barH(0, 15, fill, 14)} style={{ fill: LEVEL_FILL[level] }} />}
                   <rect className="rp-hit" x={0} y={6} width={trackW} height={32} tabIndex={0} aria-label={`${LEVEL_LABEL[level]} ${fmtPct(pct)}`} {...tip(body)} />
@@ -444,6 +478,7 @@ export function HourlyChart({ hourly }: { hourly: HourBucket[] }) {
 }
 
 function HourlyColumns({ hourly }: { hourly: HourBucket[] }) {
+  const tl = useT();
   const [ref, w] = useWidth<HTMLDivElement>();
   const tip = useTip();
   const H = 190;
@@ -456,15 +491,15 @@ function HourlyColumns({ hourly }: { hourly: HourBucket[] }) {
   return (
     <div ref={ref} className="rp-fill">
       <div className="rp-legend" aria-hidden>
-        <span><i className="rp-sw met" /> within target</span>
-        <span><i className="rp-sw missed" /> missed</span>
-        <span><i className="rp-sw other" /> no response target</span>
-        <span><i className="rp-sw met faded" /> hour not complete</span>
+        <span><i className="rp-sw met" /> {tl("rep.withinTarget")}</span>
+        <span><i className="rp-sw missed" /> {tl("rep.missed")}</span>
+        <span><i className="rp-sw other" /> {tl("rep.noTarget")}</span>
+        <span><i className="rp-sw met faded" /> {tl("rep.hourIncomplete")}</span>
       </div>
       {w > 0 && (
-        <svg width={w} height={H} role="img" aria-label={`Calls closed per hour, ${hourly.length} hours`}>
+        <svg width={w} height={H} role="img" aria-label={tl("rep.hourlyAria", { n: hourly.length })}>
           <text className="rp-tick" x={0} y={10}>
-            calls closed
+            {tl("rep.callsClosedAxis")}
           </text>
           {scale.ticks.map((t) => {
             const y = baseY - (t / scale.max) * (baseY - top);
@@ -479,7 +514,7 @@ function HourlyColumns({ hourly }: { hourly: HourBucket[] }) {
           })}
           <line className="rp-axis" x1={padL} x2={w - padR} y1={baseY} y2={baseY} />
           <text className="rp-tick" x={padL - 8} y={baseY + 36} textAnchor="end">
-            in target
+            {tl("rep.inTargetAxis")}
           </text>
           {hourly.map((h, i) => {
             const slot = (w - padL - padR) / hourly.length;
@@ -497,11 +532,11 @@ function HourlyColumns({ hourly }: { hourly: HourBucket[] }) {
             const lastIndex = segs.length - 1;
             const body = (
               <TipRows
-                title={`${hourLabel(h.hour)}: ${h.calls} ${h.calls === 1 ? "call" : "calls"} closed`}
+                title={tl("rep.hourTip", { hour: hourLabel(h.hour), count: h.calls })}
                 rows={[
-                  ["Within target", `${h.within_target} of ${h.timed}`],
-                  ["Share", fmtPct(h.pct_within_target)],
-                  ...(h.partial ? ([["Note", "hour not complete"]] as [string, string][]) : []),
+                  [tl("rep.colWithin"), tl("rep.ofN", { a: h.within_target, b: h.timed })],
+                  [tl("rep.colShare"), fmtPct(h.pct_within_target)],
+                  ...(h.partial ? ([[tl("rep.note"), tl("rep.hourIncomplete")]] as [string, string][]) : []),
                 ]}
               />
             );
@@ -512,7 +547,7 @@ function HourlyColumns({ hourly }: { hourly: HourBucket[] }) {
                   y -= s.n * unit;
                   return <path key={s.cls} className={`rp-seg ${s.cls}`} d={k === lastIndex ? barV(x, y, bw, hh) : `M${x},${y + s.n * unit} v${-hh} h${bw} v${hh} Z`} />;
                 })}
-                <rect className="rp-hit" x={padL + slot * i} y={top} width={slot} height={baseY - top} tabIndex={0} aria-label={`${hourLabel(h.hour)}: ${h.calls} calls closed, ${fmtPct(h.pct_within_target)} within target`} {...tip(body)} />
+                <rect className="rp-hit" x={padL + slot * i} y={top} width={slot} height={baseY - top} tabIndex={0} aria-label={tl("rep.hourAria", { hour: hourLabel(h.hour), n: h.calls, pct: fmtPct(h.pct_within_target) })} {...tip(body)} />
                 <text className="rp-tick" x={x + bw / 2} y={baseY + 16} textAnchor="middle">
                   {hourLabel(h.hour)}
                 </text>
@@ -529,8 +564,8 @@ function HourlyColumns({ hourly }: { hourly: HourBucket[] }) {
 }
 
 export const hourlyTable = (hourly: HourBucket[]) => ({
-  head: ["Hour (Ljubljana)", "Calls closed", "With a target", "Within target", "Share", "Complete hour"],
-  rows: hourly.map((h) => [hourLabel(h.hour), h.calls, h.timed, h.within_target, fmtPct(h.pct_within_target), h.partial ? "no" : "yes"]),
+  head: [tx("rep.hourHead"), tx("rep.hourHeadClosed"), tx("rep.hourHeadTimed"), tx("rep.colWithin"), tx("rep.colShare"), tx("rep.hourHeadComplete")],
+  rows: hourly.map((h) => [hourLabel(h.hour), h.calls, h.timed, h.within_target, fmtPct(h.pct_within_target), tx(h.partial ? "rep.no" : "rep.yes")]),
 });
 
 // --- 4. Unit utilisation ---------------------------------------------------------------------------------
@@ -544,6 +579,7 @@ export function UtilisationChart({ units }: { units: UnitUse[] }) {
 }
 
 function UtilisationRows({ units }: { units: UnitUse[] }) {
+  const tl = useT();
   const tip = useTip();
   return (
     <>
@@ -557,15 +593,15 @@ function UtilisationRows({ units }: { units: UnitUse[] }) {
               const pct = u.busy_pct ?? 0;
               const body = (
                 <TipRows
-                  title={`${u.vehicle_id}: busy ${fmtPct(u.busy_pct)} of the time`}
+                  title={tl("rep.utilTip", { id: u.vehicle_id, pct: fmtPct(u.busy_pct) })}
                   rows={[
-                    ["Samples", `${u.samples} (one per world-minute)`],
-                    ["Busy", "not idle: on a call, handing over, returning"],
+                    [tl("rep.samples"), tl("rep.samplesValue", { n: u.samples })],
+                    [tl("rep.busy"), tl("rep.busyNote")],
                   ]}
                 />
               );
               return (
-                <svg width={w} height={22} role="img" aria-label={`${u.vehicle_id} busy ${fmtPct(u.busy_pct)}`}>
+                <svg width={w} height={22} role="img" aria-label={tl("rep.utilAria", { id: u.vehicle_id, pct: fmtPct(u.busy_pct) })}>
                   <rect className="rp-track" x={0} y={6} width={trackW} height={10} rx={4} />
                   {pct > 0 && <path className="rp-use" d={barH(0, 6, (pct / 100) * trackW, 10)} />}
                   <rect className="rp-hit" x={0} y={1} width={trackW} height={20} tabIndex={0} aria-label={`${u.vehicle_id} ${fmtPct(u.busy_pct)}`} {...tip(body)} />
@@ -601,17 +637,28 @@ function UtilisationRows({ units }: { units: UnitUse[] }) {
 }
 
 export const utilisationTable = (units: UnitUse[]) => ({
-  head: ["Unit", "Type", "Busy", "Samples"],
-  rows: units.map((u) => [u.vehicle_id, u.type, fmtPct(u.busy_pct), u.samples]),
+  head: [tx("rep.utilHeadUnit"), tx("rep.utilHeadType"), tx("rep.busy"), tx("rep.samples")],
+  rows: units.map((u) => [u.vehicle_id, vehicleTypeLabel(u.type), fmtPct(u.busy_pct), u.samples]),
 });
 
 // --- 5. Who decided -----------------------------------------------------------------------------------------
 
+/** Who had the last word on a call; name and note follow the UI language at the time of reading. */
+const decider = (key: keyof AiDecided, name: "rep.decEngine" | "rep.decAgreed" | "rep.decChanged" | "rep.decOverrode") => ({
+  key,
+  get name() {
+    return tx(name);
+  },
+  get note() {
+    return tx(`${name}Note`);
+  },
+});
+
 export const DECIDED: { key: keyof AiDecided; name: string; note: string }[] = [
-  { key: "engine_only", name: "Rules engine", note: "decided alone" },
-  { key: "claude_agreed", name: "Claude reviewed", note: "and kept the engine's choice" },
-  { key: "claude_changed", name: "Claude changed", note: "the engine's choice" },
-  { key: "dispatcher_overrode", name: "Dispatcher overrode", note: "a unit chosen by the AI" },
+  decider("engine_only", "rep.decEngine"),
+  decider("claude_agreed", "rep.decAgreed"),
+  decider("claude_changed", "rep.decChanged"),
+  decider("dispatcher_overrode", "rep.decOverrode"),
 ];
 
 export function DecidedBar({ decided }: { decided: AiDecided }) {
@@ -623,6 +670,7 @@ export function DecidedBar({ decided }: { decided: AiDecided }) {
 }
 
 function DecidedParts({ decided }: { decided: AiDecided }) {
+  const tl = useT();
   const tip = useTip();
   const [ref, w] = useWidth<HTMLDivElement>();
   const total = DECIDED.reduce((a, d) => a + decided[d.key], 0);
@@ -632,7 +680,7 @@ function DecidedParts({ decided }: { decided: AiDecided }) {
     <>
       <div ref={ref} className="rp-fill">
         {w > 0 && (
-          <svg width={w} height={H} role="img" aria-label={`Who decided, ${total} calls: ${DECIDED.map((d) => `${d.name} ${decided[d.key]}`).join(", ")}`}>
+          <svg width={w} height={H} role="img" aria-label={tl("rep.decAria", { total, list: DECIDED.map((d) => `${d.name} ${decided[d.key]}`).join(", ") })}>
             {DECIDED.map((d) => {
               const n = decided[d.key];
               if (!n) return null;
@@ -641,16 +689,16 @@ function DecidedParts({ decided }: { decided: AiDecided }) {
               x += segW;
               const drawW = Math.max(1, segW - 2); // 2px surface gap between parts
               const share = Math.round((100 * n) / total);
-              const body = <TipRows title={`${d.name}: ${n} of ${total} calls`} rows={[["Share", `${share}%`], [d.note, ""]]} />;
+              const body = <TipRows title={tl("rep.decTip", { name: d.name, n, count: total })} rows={[[tl("rep.colShare"), fmtPct(share)], [d.note, ""]]} />;
               return (
                 <g key={d.key}>
                   <rect className={`rp-part ${d.key}`} x={sx} y={0} width={drawW} height={H} rx={4} />
                   {drawW >= 46 && (
                     <text className={`rp-part-text ${d.key}`} x={sx + 8} y={20}>
-                      {share}%
+                      {fmtPct(share)}
                     </text>
                   )}
-                  <rect className="rp-hit" x={sx} y={0} width={segW} height={H} tabIndex={0} aria-label={`${d.name} ${n} calls`} {...tip(body)} />
+                  <rect className="rp-hit" x={sx} y={0} width={segW} height={H} tabIndex={0} aria-label={tl("rep.decPartAria", { name: d.name, n })} {...tip(body)} />
                 </g>
               );
             })}
@@ -673,6 +721,6 @@ function DecidedParts({ decided }: { decided: AiDecided }) {
 }
 
 export const decidedTable = (decided: AiDecided) => ({
-  head: ["Last word on the call", "Calls"],
+  head: [tx("rep.decHead"), tx("rep.decHeadCalls")],
   rows: DECIDED.map((d) => [`${d.name} ${d.note}`, decided[d.key]]),
 });

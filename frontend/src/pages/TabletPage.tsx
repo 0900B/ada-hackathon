@@ -41,7 +41,9 @@ import {
   CornerUpRight,
   type LucideIcon,
 } from "lucide-react";
-import { fmtTime, humanize, vehicleStatusText } from "../format";
+import { fmtTime, tripStatusLabel, vehicleStatusLabel, vehicleStatusText } from "../format";
+import { fmtNum, t as tx, tOr, useLang, useT, type Lang } from "../i18n";
+import { LangToggle } from "../LangToggle";
 import { VehicleTypeIcon } from "../icons";
 import { NavMap } from "../NavMap";
 import { conditionText, LEVEL_LABEL, LEVEL_PRIORITY, LEVEL_RANK, LEVELS, levelOf, severitySupported, type Level } from "../severity";
@@ -76,6 +78,7 @@ export function TabletPage() {
   const [params] = useSearchParams();
   const world: World = params.get("world") === "live" ? "live" : "sim";
   const { state, connected } = useWorldState(world);
+  const t = useT();
   const [night, setNight] = useState(savedNight);
   const toggleTheme = () =>
     setNight((n) => {
@@ -90,7 +93,7 @@ export function TabletPage() {
   if (!state) {
     return (
       <main className={`mdt ${night ? "night" : "day"}`}>
-        <p className="mdt-loading">Connecting to {API_URL} …</p>
+        <p className="mdt-loading">{t("common.connecting", { url: API_URL })}</p>
       </main>
     );
   }
@@ -110,10 +113,14 @@ export function TabletPage() {
 }
 
 function TabletPicker({ state, world, missing, night }: { state: WorldSnapshot; world: World; missing: string; night: boolean }) {
+  const t = useT();
   return (
     <main className={`mdt mdt-picker ${night ? "night" : "day"}`}>
-      <h1>{missing ? `Vehicle “${missing}” not found` : "In-vehicle tablet"}</h1>
-      <p className="mdt-muted">Choose this vehicle ({world === "sim" ? "simulation" : "live"}):</p>
+      <div className="mdt-picker-lang">
+        <LangToggle className="mdt-uilang" />
+      </div>
+      <h1>{missing ? t("tab.notFound", { id: missing }) : t("tab.pickerTitle")}</h1>
+      <p className="mdt-muted">{t("tab.pickerChoose", { world: t(world === "sim" ? "tab.worldSim" : "tab.worldLive") })}</p>
       <ul>
         {state.vehicles.map((v) => (
           <li key={v.id}>
@@ -128,7 +135,7 @@ function TabletPicker({ state, world, missing, night }: { state: WorldSnapshot; 
         ))}
       </ul>
       <p className="mdt-muted">
-        World: <Link to={`/vehicle?world=sim`}>simulation</Link> · <Link to={`/vehicle?world=live`}>live</Link>
+        {t("tab.worldLabel")} <Link to={`/vehicle?world=sim`}>{t("tab.worldSim")}</Link> · <Link to={`/vehicle?world=live`}>{t("tab.worldLive")}</Link>
       </p>
     </main>
   );
@@ -136,7 +143,8 @@ function TabletPicker({ state, world, missing, night }: { state: WorldSnapshot; 
 
 // --- navigation banner -------------------------------------------------------------------------
 
-const fmtDist = (m: number) => (m < 1000 ? `${Math.max(10, Math.round(m / 10) * 10)} m` : `${(m / 1000).toFixed(m < 10_000 ? 1 : 0)} km`);
+/** "300 m", "1.2 km" ("1,2 km" in Slovenian). */
+const fmtDist = (m: number) => (m < 1000 ? `${Math.max(10, Math.round(m / 10) * 10)} m` : `${fmtNum(m / 1000, m < 10_000 ? 1 : 0)} km`);
 
 const TURN_ANGLE: Record<string, number> = {
   straight: 0,
@@ -149,42 +157,66 @@ const TURN_ANGLE: Record<string, number> = {
   "sharp left": -135,
 };
 
-function instruction(s: NavStep): string {
-  const road = s.name || (s.ref ? (/^\d/.test(s.ref) ? `road ${s.ref}` : s.ref) : "");
-  const onto = road ? ` onto ${road}` : "";
+/** Feminine head nouns of Slovenian street names ("Zaloška cesta", "Ulica Janeza Pavla II."). */
+const FEMININE_HEADS = new Set(["cesta", "ulica", "steza", "pot", "obvoznica", "avtocesta", "vpadnica", "magistrala", "promenada", "pešpot", "obala", "vas"]);
+
+/**
+ * A Slovenian street name in the accusative, for "zavijte desno na Zaloško cesto": the feminine
+ * head noun and the adjectives before it change -a to -o ("Zaloška cesta" -> "Zaloško cesto",
+ * "Ulica bratov Učakar" -> "Ulico bratov Učakar"). Masculine and neuter names ("Trg OF",
+ * "Prešernov trg") are the same in the accusative, so anything else stays exactly as given.
+ */
+function slAccusative(name: string): string {
+  const words = name.split(" ");
+  const head = words.findIndex((w) => FEMININE_HEADS.has(w.toLowerCase()));
+  if (head < 0 || head > 3) return name;
+  return words.map((w, i) => (i <= head && /[a-zčšž]a$/i.test(w) ? `${w.slice(0, -1)}${w.endsWith("A") ? "O" : "o"}` : w)).join(" ");
+}
+
+/** The manoeuvre as one instruction ("Turn right onto Zaloška cesta" / "Zavijte desno na Zaloško cesto"). */
+function instruction(s: NavStep, lang: Lang): string {
+  const ref = s.ref ? (/^\d/.test(s.ref) ? tx("tab.nav.roadRef", { ref: s.ref }) : s.ref) : "";
+  const named = s.name ? (lang === "sl" ? slAccusative(s.name) : s.name) : "";
+  const road = named || ref;
+  const onto = road ? tx("tab.nav.onto", { road }) : "";
+  const ontoThen = road ? tx("tab.nav.ontoThen", { road }) : "";
   const mod = s.modifier ?? "";
   const side = mod.includes("left") ? "left" : mod.includes("right") ? "right" : "";
+  const dir = (m: string) => tOr(`tab.dir.${m}`, m);
+  const p = (extra: Record<string, string | number>) => ({ onto, ontoThen, ...extra });
+  const sideWord = side ? tx(side === "left" ? "tab.nav.sideWord.left" : "tab.nav.sideWord.right") : "";
+  const onSide = side ? tx(side === "left" ? "tab.nav.onSide.left" : "tab.nav.onSide.right") : "";
   switch (s.type) {
     case "arrive":
-      return `Arrive${side ? `, on the ${side}` : ""}`;
+      return side ? tx("tab.nav.arriveSide", { side: tx(side === "left" ? "tab.nav.side.left" : "tab.nav.side.right") }) : tx("tab.nav.arrive");
     case "depart":
-      return `Head off${onto}`;
+      return tx("tab.nav.depart", p({}));
     case "roundabout":
     case "rotary":
-      return s.exit ? `At the roundabout take exit ${s.exit}${onto}` : `Enter the roundabout${onto}`;
+      return s.exit ? tx("tab.nav.roundaboutExit", p({ exit: s.exit })) : tx("tab.nav.roundaboutEnter", p({}));
     case "exit roundabout":
     case "exit rotary":
-      return `Leave the roundabout${onto}`;
+      return tx("tab.nav.roundaboutLeave", p({}));
     case "roundabout turn":
-      return `At the roundabout turn ${mod}${onto}`;
+      return tx("tab.nav.roundaboutTurn", p({ dir: dir(mod) }));
     case "merge":
-      return `Merge${side ? ` ${side}` : ""}${onto}`;
+      return tx("tab.nav.merge", p({ side: sideWord }));
     case "on ramp":
-      return `Take the ramp${side ? ` on the ${side}` : ""}${onto}`;
+      return tx("tab.nav.onRamp", p({ onSide }));
     case "off ramp":
-      return `Take the exit${side ? ` on the ${side}` : ""}${onto}`;
+      return tx("tab.nav.offRamp", p({ onSide }));
     case "fork":
-      return `Keep ${side || "straight"}${onto}`;
+      return tx("tab.nav.fork", p({ dir: dir(side || "straight") }));
     case "end of road":
-      return `At the end of the road turn ${side || mod}${onto}`;
+      return tx("tab.nav.endOfRoad", p({ dir: dir(side || mod) }));
     case "continue":
     case "new name":
-      return mod && mod !== "straight" ? `Keep ${mod}${onto}` : `Continue${onto}`;
+      return mod && mod !== "straight" ? tx("tab.nav.keep", p({ dir: dir(mod) })) : tx("tab.nav.continue", p({}));
     default:
-      if (mod === "uturn") return `Make a U-turn${onto}`;
-      if (mod === "straight" || !mod) return `Go straight${onto}`;
-      if (mod.startsWith("slight")) return `Bear ${side}${onto}`;
-      return `Turn ${mod}${onto}`;
+      if (mod === "uturn") return tx("tab.nav.uturn", p({}));
+      if (mod === "straight" || !mod) return tx("tab.nav.straight", p({}));
+      if (mod.startsWith("slight")) return tx("tab.nav.bear", p({ dir: dir(side) }));
+      return tx("tab.nav.turn", p({ dir: dir(mod) }));
   }
 }
 
@@ -209,14 +241,16 @@ function ManeuverIcon({ step, bearing }: { step?: NavStep; bearing?: number }) {
   );
 }
 
-const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"] as const;
 
 function NavBanner({ nav, vehicle, trip, state }: { nav: Navigation | null; vehicle: Vehicle; trip: Trip | undefined; state: WorldSnapshot }) {
-  const kindText = { pickup: "Pickup", dropoff: "Drop-off", base: "Back to base" } as const;
+  const t = useT();
+  const lang = useLang();
+  const kindText = (kind: "pickup" | "dropoff" | "base") => t(`tab.kind.${kind}`);
   if (vehicle.status === "out_of_service")
     return (
       <div className="mdt-banner down">
-        <TriangleAlert /> Out of service · dispatch is re-planning your trips
+        <TriangleAlert /> {t("tab.outOfService")}
       </div>
     );
   if (vehicle.waiting_until && Date.parse(vehicle.waiting_until) > Date.parse(state.sim_time) && trip) {
@@ -226,14 +260,15 @@ function NavBanner({ nav, vehicle, trip, state }: { nav: Navigation | null; vehi
           <Clock />
         </span>
         <div>
-          <div className="mdt-instr">Waiting for the patient until {fmtTime(vehicle.waiting_until)}</div>
-          <div className="mdt-next-stop">At pickup: {state.places.find((p) => p.id === trip.pickup_id)?.name}</div>
+          <div className="mdt-instr">{t("tab.waitingPatient", { time: fmtTime(vehicle.waiting_until) })}</div>
+          <div className="mdt-next-stop">{t("tab.atPickup", { place: state.places.find((p) => p.id === trip.pickup_id)?.name })}</div>
         </div>
       </div>
     );
   }
   if (!nav || !nav.target) {
-    const busy = vehicle.status === "loading" ? "Loading…" : vehicle.status === "idle" ? "No active job · standing by" : humanize(vehicle.status);
+    const busy =
+      vehicle.status === "loading" ? t("tab.loadingDots") : vehicle.status === "idle" ? t("tab.standingBy") : vehicleStatusLabel(vehicle.status);
     return <div className="mdt-banner idle">{busy}</div>;
   }
   const eta = nav.eta ? fmtTime(nav.eta) : "–";
@@ -242,19 +277,19 @@ function NavBanner({ nav, vehicle, trip, state }: { nav: Navigation | null; vehi
   const busyText =
     vehicle.status === "loading"
       ? trip?.kind === "equipment"
-        ? "Loading the equipment"
-        : "Loading the patient"
+        ? t("tab.busy.equipment")
+        : t("tab.busy.patient")
       : vehicle.status === "returning"
-        ? "Unloading"
-        : "Held";
+        ? t("tab.busy.unloading")
+        : t("tab.busy.held");
   const stopLine = (
     <div className="mdt-next-stop">
-      {kindText[nav.target.kind]}: <strong>{nav.target.name}</strong>
-      {nav.remaining_m != null && <> · {fmtDist(nav.remaining_m)}</>} · ETA <strong>{eta}</strong>
+      {kindText(nav.target.kind)}: <strong>{nav.target.name}</strong>
+      {nav.remaining_m != null && <> · {fmtDist(nav.remaining_m)}</>} · {t("tab.eta")} <strong>{eta}</strong>
       {nav.detour && (
         <span className="mdt-detour">
           {" "}
-          <CornerUpRight /> detour around a closure
+          <CornerUpRight /> {t("tab.detour")}
         </span>
       )}
     </div>
@@ -266,9 +301,7 @@ function NavBanner({ nav, vehicle, trip, state }: { nav: Navigation | null; vehi
           <Clock />
         </span>
         <div>
-          <div className="mdt-instr">
-            {busyText} · until {fmtTime(busyUntil)}
-          </div>
+          <div className="mdt-instr">{t("tab.busyUntil", { what: busyText, time: fmtTime(busyUntil) })}</div>
           {stopLine}
         </div>
       </div>
@@ -279,10 +312,10 @@ function NavBanner({ nav, vehicle, trip, state }: { nav: Navigation | null; vehi
       <div className="mdt-banner">
         <ManeuverIcon step={{ type: "arrive" } as NavStep} />
         <div>
-          <div className="mdt-instr">Arrived · {kindText[nav.target.kind]}</div>
+          <div className="mdt-instr">{t("tab.arrived", { kind: kindText(nav.target.kind) })}</div>
           <div className="mdt-next-stop">
             <strong>{nav.target.name}</strong>
-            {vehicle.status === "loading" ? " · loading" : ""}
+            {vehicle.status === "loading" ? t("tab.arrivedLoading") : ""}
           </div>
         </div>
       </div>
@@ -296,7 +329,7 @@ function NavBanner({ nav, vehicle, trip, state }: { nav: Navigation | null; vehi
         <div>
           <div className="mdt-dist">{nav.remaining_m != null ? fmtDist(nav.remaining_m) : ""}</div>
           <div className="mdt-instr">
-            Fly {String(b).padStart(3, "0")}° {COMPASS[Math.round(b / 45) % 8]} · straight line
+            {t("tab.fly", { deg: String(b).padStart(3, "0"), compass: t(`tab.compass.${COMPASS[Math.round(b / 45) % 8]}`) })}
           </div>
           {stopLine}
         </div>
@@ -309,9 +342,9 @@ function NavBanner({ nav, vehicle, trip, state }: { nav: Navigation | null; vehi
       <div className="mdt-banner">
         <ManeuverIcon />
         <div>
-          <div className="mdt-instr">Drive to {nav.target.name}</div>
+          <div className="mdt-instr">{t("tab.driveTo", { place: nav.target.name })}</div>
           {stopLine}
-          {nav.status === "pending" && <div className="mdt-muted small">Loading turn-by-turn directions…</div>}
+          {nav.status === "pending" && <div className="mdt-muted small">{t("tab.loadingDirections")}</div>}
         </div>
       </div>
     );
@@ -320,12 +353,12 @@ function NavBanner({ nav, vehicle, trip, state }: { nav: Navigation | null; vehi
     <div className="mdt-banner">
       <ManeuverIcon step={next} />
       <div>
-        <div className="mdt-dist">{next.distance_m < 30 ? "Now" : `In ${fmtDist(next.distance_m)}`}</div>
-        <div className="mdt-instr">{instruction(next)}</div>
+        <div className="mdt-dist">{next.distance_m < 30 ? t("tab.now") : t("tab.inDist", { dist: fmtDist(next.distance_m) })}</div>
+        <div className="mdt-instr">{instruction(next, lang)}</div>
         {stopLine}
         {then && then.type !== "arrive" && (
           <div className="mdt-then">
-            Then: {instruction(then).replace(/^./, (c) => c.toLowerCase())} ({fmtDist(then.distance_m)})
+            {t("tab.then", { instr: instruction(then, lang).replace(/^./, (c) => c.toLowerCase()), dist: fmtDist(then.distance_m) })}
           </div>
         )}
       </div>
@@ -408,27 +441,35 @@ function useDispatchNotes(state: WorldSnapshot, vehicle: Vehicle, chime: () => v
     const redirected = [...mine.keys()].filter((id) => before.trips.has(id) && before.trips.get(id) !== mine.get(id));
     if (!added.length && !removed.length && !redirected.length) return;
 
+    // (written in the language of the moment; a later switch leaves earlier notes as they were)
     const lines = [
       ...added.map((id) => {
         const t = trip(id)!;
         const cond = conditionText(t);
-        return `New job: ${t.id} ${LEVEL_LABEL[levelOf(t)]}${cond ? ` · ${cond}` : ""} · ${t.label} · ${place(t.pickup_id)} → ${place(t.dropoff_id)}`;
+        return tx("tab.note.newJob", {
+          id: t.id,
+          level: LEVEL_LABEL[levelOf(t)],
+          cond: cond ? ` · ${cond}` : "",
+          label: t.label,
+          from: place(t.pickup_id),
+          to: place(t.dropoff_id),
+        });
       }),
       ...removed.map((id) => {
         const t = trip(id);
-        return t?.vehicle_id ? `${id} moved to ${t.vehicle_id}` : `${id} handed back to dispatch`;
+        return t?.vehicle_id ? tx("tab.note.movedTo", { id, vehicle: t.vehicle_id }) : tx("tab.note.handedBack", { id });
       }),
-      ...redirected.map((id) => `${id} now goes to ${place(mine.get(id)!)}`),
+      ...redirected.map((id) => tx("tab.note.nowGoesTo", { id, place: place(mine.get(id)!) })),
     ];
     // Why: the newest event since the last snapshot (an approved plan, a booking, a breakdown…)
     const fresh = state.events.filter((e) => idSeq(e.id) > before.lastEvent);
     const cause = fresh[fresh.length - 1];
-    let reason = cause ? cause.summary : "Dispatch updated your plan";
+    let reason = cause ? cause.summary : tx("tab.note.updated");
     const crew: { sl: string; en: string }[] = [];
     const planEvent = [...fresh].reverse().find((e) => e.type === "plan_applied");
     if (planEvent) {
       const run = state.agent.runs.find((r) => r.decision?.event_id === planEvent.id);
-      reason = `Dispatcher approved a new plan${run?.decision?.title ? `: ${run.decision.title}` : ""}`;
+      reason = run?.decision?.title ? tx("tab.note.approvedTitle", { title: run.decision.title }) : tx("tab.note.approved");
       const executed = run?.decision?.executed ?? [];
       lines.push(...executed.filter((x) => mentions(x, vehicle)).map((x) => `· ${x}`));
       for (const n of run?.recommendation?.notifications ?? []) {
@@ -478,6 +519,7 @@ function QuickStatus({
   detail: VehicleDetail | null;
   notify: (ok: boolean, text: string) => void;
 }) {
+  const t = useT();
   const [confirm, setConfirm] = useState<QuickId | null>(null);
   const [sending, setSending] = useState(false);
   const down = vehicle.status === "out_of_service";
@@ -493,15 +535,15 @@ function QuickStatus({
   // An unanswered "are you sure?" goes away by itself
   useEffect(() => {
     if (!confirm) return;
-    const t = setTimeout(() => setConfirm(null), 10_000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setConfirm(null), 10_000);
+    return () => clearTimeout(timer);
   }, [confirm]);
 
   const send = async (event: Record<string, unknown>) => {
     setSending(true);
     try {
       const rec = await postEvent(state.world, event);
-      notify(true, `Sent to dispatch: ${rec.summary}`);
+      notify(true, t("tab.quick.sent", { summary: rec.summary }));
     } catch (e) {
       notify(false, e instanceof Error ? e.message : String(e));
     } finally {
@@ -511,22 +553,22 @@ function QuickStatus({
   };
 
   const items: { id: QuickId; icon: LucideIcon; label: string; disabled: boolean }[] = [
-    { id: "breakdown", icon: Wrench, label: "Breakdown", disabled: down },
-    { id: "delay", icon: Timer, label: "Delay +10 min", disabled: down },
-    { id: "closure", icon: Construction, label: "Road ahead closed", disabled: vehicle.type === "helicopter" },
-    { id: "worse", icon: Siren, label: "Patient worse", disabled: !patientTrip },
+    { id: "breakdown", icon: Wrench, label: t("tab.quick.breakdown"), disabled: down },
+    { id: "delay", icon: Timer, label: t("tab.quick.delay"), disabled: down },
+    { id: "closure", icon: Construction, label: t("tab.quick.closure"), disabled: vehicle.type === "helicopter" },
+    { id: "worse", icon: Siren, label: t("tab.quick.worse"), disabled: !patientTrip },
   ];
 
   if (confirm) {
     const question: Record<QuickId, string> = {
-      breakdown: `Report a breakdown of ${vehicle.id}? Your trips go back to dispatch.`,
-      delay: `Tell dispatch ${vehicle.id} is delayed by 10 minutes?`,
-      closure: "Report the road ahead as closed? Other vehicles will be routed around it.",
-      worse: `Patient of ${patientTrip?.id ?? "this trip"} is worse: raise the severity to…`,
+      breakdown: t("tab.quick.qBreakdown", { id: vehicle.id }),
+      delay: t("tab.quick.qDelay", { id: vehicle.id }),
+      closure: t("tab.quick.qClosure"),
+      worse: t("tab.quick.qWorse", { id: patientTrip?.id ?? t("tab.quick.thisTrip") }),
     };
     const [lat, lon] = pointAhead(vehicle, detail?.legs[0]);
     return (
-      <div className="mdt-confirm" role="alertdialog" aria-label="Confirm">
+      <div className="mdt-confirm" role="alertdialog" aria-label={t("tab.quick.confirm")}>
         <div className="mdt-confirm-q">{question[confirm]}</div>
         <div className="mdt-confirm-actions">
           {confirm === "worse" && patientTrip ? (
@@ -547,7 +589,7 @@ function QuickStatus({
                   }
                 >
                   {/* without severity support the backend knows only "emergency" above urgent */}
-                  {graded || l !== "serious" ? LEVEL_LABEL[l] : "Emergency"}
+                  {graded || l !== "serious" ? LEVEL_LABEL[l] : t("tab.quick.emergency")}
                 </button>
               ))}
             </>
@@ -565,11 +607,11 @@ function QuickStatus({
                 )
               }
             >
-              <Check /> Yes, send
+              <Check /> {t("tab.quick.yesSend")}
             </button>
           )}
           <button className="mdt-btn" disabled={sending} onClick={() => setConfirm(null)}>
-            <X /> Cancel
+            <X /> {t("common.cancel")}
           </button>
         </div>
       </div>
@@ -589,6 +631,8 @@ function QuickStatus({
 // --- crew message (voice or text, through the AI message parser) -------------------------------
 
 function CrewMessage({ world, vehicle, notify }: { world: World; vehicle: Vehicle; notify: (ok: boolean, text: string) => void }) {
+  const t = useT();
+  const lang = useLang();
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<MessageResult | null>(null);
@@ -604,9 +648,11 @@ function CrewMessage({ world, vehicle, notify }: { world: World; vehicle: Vehicl
       const r = await sendFieldMessage(world, text, vehicle.id);
       setResult(r);
       setDraft("");
-      notify(true, r.needs_clarification ? `Dispatch asks: ${r.needs_clarification}` : `Dispatch understood: ${r.understood_en}`);
+      // what the AI understood, in the UI language (the backend sends both)
+      const understood = lang === "sl" ? r.understood_sl || r.understood_en : r.understood_en;
+      notify(true, r.needs_clarification ? t("tab.msg.asks", { q: r.needs_clarification }) : t("tab.msg.understood", { text: understood }));
     } catch (e) {
-      notify(false, `Not delivered: ${bilingualLines(e instanceof Error ? e.message : String(e))}`);
+      notify(false, t("tab.msg.notDelivered", { error: bilingualLines(e instanceof Error ? e.message : String(e)) }));
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -618,9 +664,9 @@ function CrewMessage({ world, vehicle, notify }: { world: World; vehicle: Vehicl
   return (
     <div className="mdt-talk">
       <div className="mdt-section-title">
-        Message to dispatch
+        {t("tab.msgToDispatch")}
         {speech.supported && (
-          <span className="lang-toggle" role="group" aria-label="Speech language">
+          <span className="lang-toggle" role="group" aria-label={t("tab.speechLang")} title={t("tab.speechLang")}>
             {SPEECH_LANGS.map((l) => (
               <button key={l.code} type="button" aria-pressed={speech.lang === l.code} onClick={() => speech.setLang(l.code)}>
                 {l.label}
@@ -641,26 +687,26 @@ function CrewMessage({ world, vehicle, notify }: { world: World; vehicle: Vehicl
             type="button"
             className={`mdt-btn mdt-ptt${speech.listening ? " listening" : ""}`}
             aria-pressed={speech.listening}
-            title="Hold to talk and release to send, or tap once and speak"
+            title={t("tab.msg.pttTitle")}
             disabled={busy && !speech.listening}
             {...ptt}
           >
-            <Mic /> {speech.listening ? "Listening…" : "Talk"}
+            <Mic /> {speech.listening ? t("tab.msg.listening") : t("tab.msg.talk")}
           </button>
         )}
         <input
           className="mdt-input"
           value={speech.listening ? speech.interim : draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="Sporočilo dispečerju…"
-          aria-label="Message to dispatch"
+          placeholder={t("tab.msgPlaceholder")}
+          aria-label={t("tab.msgToDispatch")}
           enterKeyHint="send"
         />
         <button type="submit" className="mdt-btn primary" disabled={busy || draft.trim().length < 2}>
-          <Send /> {busy ? "…" : "Send"}
+          <Send /> {busy ? "…" : t("tab.send")}
         </button>
       </form>
-      {speech.supported && !speechSecureContext() && <div className="mdt-muted small">Voice needs HTTPS (or localhost).</div>}
+      {speech.supported && !speechSecureContext() && <div className="mdt-muted small">{t("tab.msg.needsHttps")}</div>}
       {speech.error && <div className="mdt-muted small warn">{speech.error}</div>}
       {result?.applied.map((a) => (
         <div key={a.id} className="mdt-muted small ok">
@@ -688,6 +734,8 @@ function TabletConsole({
   night: boolean;
   toggleTheme: () => void;
 }) {
+  const t = useT();
+  const lang = useLang();
   const [detail, setDetail] = useState<VehicleDetail | null>(null);
   const [nav, setNav] = useState<Navigation | null>(null);
   const [toast, setToast] = useState<{ ok: boolean; text: string; n: number } | null>(null);
@@ -702,21 +750,23 @@ function TabletConsole({
       fetchNavigation(world, vehicle.id).then((n) => !stop && setNav(n), () => !stop && setNav(null));
     };
     load();
-    const t = setInterval(load, 3000);
+    const timer = setInterval(load, 3000);
     return () => {
       stop = true;
-      clearInterval(t);
+      clearInterval(timer);
     };
   }, [world, vehicle.id]);
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast((x) => (x?.n === toast.n ? null : x)), toast.ok ? 7000 : 12000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setToast((x) => (x?.n === toast.n ? null : x)), toast.ok ? 7000 : 12000);
+    return () => clearTimeout(timer);
   }, [toast]);
   const notify = (ok: boolean, text: string) => setToast({ ok, text, n: Date.now() });
+  const needsText = (needs: string) => tOr(`tab.needs.${needs}`, needs);
+  const roleText = (role: string) => tOr(`tab.role.${role}`, role);
 
-  const trips = new Map(state.trips.map((t) => [t.id, t]));
+  const trips = new Map(state.trips.map((x) => [x.id, x]));
   const place = (id: string) => state.places.find((p) => p.id === id)?.name ?? id;
   const trip = vehicle.current_trip_id ? trips.get(vehicle.current_trip_id) : undefined;
   const nextTrip = !trip && vehicle.queue[0] ? trips.get(vehicle.queue[0]) : undefined;
@@ -734,18 +784,24 @@ function TabletConsole({
         <strong className="mdt-name">{vehicle.name}</strong>
         <OriginTag v={vehicle} />
         <span className={`mdt-chip st-${vehicle.status}`}>{vehicleStatusText(vehicle, state.trips)}</span>
-        {vehicle.grounded_until && <span className="mdt-chip warn">Grounded by fog until {fmtTime(vehicle.grounded_until)}</span>}
+        {vehicle.grounded_until && <span className="mdt-chip warn">{t("tab.grounded", { time: fmtTime(vehicle.grounded_until) })}</span>}
         <span className="mdt-spacer" />
-        <span className={`mdt-chip ${world}`}>{world === "sim" ? "SIM" : "LIVE"}</span>
+        <span className={`mdt-chip ${world}`}>{world === "sim" ? t("tab.chipSim") : t("tab.chipLive")}</span>
         <span className={`mdt-chip ${connected ? "ok" : "bad"}`}>
-          <i className="dot" /> {connected ? "Online" : "Reconnecting"}
+          <i className="dot" /> {connected ? t("tab.online") : t("tab.reconnecting")}
         </span>
         <span className="mdt-clock">{fmtTime(state.sim_time)}</span>
         <AdminLock variant="tablet" />
-        <button className="mdt-btn icon" onClick={toggleTheme} aria-label={night ? "Day mode" : "Night mode"} title={night ? "Day mode" : "Night mode"}>
+        <LangToggle className="mdt-uilang" />
+        <button
+          className="mdt-btn icon"
+          onClick={toggleTheme}
+          aria-label={night ? t("tab.dayMode") : t("tab.nightMode")}
+          title={night ? t("tab.dayMode") : t("tab.nightMode")}
+        >
           {night ? <Sun /> : <Moon />}
         </button>
-        <Link className="mdt-btn icon" to={`/vehicle?world=${world}`} aria-label="Switch vehicle" title="Switch vehicle">
+        <Link className="mdt-btn icon" to={`/vehicle?world=${world}`} aria-label={t("tab.switchVehicle")} title={t("tab.switchVehicle")}>
           <ArrowLeftRight />
         </Link>
       </header>
@@ -771,19 +827,21 @@ function TabletConsole({
           )}
 
           <section className="mdt-card">
-            <div className="mdt-section-title">{trip ? "Current job" : nextTrip ? "Next job" : "Job"}</div>
+            <div className="mdt-section-title">{trip ? t("tab.currentJob") : nextTrip ? t("tab.nextJob") : t("tab.job")}</div>
             {job ? (
               <div className="mdt-job">
                 <div className="mdt-job-head">
                   <span className="mdt-trip-id">{job.id}</span>
                   <span className="mdt-muted">
                     {vehicle.type === "doctor"
-                      ? `${job.vehicle_id ?? "no ambulance yet"}${job.vehicle_id ? (job.status === "onboard" ? ": patient on board" : `: ${humanize(job.status)}`) : ""}`
+                      ? `${job.vehicle_id ?? t("tab.noAmbulanceYet")}${
+                          job.vehicle_id ? (job.status === "onboard" ? `: ${t("tab.patientOnBoard")}` : `: ${tripStatusLabel(job.status)}`) : ""
+                        }`
                       : job.status === "onboard"
                         ? job.kind === "equipment"
-                          ? "load on board"
-                          : "patient on board"
-                        : humanize(job.status)}
+                          ? t("tab.loadOnBoard")
+                          : t("tab.patientOnBoard")
+                        : tripStatusLabel(job.status)}
                   </span>
                 </div>
                 {vehicle.type === "doctor" && <div className="mdt-job-doctor">{doctorJobLine(vehicle, job, place)}</div>}
@@ -795,6 +853,7 @@ function TabletConsole({
                     </div>
                     {(job.call.text_sl || job.call.text_en) && (
                       <blockquote className="mdt-words">
+                        {/* the caller's own words, then the translation (both kept in either language) */}
                         {job.call.text_sl && <div>»{job.call.text_sl}«</div>}
                         {job.call.text_en && job.call.text_en !== job.call.text_sl && <div className="mdt-muted">{job.call.text_en}</div>}
                       </blockquote>
@@ -811,8 +870,10 @@ function TabletConsole({
                   </div>
                 )}
                 <div className="mdt-job-who">
-                  {job.kind === "equipment" ? `Equipment: ${job.cargo ?? "equipment"}` : `Patient ${job.patient ?? job.label}`}
-                  {job.kind === "patient" && <span className="mdt-needs">{job.needs}</span>}
+                  {job.kind === "equipment"
+                    ? t("tab.equipmentLine", { cargo: job.cargo ?? t("tab.equipment") })
+                    : t("tab.patientLine", { name: job.patient ?? job.label })}
+                  {job.kind === "patient" && <span className="mdt-needs">{needsText(job.needs)}</span>}
                 </div>
                 <div className="mdt-job-route">
                   <span>{place(job.pickup_id)}</span>
@@ -821,13 +882,13 @@ function TabletConsole({
                 </div>
                 <div className="mdt-job-times">
                   <span>
-                    Ready <strong>{fmtTime(job.pickup_after)}</strong>
+                    {t("tab.ready")} <strong>{fmtTime(job.pickup_after)}</strong>
                   </span>
                   <span>
-                    Due <strong>{fmtTime(job.due_by)}</strong>
+                    {t("tab.due")} <strong>{fmtTime(job.due_by)}</strong>
                   </span>
                   <span>
-                    ETA <strong className={(job.delay_min ?? 0) >= 5 ? "late" : ""}>{fmtTime(job.eta_dropoff)}</strong>
+                    {t("tab.eta")} <strong className={(job.delay_min ?? 0) >= 5 ? "late" : ""}>{fmtTime(job.eta_dropoff)}</strong>
                     {(job.delay_min ?? 0) >= 5 && <span className="late"> +{Math.round(job.delay_min ?? 0)}′</span>}
                   </span>
                 </div>
@@ -838,19 +899,19 @@ function TabletConsole({
                 )}
               </div>
             ) : (
-              <div className="mdt-muted">{vehicle.status === "out_of_service" ? "Out of service." : "No job. Standing by for dispatch."}</div>
+              <div className="mdt-muted">{vehicle.status === "out_of_service" ? t("tab.outOfServiceShort") : t("tab.noJob")}</div>
             )}
           </section>
 
           {detail && detail.stops.length > 0 && (
             <section className="mdt-card">
-              <div className="mdt-section-title">Next stops</div>
+              <div className="mdt-section-title">{t("tab.nextStops")}</div>
               <ol className="mdt-stops">
                 {detail.stops.slice(0, 6).map((s, i) => (
                   <li key={i} className={(s.delay_min ?? 0) >= 5 ? "late" : ""}>
                     <span className={`mdt-stop-num stop-${s.kind}`}>{s.kind === "base" ? <House /> : i + 1}</span>
                     <span className="mdt-stop-place">
-                      {s.kind === "pickup" ? "Pick up" : s.kind === "dropoff" ? "Drop off" : "Base"} · {s.place}
+                      {s.kind === "pickup" ? t("tab.stop.pickup") : s.kind === "dropoff" ? t("tab.stop.dropoff") : t("tab.stop.base")} · {s.place}
                       {s.trip_id && <span className="mdt-muted"> · {s.trip_id}</span>}
                       {s.kind === "pickup" && trips.get(s.trip_id ?? "") && levelOf(trips.get(s.trip_id ?? "")!) !== "routine" && (
                         <>
@@ -858,7 +919,7 @@ function TabletConsole({
                           <SeverityBadge trip={trips.get(s.trip_id ?? "")!} compact />
                         </>
                       )}
-                      {s.kind === "pickup" && s.ready_at && <span className="mdt-muted"> · ready {fmtTime(s.ready_at)}</span>}
+                      {s.kind === "pickup" && s.ready_at && <span className="mdt-muted">{t("tab.stop.ready", { time: fmtTime(s.ready_at) })}</span>}
                     </span>
                     <span className="mdt-stop-eta">{s.eta ? fmtTime(s.eta) : "—"}</span>
                   </li>
@@ -868,22 +929,22 @@ function TabletConsole({
           )}
 
           <section className="mdt-card">
-            <div className="mdt-section-title">Vehicle</div>
+            <div className="mdt-section-title">{t("tab.vehicle")}</div>
             <div className="mdt-fuel">
               <Fuel /> {Math.round(vehicle.fuel_pct)}%
               <div className="mdt-bar">
                 <div className={`mdt-bar-fill ${vehicle.fuel_pct < 10 ? "bad" : vehicle.fuel_pct < 20 ? "warn" : "ok"}`} style={{ width: `${Math.max(2, vehicle.fuel_pct)}%` }} />
               </div>
-              <span className="mdt-muted">{vehicle.km_today.toFixed(1)} km today</span>
+              <span className="mdt-muted">{t("tab.kmToday", { km: fmtNum(vehicle.km_today, 1, lang) })}</span>
             </div>
             <div className="mdt-crew">
               {vehicle.crew.map((c) => (
                 <span key={c.name}>
-                  {c.name.replace(" (fictional)", "")} <span className="mdt-muted">· {c.role}</span>
+                  {c.name.replace(" (fictional)", "")} <span className="mdt-muted">· {roleText(c.role)}</span>
                 </span>
               ))}
             </div>
-            {vehicle.shift_end && <div className="mdt-muted">Shift until {fmtTime(vehicle.shift_end)}</div>}
+            {vehicle.shift_end && <div className="mdt-muted">{t("tab.shiftUntil", { time: fmtTime(vehicle.shift_end) })}</div>}
           </section>
         </div>
 
@@ -894,11 +955,11 @@ function TabletConsole({
       </aside>
 
       {note && (
-        <div className="mdt-note-overlay" role="alertdialog" aria-label="Message from dispatch">
+        <div className="mdt-note-overlay" role="alertdialog" aria-label={t("tab.note.dialog")}>
           <div className="mdt-dispatch">
             <div className="mdt-dispatch-head">
-              <Mail /> Message from dispatch <span className="mdt-muted">· {fmtTime(note.at)}</span>
-              {notes.length > 1 && <span className="mdt-chip">+{notes.length - 1} more</span>}
+              <Mail /> {t("tab.note.dialog")} <span className="mdt-muted">· {fmtTime(note.at)}</span>
+              {notes.length > 1 && <span className="mdt-chip">{t("tab.note.more", { count: notes.length - 1 })}</span>}
             </div>
             <div className="mdt-dispatch-reason">{note.reason}</div>
             <ul className="mdt-dispatch-lines">
@@ -906,20 +967,28 @@ function TabletConsole({
                 <li key={i}>{l}</li>
               ))}
             </ul>
-            {note.crew.map((c, i) => (
-              <div key={i} className="mdt-dispatch-crew">
-                <div>
+            {/* the crew message in both languages, the UI language first */}
+            {note.crew.map((c, i) => {
+              const sl = (
+                <div key="sl" className={lang === "sl" ? undefined : "mdt-muted"}>
                   <span className="lang-tag">SL</span>
                   {c.sl}
                 </div>
-                <div className="mdt-muted">
+              );
+              const en = (
+                <div key="en" className={lang === "sl" ? "mdt-muted" : undefined}>
                   <span className="lang-tag">EN</span>
                   {c.en}
                 </div>
-              </div>
-            ))}
+              );
+              return (
+                <div key={i} className="mdt-dispatch-crew">
+                  {lang === "sl" ? [sl, en] : [en, sl]}
+                </div>
+              );
+            })}
             <button className="mdt-btn primary big" onClick={ack}>
-              <Check /> Acknowledge
+              <Check /> {t("tab.note.ack")}
             </button>
           </div>
         </div>

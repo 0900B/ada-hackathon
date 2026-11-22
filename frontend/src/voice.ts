@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { t as tx } from "./i18n";
 
 /**
  * Voice input over the browser's Web Speech API (Chrome / Edge; Safari partly).
@@ -80,19 +81,17 @@ function errorText(code: string): string | null {
       return null; // we stopped it ourselves
     case "not-allowed":
     case "service-not-allowed":
-      return speechSecureContext()
-        ? "Microphone permission denied. Allow the mic for this site (icon in the address bar) and try again."
-        : "Voice input needs HTTPS (or localhost). Open the https:// address of the app.";
+      return speechSecureContext() ? tx("ai.voice.denied") : tx("ai.voice.https");
     case "no-speech":
-      return "No speech heard. Try again and speak right after pressing the mic.";
+      return tx("ai.voice.noSpeech");
     case "audio-capture":
-      return "No microphone found.";
+      return tx("ai.voice.noMic");
     case "network":
-      return "Speech service unreachable. The browser needs internet for voice input.";
+      return tx("ai.voice.network");
     case "language-not-supported":
-      return "This browser can't recognise this language. Switch SL/EN or type the message.";
+      return tx("ai.voice.lang");
     default:
-      return `Voice input error: ${code}`;
+      return tx("ai.voice.other", { code });
   }
 }
 
@@ -144,7 +143,7 @@ export function useSpeechInput(opts?: { lang?: string; onFinal?: (text: string) 
   const start = useCallback(() => {
     const Ctor = recognizerCtor();
     if (!Ctor) {
-      setError("Voice input needs Chrome or Edge.");
+      setError(tx("ai.fm.needsChrome"));
       return;
     }
     if (recRef.current) return; // a session is already running
