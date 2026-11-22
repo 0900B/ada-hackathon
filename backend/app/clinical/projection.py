@@ -133,6 +133,18 @@ def _problem_type(live: list[ClinicalEntry]) -> str | None:
     return "other"
 
 
+def _implausible(metric: str, value: float, entry: ClinicalEntry) -> bool:
+    """Whether this one value lies outside its physically possible range (inclusive bounds).
+
+    Judged per metric, not by the entry's own flag: that flag is set when ANY metric in the entry is
+    out of range, so it would also mark a plausible, dangerous value from the same reading as "check this".
+    A metric with no range in the table keeps the entry's flag."""
+    bounds = config.PLAUSIBLE.get(metric)
+    if bounds is None:
+        return entry.needs_check
+    return not bounds[0] <= value <= bounds[1]
+
+
 def _vitals(state: WorldState, live: list[ClinicalEntry]) -> dict[str, dict[str, Any]]:
     """The latest reading of each metric. A partial entry only replaces the metrics it carries."""
     latest: dict[str, ClinicalEntry] = {}
@@ -147,7 +159,7 @@ def _vitals(state: WorldState, live: list[ClinicalEntry]) -> dict[str, dict[str,
             "value": e.content[metric],  # shown exactly as entered, implausible or not
             "age_min": round((state.sim_time - _observed(e)).total_seconds() / 60, 1),
             "state": e.state,
-            "needs_check": e.needs_check,  # as flagged when the entry was stored
+            "needs_check": _implausible(metric, e.content[metric], e),  # this value only, not the whole entry
             "seq": e.seq,
         }
         for metric, e in latest.items()

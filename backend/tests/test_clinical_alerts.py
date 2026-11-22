@@ -211,11 +211,49 @@ def test_a_corrected_reading_stops_the_vitals_alert_and_a_flagged_one_never_hide
     assert "vitals_out_of_limits" in rules_of(w, t)
     rec(w, t, content={"spo2": 95}, supersedes=wrong.entry_id)
     assert "vitals_out_of_limits" not in rules_of(w, t)
-    rec(w, t, content={"spo2": 140})  # needs a check: no alarm of its own ...
-    assert "vitals_out_of_limits" not in rules_of(w, t)
-    rec(w, t, content={"hr": 200})  # ... and it does not hide a plausible, dangerous value measured separately
+    rec(w, t, content={"spo2": 140, "hr": 200})  # ONE reading: spo2 needs a check, hr is plausible and dangerous
     message = alert(w, t, "vitals_out_of_limits")["message"]
     assert "hr 200" in message and "spo2" not in message
+    vitals = card_of(w, t)["vitals"]
+    assert vitals["spo2"]["needs_check"] is True and vitals["hr"]["needs_check"] is False
+
+
+def test_one_implausible_value_does_not_hide_a_real_one_in_the_same_reading():  # ruling R11: judged per metric
+    w = fresh_world()
+    t = er_trip(w)
+    rec(w, t, content={"hr": 200, "spo2": 140})
+    a = alert(w, t, "vitals_out_of_limits")
+    assert "hr 200" in a["message"] and "spo2" not in a["message"] and a["severity"] == "high"
+    vitals = card_of(w, t)["vitals"]
+    assert vitals["spo2"]["value"] == 140 and vitals["spo2"]["needs_check"] is True  # kept as entered, flagged
+    assert vitals["hr"]["value"] == 200 and vitals["hr"]["needs_check"] is False  # judged on its own
+    assert set(vitals["hr"]) == {"value", "age_min", "state", "needs_check", "seq"}
+
+    only = er_trip(w, pickup="home_vic")
+    rec(w, only, content={"hr": 80, "spo2": 140})  # the implausible one alone never raises a clinical alert
+    assert "vitals_out_of_limits" not in rules_of(w, only)
+    assert card_of(w, only)["vitals"]["hr"]["needs_check"] is False
+
+
+def test_plausibility_is_inclusive_at_each_bound_and_flags_just_outside():
+    w = fresh_world()
+    inside, outside = er_trip(w), er_trip(w, pickup="home_vic")
+    at_the_bounds = {"spo2": 100, "gcs": 3, "hr": 0, "sbp": 300, "temp_c": 25}  # each exactly on a PLAUSIBLE bound
+    for metric, value in at_the_bounds.items():
+        assert value in config.PLAUSIBLE[metric]
+    rec(w, inside, content=at_the_bounds)
+    assert not any(r["needs_check"] for r in card_of(w, inside)["vitals"].values())
+    just_outside = {"spo2": 100.5, "gcs": 2, "hr": -1, "sbp": 301, "temp_c": 24.9}
+    for metric, value in just_outside.items():
+        assert not config.PLAUSIBLE[metric][0] <= value <= config.PLAUSIBLE[metric][1]
+        rec(w, outside, content={metric: value})
+    flagged = {m: r["needs_check"] for m, r in card_of(w, outside)["vitals"].items()}
+    assert flagged == {m: True for m in just_outside}
+
+    mixed = er_trip(w, pickup="home_siska")
+    rec(w, mixed, content={"spo2": 100, "gcs": 2})  # one reading: the metric on its bound is fine, the one outside is flagged
+    v = card_of(w, mixed)["vitals"]
+    assert v["spo2"]["needs_check"] is False and v["gcs"]["needs_check"] is True
 
 
 # --- Arrival, acknowledgement, handover --------------------------------------------------------
