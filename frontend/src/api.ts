@@ -37,6 +37,9 @@ export interface Vehicle {
   current_trip_id: string | null;
   queue: string[];
   busy_until: string | null;
+  // Why busy_until is set: turnout (crew to the vehicle: normal, shown neutrally), on_scene, handover
+  // (handover and cleaning), delay (held up: shown as held). Absent on older backends.
+  busy_reason?: "turnout" | "on_scene" | "handover" | "delay" | null;
   grounded_until?: string | null; // helicopters: grounded by fog until then (no new flights)
   // Helicopter (HNMP, daytime only; backend app/hems.py): off duty at night until then (no new calls)
   off_duty_until?: string | null;
@@ -285,7 +288,14 @@ export interface AgentRun {
     executed?: string[]; // what each step did as applied (same wording as step_details[].text)
   } | null;
   usage: Record<string, number>;
+  // Set for the AI dispatcher's review of one case (the trip reviewed): shown on that case's card,
+  // never as the "Situation review" (the general analysis has review_of null).
+  review_of?: string | null;
 }
+
+/** The general analysis shown in "Situation review" (and acted on by A/Y/N): the newest run that is
+ * not a single case's review. Case reviews live on their case cards. */
+export const generalRun = (runs: AgentRun[]): AgentRun | undefined => runs.find((r) => !r.review_of);
 
 export type World = "live" | "sim";
 

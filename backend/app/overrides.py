@@ -414,5 +414,5 @@ def _assign_doctor(state: WorldState, trip: Trip, v, mode: str) -> str:
         text = f"Dispatcher added doctor car {v.id}{when}"
         reason = "added by the dispatcher"
     timeline.log(state, trip, "override", "dispatcher", text, v.id, detail=DETAIL)
-    units.note(state, trip, v.id, f"{reason}: {_mins(at, state.sim_time):.0f} min", "dispatcher")
+    units.note(state, trip, v.id, reason, "dispatcher")  # (its ETA is on the card)
     return text

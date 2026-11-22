@@ -112,8 +112,10 @@ and every breakdown, delay, closure on the unit's route or priority change touch
   changed: A3 instead of A1 — ..." or, when Claude keeps the decision (no steps), "AI dispatcher (Claude)
   reviewed: no change — keep A1 ...". Surge capacity stays the dispatcher's decision.
 - A unit the dispatcher assigned (override or approved plan; `assigned_by: "dispatcher"`) sticks: the
-  follow-up's faster-free-unit rule, the AI dispatcher and the autopilot leave it alone; only a drop-out
-  replaces it.
+  follow-up's faster-free-unit rule, the AI dispatcher and the autopilot leave it alone, and the engine
+  never diverts it to a higher-level call (when it would have, the new call's summary and its unit's
+  reason say "A1 not diverted: assigned by the dispatcher to TR-003 (Override to divert)"); only a
+  drop-out replaces it.
 - `ai_mode: "assisted"` (default): the same reviews only with auto-analyse on; they stay proposals.
 - Guard refused, no key, Claude failed or too slow: the engine's decision stands (timeline note).
   One review per case at a time, none within 2 world-minutes of the last one.

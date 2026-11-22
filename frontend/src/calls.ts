@@ -50,6 +50,7 @@ export interface CallView {
   timeline: TimelineEntry[];
   closedAt: string | null;
   proposal: AgentRun | null; // a pending AI/engine plan that involves this call
+  reviewing: boolean; // the AI dispatcher (Claude) is reviewing this call right now
 }
 
 const BOOKING = new Set(["transfer", "equipment"]);
@@ -139,24 +140,33 @@ function synthTimeline(t: Trip, received: string, place: (id: string) => string)
   return out;
 }
 
-/** A plan waiting for the dispatcher that moves this call (the newest one). */
+/** A plan waiting for the dispatcher that moves this call, or the AI dispatcher's review of this call
+ * that proposes a change (the newest one). */
 function pendingProposal(t: Trip, runs: AgentRun[]): AgentRun | null {
   for (const run of runs) {
     if (run.status !== "done" || !run.recommendation) continue;
     const rec = run.recommendation;
     const opt = rec.options[rec.recommended_index];
-    if (opt && opt.feasible !== false && opt.steps.some((s) => s.trip_id === t.id)) return run;
+    if (opt && opt.feasible !== false && opt.steps.length > 0 && (run.review_of === t.id || opt.steps.some((s) => s.trip_id === t.id)))
+      return run;
   }
   return null;
 }
 
-/** "Dispatched A1 (nearest free ambulance): at the patient 14:09" -> "Nearest free ambulance · at the patient 14:09". */
+/** A unit's reason from its timeline entry (calls without `units`): "Dispatched A1 (nearest free ambulance): at the
+ * patient 14:09" -> "Nearest free ambulance". No time: the unit's live ETA is shown next to it, and the time estimated
+ * at the decision would soon disagree with it (e.g. once the road route is known). */
 export function shortReason(text: string): string {
-  const m = /^(?:Dispatched|Re-evaluated: dispatched|Placed on)\s+\S+\s+\(([^)]+)\)(?::\s*(.*))?$/i.exec(text.trim());
-  if (!m) return text;
-  const why = m[1][0].toUpperCase() + m[1].slice(1);
-  const when = m[2] ? m[2].replace(/\s*\(in \d+ min\)/, "").split(",")[0] : "";
-  return when ? `${why} · ${when}` : why;
+  const s = text.trim();
+  const m = /^(?:Dispatched|Re-evaluated: dispatched|Placed on)\s+\S+\s+\(/i.exec(s);
+  if (m) {
+    let depth = 1;
+    let i = m[0].length;
+    for (; i < s.length && depth > 0; i++) depth += s[i] === "(" ? 1 : s[i] === ")" ? -1 : 0;
+    const why = depth === 0 ? s.slice(m[0].length, i - 1) : "";
+    if (why) return why[0].toUpperCase() + why.slice(1);
+  }
+  return s.replace(/:\s*at (?:the patient|the pickup) \d{1,2}:\d{2}\b.*$/i, ""); // "Reassigned from H1 to A3: at the patient 11:52"
 }
 
 const mins = (a: number, b: number) => (a - b) / 60_000;
@@ -288,6 +298,7 @@ export function callView(t: Trip, state: WorldSnapshot): CallView {
     timeline,
     closedAt: t.status === "completed" || t.status === "cancelled" ? (closedEntry?.at ?? t.eta_dropoff ?? null) : null,
     proposal: pendingProposal(t, state.agent.runs),
+    reviewing: state.agent.runs.some((r) => r.status === "running" && r.review_of === t.id),
   };
 }
 

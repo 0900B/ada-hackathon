@@ -64,6 +64,10 @@ class Vehicle(BaseModel):
     current_trip_id: str | None = None
     queue: list[str] = Field(default_factory=list)  # upcoming trip ids, in order
     busy_until: datetime | None = None  # loading/unloading, or stuck after an injected delay
+    # Why busy_until is set (the UI shows a normal turnout neutrally, a delay as held): turnout (crew to
+    # the vehicle, or the helicopter's activation), on_scene, handover (handover and cleaning), delay.
+    # None when unknown (older states) or not busy.
+    busy_reason: Literal["turnout", "on_scene", "handover", "delay"] | None = None
     # Set by the simulator while the vehicle stands at its next pickup before the patient (or cargo)
     # is ready: it waits there until this time. None when it is not waiting.
     waiting_until: datetime | None = None

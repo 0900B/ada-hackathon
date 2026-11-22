@@ -14,7 +14,7 @@ from .agent.context import hhmm
 from .audit import AUDIT
 from .engine import surge, timeline, units
 from .engine.actions import ActionError
-from .engine.plans import apply_plan, simulate_plan, stale_reasons
+from .engine.plans import apply_plan, simulate_plan, simulate_steps, stale_reasons
 from .engine.projection import DONE, project_all
 from .models import AgentRun, Plan, utcnow
 
@@ -43,6 +43,21 @@ def _out_of_date(state: WorldState, run: AgentRun, why: str, restart: bool) -> A
     return ApprovalError(409, why + tail)
 
 
+def _diverts_held(state: WorldState, plan: Plan) -> str | None:
+    """Why the plan may not be applied automatically: it turns a unit away from the call the dispatcher
+    gave it by hand (e.g. diverts it to another call). None if it doesn't."""
+    sim, errors, _ = simulate_steps(state, plan)
+    if errors:
+        return None  # refused below anyway, with the engine's own reason
+    for v in state.vehicles.values():
+        cur = state.trips.get(v.current_trip_id) if v.current_trip_id else None
+        if cur is None or cur.status == "onboard" or not units.held(cur, v.id):
+            continue
+        if v.id in sim.vehicles and sim.vehicles[v.id].current_trip_id != cur.id:
+            return f"the dispatcher assigned {v.id} to {cur.id} by hand: their decision stands"
+    return None
+
+
 WHO = {"autopilot": "Autopilot", "ai": "AI dispatcher (Claude)", "dispatcher": "Operator"}
 ACTOR = {"autopilot": "engine", "ai": "ai", "dispatcher": "dispatcher"}  # the timeline's `by`
 
@@ -65,6 +80,8 @@ def approve(
             t = state.trips.get(s.trip_id)
             if t is not None and t.vehicle_id and t.vehicle_id != s.vehicle_id and units.held(t):
                 raise ApprovalError(409, f"the dispatcher assigned {t.vehicle_id} to {t.id} by hand: their decision stands")
+        if option.steps and (why := _diverts_held(state, Plan(steps=option.steps))):
+            raise ApprovalError(409, why)
     tracker = timeline.Tracker(state)
     applied_event = None
     executed: list[str] = []

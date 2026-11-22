@@ -32,6 +32,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app import config, demo, main  # noqa: E402
 from app.agent import runner  # noqa: E402
 from app.agent.messages import ParsedMessage, grade_text, to_operator_events  # noqa: E402
+from app.engine import units  # noqa: E402
 from app.engine.actions import ActionError, assign_trip  # noqa: E402
 from app.engine.dispatch import decide, swap_options  # noqa: E402
 from app.engine.events import apply_event  # noqa: E402
@@ -448,6 +449,22 @@ def test_frontend_contract_codes_summary_and_severity_change():
     # The backend's own missed-target alert carries trip_id and a "response" kind.
     demo.prepare(W, "surge")
     assert all(a.trip_id and "response" in a.kind for a in W.alerts if a.kind == "red_response_over_15_min")
+
+
+def test_raising_a_call_keeps_the_unit_the_dispatcher_chose():
+    """The same re-evaluation, but the dispatcher put A3 on the call by hand: it stays with A3 (their
+    decision is never changed automatically; Override changes it)."""
+    fresh(("A3", "H1"))
+    park("A3", "home_vrhnika")
+    lat, lon = near("home_siska")
+    rec = client.post("/sim/events", json={"type": "urgent_request", "lat": lat, "lon": lon, "priority": "emergency",
+                                           "severity": "serious", "condition": "stemi"}).json()
+    t = W.trips[rec["affected_trip_ids"][0]]
+    assert t.vehicle_id == "A3"
+    units.note(W, t, "A3", "dispatcher override: free", "dispatcher")  # as app/overrides.assign writes it
+    r = client.post("/sim/events", json={"type": "priority_change", "trip_id": t.id, "severity": "critical", "condition": "cardiac_arrest"})
+    assert r.status_code == 200 and t.severity == "critical", r.text
+    assert t.vehicle_id == "A3" and "re-evaluated" not in r.json()["summary"], r.json()["summary"]
 
 
 if __name__ == "__main__":

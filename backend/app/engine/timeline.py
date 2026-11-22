@@ -90,12 +90,32 @@ def clause(summary: str | None, *starts: str) -> str | None:
     starts with one of these words, capitalised; None if there is none."""
     if not summary:
         return None
-    for part in summary.split("; "):
+    for part in _clauses(summary):
         p = part.strip()
         for s in starts:
             if p.startswith(s):
                 return p[:1].upper() + p[1:]
     return None
+
+
+def _clauses(summary: str) -> list[str]:
+    """The summary split at "; ", but not inside parentheses: "dispatched H1 (helicopter, ...; take-off in
+    13 min): at the patient 11:20" stays one clause."""
+    out, depth, start, i = [], 0, 0, 0
+    while i < len(summary):
+        ch = summary[i]
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+        elif depth == 0 and summary.startswith("; ", i):
+            out.append(summary[start:i])
+            start = i + 2
+            i += 2
+            continue
+        i += 1
+    out.append(summary[start:])
+    return out
 
 
 def _who(trip: Trip) -> str:

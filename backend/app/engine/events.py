@@ -290,6 +290,7 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str], call: Call
         v = _vehicle(state, ev.vehicle_id)
         start = max(state.sim_time, v.busy_until or state.sim_time)
         v.busy_until = start + timedelta(minutes=ev.minutes)
+        v.busy_reason = "delay"
         return f"{v.name} delayed by {ev.minutes:.0f} min" + (f" ({ev.note})" if ev.note else "")
 
     if isinstance(ev, RoadClosureEvent):
@@ -645,8 +646,9 @@ def _priority_change(state: WorldState, ev: PriorityChangeEvent, affected: list[
             detach_trip(state, trip)
             trip.status = "unassigned"
             parts.append(f"released from {v.id} ({why})")
-        elif ev_priority == "emergency" and raised and _better_unit(state, trip, v):
-            # Raised to a level where another unit should go (doctrine rules 1, 2, 6): re-dispatch.
+        elif ev_priority == "emergency" and raised and not units.held(trip, v.id) and _better_unit(state, trip, v):
+            # Raised to a level where another unit should go (doctrine rules 1, 2, 6): re-dispatch, unless
+            # the dispatcher chose this unit by hand (their decision stands; Override changes it).
             detach_trip(state, trip)
             trip.status = "unassigned"
             parts.append("re-evaluated" + dispatch_call(state, trip).replace("; dispatched", ": dispatched", 1))

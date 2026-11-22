@@ -284,9 +284,10 @@ if that unit drops out (breakdown, fog) does the engine replace it at once, and 
 is followed up as usual.
 
 **Why each unit**: every call's `units` (snapshot) name the transporting unit, the doctor car and any
-linked unit with one line of reason written where the decision was made ("nearest free ambulance,
-4 min", "available soon: finishes at UKC Ljubljana, 12 min sooner than A2", "doctor needed for cardiac
-arrest: first doctor car on scene, 6 min", "dispatcher override (was A3): ...") and who decided
+linked unit with one line of reason written where the decision was made ("nearest free ambulance",
+"available soon: finishes at UKC Ljubljana, 12 min sooner than A2", "doctor needed for cardiac
+arrest: first doctor car on scene", "dispatcher override (was A3): ..."; no minutes to the patient: the
+unit's live ETA is shown next to it) and who decided
 (`engine`, `ai`, `dispatcher`). `ai_stats` counts the decisions since the reset: calls active, units
 dispatched, reroutes, reassignments, dispatcher overrides, Claude's reviews and the changes applied.
 

@@ -145,7 +145,7 @@ def _faster_free_unit(state: WorldState, trip: Trip) -> tuple[str, str] | None:
     trip.dispatched_at = state.sim_time
     who = "the patient" if trip.kind == "patient" else "the pickup"
     why = " (delayed)" if v.busy_until and v.busy_until > state.sim_time else ""
-    units.note(state, trip, best["vehicle_id"], f"free and {gain:.0f} min sooner than {v.id}{why}, {best['pickup_in_min']:.0f} min")
+    units.note(state, trip, best["vehicle_id"], f"free and {gain:.0f} min sooner than {v.id}{why}")  # (its ETA is on the card)
     text = (f"{best['vehicle_id']} is free and {gain:.0f} min sooner than {v.id}{why}: switched, at {who} "
             f"{timeline.hhmm(reach)}; {v.id} released")
     return v.id, text

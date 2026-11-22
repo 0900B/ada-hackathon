@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Bot, ChevronDown, ChevronRight, MessageSquare, PhoneIncoming, ScanSearch } from "lucide-react";
-import { apiCaps, setAiMode, setAiTriage, setAutopilot, type AiMode, type Trip, type WorldSnapshot } from "./api";
+import { apiCaps, generalRun, setAiMode, setAiTriage, setAutopilot, type AiMode, type Trip, type WorldSnapshot } from "./api";
 import { AgentPanel, type AgentKeys } from "./AgentPanel";
 import { aiStatsOf, callsOf, type CallView } from "./calls";
 import { CaseCard } from "./CaseCard";
@@ -328,7 +328,7 @@ function AiStatus({ state }: { state: WorldSnapshot }) {
 /** The general analysis in one line, for the folded "Situation review". */
 function ReviewSummary({ state }: { state: WorldSnapshot }) {
   const t = useT();
-  const run = state.agent.runs[0];
+  const run = generalRun(state.agent.runs);
   const rec = run?.recommendation;
   let text: string;
   let tone = "";

@@ -370,10 +370,14 @@ def test_units_say_why_each_unit_was_chosen():
     snap = next(x for x in client.get("/sim/state").json()["trips"] if x["id"] == t.id)
     amb, doc = snap["units"]
     assert amb["vehicle_id"] == t.vehicle_id and amb["role"] == "ambulance" and amb["assigned_by"] == "engine"
-    assert amb["reason"].startswith("nearest free ambulance, ") and amb["reason"].endswith(" min"), amb
+    # No minutes in the reason: the card shows the unit's live ETA (eta_scene) next to it, and a number
+    # written at dispatch would disagree with it once the road route is known.
+    assert amb["reason"] == "nearest free ambulance", amb
     assert amb["status_text"] in ("turning out", "about to leave", "driving to the patient") and amb["eta_scene"] and amb["eta_hospital"]
     assert doc["vehicle_id"] == t.doctor_vehicle_id and doc["role"] == "doctor" and doc["eta_hospital"] is None
-    assert doc["reason"].startswith("doctor needed for cardiac arrest: first doctor car on scene"), doc
+    assert doc["reason"] == "doctor needed for cardiac arrest: first doctor car on scene", doc
+    # The timeline keeps the estimate made at dispatch, as a record ("at the patient 09:05 (in 5 min)").
+    assert last(t, "dispatched").text.startswith(f"Dispatched {t.vehicle_id} (nearest free ambulance): at the patient ")
     assert set(amb) >= {"vehicle_id", "role", "status_text", "eta_scene", "eta_hospital", "reason", "assigned_by", "assigned_at"}
     # The helicopter: one unit, with its doctor on board.
     fresh()
@@ -382,6 +386,9 @@ def test_units_say_why_each_unit_was_chosen():
     assert h.vehicle_id == "H1" and h.doctor_vehicle_id == "H1"
     (u,) = next(x for x in W.snapshot()["trips"] if x["id"] == h.id)["units"]
     assert u["role"] == "helicopter" and u["reason"].startswith("helicopter") and "doctor on board" in u["reason"], u
+    # Its timeline entry is the whole dispatch clause, though it has "; " inside its parentheses.
+    e = last(h, "dispatched")
+    assert e.text.startswith("Dispatched H1 (helicopter") and "take-off in " in e.text and "): at the patient " in e.text, e.text
     # Available soon: A1 finishing at UKC is clearly sooner than a free A3 far away.
     fresh(("A1", "A3"))
     _, x = call112("serious", "breathing_difficulty", place_id="home_bezigrad")
@@ -574,6 +581,68 @@ def test_a_dispatcher_override_sticks_until_the_unit_drops_out():
     r = client.post(f"/sim/trips/{lone.id}/assign", json={"vehicle_id": "A2", "mode": "replace", "role": "ambulance"})
     assert r.status_code == 200 and lone.vehicle_id == "A2" and r.json()["summary"].startswith("Dispatcher assigned A2"), r.text
     assert last(lone, "override").by == "dispatcher"
+
+
+def test_a_unit_the_dispatcher_assigned_is_never_diverted_automatically():
+    """A cardiac arrest right next to A1 would divert A1 from its urgent fall (the graded dispatch rule,
+    test_emergency_dispatch case c). When the dispatcher put A1 on that fall by hand, the engine sends
+    another unit and says why (the summary and the chosen unit's reason); Claude (autonomous) may not
+    divert it either; the dispatcher still can, with Override."""
+    fresh(("D1", "D2"))
+    _, fall = call112("urgent", "fall", place_id="home_polje")
+    assert fall.vehicle_id is None  # no ambulance in service yet: the dispatcher assigns one by hand
+    for vid in ("A1", "A3"):
+        W.vehicles[vid].status = "idle"
+    park("A3", "home_medvode", "idle")
+    r = client.post(f"/sim/trips/{fall.id}/assign", json={"vehicle_id": "A1", "mode": "replace", "role": "ambulance"})
+    assert r.status_code == 200 and fall.vehicle_id == "A1", r.text
+    run(2)
+    a1 = W.vehicles["A1"]
+    assert a1.current_trip_id == fall.id and fall.status == "en_route_pickup"
+    W.ai_mode = "autonomous"
+    fake = FakeClaude(lambda kw: change(holder["trip"].id, "A1", "Divert A1"))
+    holder: dict = {}
+
+    async def go():
+        holder["rec"], holder["trip"] = call112("critical", "cardiac_arrest", lat=round(a1.lat + 0.003, 5), lon=round(a1.lon + 0.004, 5))
+        main.ai_dispatcher.on_new_call(W, holder["rec"])
+        await settle()
+
+    with claude_on(fake):
+        asyncio.run(go())
+    rec, t = holder["rec"], holder["trip"]
+    assert t.vehicle_id not in (None, "A1") and "diverted from" not in rec.summary, rec.summary
+    note = f"A1 not diverted: assigned by the dispatcher to {fall.id} (Override to divert)"
+    assert f"; {note}" in rec.summary, rec.summary
+    assert unit(t, t.vehicle_id)["reason"].endswith(f"; {note}"), unit(t, t.vehicle_id)
+    assert a1.current_trip_id == fall.id and fall.vehicle_id == "A1" and fall.times_displaced == 0
+    # Claude wanted A1 for the arrest: refused, the dispatcher's decision stands.
+    assert fake.requests and t.vehicle_id != "A1"
+    refused = last(t, "note")
+    assert refused is not None and "not applied" in refused.text and f"assigned A1 to {fall.id} by hand" in refused.text, kinds(t)
+    # The dispatcher diverts it by hand: Override.
+    r = client.post(f"/sim/trips/{t.id}/assign", json={"vehicle_id": "A1", "mode": "replace"})
+    assert r.status_code == 200 and t.vehicle_id == "A1" and f"diverts {fall.id}" in r.json()["summary"], r.text
+
+
+def test_the_general_analysis_stays_in_the_snapshot_next_to_case_reviews():
+    """agent.runs (newest first, the last 5) always carries the newest general analysis (review_of None),
+    even after more case reviews: the dashboard's Situation review shows that one (Y/N act on it), and
+    each review shows on its own case card (review_of = the trip)."""
+    from app.models import AgentRun, utcnow
+
+    fresh()
+    W.agent_runs.append(AgentRun(id="RUN-G", trigger="operator", started_at=utcnow(), status="done"))
+    for i in range(6):
+        W.agent_runs.append(AgentRun(id=f"RUN-R{i}", trigger=f"review:TR-00{i}", started_at=utcnow(), status="done",
+                                     review_of=f"TR-00{i}"))
+    W.bump()
+    runs = client.get("/sim/state").json()["agent"]["runs"]
+    assert [r["id"] for r in runs] == ["RUN-R5", "RUN-R4", "RUN-R3", "RUN-R2", "RUN-R1", "RUN-G"], [r["id"] for r in runs]
+    assert runs[0]["review_of"] == "TR-005" and runs[-1]["review_of"] is None
+    W.agent_runs.append(AgentRun(id="RUN-G2", trigger="operator", started_at=utcnow()))
+    W.bump()
+    assert [r["id"] for r in client.get("/sim/state").json()["agent"]["runs"]] == ["RUN-G2", "RUN-R5", "RUN-R4", "RUN-R3", "RUN-R2"]
 
 
 # --- ai_stats, modes, detail -----------------------------------------------------------------------

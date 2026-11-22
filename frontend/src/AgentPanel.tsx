@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import {
   analyzeNow,
   approveOption,
+  generalRun,
   idSeq,
   rejectRun,
   SCENARIOS,
@@ -399,7 +400,7 @@ export function AgentPanel({
   const seen = useRef(new Map<string, { sawRunning?: boolean; sawUndecided?: boolean; doneSim?: number; decidedAt?: number }>());
 
   const { enabled, model, runs } = state.agent;
-  const run = runs[0];
+  const run = generalRun(runs); // case reviews (review_of set) stay on their case cards
   const rec = run?.recommendation ?? null;
   const simNow = Date.parse(state.sim_time);
   const now = Date.now();
