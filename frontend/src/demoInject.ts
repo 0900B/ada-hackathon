@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { controlFetch } from "./adminKey";
 import { API_URL, MissingEndpoint, type EventRecord, type Trip } from "./api";
-import { t } from "./i18n";
+import { getLang, t, type TKey } from "./i18n";
 import { LEVEL_LABEL } from "./severity";
 
 export { MissingEndpoint };
@@ -40,14 +40,39 @@ export const FAILURES: readonly { value: string; label: string }[] = [
 
 /** "Choose unit…" (the targeted failure): what can be aimed at one unit (fog and a full hospital are global). */
 export const TARGET_ENTRY = "__unit";
-export const TARGET_KINDS: readonly { value: string; label: () => string; equipmentOnly?: boolean }[] = [
+export const TARGET_KINDS: readonly { value: string; label: () => string; equipmentOnly?: boolean; road?: boolean }[] = [
   { value: "breakdown", label: () => t("dash.demo.breakdown") },
   { value: "delay", label: () => t("dash.target.delay") },
-  { value: "crash", label: () => t("dash.target.crash") },
-  { value: "closure", label: () => t("dash.target.closure") },
-  { value: "jam", label: () => t("dash.target.jam") },
+  { value: "crash", label: () => t("dash.target.crash"), road: true }, // road: ahead on the unit's route (needs it driving)
+  { value: "closure", label: () => t("dash.target.closure"), road: true },
+  { value: "jam", label: () => t("dash.target.jam"), road: true },
   { value: "equipment", label: () => t("dash.demo.equipment"), equipmentOnly: true },
 ];
+
+/** The backend's 409 reasons for "Choose unit…" are English; in the Slovenian UI the known ones are translated. */
+export function targetErrorText(message: string): string {
+  if (getLang() !== "sl") return message;
+  const no = /^No (\w+) possible for (\S+): it (.+)$/.exec(message);
+  if (no) {
+    const why = no[3];
+    const reason: TKey | null = why.startsWith("is not driving a leg")
+      ? "dash.target.errShortLeg"
+      : why.startsWith("is not on its way")
+        ? "dash.target.errBreakdown"
+        : why === "is not on a job"
+          ? "dash.target.errNoJob"
+          : why.startsWith("is not a van")
+            ? "dash.target.errNoVan"
+            : null;
+    const kind = ({ breakdown: "dash.demo.breakdown", delay: "dash.target.delay", crash: "dash.target.crash", closure: "dash.target.closure", jam: "dash.target.jam", equipment: "dash.demo.equipment" } as Record<string, TKey>)[no[1]];
+    if (reason && kind) return t("dash.target.errNo", { kind: t(kind), id: no[2], why: t(reason) });
+  }
+  const out = /^(\S+) is out of service$/.exec(message);
+  if (out) return t("dash.target.errOut", { id: out[1] });
+  const turn = /^(\S+) is still turning out/.exec(message);
+  if (turn) return t("dash.target.errTurnout", { id: turn[1] });
+  return message;
+}
 
 export interface DemoApi {
   call: boolean; // POST /sim/admin/random-call exists

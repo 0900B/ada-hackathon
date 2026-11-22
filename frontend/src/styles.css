@@ -4186,8 +4186,21 @@ button.link.tl-unit {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   font-size: 12px;
   white-space: normal;
+  display: flex;
+  flex-direction: column;
+}
+.target-pop.up {
+  top: auto;
+  bottom: 100%;
+  margin: 0 0 4px;
+}
+.target-body {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 .target-head {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -4214,8 +4227,11 @@ button.link.tl-unit {
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 168px;
+  max-height: 184px;
   overflow-y: auto;
+}
+.target-pop:focus {
+  outline: none;
 }
 .target-units button {
   display: block;
@@ -4225,10 +4241,18 @@ button.link.tl-unit {
   margin-bottom: 2px;
   font-size: 12px;
   min-height: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   background: transparent;
+}
+.target-units button b,
+.target-units button span {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.target-units button span {
+  color: var(--text-2);
+  font-size: 11px;
 }
 .target-units button.on,
 .target-kinds button.on {
@@ -4246,7 +4270,33 @@ button.link.tl-unit {
   padding: 3px 7px;
   min-height: 0;
 }
+.target-kinds button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.target-why {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  color: var(--text-2);
+  font-size: 11px;
+  line-height: 1.35;
+}
+.target-why li + li {
+  margin-top: 2px;
+}
+.target-err {
+  flex: none;
+  margin: 8px 0 0;
+  padding: 5px 8px;
+  border-left: 3px solid var(--crit);
+  background: rgba(242, 85, 90, 0.1);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.35;
+}
 .target-actions {
+  flex: none;
   display: flex;
   justify-content: flex-end;
   gap: 6px;
