@@ -34,15 +34,17 @@ each answer says where, so you can open the page if a juror digs.
 > When something goes wrong, a vehicle breaks down, a road closes, fog grounds the helicopter, calls pile up, the
 > dispatcher has to work out under pressure who is affected, who takes over, and what that does to everyone else.
 > Plan B does that work: it simulates the knock-on effects and puts two or three complete plans in front of the
-> dispatcher, each with real numbers, to approve with one key. In our demo script that takes about 30 seconds from a
-> crew's spoken message; the hard limit is 60 seconds, after which the engine's own plan appears.
+> dispatcher, each with real numbers, to approve with one key. In our rehearsals on the deployed system that took about
+> 15 seconds from a crew's spoken message to the options; the hard limit is 60 seconds, after which the engine's own
+> plan appears.
 
-*Proof:* [CHALLENGE.md](CHALLENGE.md) (part 2, plan repair), [DEMO.md](../DEMO.md). The 30 seconds is the demo
-script's figure, not a measured average. The 60 s deadline is `AGENT_TIMEOUT_S` in [config.py](../backend/app/config.py).
+*Proof:* [CHALLENGE.md](CHALLENGE.md) (part 2, plan repair), [DEMO.md](../DEMO.md). The 15 seconds comes from our
+rehearsals on 21 November (13.8 s from the crew's report to the options with Auto-analyse on; an analysis took 11 to 16 s):
+a handful of runs, not an average. The 60 s deadline is `AGENT_TIMEOUT_S` in [config.py](../backend/app/config.py).
 
 ### Q2. Who actually uses it, and how?
-> Three groups. The dispatcher at the operator's desk sees the map, the alerts and the options, and approves with one
-> key. The crew uses a phone: they hold a button and speak Slovenian, or type, or tap one of five quick-status
+> Three groups. The dispatcher at the operator's desk sees the map, the case list with the AI dispatcher's decisions
+> and the options, approves with one key, and can replace any unit by hand. The crew uses a phone: they hold a button and speak Slovenian, or type, or tap one of five quick-status
 > buttons, and then see the approved plan. Hospitals and affected patients get notification drafts in Slovenian and
 > English that the dispatcher decides to send; the prototype drafts them, it does not send SMS or e-mail yet.
 
@@ -69,7 +71,9 @@ We have not verified what private transport providers use today.
 
 *Proof:* [DEMO.md](../DEMO.md) (intro), [AGENTIC_DISPATCH_DESIGN.md](AGENTIC_DISPATCH_DESIGN.md) sections 1 and 10
 (human steps), [EMS_RESEARCH.md](EMS_RESEARCH.md) section 2 (112, ReCO, DCZ). Our 112 intake form with AI triage is
-decision support for a call-taker who confirms (see [DISPATCH_PRIORITIES.md](DISPATCH_PRIORITIES.md) section 7).
+decision support for a call-taker: the engine dispatches the call at once and does not wait for a confirmation, and the
+call-taker or dispatcher can re-grade the call or replace the unit at any time (see
+[DISPATCH_PRIORITIES.md](DISPATCH_PRIORITIES.md) sections 7 and 8).
 
 ---
 
@@ -80,10 +84,13 @@ decision support for a call-taker who confirms (see [DISPATCH_PRIORITIES.md](DIS
 > and writes two or three options with a recommendation and notification drafts in Slovenian and English. The
 > deterministic engine does everything that is a number: travel times, arrival times, delays, the dispatch rules,
 > and re-simulating every option before the dispatcher sees it. Claude also turns a crew's sentence into a
-> structured event and can triage a typed 112 call, both through strict JSON schemas that the engine validates.
+> structured event and triages a typed 112 call, both through strict JSON schemas that the engine validates. And as the
+> AI dispatcher it reviews every new critical or serious call after the engine has dispatched it, and every disruption of
+> an open call, and either keeps the engine's decision or recommends a better one.
 
 *Proof:* [backend/README.md](../backend/README.md) ("The Claude agent"), [prompts.py](../backend/app/agent/prompts.py)
-(tools, output schema), [messages.py](../backend/app/agent/messages.py), [triage.py](../backend/app/agent/triage.py).
+(tools, output schema), [messages.py](../backend/app/agent/messages.py), [triage.py](../backend/app/agent/triage.py),
+[ai_dispatcher.py](../backend/app/ai_dispatcher.py), [DISPATCH_PRIORITIES.md](DISPATCH_PRIORITIES.md) section 8.
 Default model `claude-sonnet-5-5`, effort `medium`; the message parser and the triage run at effort `low`.
 
 ### Q6. Why can we trust the numbers on the screen?
@@ -102,24 +109,30 @@ worse than shown). Regression tests cover the dispatch rules, doctors, surge, se
 > Wrong: the engine rejects anything invalid, such as unknown vehicle or place ids, the numbers come from the
 > simulator, and the dispatcher sees two or three options with a clinical reason and decides. Slow or down: the
 > whole analysis has a 60-second deadline, and after that, or with no key, an outage, a refusal or the usage limit,
-> the engine's own plan appears in under a second and is labelled as the engine's plan. A typed 112 call falls back to
-> keyword rules after 12 seconds, so a call is never lost.
+> the engine's own plan appears within a few seconds and is labelled as the engine's plan. A typed 112 call falls back
+> to keyword rules after 12 seconds, so a call is never lost, and a call was already dispatched by the engine before
+> Claude's review, so if the review is slow or fails the engine's decision simply stands.
 
 *Proof:* [runner.py](../backend/app/agent/runner.py) (`wait_for`, fallback to `_engine_recommendation`),
 [triage.py](../backend/app/agent/triage.py) (`TRIAGE_TIMEOUT_S = 12`), [guard.py](../backend/app/guard.py) (notes),
-[RELIABILITY_AND_SECURITY.md](RELIABILITY_AND_SECURITY.md) section 1 (AI row, "engine plan in under a second").
+[ai_dispatcher.py](../backend/app/ai_dispatcher.py) (`_engine_stands`),
+[RELIABILITY_AND_SECURITY.md](RELIABILITY_AND_SECURITY.md) section 1 (AI rows). The engine's plan is computed locally;
+it took about 4 seconds for a stranded-equipment scenario in a check without a key (not "under a second").
 If Claude declines a request, the API retries on Anthropic's server-side fallback model (`fallbacks="default"`).
 
 ### Q8. Where is the human, and what is autonomous versus assisted?
-> The default is assisted. The engine acts on its own at the moment a call arrives for only three rules, because
+> The default mode is Assisted. The engine acts on its own at the moment a call arrives for only three rules, because
 > seconds matter: the nearest unit by true arrival time, including one finishing a drop-off nearby; diverting a lower
-> priority unit when the saving is clear; and the helicopter check. Everything else, swaps between equal-priority calls,
-> reserve units, contracted surge capacity, replans after a breakdown, is a proposal that the dispatcher approves with
-> one key. Auto-analyse and Autopilot are switches that are both off by default, and activating surge capacity always
-> stays with the dispatcher.
+> priority unit when the saving is clear; and the helicopter check. Claude then reviews every new critical or serious
+> call and every disruption of an open call. In Assisted mode its recommendation is a proposal that the dispatcher
+> approves with one key. In Autonomous mode, a switch that is off by default, it is applied after the engine re-checks
+> it, and logged as the AI's. In both modes the dispatcher can replace any unit by hand, and that choice sticks. Swaps
+> between equal-priority calls, reserve units, contracted surge capacity and the plans for equipment and bookings
+> always stay with the dispatcher. Auto-analyse is a second switch, also off by default.
 
-*Proof:* [DISPATCH_PRIORITIES.md](DISPATCH_PRIORITIES.md) section 3 rule 9, section 6, section 7 (Autopilot: the
-engine approves the recommended feasible option through the dispatcher's own, re-checked and audited approval path).
+*Proof:* [DISPATCH_PRIORITIES.md](DISPATCH_PRIORITIES.md) section 3 rule 9, section 6, section 8 (the AI dispatcher
+modes, overrides that stick), [ai_dispatcher.py](../backend/app/ai_dispatcher.py), `_autopilot` in
+[runner.py](../backend/app/agent/runner.py) ("not about an active call, left for the dispatcher").
 Also automatic for calls with a 112 record: re-dispatch when a unit drops out, and a free unit that is 3 min faster takes over.
 
 ### Q9. How does a Slovenian sentence become a plan?
@@ -138,18 +151,19 @@ recognition (`sl-SI`); if it fails, typed text and quick-status buttons give the
 ## 3. Data and safety
 
 ### Q10. What about GDPR and health data?
-> We do not claim GDPR compliance for the prototype: it uses only synthetic data, patients are pseudonymous labels like
-> P-123, and the planning AI only receives IDs, needs, places and times. In production, health data is a special
-> category, so it would stay in the EU behind a data protection impact assessment, with the AI optional. Two honest
-> gaps: a typed 112 call's words and address go to Claude for triage (not the caller's name field), and Chrome's speech
-> recognition sends audio to Google; production would redact the text or use the keyword rules, and use EU-hosted or
-> on-premises speech-to-text.
+> We do not claim GDPR compliance for the prototype: it uses only synthetic data, and patients are pseudonymous labels
+> like P-123. But free text does leave the system. A typed 112 call's words and address go to Claude for triage, and
+> they travel again in every later analysis of that case, as its note and place name; a crew message goes as text;
+> and Chrome's speech recognition sends audio to Google. The caller's name, crew names and the audit log are never sent.
+> In production, health data is a special category, so it would stay in the EU behind a data protection impact
+> assessment: Claude in an EU region under a processing agreement with zero retention, redaction of free text or the
+> keyword rules, and EU-hosted or on-premises speech-to-text.
 
-*Proof:* [RELIABILITY_AND_SECURITY.md](RELIABILITY_AND_SECURITY.md) sections 2 and 3, `triage_claude` in
-[triage.py](../backend/app/agent/triage.py) (the request contains only the words and the address),
-[DATA_SOURCES.md](DATA_SOURCES.md) item 11 (Chrome Web Speech API). Note: the reliability page's sentence "the AI only
-receives IDs, needs, places and times" predates the 112 triage path; the exact statement is the one above. **[planned]**
-for everything in production.
+*Proof:* [RELIABILITY_AND_SECURITY.md](RELIABILITY_AND_SECURITY.md) section 2 (a table of exactly what is sent where),
+`triage_claude` in [triage.py](../backend/app/agent/triage.py) (the request contains only the words and the address),
+`build_situation` in [context.py](../backend/app/agent/context.py) (open trips carry the note and place names, not the
+call record), [DATA_SOURCES.md](DATA_SOURCES.md) item 11 (Chrome Web Speech API). We have not verified any AI
+provider's current data-residency or retention terms. **[planned]** for everything in production.
 
 ### Q11. Where would it be hosted? What is the EU plan?
 > The demo runs on Railway for the backend and Vercel for the frontend; we have not chosen or verified a region
@@ -168,32 +182,43 @@ for everything in production.
 > is stored with a timestamp in PostgreSQL, shown on the Audit page and exportable. The audit writer never blocks a
 > dispatch: if the database is down it buffers in memory and retries.
 
-*Proof:* [RELIABILITY_AND_SECURITY.md](RELIABILITY_AND_SECURITY.md) section 2, [audit.py](../backend/app/audit.py).
-**Limits to admit if asked:** the prototype has no login, and its CORS setting allows all origins (production:
-SSO with multi-factor authentication, roles, every approval signed with the dispatcher's identity, CORS restricted).
-The in-memory buffer keeps the last 2,000 entries and is lost on a restart.
+*Proof:* [RELIABILITY_AND_SECURITY.md](RELIABILITY_AND_SECURITY.md) section 3, [audit.py](../backend/app/audit.py),
+[admin_key.py](../backend/app/admin_key.py). **Limits to admit if asked:** the prototype has no user login. During the
+pitch every action that changes anything (reset, approve, override, inject, spend AI tokens) needs a shared demo key
+(`ADMIN_KEY`, sent as `X-Plan-B-Key`), so a stranger with the URL gets a read-only dashboard; but reading, including
+the audit log, stays open, and it is one shared secret, not an identity. CORS allows all origins (production: SSO with
+multi-factor authentication, roles, every approval signed with the dispatcher's identity, CORS restricted). The
+in-memory buffer keeps the last 2,000 entries and is lost on a restart; Postgres keeps the rest.
 
 ### Q13. Could someone attack it through a crew message (prompt injection)?
 > A crew message is untrusted text, so we limit what it can do. It is capped at 1,000 characters, Claude can only answer
 > in a fixed JSON schema with a fixed list of event types, and the engine rejects any vehicle, place or trip id that does
-> not exist. Claude cannot assign vehicles or approve anything from a message, and in the analysis it only has read-only
-> tools and a what-if simulator. The worst a hostile message can do in the prototype is report a false event, the way
-> a false radio message could; that is in the audit log, and production ties each message to a logged-in crew member.
+> not exist. The message parser itself cannot assign a vehicle or approve anything, and in an analysis Claude only has
+> read-only tools and a what-if simulator. The worst a hostile message can do in the prototype is report a false event,
+> the way a false radio message could; that is in the audit log, and production ties each message to a logged-in crew
+> member. One path is longer than before: in Autonomous mode Claude's review of an affected case is applied after the
+> engine re-checks it, and the parser's short note about the event can reach that review.
 
 *Proof:* `FieldMessage` (max 1000 characters), `PARSE_SCHEMA`, `to_operator_events` in
 [messages.py](../backend/app/agent/messages.py); the tools in [prompts.py](../backend/app/agent/prompts.py). A reported
-emergency is dispatched at once by the engine's rules, like a radio call; re-assignments need the dispatcher.
+emergency is dispatched at once by the engine's rules, like a radio call; in Assisted mode (the default) re-assignments
+need the dispatcher, in Autonomous mode only what the engine's checks allow is applied, never a unit the dispatcher
+chose by hand ([ai_dispatcher.py](../backend/app/ai_dispatcher.py), [approvals.py](../backend/app/approvals.py)).
 We have not run a red-team test against the prompts. **[planned]** for authenticated crews.
 
 ### Q14. What stops abuse, and what stops a runaway bill?
-> One usage guard counts every Claude call from every path: 12 per rolling five minutes and 300 per day by default,
-> shared by both worlds and configurable. Over the limit, an operator's analysis falls back to the engine's plan with a
-> note, automatic analyses are skipped, and a crew message gets an HTTP 429 with a Slovenian and English explanation.
-> Routine calls never start an analysis at all, and auto-analyse is off by default. The guard is in memory, so a
-> restart resets it, and the prototype has no per-user rate limit yet.
+> Two layers. A demo key: with it set on the server, nothing that changes anything, and so nothing that spends tokens,
+> works without it, so someone who only sees the URL gets a read-only dashboard. And one usage guard counts every
+> Claude call from every path (analyses, case reviews, crew messages, 112 triage): 12 per rolling five minutes and 300
+> per day by default, shared by both worlds and configurable. Over the limit, an operator's analysis falls back to the
+> engine's plan with a note, automatic analyses and reviews are skipped, triage uses the keyword rules, and a crew
+> message gets an HTTP 429 with a Slovenian and English explanation. Routine calls never start an analysis at all, and
+> auto-analyse is off by default. The guard is in memory, so a restart resets it, and the prototype has no per-user
+> rate limit yet.
 
-*Proof:* [guard.py](../backend/app/guard.py), [backend/README.md](../backend/README.md) (live calls: "A generated call
-never starts an AI analysis"), [DEMO.md](../DEMO.md) (Auto-analyse off by default).
+*Proof:* [guard.py](../backend/app/guard.py), [admin_key.py](../backend/app/admin_key.py),
+[backend/README.md](../backend/README.md) (live calls: "A generated call never starts an AI analysis"; "Demo lock"),
+[DEMO.md](../DEMO.md) (Auto-analyse off by default).
 
 ---
 
@@ -207,8 +232,9 @@ never starts an AI analysis"), [DEMO.md](../DEMO.md) (Auto-analyse off by defaul
 > is no public hospital-capacity feed, so the capacity numbers in the demo are invented.
 
 *Proof:* [BENCHMARK.md](BENCHMARK.md) (Limits), [DEMO.md](../DEMO.md), [RELIABILITY_AND_SECURITY.md](RELIABILITY_AND_SECURITY.md)
-section 1, [GAPS_STATUS.md](GAPS_STATUS.md) row 7. The call rate is `CALLS_PER_HOUR = 5` in
-[config.py](../backend/app/config.py); the demo script's "one every 7 to 8 minutes" is an older figure.
+section 1, [GAPS_STATUS.md](GAPS_STATUS.md) row 7. The call rate is `CALLS_PER_HOUR = 5` per world hour in
+[config.py](../backend/app/config.py), one call every 12 minutes of world time on average; the Simulation world's clock
+runs 5 times faster than real time.
 
 ### Q16. Which Slovenian rules did you use?
 > Severity follows the Slovenian red and yellow priorities: our critical and serious levels are both red, urgent is
@@ -320,7 +346,8 @@ section 5 (providers, concessions), [BUSINESS_ONE_PAGER.md](BUSINESS_ONE_PAGER.m
 > As an estimate, about four dollars a day of Claude tokens for a desk like our demo fleet, roughly 115 a month. That
 > assumes 20 AI analyses, 60 crew messages and 40 triaged calls a day, with one analysis costing about 15 cents. The
 > hard ceiling is the usage guard: 300 Claude calls a day, which is about 44 dollars if every one were a typical analysis.
-> Hosting is separate and we have not priced it: today one small backend and a static frontend; in production two sites,
+> The AI dispatcher's Autonomous mode adds a review for every critical or serious call, which this estimate does not
+> include. Hosting is separate and we have not priced it: today one small backend and a static frontend; in production two sites,
 > a replicated database, and commercial licences for data we use on free tiers in the demo.
 
 **Arithmetic (all of it an estimate; prices in USD).**
@@ -374,15 +401,18 @@ only (production: self-hosted OSRM), NAP terms and fees are not stated ([DATA_SO
 ## 8. Tough questions
 
 ### T1. Isn't letting an AI dispatch dangerous?
-> It would be if the AI dispatched. It does not. The rules that act at the moment of a call are deterministic, written
-> down and covered by tests: nearest unit by arrival time, a clear-saving override, a helicopter check. The AI only
-> proposes plans that the engine re-simulates and a dispatcher approves. Triage stays with the human call-taker, red-flag
-> words can raise the AI's level but never lower it, and if the AI is down the engine's plan appears in under a second.
+> It would be if the AI decided alone. It does not. The rules that act at the moment of a call are deterministic, written
+> down and covered by tests: nearest unit by arrival time, a clear-saving override, a helicopter check. Claude reviews
+> what the engine did, and its change is only applied if the engine re-checks it, the dispatcher can replace any unit
+> at any time and that choice sticks, and by default the AI only proposes. Red-flag words can raise the AI's triage
+> level but never lower it, and if the AI is down the engine's decision stands.
 
-*Proof:* [DISPATCH_PRIORITIES.md](DISPATCH_PRIORITIES.md) section 3, [triage.py](../backend/app/agent/triage.py)
-(the safety net), [RELIABILITY_AND_SECURITY.md](RELIABILITY_AND_SECURITY.md) section 2. Be exact about one thing: with
-Autopilot switched on (off by default) the engine approves the AI's recommended option itself, through the same
-re-checked and audited path.
+*Proof:* [DISPATCH_PRIORITIES.md](DISPATCH_PRIORITIES.md) sections 3 and 8, [triage.py](../backend/app/agent/triage.py)
+(the safety net), [RELIABILITY_AND_SECURITY.md](RELIABILITY_AND_SECURITY.md) section 3. Be exact about one thing: in
+Autonomous mode (a switch, off by default; it is the demo's mode) Claude's recommended option for a critical or serious
+case is applied without a click, through the dispatcher's own re-checked and audited approval path; the 112 call itself
+is triaged by Claude or the keyword rules and dispatched by the engine at once, with the call-taker or dispatcher able
+to re-grade it.
 
 ### T2. Your helicopter numbers look too good.
 > You are right to check, and our first run did deserve it: the helicopter sat at UKC, flew at any hour and needed only
@@ -432,12 +462,14 @@ section 3 (access control). **Unknown:** legal classification, not assessed.
 ### T6. What if dispatchers just click approve every time?
 > That is a real risk, so approval is made hard to do blindly: every option lists, step by step, who goes now or next and
 > when, with simulated before and after numbers and a one-sentence clinical reason, and approval is refused if the
-> situation has changed. A pilot would measure how often dispatchers change or reject the recommendation, and why.
-> Autopilot, which approves the recommended option by itself, is off by default and would only be switched on after that
-> evidence.
+> situation has changed. A pilot would measure how often dispatchers change or reject the recommendation, and why; the
+> Reports page already counts, per call, whether the engine, Claude or a dispatcher override had the last word.
+> Autonomous mode, which applies Claude's recommendation without a click, is off by default and would only be switched
+> on in production after that evidence.
 
 *Proof:* [DEMO.md](../DEMO.md) (approving a plan), [backend/README.md](../backend/README.md) (plan steps),
-[DISPATCH_PRIORITIES.md](DISPATCH_PRIORITIES.md) section 7 (Autopilot). The override-rate measurement is **[planned]**.
+[DISPATCH_PRIORITIES.md](DISPATCH_PRIORITIES.md) section 8, [reports.py](../backend/app/reports.py) (`_ai`, "who decided").
+The override-rate measurement on real dispatchers is **[planned]**.
 
 ---
 
@@ -455,7 +487,7 @@ section 3 (access control). **Unknown:** legal classification, not assessed.
 
 ## Five key messages (repeat these)
 
-1. **The AI proposes, the engine computes, the dispatcher decides.**
+1. **The engine computes every number, the AI reviews and proposes (and, only in Autonomous mode, applies what the engine re-checks), the dispatcher decides and can override anything.**
 2. **Every number on the screen comes from a simulator, never from the language model.**
 3. **When anything fails, the AI, a data feed or the network, a fallback takes over and the screen says so.**
 4. **It is a simulation on real roads and Slovenian rules, labelled as one; a pilot turns it into evidence.**

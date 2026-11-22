@@ -17,18 +17,20 @@ When a vehicle breaks down, a road closes or calls pile up, the dispatcher repla
 
 ## Solution
 
-A crew member **says it in Slovenian** ("Vozilo je obstalo. Oprema je še v njem."); Claude turns it into a structured event; our
-deterministic engine simulates complete plans on real roads with live traffic and weather; in about 30 seconds (demo-script figure,
-hard limit 60 s) the dispatcher sees two or three options with before and after numbers and approves one with a key. **The AI
-proposes, the engine computes every number, the dispatcher decides.** If the AI is down, the engine's plan appears in under a second.
-Fleet and calls in the demo are simulated; roads, traffic and weather are real.
+Every 112 call is dispatched in the second it arrives by our deterministic engine; Claude classifies it in Slovenian and, as the
+**AI dispatcher**, reviews each critical or serious case (Autonomous or Assisted mode), and the dispatcher can replace any unit. When
+something breaks, a crew member **says it in Slovenian** ("Vozilo je obstalo. Oprema je še v njem."); Claude turns it into a structured
+event; the engine simulates complete plans on real roads with live traffic and weather; in about 15 seconds in our rehearsals (hard limit
+60 s) the dispatcher sees two or three options with before and after numbers and approves one with a key. **The engine computes every
+number, the AI reviews and proposes, the dispatcher decides and can override.** If the AI is down, the engine's decision stands and its own
+plan appears within a few seconds. Fleet and calls in the demo are simulated; roads, traffic and weather are real.
 
 ## Who benefits
 
 | Who | Gets | Evidence |
 |---|---|---|
 | Dispatch centres | Fast, consistent replans, audit trail, open APIs | built, simulated |
-| Concessionaire and private providers | Fewer late transports (5.3 % against 20.5 %), vans take non-urgent jobs so ambulances stay free for red calls, contracted surge units | simulated |
+| Concessionaire and private providers | Fewer late transports (7.5 % against 20.5 %; ground units only 18.5 % against 20.3 %), vans take non-urgent jobs so ambulances stay free for red calls, contracted surge units | simulated |
 | Hospitals | Notification drafts, capacity-aware redirect options | drafts only; capacity numbers invented |
 | Crews | Speak or tap instead of typing; the approved plan on the phone | built |
 | Patients | Critical patients within target 53.8 % against 34.3 %, with the helicopter as it really runs (Brnik, 13 min to take-off, day only); ground units only 42.6 % against 34.3 % ([BENCHMARK.md](BENCHMARK.md)) | simulated |
@@ -56,7 +58,8 @@ the same vehicles and fewer late patients, not new revenue.
 - **Claude tokens:** about **$0.15 per AI analysis, $4 a day, $115 a month, $10 per vehicle per month** for our 11-unit demo fleet
   (Sonnet 5.5 list price $2 and $10 per million input and output tokens; request sizes measured from the repo; 20 analyses, 60 crew messages,
   40 triaged calls a day **[assumption]**; arithmetic in [JURY_QA.md](JURY_QA.md) Q25). The usage guard caps it at 300 calls a day, about **$44 a day** at most
-  if all were typical analyses. At the illustrative price, tokens are about one sixth of revenue (currencies not converted).
+  if all were typical analyses. At the illustrative price, tokens are about one sixth of revenue (currencies not converted). The AI
+  dispatcher's Autonomous mode adds one review per critical or serious call, which this estimate does not include.
 - **Hosting:** demo on Railway (backend) and Vercel (frontend), price not recorded; production two sites plus a replicated database,
   placeholder **a few hundred euros a month** **[assumption]**, no quote.
 - **Data:** free tiers used in the demo (TomTom, Open-Meteo, public OSRM) need commercial terms or self-hosting ([DATA_SOURCES.md](DATA_SOURCES.md)).
@@ -79,10 +82,10 @@ the same vehicles and fewer late patients, not new revenue.
 | Risk | Handling |
 |---|---|
 | Simulation is not reality; the helicopter's landing times are our assumption | Say so, quote ground-only numbers too, validate on real logs in shadow mode |
-| Patient safety, automation bias | Human approval, stale plans refused, Autopilot off by default, measure the override rate |
+| Patient safety, automation bias | Human approval, stale plans refused, the dispatcher can override any unit and it sticks, Autonomous mode off by default, the Reports page counts overrides |
 | Health-data protection, regulation (medical device?) | Pseudonymous IDs, EU hosting, DPIA, AI optional, redaction; classification not assessed, legal review before live use |
 | Integration access, AI vendor and price | API-first, start with an independent operator; the engine works without AI, one module to swap |
-| Prototype limits today: no login, open CORS, in-memory single replica | On the 3-month roadmap |
+| Prototype limits today: no user login (one shared demo key locks the controls, reading is open), open CORS, in-memory single replica | On the 3-month roadmap |
 
 ## The ask (from Epilog and the jury)
 
