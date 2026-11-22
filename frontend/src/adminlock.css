@@ -127,9 +127,3 @@
   min-height: 44px;
 }
 
-/* Crew head: the lock sits beside the SIM / LIVE badge */
-.crew-head-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}

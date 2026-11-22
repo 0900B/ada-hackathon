@@ -411,16 +411,6 @@
 .mdt .leaflet-control-layers label {
   padding: 6px 2px;
 }
-.mdt-recenter {
-  position: absolute;
-  z-index: 1000;
-  left: 12px;
-  bottom: 28px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
-  background: var(--m-accent);
-  border-color: var(--m-accent);
-  color: #fff;
-}
 .mdt-toast {
   white-space: pre-line;
   position: absolute;
