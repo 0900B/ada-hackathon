@@ -27,6 +27,8 @@ break it and override it.
 
 ## 1. Setup checklist (the morning of the demo)
 
+> **22 Nov, 11:30:** `ADMIN_KEY` was removed from Railway so the judges can use the app freely (`/health` shows `admin_lock: false`, no lock chip in the header). Skip the key steps below; they apply only if a key is set again.
+
 **Deploy (code freeze 12:00)**
 - [ ] **No pushes to `main` between 12:00 and the pitch.** A push redeploys and restarts the backend: the simulation resets, the Claude usage counters reset, and the switches below fall back to their defaults (Assisted; the Simulation call stream is off by default).
 - [ ] Railway, backend service, **Variables** (look at the names, never print the values): `ANTHROPIC_API_KEY`, `TOMTOM_API_KEY`, `ADMIN_KEY`, `DATABASE_URL` (a **reference** to the Postgres service, not a pasted copy), and optionally `NAP_USERNAME` + `NAP_PASSWORD` (access is pending; the app runs without). Also check that nobody set `SIM_SPEEDUP`, `CALLS_PER_HOUR`, `CLAUDE_MAX_PER_5MIN`, `CLAUDE_MAX_PER_DAY` or `AGENT_MODEL` to something unintended; the defaults are 5, 5, 12, 300 and `claude-sonnet-5-5`. All names: [backend/.env.example](backend/.env.example).
