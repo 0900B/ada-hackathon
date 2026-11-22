@@ -14,17 +14,44 @@ The fleet, the crews and the 112 calls are **simulated** (synthetic, no real pat
 
 **Live app:** [frontend-tau-rust-6kpoiztcvd.vercel.app](https://frontend-tau-rust-6kpoiztcvd.vercel.app/live) · [Demo script](DEMO.md) · [Pitch notes](docs/PITCH_NOTES.md) · [Architecture](#architecture) · [Run it](#run-it) · [Documentation index](#documentation-index)
 
+## Judges: try it in 5 minutes
+
+**You need nothing installed.** Open these links in Chrome or Edge. The app runs in the **Simulation** world, which has a 5× clock and synthetic calls, fleet and patients.
+
+| Screen | Who uses it | Link |
+|---|---|---|
+| **Dispatcher dashboard** | the dispatcher in the control room | [/sim](https://frontend-tau-rust-6kpoiztcvd.vercel.app/sim) |
+| **ER inbound board** | reception staff at the emergency department | [/er/](https://frontend-tau-rust-6kpoiztcvd.vercel.app/er/) (also the **ER dashboard** button top right of the dispatcher) |
+| **Crew tablet** | the paramedic in the back of the ambulance | [/crew/A1?world=sim](https://frontend-tau-rust-6kpoiztcvd.vercel.app/crew/A1?world=sim) (any of A1–A3, D1–D2, T1–T5, H1) |
+| **Driver tablet** | the driver: navigation, current job, messages from dispatch | [/vehicle/A1?world=sim](https://frontend-tau-rust-6kpoiztcvd.vercel.app/vehicle/A1?world=sim) |
+| Reports · Audit · Fleet | statistics, full decision log, fleet table | [/reports?world=sim](https://frontend-tau-rust-6kpoiztcvd.vercel.app/reports?world=sim&hours=3) · [/audit](https://frontend-tau-rust-6kpoiztcvd.vercel.app/audit) · [/fleet?world=sim](https://frontend-tau-rust-6kpoiztcvd.vercel.app/fleet?world=sim) |
+
+Tip: open the dispatcher and the ER board **side by side** (two windows), and the crew tablet on a third window or your phone. Add `?lang=sl` or `?lang=en` to switch language.
+
+**Five steps (about 5 minutes)**
+
+1. **Start some calls.** Open the dispatcher at `/sim` → tab **Scenarios** → press **Surge** (seven calls at once, including a cardiac arrest). The simulation starts with the call stream paused, so nothing happens until you do this. A single call: **New 112 call**, or **Random call** (hotkey `R`).
+2. **See the AI dispatcher.** Tab **AI dispatcher**: every call is a case card with who classified it, which unit was sent and **why**, and who decided. Click a card to open its timeline. Press **Override** on a unit to see the ranked alternatives.
+3. **Break something.** **Random failure ▾ → Engine failure** (hotkey `X`). Watch the amber re-plan box, the unit swapping, and the unit's ETA change.
+4. **Open the ER board** (`/er/`). Every patient heading to UKC is a tile ordered by arrival time. Click a tile: live map of the ambulance, alerts, vitals with their age, and the reception actions (acknowledge, assign a bay, call a team).
+5. **Be the paramedic.** The ER tile shows which unit carries the patient (for example `A3`). Open `/crew/A3?world=sim`, tap **Enter vitals**, **Drug** or **Event**, or type a note in **Log**. Within about 2 seconds it shows on that patient's ER tile. Then press **Acknowledge** on the ER tile and watch the tablet change.
+
+**Want the ER board full of clinical data without tapping?** The deployed backend does not invent vitals and treatments by itself (that would be fake data). A small crew simulator posts what real tablets would send, through the same public API:
+
+```bash
+pip install httpx
+python backend/tools/crew_sim.py --base https://ada-hackathon-production.up.railway.app --world sim
+```
+
+It adds triage, vitals every 5 world-minutes, a drug for emergencies, a cardiac arrest with return of circulation for about one patient in six, and finally the handover. Stop it with Ctrl+C.
+
 ---
 
 ## Screenshots
 
 All screenshots show the Simulation world: synthetic calls, fictional crews, approximate coordinates.
 
-<!-- TODO(screenshots): the images in docs/images were captured before the AI dispatcher tab (Autonomous/Assisted switch,
-     unit reasons, Override), the admin-key lock chip, the Slovenian/English switch and the Reports page. Re-capture them from the
-     final UI: dashboard-calls.png (now the "AI dispatcher" tab), dashboard-alerts.png (the tab row has changed),
-     vehicle-card-timeline.png, tablet-navigation.png, tablet-helicopter.png, crew-phone.png (header now has the lock chip).
-     Add new ones for the AI dispatcher tab with an open case and its Override list, and for /reports. -->
+<!-- TODO(screenshots): dashboard-alerts.png, vehicle-card-timeline.png, tablet-navigation.png, tablet-helicopter.png and crew-phone.png were captured before the AI dispatcher tab and the lock chip; re-capture if time allows. The ER board, crew tablet, AI dispatcher, Scenarios and driver tablet images are current. -->
 
 <p align="center">
   <img src="docs/images/dashboard-calls.png" alt="Dispatcher dashboard: a critical cardiac-arrest call as a case with its triage, dispatched unit, the caller's words in Slovenian and English, and the call timeline" width="900">
@@ -60,6 +87,40 @@ All screenshots show the Simulation world: synthetic calls, fictional crews, app
     </td>
   </tr>
 </table>
+
+<p align="center">
+  <img src="docs/images/dispatch-ai-dispatcher.png" alt="Dispatcher dashboard, AI dispatcher tab: map with the fleet, trip table, and case cards for a critical cardiac arrest and serious calls, each with who dispatched, the unit and its arrival" width="900">
+</p>
+
+<p align="center">
+  <img src="docs/images/er-board.png" alt="ER inbound board: ten patients on the way, ordered by minutes to arrival, with level, problem, assigned unit, bay, acknowledgement, suggested teams, and an alert ribbon for a cardiac arrest, a return of circulation and an open stroke window" width="900">
+</p>
+
+**ER inbound board.** For reception staff: who is on the way, how urgent, when they arrive, what the crew has done, what to prepare. Tiles are ordered by arrival time; the ribbon shows what needs attention now. Anything the system only estimates (level, stage) looks different from what a person recorded.
+
+<p align="center">
+  <img src="docs/images/er-case-popup.png" alt="ER case popup for a stroke patient: live map of ambulance A3 and its route to the ER, alerts, the eight-step stage bar, reception actions (acknowledge, assign a bay, call a team) and vitals" width="900">
+</p>
+
+**One case in the ER board.** Live map of the ambulance (refreshed every 2 s), the alerts, the eight-step stage bar ("current step is estimated from the vehicle's movement"), the three reception actions, vitals with their age, treatments and the full timeline.
+
+<p align="center">
+  <img src="docs/images/crew-tablet-log.png" alt="Crew tablet for ambulance A3: a large ETA to UKC Ljubljana, vitals, team-activated echo from the ER, a hold-to-log voice button with a confirmed note, and the dispatch panel with Slovenian and English quick reports" width="760">
+</p>
+
+**Crew tablet (patient compartment).** For a paramedic with gloves on and hands busy: a large countdown to the ER, a voice and typed **log** (each line starts as *heard* and is *confirmed* with a tap or by saying "potrjeno"), tap pads for **vitals**, **drugs** and **events**, what the ER has done ("Team activated: stroke"), and the separate **dispatch** panel (hold to talk, quick reports 1–5). A handover screen with the 15-minute timer appears on arrival.
+
+<p align="center">
+  <img src="docs/images/dispatch-scenarios.png" alt="Dispatcher dashboard, Scenarios tab: operations switches, Prepare crew demo, and twelve one-click demo scenarios" width="900">
+</p>
+
+**Scenarios tab.** One-click stagings for the jury: surge, stranded patient, helicopter, snow cascade, hospital full and more. Each resets the world and shows what to look at (table in [DEMO.md](DEMO.md)).
+
+<p align="center">
+  <img src="docs/images/vehicle-tablet.png" alt="Driver tablet for ambulance A1: current job, turn-by-turn navigation map with heading up, north up and overview, alerts and one-tap messages to dispatch" width="760">
+</p>
+
+**Driver tablet.** The cab view: navigation, the job, alerts that touch this unit and one-tap messages to dispatch. The patient-compartment tablet above is a different screen on a different route.
 
 Promo, ads and four recorded walkthrough videos of the real UI are generated from the scripts in [media/](media/README.md) (the rendered files are not in git).
 
@@ -109,13 +170,95 @@ A crew member speaks or types, for example *"Vozilo je obstalo. Oprema je še v 
 - **Slovenian and English everywhere.** A switch in every header. The dashboard defaults to English, the crew phone and the tablet to Slovenian; `?lang=sl` or `?lang=en` in the address sets it for that device.
 - **Demo lock.** With `ADMIN_KEY` set, only devices that carry the key (opened once with `?key=`) can reset, inject, approve, override or spend AI tokens; everyone else sees a read-only dashboard. A shared demo key, not a login: [docs/RELIABILITY_AND_SECURITY.md](docs/RELIABILITY_AND_SECURITY.md).
 - **In-vehicle tablet** (`/vehicle/:id`): turn-by-turn navigation, current job, next stops, one-tap reports without AI, and messages from dispatch when the plan changes.
-- **Crew phone** (`/crew/:id`): push-to-talk in Slovenian or English (browser speech recognition), typed text, quick reports 1–5. The same page also carries the patient-compartment clinical log: tap pads for vitals, drugs and events, timers, the ETA to the ER and a 15-minute handover screen (design: [docs/superpowers/specs/2026-11-21-crew-patient-tablet-design.md](docs/superpowers/specs/2026-11-21-crew-patient-tablet-design.md)).
+- **Crew tablet and phone** (`/crew/:id`): push-to-talk in Slovenian or English (browser speech recognition), typed text, quick reports 1–5. The same page also carries the patient-compartment clinical log: tap pads for vitals, drugs and events, timers, the ETA to the ER and a 15-minute handover screen (design: [docs/superpowers/specs/2026-11-21-crew-patient-tablet-design.md](docs/superpowers/specs/2026-11-21-crew-patient-tablet-design.md)).
 - **ER inbound board** (`er-dashboard/`, served by the frontend at `/er/`): a separate screen for ER reception. One tile per patient on the way, ordered by arrival time, with the crew's clinical log, alerts, and reception actions (acknowledge, assign a bay, call a team). It reads the backend's `clinical` module (`GET /{world}/er/board`); data contract: [docs/superpowers/specs/2026-11-22-er-dashboard-api-contract.md](docs/superpowers/specs/2026-11-22-er-dashboard-api-contract.md), details: [er-dashboard/README.md](er-dashboard/README.md). All patient data is synthetic.
 - **Audit log:** every event, 112 call, crew message, interpreted event, AI recommendation, dispatcher decision and override, stored in PostgreSQL (memory only without `DATABASE_URL`), filterable on the Audit page and exportable as JSON lines.
 - **Live and Simulation worlds** (below), a status bar showing each data source as fresh, stale or down, a switchable base map and TomTom traffic layer, and keyboard shortcuts (press `?`).
 - **Demo tools (Simulation only):** 12 one-click scenarios, "Random call" (`R`) and "Random failure" (`X`) buttons, a call-stream switch, an AI-triage switch.
 
 **Live vs Simulation.** Both worlds share the real weather, traffic and incident feeds. **Live** runs on the real clock and accepts only real operator reports. **Simulation** is the presentation sandbox: a 5× clock, hypothetical weather such as a snowstorm, demo scenarios and reset. In both, the fleet and the calls are generated by the simulator, which stands in for the vehicle GPS feed and the call centre.
+
+## The screens and how they connect
+
+```mermaid
+flowchart LR
+    CALL["112 call (typed or spoken)"] --> ENG["Engine + AI dispatcher"]
+    ENG --> DASH["Dispatcher dashboard<br/>/sim"]
+    ENG --> DRV["Driver tablet<br/>/vehicle/:id"]
+    ENG --> CT["Crew tablet<br/>/crew/:id"]
+    CT -- "vitals, drugs, events, notes,<br/>handover (clinical log)" --> LOG[("Clinical log")]
+    LOG --> ER["ER inbound board<br/>/er/"]
+    ENG -- "unit, route, ETA" --> ER
+    ER -- "acknowledge, bay, call a team" --> LOG
+    LOG -- "ER echo" --> CT
+    CT -- "quick reports, voice (SL/EN)" --> ENG
+```
+
+- **One truth.** Dispatch, driver tablet, crew tablet and ER board read the same world state. An ambulance's ETA is computed once, by the engine, and every screen shows that number.
+- **Two voice channels that never mix.** On the crew tablet, *Hold to log* writes a clinical note word for word and is **never** sent to the dispatch parser. *Hold to talk to dispatch* goes to Claude, which turns it into a typed event (breakdown, delay, ...). Clinical words like "nezavesten" must not start a new emergency.
+- **Honest data.** A value is stored exactly as entered. A vital sign always shows its age. An implausible value is shown and flagged **check this**, never silently corrected. Anything estimated is marked as estimated.
+- **A person decides.** The ER board only *suggests* teams; nothing is sent until someone presses a button (one exception: **Auto-call teams**, see below).
+
+## ER inbound board (`/er/`)
+
+*Who is it for:* reception staff at the emergency department of UKC Ljubljana (the only ER in the demo). It shows only what reception needs: no fleet map, fuel, crews or traffic.
+
+- **Case grid:** one tile per patient bound for the ER, ordered by minutes to arrival, then arrived patients. A tile shows level (red/yellow), problem, age and sex, assigned unit and stage, bay, acknowledgement, suggested and called teams and the top alert.
+- **Alert ribbon and sound:** critical (cardiac arrest) and high (heart attack, airway, open stroke window, vitals out of limits, unacknowledged arrival, no vitals on a red case) alerts. A sound plays for new alerts once you switch **Alert sound** on (browsers require a click first).
+- **Case popup** (click a tile; `Esc` closes): live map, stage bar, alerts, vitals with age, treatments, key events, timeline, and the three reception actions: **Acknowledge**, **Assign a bay**, **Call a team** (stroke, heart, trauma, resuscitation room).
+- **Auto-call teams** (header switch, on by default): calls the teams the backend suggests for each case, by a fixed rule table, noted as "Called automatically: …". It is rules, not an AI model, and it never calls the same team twice, even with several screens open.
+- **Simulation / Live switch** and `#TR-007` in the address opens that case.
+- Thresholds (minutes unacknowledged, minutes without vitals, stroke window) are **placeholders** set in `backend/app/clinical/config.py`; real ER staff would set them.
+
+**How to test it**
+
+| Do this | You should see |
+|---|---|
+| Dispatcher → Scenarios → **Surge** | Several tiles appear on the ER board within seconds, ordered by ETA; a unit id on each tile |
+| Click a tile | Popup with a live map; the ambulance moves |
+| Press **Acknowledge** | "Acknowledged" on the tile; the crew tablet of that unit shows it |
+| **Assign a bay** `R2` | Bay on the tile and on the crew tablet |
+| **Call a team** | Team chip; "Team activated: …" on the crew tablet |
+| Switch **Alert sound** on, run `crew_sim` | A siren on a cardiac arrest, two chimes for a high alert |
+| Leave a case unacknowledged | An alert "Arriving in N min and not acknowledged by reception" |
+| Dispatcher → **Random failure → Engine failure** | The case's unit changes and its ETA on the ER tile moves |
+
+## Crew tablet (`/crew/:vehicleId?world=sim`)
+
+*Who is it for:* the paramedic in the patient compartment, on a tablet (it also collapses to one column on a phone). The driver's navigation tablet stays at `/vehicle/:id`.
+
+- **ETA first:** a big countdown to the ER with arrival time, hospital name and a late marker.
+- **Log (voice or typed):** push-to-talk in Slovenian puts each utterance on a timeline as *heard*; one tap, or saying **"potrjeno"**, makes it *confirmed*. Spoken lines are saved word for word and are **not** turned into drugs or numbers.
+- **Tap pads for loud moments:** **Enter vitals** (heart rate, blood pressure, SpO₂, breathing rate, GCS, temperature, glucose), **Drug** (drug, dose, route), **Event** (cardiac arrest, CPR started, ROSC, defibrillation, airway secured, stroke onset, STEMI, transfusion started, patient worse). Entries are sent to the ER at once and queued if the signal drops (a *sent / not sent* mark).
+- **Vitals age:** "last vitals N min ago", amber when overdue.
+- **ER echo:** what the ER did ("ER has acknowledged", "Bay R2", "Team activated: stroke") is shown on the tablet.
+- **Handover screen** on arrival: the record to read out and a **15 minute** timer; **Handover done** moves the ER card to *predaja pacienta* and stops its timer.
+- **Dispatch panel** (unchanged): hold to talk (SL/EN) or quick reports 1–5. The demo script uses it.
+- Slovenian and English; works for ambulances. A doctor car's entries are refused by the backend (shown as not accepted).
+
+**How to test it**
+
+| Do this | You should see |
+|---|---|
+| Open `/crew/A3?world=sim` for a unit that has a patient (a unit id is on its ER tile) | Job header, ETA to UKC, vitals panel |
+| Type a note and press **Add note** | A *confirmed · sent* line; the same text in that case's ER popup timeline |
+| **Enter vitals**, enter values, save | Vitals with "just now" on the tablet and on the ER tile; implausible values show **check this** |
+| **Drug** → drug, dose, route | A treatment on both screens |
+| **Event → Cardiac arrest** | A critical alert on the ER ribbon (and a siren if sound is on) |
+| On the ER board press **Acknowledge** | "ER has acknowledged" on the tablet within a few seconds |
+| **Vehicle broke down** (dispatch panel, or key `1`) | The dispatcher sees the event and re-plans; the ETA on the tablet and ER tile changes |
+| When the unit arrives: the handover screen, then **Handover done** | ER tile moves to *predaja pacienta* and its timer stops |
+
+Speech needs Chrome or Edge, HTTPS and a microphone permission. Without it, type or tap: nothing depends on speech.
+
+## Cross-screen test flows
+
+1. **112 call to hospital, all screens.** Dispatcher → **New 112 call**: *"Mož se je zgrudil na dvorišču, ne diha."* at *Šmarska cesta 3, Škofljica* → case card and unit on the dispatcher → job on the driver tablet and the crew tablet → tile on the ER board.
+2. **Crew to ER.** Crew tablet → vitals, drug, event → ER popup updates, alerts fire.
+3. **ER to crew.** ER popup → Acknowledge, bay, team → crew tablet shows the echo.
+4. **Disruption.** Dispatcher → Random failure (engine failure) → re-plan box and Claude's review → driver and crew tablets get the new plan → ER tile shows the new unit and ETA.
+5. **Handover.** Let a unit arrive → crew tablet handover with 15 min timer → *Handover done* → ER tile moves on.
+6. **Everything is logged.** `/audit` lists calls, AI recommendations, dispatcher decisions and overrides; ER actions and crew entries are in the clinical log (`GET /sim/clinical/entries`).
 
 ---
 
@@ -169,6 +312,7 @@ flowchart LR
         A["Claude agent: call triage, message parsing, AI dispatcher reviews, situation review"]
         G["Usage guard"]
         L["Audit log"]
+        CL["Clinical log and ER read model (app/clinical)"]
     end
 
     PG[("PostgreSQL")]
@@ -176,7 +320,8 @@ flowchart LR
     subgraph FE["React + Leaflet frontend (Vercel), Slovenian and English"]
         D["Dispatcher dashboard: AI dispatcher, Reports, Fleet, Audit"]
         TB["Vehicle tablet"]
-        CP["Crew phone"]
+        CT["Crew tablet and phone"]
+        ER["ER inbound board (/er/)"]
     end
 
     W --> F
@@ -188,6 +333,10 @@ flowchart LR
     E <--> A
     A --> G --> C
     E --> L --> PG
+    E --> CL
+    CT -- "vitals, drugs, events, handover" --> CL
+    CL --> ER
+    ER -- "acknowledge, bay, team" --> CL
     E -- "SSE snapshots" --> FE
     FE -- "REST: events, calls, messages, approvals, overrides" --> K --> E
 ```
@@ -269,6 +418,7 @@ Everything runs without any key: without `ANTHROPIC_API_KEY` the engine's own pl
 | `SIM_SPEEDUP`, `LIVE_SPEEDUP`, `CALLS_PER_HOUR`, `CALLS_ENABLED` (Live), `SIM_CALLS_ENABLED` (Simulation, off by default), `SCHEDULED_DAY`, `RANDOM_SEED` | Simulation clock, call stream and start mode |
 | `ROAD_ROUTING`, `OSRM_URL` | Turn road routing off, or point at your own OSRM server |
 | `TOMTOM_*_CAP`, `*_INTERVAL_S`, `AUDIT_TABLE`, `HTTP_USER_AGENT`, `PORT` | Daily API caps, fetch intervals and a few deployment details |
+| `CLINICAL_ENABLED` | Kill switch for the clinical log and the ER board (default on; `0` turns the ER routes off) |
 
 ### Frontend (Node)
 
@@ -281,7 +431,7 @@ npm run typecheck
 npm run build
 ```
 
-Routes: `/live`, `/sim` (the dashboards), `/fleet?world=sim`, `/reports?world=sim&hours=3`, `/audit`, `/crew/T1?world=sim` (phone), `/vehicle/A1?world=sim` (tablet). Add `?lang=sl` or `?lang=en` to set a device's language and, with a locked backend, `?key=<ADMIN_KEY>` once per device (the page keeps the key and removes it from the address bar). Voice input needs Chrome or Edge on an HTTPS page (or localhost) and microphone permission.
+Routes: `/live`, `/sim` (the dashboards), `/fleet?world=sim`, `/reports?world=sim&hours=3`, `/audit`, `/crew/A3?world=sim` (crew tablet, also fits a phone), `/vehicle/A1?world=sim` (driver tablet), `/er/` (the ER inbound board, built into this frontend; to run it on its own: `cd er-dashboard && npm install && VITE_API_URL=http://localhost:8000 npm run dev`, port 5174; fill it with demo clinical data using `python backend/tools/crew_sim.py --world sim`). Add `?lang=sl` or `?lang=en` to set a device's language and, with a locked backend, `?key=<ADMIN_KEY>` once per device (the page keeps the key and removes it from the address bar). Voice input needs Chrome or Edge on an HTTPS page (or localhost) and microphone permission.
 
 ### Tests
 
@@ -358,6 +508,10 @@ They cover dispatch rules, emergency dispatch, doctor cars, surge capacity, serv
 | [backend/README.md](backend/README.md) | Backend internals, API table, event and plan examples |
 | [frontend/README.md](frontend/README.md) | Frontend structure and deployment |
 | [media/README.md](media/README.md) | Promo, ads and recorded showcase videos: how to render them |
+| [er-dashboard/README.md](er-dashboard/README.md) | The ER inbound board: how to run it and what it does |
+| [docs/superpowers/specs/2026-11-22-er-dashboard-api-contract.md](docs/superpowers/specs/2026-11-22-er-dashboard-api-contract.md) | The ER board's data contract with real examples |
+| [docs/superpowers/specs/2026-11-21-crew-patient-tablet-design.md](docs/superpowers/specs/2026-11-21-crew-patient-tablet-design.md) | Crew tablet: goals, anti-goals, layout, what is cut |
+| [docs/superpowers/specs/2026-11-21-er-dashboard-backend-design.md](docs/superpowers/specs/2026-11-21-er-dashboard-backend-design.md) | Clinical log and ER read model design |
 | [docs/EMS_RESEARCH.md](docs/EMS_RESEARCH.md), [docs/LJUBLJANA_FLEET_AND_TEAMS.md](docs/LJUBLJANA_FLEET_AND_TEAMS.md), [docs/AMBULANCE_MAP.md](docs/AMBULANCE_MAP.md) | How Slovenian EMS works, the Ljubljana station, a map of all units |
 | [docs/AGENTIC_DISPATCH_DESIGN.md](docs/AGENTIC_DISPATCH_DESIGN.md), [docs/DISPATCH_SCENARIOS.md](docs/DISPATCH_SCENARIOS.md), [docs/SIMULATION_SCRIPTS.md](docs/SIMULATION_SCRIPTS.md) | Agent design from the 112 call to "free", 12 dispatch scenarios, simulation scripts |
 | [docs/SURGE_AND_MULTI_SERVICE_COORDINATION.md](docs/SURGE_AND_MULTI_SERVICE_COORDINATION.md), [docs/SURGE_EVENTS.md](docs/SURGE_EVENTS.md) | Escalation ladder, private ambulances, surge event catalogue |
@@ -378,6 +532,9 @@ They cover dispatch rules, emergency dispatch, doctor cars, surge capacity, serv
 - **Data leaves the system.** A 112 call's words and address go to Claude, Chrome's speech recognition goes to Google, and patient locations go to the public OSRM server. Fine for synthetic data; production needs the changes in [docs/RELIABILITY_AND_SECURITY.md](docs/RELIABILITY_AND_SECURITY.md) section 2.
 - **No user login yet.** Control actions can be locked behind one shared demo key (`ADMIN_KEY`), but there are no users, roles or signed approvals, reading is open (including the audit log), and CORS allows all origins. Production setup (SSO, TLS/VPN, two sites, EU hosting) is described in [docs/RELIABILITY_AND_SECURITY.md](docs/RELIABILITY_AND_SECURITY.md) but not implemented.
 - **State in memory, one replica.** A restart resets the simulation, the usage counters, the reports history and the AI mode; only the audit log persists (with a database).
+- **Clinical data is synthetic and in memory.** The clinical log is lost on a backend restart (only the dispatch audit log is in PostgreSQL). On the deployed demo, vitals and treatments exist only if someone enters them on a crew tablet or runs `backend/tools/crew_sim.py`.
+- **ER alert thresholds are placeholders**, not clinical guidance; ER staff must set them. The auto-call rules are a simple table, not a medical protocol.
+- **ER board and crew tablet:** the ER board is English only, shows one emergency department (UKC), polls every 1.5 s and has no push notification (sound only after a click). On the crew tablet speech is not turned into drugs or numbers (by design), a doctor car's entries are refused, and the Slovenian text has not been checked by a paramedic.
 - **Not modelled:** crew shifts as a constraint, mass-casualty incidents (researched in [DISPATCH_SCENARIOS.md](docs/DISPATCH_SCENARIOS.md), D05 and D10), pooled rides, helicopter weather limits beyond the fog event.
 - **Language review.** Slovenian wording in the interface, notifications and drafts has not been reviewed by a native speaker or a dispatcher.
 
