@@ -13,14 +13,16 @@ import clinical_helpers  # noqa: F401  (must be first: sets the offline env, put
 import ast
 import io
 import json
+import os
 import sys
 import time
 import traceback
 import types
-from contextlib import redirect_stdout
+from contextlib import contextmanager, redirect_stdout
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -455,6 +457,240 @@ def test_main_loops_prints_one_line_per_cycle_and_exits_cleanly_on_ctrl_c():
     assert len(lines) >= 4, out.getvalue()
     assert len(client.get("/sim/clinical/entries", params={"case_id": t.id}).json()) > 0, "main really posted through the routes"
     assert any(ln.startswith("posted ") and ln.split()[1].isdigit() and int(ln.split()[1]) > 0 for ln in lines), out.getvalue()
+
+
+# --- a world reset (final review F3) -----------------------------------------------------------
+
+def with_seq(snap: dict, seq) -> dict:
+    """The snapshot as the server sends it with its clinical log at `seq` entries."""
+    return {**snap, "clinical": {"cases": [], "seq": seq}}
+
+
+def noop(path, body):
+    return None
+
+
+def test_a_world_reset_clears_sent_so_the_new_trips_are_posted_again():
+    snap = a_busy_snapshot()  # a reset re-seeds the world: the same trip ids come back, the log restarts
+    posted: list[str] = []
+
+    def post(path, body):
+        posted.append(body["client_entry_id"])
+
+    sent: set[str] = set()
+    first = crew_sim.run_once(lambda p: with_seq(snap, 6), post, sent)
+    assert first > 0 and len(sent) == first
+    assert crew_sim.run_once(lambda p: with_seq(snap, 6), post, sent) == 0, "no reset: nothing is posted twice"
+    assert crew_sim.run_once(lambda p: with_seq(snap, 9), post, sent) == 0, "the log only grows"
+    assert crew_sim.run_once(lambda p: with_seq(snap, 9), post, sent) == 0
+    again = crew_sim.run_once(lambda p: with_seq(snap, 0), post, sent)  # reset: seq dropped from 9 to 0
+    assert again == first and posted[first:] == posted[:first], "the same entries go out again"
+    assert len(sent) == first
+    assert crew_sim.run_once(lambda p: with_seq(snap, 4), post, sent) == 0, "growing again after the reset: not a reset"
+    assert crew_sim.run_once(lambda p: with_seq(snap, 4), post, sent) == 0
+    assert crew_sim.run_once(lambda p: with_seq(snap, 2), post, sent) == first, "a second reset is noticed too"
+
+
+def test_a_lower_seq_resets_an_equal_one_does_not_and_sets_do_not_share_memory():
+    snap = a_busy_snapshot()
+    sent: set[str] = set()
+    n = crew_sim.run_once(lambda p: with_seq(snap, 5), noop, sent)
+    assert n > 0 and crew_sim.run_once(lambda p: with_seq(snap, 5), noop, sent) == 0
+    assert crew_sim.run_once(lambda p: with_seq(snap, 4), noop, sent) == n  # one lower is a reset
+    # Another simulator's set, pre-filled, has seen no seq yet: a low seq must not wipe what it knows.
+    other = {i["json"]["client_entry_id"] for i in crew_sim.plan_entries(snap, set())}
+    assert len(other) == n
+    assert crew_sim.run_once(lambda p: with_seq(snap, 0), noop, other) == 0
+    assert len(other) == n
+
+
+def test_a_missing_or_failed_clinical_section_never_clears_sent_or_crashes():
+    snap = a_busy_snapshot()
+    sent: set[str] = set()
+    n = crew_sim.run_once(lambda p: with_seq(snap, 6), noop, sent)
+    assert n > 0
+    odd = [
+        {k: v for k, v in snap.items() if k != "clinical"},  # no clinical section at all (clinical switched off)
+        {**snap, "clinical": {"error": "RuntimeError: boom"}},  # the one-poll error note
+        {**snap, "clinical": None},
+        {**snap, "clinical": {}},
+        {**snap, "clinical": {"cases": []}},  # no seq
+        {**snap, "clinical": {"seq": None}},
+        {**snap, "clinical": {"seq": "0"}},
+        {**snap, "clinical": "error"},
+    ]
+    for bad in odd:
+        assert crew_sim.run_once(lambda p, b=bad: b, noop, sent) == 0, bad
+        assert len(sent) == n, f"sent was cleared by {bad}"
+    # What it remembered survives those polls: seq 6 again is no reset, a real drop still is.
+    assert crew_sim.run_once(lambda p: with_seq(snap, 6), noop, sent) == 0
+    assert crew_sim.run_once(lambda p: with_seq(snap, 0), noop, sent) == n
+
+
+def test_a_reset_through_the_real_routes_is_posted_again_with_201s():
+    client, w = make()
+    t = er_trip(w)
+    statuses: list[int] = []
+    get, post = wire(client, w, statuses)
+    sent: set[str] = set()
+    drive(w, 30, until=lambda: w.trips[t.id].status == "onboard")
+    drive(w, 6)
+    first = crew_sim.run_once(get, post, sent)
+    assert first > 3 and set(statuses) == {201} and w.snapshot()["clinical"]["seq"] == first
+    assert crew_sim.run_once(get, post, sent) == 0 and len(statuses) == first, "no reset: nothing twice"
+
+    # POST /{world}/admin/reset: the world is re-seeded (trip ids restart) and the clinical log starts again.
+    client2, w2 = make()
+    t2 = er_trip(w2)
+    assert t2.id == t.id and w2.snapshot()["clinical"]["seq"] == 0
+    drive(w2, 30, until=lambda: w2.trips[t2.id].status == "onboard")
+    drive(w2, 6)
+    statuses2: list[int] = []
+    get2, post2 = wire(client2, w2, statuses2)
+    assert crew_sim.run_once(get2, post2, sent) > 0, "the simulator is not silent after a reset"
+    assert set(statuses2) == {201}, "and the new log really received the entries"
+    assert len(client2.get("/sim/clinical/entries", params={"limit": 2000}).json()) == len(statuses2)
+    assert crew_sim.run_once(get2, post2, sent) == 0, "once again nothing is posted twice"
+
+
+# --- the demo key (final review F4) and server errors (F9) -------------------------------------
+
+KEY_HEADER = "X-Plan-B-Key"
+
+
+@contextmanager
+def env_admin_key(value: str | None):
+    """Set (or remove) ADMIN_KEY for a block and put back exactly what was there."""
+    before = os.environ.get("ADMIN_KEY")
+    if value is None:
+        os.environ.pop("ADMIN_KEY", None)
+    else:
+        os.environ["ADMIN_KEY"] = value
+    try:
+        yield
+    finally:
+        if before is None:
+            os.environ.pop("ADMIN_KEY", None)
+        else:
+            os.environ["ADMIN_KEY"] = before
+
+
+def run_main(argv: list[str], handler, cycles: int = 1) -> str:
+    """Run crew_sim.main over an httpx.MockTransport (the module's httpx and time swapped for the run).
+
+    The Client main builds really is made by httpx with the options main passes, so what the handler
+    sees is what a server would receive. Returns what main printed."""
+    real_httpx, real_time = crew_sim.httpx, crew_sim.time
+    naps = {"n": 0}
+
+    def nap(seconds):
+        naps["n"] += 1
+        if naps["n"] >= cycles:
+            raise KeyboardInterrupt
+
+    crew_sim.httpx = types.SimpleNamespace(
+        Client=lambda **kw: real_httpx.Client(transport=real_httpx.MockTransport(handler), **kw),
+        HTTPError=real_httpx.HTTPError,
+        HTTPStatusError=real_httpx.HTTPStatusError,
+    )
+    crew_sim.time = types.SimpleNamespace(sleep=nap)
+    out = io.StringIO()
+    try:
+        with redirect_stdout(out):
+            assert crew_sim.main(argv) in (0, None)
+    finally:
+        crew_sim.httpx, crew_sim.time = real_httpx, real_time
+    return out.getvalue()
+
+
+def recording_handler(seen: list, post_status: int = 201, post_body: dict | None = None):
+    snap = snapshot(trip_dict(status="assigned"), now=T0 + 1 * MIN)  # one case that needs a triage posted
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.method == "GET":
+            return httpx.Response(200, json=snap)
+        return httpx.Response(post_status, json=post_body if post_body is not None else {"ok": True})
+
+    return handler
+
+
+def test_the_key_option_is_sent_as_x_plan_b_key_on_every_request():
+    with env_admin_key(None):
+        seen: list = []
+        run_main(["--base", "http://testserver", "--world", "sim", "--key", "abc"], recording_handler(seen), cycles=2)
+    assert {r.method for r in seen} == {"GET", "POST"}, "a read and a write were both made"
+    assert all(r.headers.get(KEY_HEADER) == "abc" for r in seen), [(r.method, r.url.path) for r in seen]
+
+
+def test_the_key_defaults_to_the_admin_key_environment_variable_and_the_flag_wins():
+    with env_admin_key("from-env"):
+        assert crew_sim.build_parser().parse_args([]).key == "from-env"
+        seen: list = []
+        run_main(["--base", "http://testserver"], recording_handler(seen))
+        assert seen and all(r.headers.get(KEY_HEADER) == "from-env" for r in seen)
+        seen = []
+        run_main(["--base", "http://testserver", "--key", "flag"], recording_handler(seen))
+        assert seen and all(r.headers.get(KEY_HEADER) == "flag" for r in seen)
+
+
+def test_no_key_and_no_environment_variable_sends_no_key_header():
+    with env_admin_key(None):
+        assert crew_sim.build_parser().parse_args([]).key is None
+        seen: list = []
+        run_main(["--base", "http://testserver"], recording_handler(seen))
+    assert seen and all(KEY_HEADER.lower() not in r.headers for r in seen)
+    with env_admin_key(""):  # an empty variable is no key either
+        seen = []
+        run_main(["--base", "http://testserver"], recording_handler(seen))
+    assert seen and all(KEY_HEADER.lower() not in r.headers for r in seen)
+
+
+def test_the_key_is_never_printed():
+    with env_admin_key(None):
+        handler = recording_handler([], post_status=403, post_body={"detail": "bad key"})
+        out = run_main(["--base", "http://testserver", "--key", "s3cret-demo-key"], handler)
+    assert "s3cret-demo-key" not in out and "403" in out
+
+
+def test_a_refused_post_shows_the_servers_reason_and_the_loop_goes_on():
+    reason = "Case TR-100 is assigned to vehicle A9, not A1."
+    with env_admin_key(None):
+        handler = recording_handler([], post_status=409, post_body={"detail": reason})
+        out = run_main(["--base", "http://testserver", "--world", "sim"], handler, cycles=2)
+    lines = [ln for ln in out.splitlines() if ln.strip()]
+    errors = [ln for ln in lines if ln.startswith("error:")]
+    assert len(errors) == 2, out  # one per cycle: the failure is shown, then retried
+    assert all("409" in ln and reason in ln for ln in errors), errors
+    assert lines[-1] == "stopped"
+
+
+def test_the_status_error_carries_the_status_and_the_response_text_and_run_once_still_raises():
+    refused = httpx.Response(
+        422, json={"detail": [{"loc": ["body", "vitals", "content"], "msg": "bad"}]}, request=httpx.Request("POST", "http://testserver/sim/clinical/entries")
+    )
+    try:
+        crew_sim.raise_for_status(refused)
+    except httpx.HTTPStatusError as exc:
+        assert "422" in str(exc) and "bad" in str(exc) and exc.response is refused
+    else:
+        raise AssertionError("a 422 must raise")
+    for status in (200, 201):
+        crew_sim.raise_for_status(httpx.Response(status, json={}, request=httpx.Request("POST", "http://testserver/x")))  # no error
+
+    snap = snapshot(trip_dict(status="assigned"), now=T0 + 1 * MIN)
+    sent: set[str] = set()
+
+    def refuse(path, body):
+        crew_sim.raise_for_status(refused)
+
+    try:
+        crew_sim.run_once(lambda p: snap, refuse, sent)
+    except httpx.HTTPStatusError:
+        pass
+    else:
+        raise AssertionError("run_once must keep raising on a failed post")
+    assert sent == set(), "a refused entry is not remembered as sent"
 
 
 def test_main_defaults_and_flags():
