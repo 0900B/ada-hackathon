@@ -44,6 +44,9 @@ if TYPE_CHECKING:
     from ..models import OperatorEvent
     from ..state import WorldState
 
+# Events that disrupt open calls: each touched 112 call gets a "disruption" entry and its re-plan
+# (engine/timeline.py mark_disruption; the case card's re-plan box)
+DISRUPTIONS = ("breakdown", "delay", "road_closure", "fog", "hospital_capacity")
 EMERGENCY_SLACK_MIN = 20  # target: at hospital within direct travel + this
 URGENT_SLACK_MIN = 60
 
@@ -64,12 +67,18 @@ def apply_event(
     created: list[str] = []
     tracker = timeline.Tracker(state)
     graded = {t.id: (t.severity, t.condition_label) for t in state.trips.values() if t.call is not None}
+    # Disruptions: what each open 112 call's timeline and next arrival were before (the re-plan box)
+    marks = ({t.id: (len(t.timeline), timeline.milestone(t)[0]) for t in state.trips.values() if is_112(t) and t.status not in DONE}
+             if ev.type in DISRUPTIONS else {})
 
     t0 = time.perf_counter()
     summary = _handle(state, ev, created, call)
     project_all(state)
     tracker.detail = timeline.engine_detail(time.perf_counter() - t0)  # "rules engine, 0.1 s"
     _log_event(state, ev, summary, created, tracker, graded, reported_by)
+    event_id = state.new_id("EV")
+    if marks:
+        timeline.mark_disruption(state, event_id, timeline._clauses(summary)[0], reported_by, marks)
 
     affected: list[str] = list(dict.fromkeys(created))  # the event's own trips first (e.g. the new call)
     for t in state.trips.values():
@@ -83,7 +92,7 @@ def apply_event(
             affected.append(t.id)
 
     record = EventRecord(
-        id=state.new_id("EV"),
+        id=event_id,
         sim_time=state.sim_time,
         type=ev.type,
         payload=ev.model_dump(mode="json"),
@@ -180,9 +189,9 @@ def _log_event(
 
 
 def triage_detail(tr) -> str:
-    """The triage entry's source: "Claude, 2.1 s", "keyword rules, 0.0 s", "dispatcher re-grade"."""
+    """The triage entry's source: "Claude, 2.1 s", "keyword rules, <0.1 s", "dispatcher re-grade"."""
     what = {"ai": "Claude", "rules": "keyword rules", "dispatcher": "dispatcher re-grade"}.get(tr.by, tr.by)
-    return f"{what}, {tr.took_s:.1f} s" if tr.took_s is not None and tr.by != "dispatcher" else what
+    return timeline.engine_detail(tr.took_s, what) if tr.took_s is not None and tr.by != "dispatcher" else what
 
 
 def triage_text(tr) -> str:

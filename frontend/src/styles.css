@@ -2962,7 +2962,7 @@ button.sm.on {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 16px;
 }
 .cases-empty {
   padding: 8px 2px;
@@ -2971,11 +2971,26 @@ button.sm.on {
    ends where the next begins. The left bar keeps the severity colour. */
 .case {
   position: relative;
-  border: 1px solid var(--border-strong);
-  border-left: 4px solid var(--prio-sc-bd);
+  border: 1px solid #4a5a70;
+  border-left: 6px solid var(--prio-sc-bd);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+/* The header of every case is a band tinted with its severity colour: each call starts visibly */
+.case > .case-head {
+  border-bottom: 1px solid var(--border-strong);
+  border-radius: 0 var(--radius-sm) 0 0;
+  background: color-mix(in srgb, var(--prio-sc-bd) 22%, transparent);
+}
+.case.lvl-critical > .case-head {
+  background: color-mix(in srgb, var(--sev-crit-bd) 16%, transparent);
+}
+.case.lvl-serious > .case-head {
+  background: color-mix(in srgb, var(--sev-ser-bd) 10%, transparent);
+}
+.case.lvl-urgent > .case-head {
+  background: color-mix(in srgb, var(--prio-ur-bd) 28%, transparent);
 }
 .case.lvl-critical {
   border-left-color: var(--sev-crit-bd);
@@ -3059,7 +3074,7 @@ button.sm.on {
   font-weight: 400;
 }
 .case-head:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.025);
+  box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.035); /* over the severity tint, not instead of it */
 }
 .case-title {
   display: flex;
@@ -3912,4 +3927,195 @@ button.link.tl-unit {
 }
 .toast span {
   white-space: pre-line;
+}
+
+/* Re-plan box on a case card (ReplanBox.tsx): a disruption hit the call, the re-plan line by line */
+.case.replan-on {
+  border-top-color: var(--warn);
+  border-right-color: var(--warn);
+  border-bottom-color: var(--warn);
+  box-shadow: 0 0 0 1px rgba(214, 162, 58, 0.55), 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+.replan {
+  margin: 10px 10px 8px;
+  border: 1px solid rgba(214, 162, 58, 0.6);
+  border-radius: var(--radius-sm);
+  background: rgba(214, 162, 58, 0.07);
+}
+.replan-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px 7px 10px;
+  border-bottom: 1px solid rgba(214, 162, 58, 0.35);
+}
+.replan-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--warn);
+}
+.replan-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--prio-ur-fg);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.replan-what {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text);
+}
+.replan-close {
+  flex: none;
+  padding: 2px;
+  color: var(--muted);
+}
+.replan-close svg {
+  width: 15px;
+  height: 15px;
+}
+.replan-lines {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.replan-line {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  animation: replan-in 0.35s ease-out both;
+}
+.replan-who {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin-top: 1px;
+  color: var(--muted);
+}
+.replan-line.by-ai .replan-who {
+  color: var(--accent);
+}
+.replan-line.by-dispatcher .replan-who {
+  color: var(--ok);
+}
+.replan-line.by-crew .replan-who {
+  color: var(--warn);
+}
+.replan-main {
+  flex: 1;
+  min-width: 0;
+}
+.replan-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+}
+.replan-step {
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.replan-src {
+  color: var(--muted);
+}
+.replan-time {
+  margin-left: auto;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.replan-text {
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--text-2);
+}
+.replan-delta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  margin-top: 4px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.replan-units,
+.replan-eta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.replan-delta svg {
+  width: 13px;
+  height: 13px;
+  color: var(--muted);
+}
+.replan-delta s {
+  color: var(--muted);
+}
+.replan-units .link {
+  font-weight: 700;
+}
+.replan-d {
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.05);
+}
+.replan-d.worse {
+  color: #ff8a84;
+  background: rgba(248, 81, 73, 0.14);
+}
+.replan-d.better {
+  color: #6bdd7a;
+  background: rgba(63, 185, 80, 0.14);
+}
+.replan-line.pending {
+  border-style: dashed;
+  color: var(--muted);
+}
+.replan-spin {
+  animation: replan-spin 1s linear infinite;
+}
+.replan-proposal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+@keyframes replan-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes replan-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .replan-line,
+  .replan-spin {
+    animation: none;
+  }
 }

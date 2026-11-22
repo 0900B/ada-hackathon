@@ -71,6 +71,8 @@ export function AiDispatcherPanel({
   const [canOverride, setCanOverride] = useState(true);
   const [listening, setListening] = useState(false);
   const [overrideUnit, setOverrideUnit] = useState<{ tripId: string; id: string; n: number } | null>(null);
+  // A disruption hit a case: its card opens with the re-plan box, until closed or another case is opened
+  const [replan, setReplan] = useState<{ tripId: string; since: string } | null>(null);
   const { active, closed } = callsOf(state);
   const cardRefs = useRef(new Map<string, HTMLElement>());
   const reviewRef = useRef<HTMLDivElement>(null);
@@ -119,7 +121,39 @@ export function AiDispatcherPanel({
     lastEpoch.current = state.epoch;
     setOpen(null);
     setOverrideUnit(null);
+    setReplan(null);
+    seenDisruption.current = 0; // a reset re-anchors the clock: later disruptions may carry earlier times
   }, [state.epoch]);
+
+  // A new disruption on an open case (a breakdown, delay, closure, jam, ... from a button, a hotkey or the
+  // crew): open that case and show its re-plan box. Those already there when the page opened don't pop up.
+  const seenDisruption = useRef<number | null>(null);
+  useEffect(() => {
+    let newest: { tripId: string; at: string; ms: number } | null = null;
+    for (const c of active) {
+      for (const e of c.trip.timeline ?? []) {
+        if (e.kind !== "disruption") continue;
+        const ms = Date.parse(e.at);
+        if (!newest || ms > newest.ms) newest = { tripId: c.trip.id, at: e.at, ms };
+      }
+    }
+    if (seenDisruption.current === null) {
+      seenDisruption.current = newest?.ms ?? 0;
+      return;
+    }
+    if (!newest || newest.ms <= seenDisruption.current) return;
+    seenDisruption.current = newest.ms;
+    const hit = newest;
+    setReplan({ tripId: hit.tripId, since: hit.at });
+    setOpen(hit.tripId);
+    onSelectCase(hit.tripId);
+    requestAnimationFrame(() => cardRefs.current.get(hit.tripId)?.scrollIntoView({ block: "start", behavior: "smooth" }));
+  }, [state.version]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Opening another case closes the re-plan box (collapsing the same case keeps it)
+  useEffect(() => {
+    if (replan && open && open !== replan.tripId) setReplan(null);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A map point was picked for the new call: show the form again
   useEffect(() => {
@@ -148,6 +182,8 @@ export function AiDispatcherPanel({
       onSelectVehicle={onSelectVehicle}
       onCentreVehicle={onCentreVehicle}
       onShowOnMap={() => onShowCall(c.trip.id)}
+      replan={replan && replan.tripId === c.trip.id ? replan.since : null}
+      onCloseReplan={() => setReplan(null)}
       onMissingOverride={() => {
         setCanOverride(false);
         notify("error", t("ai.toast.noOverride"));

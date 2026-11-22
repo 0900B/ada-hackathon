@@ -77,7 +77,9 @@ def check(state: WorldState, force: bool = False) -> list[str]:
             project_all(state)
             old, text = switched
             detail = timeline.engine_detail(time.perf_counter() - t0, DETAIL)
-            timeline.log(state, trip, "reassigned", "engine", text, trip.vehicle_id, detail=detail)
+            eta_after, of = timeline.milestone(trip)
+            timeline.log(state, trip, "reassigned", "engine", text, trip.vehicle_id, detail=detail, unit_before=old,
+                         eta_before=tracker.eta.get(trip.id), eta_after=eta_after, eta_of=of)
             tracker.before.pop(trip.id, None)  # already said; log only the doctor change, if any
             tracker.log_changes("engine", detail=detail)
             done.append(f"{trip.id}: {text}")

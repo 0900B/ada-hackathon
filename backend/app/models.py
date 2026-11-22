@@ -110,6 +110,7 @@ TimelineKind = Literal[
     "handover_done", "closed", "note",
     "reviewed",  # the AI dispatcher (Claude) reviewed the case and kept the decision (app/ai_dispatcher.py)
     "override",  # the dispatcher changed a unit by hand (app/overrides.py)
+    "disruption",  # a breakdown, delay, closure, fog, ... hit this call: the re-plan entries follow it
 ]
 TimelineBy = Literal["caller", "ai", "rules", "engine", "dispatcher", "crew"]
 AiMode = Literal["assisted", "autonomous"]  # per world (app/ai_dispatcher.py)
@@ -155,6 +156,13 @@ class TimelineEntry(BaseModel):
     # Who exactly, in a few words: "rules engine, 0.1 s", "Claude, 12 s, checked by the engine",
     # "dispatcher override", "keyword rules" (engine/timeline.py fills a default from `by`).
     detail: str | None = None
+    # Re-plans (the case card's re-plan box): the event behind the entry, the unit it replaced, and the
+    # trip's next arrival before and after (at the patient / pickup, or at the hospital once on board).
+    event_id: str | None = None
+    unit_before: str | None = None
+    eta_before: datetime | None = None
+    eta_after: datetime | None = None
+    eta_of: Literal["patient", "pickup", "hospital"] | None = None
 
 
 class Trip(BaseModel):

@@ -21,6 +21,7 @@ import {
   type WorldSnapshot,
 } from "./api";
 import { badgesOf, BY_SHORT, callStatusLabel, isClaude, sourceText, STEP_LABEL, type Badge, type CallView, type CaseUnit } from "./calls";
+import { ReplanBox } from "./ReplanBox";
 import { DoctorTag } from "./DoctorTag";
 import { fmtTime } from "./format";
 import { t as tx, useLang, useT, type TKey } from "./i18n";
@@ -81,6 +82,8 @@ export function CaseCard({
   onMissingOverride,
   notify,
   refCb,
+  replan,
+  onCloseReplan,
 }: {
   c: CallView;
   state: WorldSnapshot;
@@ -96,6 +99,8 @@ export function CaseCard({
   onMissingOverride: () => void;
   notify: Notify;
   refCb: (el: HTMLElement | null) => void;
+  replan: string | null; // a disruption hit this call: its time; show the re-plan box
+  onCloseReplan: () => void;
 }) {
   const t = useT();
   const lang = useLang();
@@ -151,7 +156,7 @@ export function CaseCard({
 
   return (
     <li
-      className={`case lvl-${level}${open ? " open" : ""}${selected ? " selected" : ""}${isNew ? " case-new" : ""}${c.status === "waiting" ? " waiting" : ""}${done ? " done" : ""}`}
+      className={`case lvl-${level}${open ? " open" : ""}${selected ? " selected" : ""}${isNew ? " case-new" : ""}${c.status === "waiting" ? " waiting" : ""}${done ? " done" : ""}${replan ? " replan-on" : ""}`}
       ref={refCb}
     >
       <button className="case-head" onClick={onToggle} aria-expanded={open} title={open ? t("ai.case.collapse") : t("ai.case.open")}>
@@ -183,6 +188,19 @@ export function CaseCard({
           </span>
         )}
       </button>
+
+      {replan && (
+        <ReplanBox
+          timeline={c.timeline}
+          since={replan}
+          reviewing={c.reviewing}
+          proposal={proposal?.recommendation?.options[proposal.recommendation.recommended_index]?.title ?? null}
+          busy={busy}
+          onApprove={() => void approve()}
+          onClose={onCloseReplan}
+          onSelectVehicle={(id) => onSelectVehicle(id, true)}
+        />
+      )}
 
       {!open && <Badges badges={badges} />}
 

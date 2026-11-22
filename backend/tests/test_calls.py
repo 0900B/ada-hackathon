@@ -545,6 +545,34 @@ def test_placed_library_call():
     assert client.post("/live/admin/random-call", json={"condition": "stroke", "lat": lat, "lon": lon}).status_code == 400
 
 
+def test_disruption_starts_a_replan_on_the_case():
+    """A breakdown / delay on a call's unit: a "disruption" entry, then the re-plan entries tagged with the
+    event and the arrival before -> after (the case card's re-plan box)."""
+    fresh()
+    t = trip_of(client.post("/sim/admin/random-call", json={"condition": "cardiac_arrest", "lat": 45.9834, "lon": 14.5768}).json())
+    unit = t.vehicle_id
+    r = client.post("/sim/events", json={"type": "breakdown", "vehicle_id": unit})
+    assert r.status_code == 200, r.text
+    ev_id = r.json()["id"]
+    tl = W.trips[t.id].timeline
+    i = next(i for i, e in enumerate(tl) if e.kind == "disruption")
+    head, rest = tl[i], tl[i + 1:]
+    assert head.event_id == ev_id and "broke down" in head.text, head
+    rep = next(e for e in rest if e.kind == "unit_replaced")
+    assert rep.event_id == ev_id and rep.unit_before == unit and rep.vehicle_id != unit, rep
+    assert rep.eta_before is not None and rep.eta_after is not None and rep.eta_of == "patient", rep
+    # A delay on the new unit: the arrival before -> after, about the delay later
+    n = len(tl)
+    r = client.post("/sim/events", json={"type": "delay", "vehicle_id": rep.vehicle_id, "minutes": 10})
+    new = W.trips[t.id].timeline[n:]
+    assert new[0].kind == "disruption", [e.kind for e in new]
+    d = next(e for e in new if e.kind == "delayed")
+    if W.trips[t.id].vehicle_id == rep.vehicle_id:  # unless a faster free unit took over at once
+        assert d.eta_before and d.eta_after and 9 <= (d.eta_after - d.eta_before).total_seconds() / 60 <= 11, d
+    # Old timelines without the new fields still load; engine timings never read "0.0 s"
+    assert all("0.0 s" not in (e.detail or "") for e in W.trips[t.id].timeline)
+
+
 def _incident(kind: str | None) -> dict:
     r = client.post("/sim/admin/random-incident", json={"kind": kind} if kind else {})
     assert r.status_code == 200, r.text
