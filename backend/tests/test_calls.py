@@ -580,6 +580,84 @@ def test_random_incidents_hit_current_operations():
     assert stranded.status == "unassigned", "the stranded-equipment decision stays"
 
 
+def test_random_jam_slows_and_clears():
+    """Random failure "jam": a congestion incident on the route of the unit on the 112 call. It slows
+    (never blocks) that unit, says by how much (event log + the call's timeline), is drawn along the
+    route (path) and clears by itself after its time."""
+    from app.engine.events import clear_expired_incidents
+    from app.routing import JAM_SPEED_KMH, is_jam, travel_minutes
+    from app.sim import incidents as demo_incidents
+
+    assert "jam" in demo_incidents.KINDS, "part of the random 'any' pick"
+    fresh()
+    t = trip_of(post_call("Prometna nesreča, voznik je ukleščen.", address="Ižanska cesta 80, Rudnik"))
+    unit = W.vehicles[t.vehicle_id]
+    assert run(3, until=lambda: unit.status == "to_pickup" and unit.busy_until is None and unit.path_to is not None)
+    before = t.eta_pickup
+    body = _incident("jam")
+    ev = body["event"]
+    assert body["kind"] == "jam" and ev["payload"]["vehicle_id"] == unit.id and ev["affected_trip_ids"][0] == t.id, body
+    inc = next(reversed(W.incidents.values()))
+    assert inc.kind == "congestion" and is_jam(inc) and crosses(W, unit, inc), "on the route it is driving"
+    assert inc.path and len(inc.path) >= 2, "drawn along the route"
+    assert inc.until is not None and 20 <= (inc.until - W.sim_time).total_seconds() / 60 <= 30
+    m = re.search(rf"{unit.id} \+(\d+) min", ev["summary"])
+    assert ev["summary"].startswith("Traffic jam") and m and int(m.group(1)) >= 2, ev["summary"]
+    jam_entries = [e for e in entries(t, "delayed") if "traffic jam" in e.text]
+    assert any(e.vehicle_id == unit.id for e in jam_entries), [e.text for e in t.timeline]
+    if t.vehicle_id == unit.id:  # (unless a free unit was clearly faster and took over)
+        assert t.eta_pickup > before + timedelta(minutes=1), (before, t.eta_pickup)
+        slowed = t.eta_pickup
+    # The model: a 5 km straight leg through a 1 km jam (the straight-line fallback adds the road factor):
+    # that stretch at JAM_SPEED_KMH instead of the normal speed.
+    a, b = (46.03, 14.45), (46.03, 14.515)
+    plain = travel_minutes(W, *a, *b, "ambulance", True)
+    W.incidents["JAM-T"] = inc.model_copy(update={"id": "JAM-T", "lat": 46.03, "lon": 14.4825, "radius_m": 500, "until": None})
+    jammed = travel_minutes(W, *a, *b, "ambulance", True)
+    assert 4 < jammed - plain < 9, (plain, jammed)
+    W.incidents["JAM-T"].active = False
+    assert abs(travel_minutes(W, *a, *b, "ambulance", True) - plain) < 0.01, "an inactive jam costs nothing"
+    del W.incidents["JAM-T"]
+    # It clears by itself (the app loop): back to the normal time.
+    inc.until = W.sim_time
+    cleared = clear_expired_incidents(W)
+    assert len(cleared) == 1 and not inc.active and "eased" in cleared[0].summary, [c.summary for c in cleared]
+    project_all(W)
+    if t.vehicle_id == unit.id and t.status in ("assigned", "en_route_pickup"):
+        assert t.eta_pickup < slowed, (slowed, t.eta_pickup)
+    assert JAM_SPEED_KMH < 20
+    # A live jam (TomTom) keeps the plain congestion factor, not the jam model.
+    live = inc.model_copy(update={"source": "live", "active": True})
+    assert not is_jam(live)
+
+
+def test_incident_drawn_along_its_road():
+    """An incident's path: the stretch of a road route around its point (2 x radius, capped)."""
+    from app.roads import stretch_along
+
+    line = [(46.05, 14.50), (46.05, 14.51), (46.05, 14.52)]  # ~770 m per segment, west to east
+    got = stretch_along(line, 46.0502, 14.51, 200)
+    assert got is not None
+    path, off = got
+    assert off < 30 and len(path) == 3 and path[1] == (46.05, 14.51), got
+    from app.geo import haversine_km
+    length = sum(haversine_km(*p, *q) for p, q in zip(path, path[1:])) * 1000
+    assert 390 <= length <= 410, length
+    assert stretch_along(line, 46.06, 14.51, 200) is None, "a road 1 km away is not this road"
+    # A map-click closure next to a unit's route: drawn on that route.
+    fresh()
+    t = trip_of(post_call("Prometna nesreča, voznik je ukleščen.", address="Ižanska cesta 80, Rudnik"))
+    unit = W.vehicles[t.vehicle_id]
+    assert run(3, until=lambda: unit.status == "to_pickup" and unit.busy_until is None and unit.path_to is not None)
+    mid = ((unit.lat + unit.path_to[0]) / 2, (unit.lon + unit.path_to[1]) / 2)
+    r = client.post("/sim/events", json={"type": "road_closure", "lat": mid[0], "lon": mid[1], "radius_m": 300})
+    assert r.status_code == 200, r.text
+    inc = next(reversed(W.incidents.values()))
+    snap = client.get("/sim/state").json()
+    drawn = next(i for i in snap["incidents"] if i["id"] == inc.id)
+    assert drawn["path"] is None or len(drawn["path"]) >= 2, drawn
+
+
 # --- The vehicle card -----------------------------------------------------------------------------
 
 

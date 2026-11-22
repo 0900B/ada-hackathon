@@ -250,6 +250,11 @@ class Incident(BaseModel):
     source: Literal["live", "injected"] = "injected"
     provider: str | None = None  # "tomtom", "promet.si" for live incidents; each feed replaces only its own
     active: bool = True
+    # The affected road stretch, (lat, lon) along the road, for the map: a stretch of a unit's route,
+    # a road snapped to near the point, or the feed's own geometry. None = not known (only the point).
+    # The engine still treats the incident as the circle (lat, lon, radius_m).
+    path: list[tuple[float, float]] | None = None
+    until: datetime | None = None  # clears by itself at this world time (a demo traffic jam); None = until cleared
 
 
 class WeatherNow(BaseModel):
@@ -355,6 +360,9 @@ class RoadClosureEvent(BaseModel):
     radius_m: float = Field(default=400, gt=0, le=5000)
     kind: IncidentKind = "road_closure"
     description: str = "Road closed"
+    # Optional: the affected road stretch (lat, lon) for the map; derived from the roads when not given
+    path: list[tuple[float, float]] | None = Field(default=None, max_length=400)
+    duration_min: float | None = Field(default=None, gt=0, le=24 * 60)  # clears by itself after this long
 
 
 class ClearIncidentEvent(BaseModel):

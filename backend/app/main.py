@@ -26,7 +26,7 @@ from .guard import GUARD, message_limit_detail
 from .audit import AUDIT
 from .engine import followup, surge, timeline
 from .engine.actions import ActionError
-from .engine.events import EventError, apply_event
+from .engine.events import EventError, apply_event, clear_expired_incidents, fill_incident_paths
 from .engine.plans import apply_plan, simulate_plan
 from .engine.projection import kpis, project_all
 from .fetchers import nap, tomtom
@@ -117,6 +117,9 @@ async def sim_loop() -> None:
         for w in WORLDS.values():
             try:
                 tick(w, config.SIM_TICK_S * w.speedup)
+                for record in clear_expired_incidents(w):  # a demo traffic jam eases after its time
+                    AUDIT.record(w.name, "event", record.summary, ref=record.id, payload=record)
+                fill_incident_paths(w)  # draw an incident along its road once a road route there is known
                 take_calls(w)
                 followup.check(w)  # 112 calls: re-dispatch, a faster free unit, a doctor car (engine/followup.py)
                 project_all(w)
@@ -574,7 +577,7 @@ async def random_call(req: RandomCallRequest | None = None, state: WorldState = 
 
 
 class RandomIncidentRequest(BaseModel):
-    kind: Literal["crash", "closure", "fog", "breakdown", "delay", "capacity", "equipment"] | None = None
+    kind: Literal["crash", "closure", "jam", "fog", "breakdown", "delay", "capacity", "equipment"] | None = None
 
 
 @router.post("/admin/random-incident")

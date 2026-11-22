@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 from ..models import (
@@ -24,7 +24,7 @@ from ..models import (
     WeatherOverrideEvent,
 )
 from ..roads import ROADS, remaining_points
-from ..routing import flies, leg_route, points_hit, travel_minutes
+from ..routing import INCIDENT_PATH_MAX_HALF_M, flies, is_jam, leg_route, points_hit, road_stretch, travel_minutes
 from . import timeline, units
 from .actions import LJ, ActionError, assign_trip, can_serve, detach_trip, level
 from .doctors import release as release_doctor, send_doctor
@@ -221,6 +221,83 @@ def _target(state: WorldState, v) -> tuple[float, float] | None:
     return (p.lat, p.lon)
 
 
+def _next_stop_etas(state: WorldState) -> dict[str, datetime]:
+    """When each road unit on a job reaches the stop it is heading for (as projected now)."""
+    out: dict[str, datetime] = {}
+    for v in state.vehicles.values():
+        t = state.trips.get(v.current_trip_id) if v.current_trip_id else None
+        if t is None or flies(v.type) or v.status not in ("to_pickup", "with_patient"):
+            continue
+        if v.type == "doctor" and t.vehicle_id != v.id:
+            eta = t.doctor_eta if v.status == "to_pickup" else None  # (it then rides with the ambulance)
+        else:
+            eta = t.eta_dropoff if t.status == "onboard" else t.eta_pickup
+        if eta is not None:
+            out[v.id] = eta
+    return out
+
+
+def _jam_effect(state: WorldState, inc: Incident, what: str, arrive_before: dict[str, datetime]) -> str:
+    """A traffic jam slows (never blocks) the units whose leg runs through it (routing.JAM_SPEED_KMH):
+    "Traffic jam on Zaloška cesta (...): A1 +5 min", and a "delayed" entry on each one's call."""
+    project_all(state)
+    arrive_after = _next_stop_etas(state)
+    delays = []
+    for vid, before in arrive_before.items():
+        v = state.vehicles[vid]
+        after = arrive_after.get(vid)
+        if after is None or not crosses(state, v, inc):
+            continue
+        minutes = (after - before).total_seconds() / 60
+        if minutes >= 0.5:
+            delays.append((v, minutes))
+    named = inc.description.lower().startswith("traffic jam")
+    head = inc.description if named else what
+    if not delays:
+        return f"{head}: no unit on its way is held up"
+    jam = "a t" + inc.description[1:] if named else f"a traffic jam ({inc.description})"
+    for v, minutes in delays:
+        t = state.trips[v.current_trip_id]
+        if t.status == "onboard" and t.vehicle_id == v.id:
+            when = f": at {state.places[t.dropoff_id].name} {timeline.hhmm(t.eta_dropoff)}"
+        elif v.type == "doctor" and t.vehicle_id != v.id:
+            when = f": at the scene {timeline.hhmm(t.doctor_eta)}"
+        else:
+            when = f": at {'the patient' if t.kind == 'patient' else 'the pickup'} {timeline.hhmm(t.eta_pickup)}"
+        timeline.log(state, t, "delayed", "engine", f"{v.id} slowed by {jam} ahead, about +{minutes:.0f} min{when}", v.id)
+    return f"{head}: " + ", ".join(f"{v.id} +{m:.0f} min" for v, m in delays)
+
+
+def clear_expired_incidents(state: WorldState) -> list[EventRecord]:
+    """Injected incidents with an end time (a demo traffic jam) clear by themselves, through the
+    normal event path (the event log says so). Real world only; run by the app loop."""
+    if state.is_simulation:
+        return []
+    done = []
+    for inc in list(state.incidents.values()):
+        if inc.active and inc.until is not None and state.sim_time >= inc.until:
+            done.append(apply_event(state, ClearIncidentEvent(type="clear_incident", incident_id=inc.id), reported_by="engine"))
+    return done
+
+
+_path_tries: dict[tuple, int] = {}  # incident -> number of cached road routes when last looked
+
+
+def fill_incident_paths(state: WorldState) -> None:
+    """An incident reported where no road route ran yet (a map click, a scenario) gets its road
+    stretch as soon as one does (routing.road_stretch, from cached routes; looked up again only
+    when new routes have arrived). Stays None if no route ever passes it."""
+    n = len(ROADS.routes) + sum(len(d) for d in ROADS.detours.values())
+    for inc in state.incidents.values():
+        k = (state.name, inc.id, inc.created_at)
+        if inc.active and inc.path is None and _path_tries.get(k) != n:
+            _path_tries[k] = n
+            half = inc.radius_m if is_jam(inc) else min(inc.radius_m, INCIDENT_PATH_MAX_HALF_M)
+            inc.path = road_stretch(state, inc.lat, inc.lon, half)
+    if len(_path_tries) > 2000:
+        _path_tries.clear()
+
+
 def _handle(state: WorldState, ev: OperatorEvent, created: list[str], call: CallRecord | None = None) -> str:
     if isinstance(ev, BreakdownEvent):
         v = _vehicle(state, ev.vehicle_id)
@@ -294,6 +371,11 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str], call: Call
         return f"{v.name} delayed by {ev.minutes:.0f} min" + (f" ({ev.note})" if ev.note else "")
 
     if isinstance(ev, RoadClosureEvent):
+        jam = ev.kind == "congestion"
+        arrive_before = _next_stop_etas(state) if jam else {}
+        # Drawn along its road: the given stretch, else cut from a road route we have (2 x radius,
+        # capped; a jam covers its whole circle). The engine still uses the circle.
+        half = ev.radius_m if jam else min(ev.radius_m, INCIDENT_PATH_MAX_HALF_M)
         inc = Incident(
             id=state.new_id("INC"),
             kind=ev.kind,
@@ -302,9 +384,13 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str], call: Call
             lon=ev.lon,
             radius_m=ev.radius_m,
             created_at=state.sim_time,
+            path=[tuple(p) for p in ev.path] if ev.path else road_stretch(state, ev.lat, ev.lon, half),
+            until=state.sim_time + timedelta(minutes=ev.duration_min) if ev.duration_min else None,
         )
         state.incidents[inc.id] = inc
         what = f"{ev.kind.replace('_', ' ').capitalize()}: {ev.description}"
+        if jam:
+            return _jam_effect(state, inc, what, arrive_before)
         if inc.kind != "road_closure":
             return what
         crossing = [v.id for v in state.vehicles.values() if crosses(state, v, inc)]
@@ -320,6 +406,8 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str], call: Call
                 raise EventError("Live incidents from TomTom/promet.si clear themselves when the feed does")
             raise EventError(f"Unknown incident {ev.incident_id}")
         inc.active = False
+        if is_jam(inc):
+            return f"Incident {inc.id} cleared: {inc.description} has eased"
         return f"Incident {inc.id} cleared"
 
     if isinstance(ev, UrgentRequestEvent):
