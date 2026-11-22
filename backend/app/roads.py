@@ -128,11 +128,81 @@ def remaining_points(route: Route, fraction: float) -> list[tuple[float, float]]
     return [point_along(route, fraction), *route.points[i:]]
 
 
+def stretch_along(
+    points: list[tuple[float, float]], lat: float, lon: float, half_m: float, max_off_m: float = 40.0
+) -> tuple[list[tuple[float, float]], float] | None:
+    """The part of a polyline from half_m before to half_m after its point nearest to (lat, lon):
+    (the stretch, how far the polyline passes from the point in metres). None if the polyline
+    passes further than max_off_m from the point. Used to draw an incident along its road."""
+    if len(points) < 2:
+        return None
+    kx = 111_320 * math.cos(math.radians(lat))
+    ky = 110_540
+    lats = [p[0] for p in points]
+    lons = [p[1] for p in points]
+    pad = max_off_m / ky
+    if not (min(lats) - pad <= lat <= max(lats) + pad and min(lons) - pad * 1.6 <= lon <= max(lons) + pad * 1.6):
+        return None
+    cum = [0.0]
+    best_d, best_m = float("inf"), 0.0
+    for i, ((alat, alon), (blat, blon)) in enumerate(zip(points, points[1:])):
+        ax, ay = (alon - lon) * kx, (alat - lat) * ky
+        dx, dy = (blon - alon) * kx, (blat - alat) * ky
+        seg = math.hypot(dx, dy)
+        t = 0.0 if seg == 0 else max(0.0, min(1.0, -(ax * dx + ay * dy) / (seg * seg)))
+        d = math.hypot(ax + t * dx, ay + t * dy)
+        if d < best_d:
+            best_d, best_m = d, cum[i] + t * seg
+        cum.append(cum[i] + seg)
+    lo, hi = max(0.0, best_m - half_m), min(cum[-1], best_m + half_m)
+    if best_d > max_off_m or hi - lo < 20:
+        return None
+
+    def at(m: float) -> tuple[float, float]:
+        i = max(1, min(len(points) - 1, bisect.bisect_left(cum, m)))
+        seg = cum[i] - cum[i - 1]
+        f = 0.0 if seg == 0 else (m - cum[i - 1]) / seg
+        (alat, alon), (blat, blon) = points[i - 1], points[i]
+        return (round(alat + (blat - alat) * f, 6), round(alon + (blon - alon) * f, 6))
+
+    inner = [(round(p[0], 6), round(p[1], 6)) for p, m in zip(points, cum) if lo < m < hi]
+    return [at(lo), *inner, at(hi)], best_d
+
+
+_street_names: dict[Key, str | None] = {}
+
+
+def street_name(lat: float, lon: float) -> str | None:
+    """The street at (lat, lon) from OSRM's nearest service, for an incident's description ("Traffic
+    jam on Zaloška cesta"). A short blocking call: only for the demo's random incidents (a request
+    handler, never the simulation loop). None when road routing is off or OSRM doesn't answer."""
+    k = key(lat, lon)
+    if k in _street_names:
+        return _street_names[k]
+    if not ROADS.enabled:
+        return None
+    from .config import HTTP_USER_AGENT  # local import: keeps this module free of app settings
+
+    try:
+        r = httpx.get(f"{OSRM_URL}/nearest/v1/driving/{lon},{lat}", params={"number": 1}, timeout=2.5,
+                      headers={"User-Agent": HTTP_USER_AGENT})
+        r.raise_for_status()
+        points = r.json().get("waypoints") or []
+        name = (points[0].get("name") or "").strip() if points and points[0].get("distance", 99) <= 60 else ""
+    except Exception as e:  # noqa: BLE001 - a description without the street name is fine
+        log.info("street name lookup failed: %s", e)
+        return None
+    _street_names[k] = name or None
+    return name or None
+
+
 class RoadNetwork:
     def __init__(self) -> None:
         self.routes: dict[tuple[Key, Key], Route] = {}
         self.detours: dict[tuple[Key, Key], dict[Avoid, Route]] = {}  # leg -> closures avoided -> route
         self.detour_pause_until = 0.0
+        # The road stretch through a reported incident (for drawing it), from OSRM: [] = none found
+        self.segments: dict[tuple[Key, int], list[tuple[float, float]]] = {}
         self.matrix: dict[tuple[Key, Key], float] = {}  # free-flow seconds between places
         self.matrix_keys: frozenset[Key] = frozenset()
         self.queue: asyncio.PriorityQueue | None = None
@@ -190,6 +260,15 @@ class RoadNetwork:
         if ka != kb and avoid and self.detours_available() and avoid not in self.detours.get((ka, kb), {}):
             self._enqueue(0, ("detour", ka, kb, avoid))  # a vehicle may be waiting for it
 
+    def segment(self, lat: float, lon: float, half_m: float) -> list[tuple[float, float]] | None:
+        """The road stretch through (lat, lon) found by _fetch_segment: None = not looked up yet, [] = none."""
+        return self.segments.get((key(lat, lon), int(half_m)))
+
+    def want_segment(self, lat: float, lon: float, half_m: float) -> None:
+        k = (key(lat, lon), int(half_m))
+        if k not in self.segments:
+            self._enqueue(2, ("segment", *k))  # after routes vehicles are waiting for
+
     def want_matrix(self, points: list[tuple[float, float]]) -> None:
         keys = frozenset(key(lat, lon) for lat, lon in points)
         if len(keys) >= 2 and not keys <= self.matrix_keys:
@@ -206,6 +285,8 @@ class RoadNetwork:
                     await self._fetch_matrix(client, job_id[1])
                 elif job_id[0] == "detour":
                     await self._fetch_detour(client, job_id[1], job_id[2], job_id[3])
+                elif job_id[0] == "segment":
+                    await self._fetch_segment(client, job_id[1], job_id[2])
                 else:
                     await self._fetch_route(client, job_id[1], job_id[2])
                 on_update()
@@ -261,6 +342,52 @@ class RoadNetwork:
         best = data["routes"][0]
         pts = [(lat, lon) for lon, lat in best["geometry"]["coordinates"]]
         return make_route(float(best["duration"]), float(best["distance"]), pts, a, b, "osrm")
+
+    async def _fetch_segment(self, client: httpx.AsyncClient, k: Key, half_m: int) -> None:
+        """The road through an incident's point, half_m either way (to draw it along the road): OSRM
+        snaps the point to its street, then routes across it from half_m before to half_m after in a
+        few directions (N-S, E-W, the diagonals); the candidate that stays on that street and is
+        closest to a straight pass wins. Several OSRM requests, paced like the rest of the queue."""
+        r = await client.get(f"{OSRM_URL}/nearest/v1/driving/{k[1]},{k[0]}", params={"number": 1}, timeout=10)
+        r.raise_for_status()
+        points = r.json().get("waypoints") or []
+        if not points or points[0].get("distance", 999) > 80:
+            self.segments[(k, half_m)] = []
+            return
+        slon, slat = points[0]["location"]
+        street = (points[0].get("name") or "").strip()
+        reach = half_m * 1.3
+        best: list[tuple[float, float]] | None = None
+        best_len = 0.0
+        for bearing in (0, 180, 90, 270, 45, 225, 135, 315):  # both ways: one-way carriageways
+            await asyncio.sleep(REQUEST_PAUSE_S)
+            dlat = reach * math.cos(math.radians(bearing)) / 110_540
+            dlon = reach * math.sin(math.radians(bearing)) / (111_320 * math.cos(math.radians(slat)))
+            coords = f"{slon - dlon},{slat - dlat};{slon},{slat};{slon + dlon},{slat + dlat}"
+            r = await client.get(f"{OSRM_URL}/route/v1/driving/{coords}",
+                                 params={"overview": "full", "geometries": "geojson", "steps": "true"}, timeout=15)
+            if r.status_code != 200 or r.json().get("code") != "Ok":
+                continue
+            steps = [s for leg in r.json()["routes"][0].get("legs", []) for s in leg.get("steps", [])]
+            # The stretches of the route on the incident's street (side streets the ends snapped to dropped)
+            runs: list[list[tuple[float, float]]] = [[]]
+            for s in steps:
+                if street and s.get("name") != street:
+                    if runs[-1]:
+                        runs.append([])
+                    continue
+                runs[-1] += [(lat, lon) for lon, lat in (s.get("geometry") or {}).get("coordinates", [])]
+            for run in runs:
+                got = stretch_along(run, slat, slon, half_m, max_off_m=15)
+                if got is None:
+                    continue
+                length = sum(haversine_km(a[0], a[1], b[0], b[1]) for a, b in zip(got[0], got[0][1:])) * 1000
+                if length > best_len and length <= 2.4 * half_m:  # (longer: it loops back on itself)
+                    best, best_len = got[0], length
+            if best_len >= 1.8 * half_m:
+                break  # most of the stretch either way of the point
+        self.segments[(k, half_m)] = best if best and best_len >= 0.5 * half_m else []
+        self.stats["segments"] = self.stats.get("segments", 0) + 1
 
     async def _tomtom_route(self, client: httpx.AsyncClient, a: Key, b: Key) -> Route:
         from .fetchers import tomtom  # local import: tomtom depends on models only

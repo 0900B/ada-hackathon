@@ -504,27 +504,7 @@
   stroke: currentColor;
   stroke-width: 2;
 }
-.nav-incident {
-  width: 26px;
-  height: 26px;
-  border-radius: 4px;
-  display: grid;
-  place-items: center;
-  background: #0f141b;
-  border: 1px solid #f2555a;
-  color: #ff9b9b;
-}
-.nav-incident.congestion {
-  border-color: #d6a23a;
-  color: #f2bf5e;
-}
-.nav-incident svg {
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-}
+/* Incidents on the tablet map: incidentLayer.ts, styled in styles.css (.inc-mk) */
 
 /* Right panel */
 .mdt-side {

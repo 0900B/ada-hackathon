@@ -285,7 +285,36 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
       setTimeout(() => setDemoBusy(false), 600);
     }
   };
-  const demoButtons = <DemoButtons api={demo} busy={demoBusy} onCall={(s) => void injectCall(s)} onIncident={(k) => void injectIncident(k)} />;
+  // "Choose unit…": a failure aimed at one unit; the popover stays open (with the reason) when it does not fit
+  const injectTargeted = async (vehicleId: string, kind: string): Promise<boolean> => {
+    if (!demo.incident || demoBusy) return false;
+    setDemoBusy(true);
+    try {
+      const { event, summary } = await randomIncident(kind, vehicleId);
+      notify("ok", summary);
+      const tripId = event?.affected_trip_ids?.[0];
+      if (tripId) openCall(tripId);
+      else select(vehicleId, false);
+      return true;
+    } catch (e) {
+      notify("error", bilingualLines(errorText(e)));
+      return false;
+    } finally {
+      setTimeout(() => setDemoBusy(false), 600);
+    }
+  };
+  const caseUnit = caseSel ? (state.trips.find((x) => x.id === caseSel)?.vehicle_id ?? null) : null;
+  const demoButtons = (
+    <DemoButtons
+      api={demo}
+      busy={demoBusy}
+      onCall={(s) => void injectCall(s)}
+      onIncident={(k) => void injectIncident(k)}
+      state={state}
+      preselect={selectedId ?? caseUnit}
+      onTarget={injectTargeted}
+    />
+  );
   const [unseenRun, setUnseenRun] = useState(false);
   const micToggle = useRef<(() => void) | null>(null);
   const agentKeys = useRef<AgentKeys | null>(null);
@@ -736,8 +765,14 @@ function MapLegend() {
       <span>
         <i className="lg lg-detour" /> {t("dash.legend.detour")}
       </span>
-      <span>
-        <i className="lg lg-closure" /> {t("dash.legend.closure")}
+      <span title={t("dash.legend.closureTitle")}>
+        <i className="lg lg-road lg-closure" /> {t("dash.legend.closure")}
+      </span>
+      <span title={t("dash.legend.crashTitle")}>
+        <i className="lg lg-road lg-crash" /> {t("dash.legend.crash")}
+      </span>
+      <span title={t("dash.legend.jamTitle")}>
+        <i className="lg lg-road lg-jam" /> {t("dash.legend.jam")}
       </span>
     </div>
   );

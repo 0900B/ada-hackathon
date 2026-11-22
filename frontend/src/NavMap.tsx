@@ -7,6 +7,7 @@ import { trafficTileUrl, type Incident, type Navigation, type Vehicle, type Vehi
 import { baseMaps, saveBase, savedBase, type BaseId } from "./basemaps";
 import { GLYPH } from "./glyphs";
 import { t as tx, useLang, useT } from "./i18n";
+import { drawIncident } from "./incidentLayer";
 
 const ROUTE = "#4f8ff7"; // the leg being driven
 const DETOUR = "#f0883e"; // legs that go around a road closure
@@ -455,14 +456,7 @@ export function NavMap({ vehicle, detail, nav, incidents }: Props) {
     if (!ls) return;
     ls.incidents.clearLayers();
     for (const inc of incidents) {
-      if (!inc.active) continue;
-      const color = inc.kind === "congestion" ? "#d6a23a" : "#f2555a";
-      L.circle([inc.lat, inc.lon], { radius: inc.radius_m, color, weight: 3, fillColor: color, fillOpacity: 0.2, interactive: false }).addTo(ls.incidents);
-      L.marker([inc.lat, inc.lon], {
-        icon: L.divIcon({ className: "", html: `<div class="nav-incident ${inc.kind}">${inc.kind === "congestion" ? GLYPH.cone : GLYPH.closure}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] }),
-        interactive: false,
-        keyboard: false,
-      }).addTo(ls.incidents);
+      if (inc.active) drawIncident(ls.incidents, inc, null, 1.3); // along the road, a bit bolder for the car
     }
   }, [incidents]);
 

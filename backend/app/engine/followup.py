@@ -100,6 +100,14 @@ def check(state: WorldState, force: bool = False) -> list[str]:
     return done
 
 
+def _in_jam(state: WorldState, v) -> bool:
+    """Is the rest of v's leg through an active traffic jam (routing.is_jam)?"""
+    from ..routing import is_jam
+    from .events import crosses
+
+    return any(i.active and is_jam(i) and crosses(state, v, i) for i in state.all_incidents())
+
+
 def _faster_free_unit(state: WorldState, trip: Trip) -> tuple[str, str] | None:
     """Move the call to a free own ambulance that reaches the patient FASTER_FREE_UNIT_MIN_GAIN_MIN
     sooner than its unit (never a unit on scene or within 2 min of the patient, never the helicopter's
@@ -146,7 +154,7 @@ def _faster_free_unit(state: WorldState, trip: Trip) -> tuple[str, str] | None:
         return None
     trip.dispatched_at = state.sim_time
     who = "the patient" if trip.kind == "patient" else "the pickup"
-    why = " (delayed)" if v.busy_until and v.busy_until > state.sim_time else ""
+    why = " (delayed)" if v.busy_until and v.busy_until > state.sim_time else (" (in a traffic jam)" if _in_jam(state, v) else "")
     units.note(state, trip, best["vehicle_id"], f"free and {gain:.0f} min sooner than {v.id}{why}")  # (its ETA is on the card)
     text = (f"{best['vehicle_id']} is free and {gain:.0f} min sooner than {v.id}{why}: switched, at {who} "
             f"{timeline.hhmm(reach)}; {v.id} released")

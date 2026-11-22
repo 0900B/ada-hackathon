@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Iterable
 from .geo import haversine_km, point_segment_distance_m  # noqa: F401 - re-exported for other modules
 from .hems import HEMS_HELIPAD_LANDING_MIN, HEMS_SCENE_LANDING_MIN
 from .models import Incident, Vehicle, VehicleType, WeatherNow
-from .roads import MAX_AVOID, ROADS, Avoid, Route, avoid_box, in_box, key, remaining_points
+from .roads import MAX_AVOID, ROADS, Avoid, Route, avoid_box, in_box, key, remaining_points, stretch_along
 
 SNAP_MARGIN_M = 150  # a leg starting/ending this close to a closure can't be routed around it
 
@@ -77,10 +77,68 @@ def incident_factor(
     """Slowdown for a straight leg passing near active incidents, and which incidents it hits."""
     factor, hits = 1.0, []
     for inc in incidents:
-        if inc.active and point_segment_distance_m(inc.lat, inc.lon, alat, alon, blat, blon) <= inc.radius_m:
+        if inc.active and not is_jam(inc) and point_segment_distance_m(inc.lat, inc.lon, alat, alon, blat, blon) <= inc.radius_m:
             factor = max(factor, INCIDENT_FACTORS.get(inc.kind, 1.2))
             hits.append(inc.id)
     return factor, hits
+
+
+# --- Traffic jams (an injected "congestion" incident: the Random failure "jam", a reported jam) ----
+# A model, not a measurement: a leg through a jam drives the jammed stretch (the part of its road
+# route inside the jam's circle) at JAM_SPEED_KMH instead of its normal speed; the rest of the leg is
+# unchanged. The extra minutes are spread over the leg like every slowdown here (the simulator
+# re-evaluates a leg's duration every tick). A jam slows, it never blocks: no detour is looked for.
+# Live congestion from TomTom/promet.si keeps the kind's factor above (INCIDENT_FACTORS).
+JAM_SPEED_KMH = 10.0  # stop-and-go in a jam, lights and sirens or not (no room for an emergency corridor)
+JAM_SAMPLE_M = 25.0  # resolution of "the part inside the circle"
+
+
+def is_jam(inc: Incident) -> bool:
+    return inc.kind == "congestion" and inc.source == "injected"
+
+
+def jam_km(points: list[tuple[float, float]], jams: Iterable[Incident]) -> float:
+    """Length (km) of the polyline inside the jams' circles, sampled every ~JAM_SAMPLE_M."""
+    total_m = 0.0
+    for inc in jams:
+        for a, b in zip(points, points[1:]):
+            if point_segment_distance_m(inc.lat, inc.lon, a[0], a[1], b[0], b[1]) > inc.radius_m:
+                continue
+            seg_m = haversine_km(a[0], a[1], b[0], b[1]) * 1000
+            if seg_m <= 0:
+                continue
+            n = max(1, int(seg_m // JAM_SAMPLE_M) + 1)
+            inside = sum(
+                1 for k in range(n)
+                if haversine_km(inc.lat, inc.lon, a[0] + (b[0] - a[0]) * (k + 0.5) / n, a[1] + (b[1] - a[1]) * (k + 0.5) / n) * 1000
+                <= inc.radius_m
+            )
+            total_m += seg_m * inside / n
+    return total_m / 1000
+
+
+def jam_extra_min(jammed_km: float, leg_km: float, leg_min: float) -> float:
+    """Extra minutes for driving jammed_km of a leg (leg_km long, leg_min normally) at JAM_SPEED_KMH."""
+    if jammed_km <= 0 or leg_km <= 0:
+        return 0.0
+    jammed_km = min(jammed_km, leg_km)
+    return max(0.0, jammed_km / JAM_SPEED_KMH * 60 - leg_min * jammed_km / leg_km)
+
+
+_route_jam_memo: dict[tuple, float] = {}
+
+
+def route_jam_km(route: Route, incidents: Iterable[Incident]) -> float:
+    """How much of a road route runs through active jams (km; memoised per route + jam set)."""
+    jams = [i for i in incidents if i.active and is_jam(i)]
+    if not jams:
+        return 0.0
+    memo_key = (id(route), tuple(sorted(i.id for i in jams)))
+    if memo_key not in _route_jam_memo:
+        if len(_route_jam_memo) > 5000:
+            _route_jam_memo.clear()
+        _route_jam_memo[memo_key] = jam_km(route.points, jams)
+    return _route_jam_memo[memo_key]
 
 
 _route_incident_memo: dict[tuple, float] = {}
@@ -88,7 +146,7 @@ _route_incident_memo: dict[tuple, float] = {}
 
 def route_incident_factor(route: Route, incidents: Iterable[Incident]) -> float:
     """Slowdown for a road route passing near active incidents (memoised per route + incident set)."""
-    active = [i for i in incidents if i.active]
+    active = [i for i in incidents if i.active and not is_jam(i)]
     memo_key = (id(route), tuple(sorted(i.id for i in active)))
     if memo_key in _route_incident_memo:
         return _route_incident_memo[memo_key]
@@ -221,6 +279,28 @@ def leg_route(state: WorldState, v: Vehicle) -> Route | None:
     return ROADS.route(a[0], a[1], b[0], b[1])
 
 
+INCIDENT_PATH_MAX_HALF_M = 200  # an incident drawn on its road: at most this far either way of its point
+
+
+def road_stretch(state: WorldState, lat: float, lon: float, half_m: float) -> list[tuple[float, float]] | None:
+    """The road through (lat, lon), half_m either way, for drawing an incident along its road: cut
+    from a road route we already have (a unit's leg first, then any cached route or detour) that
+    passes within 40 m of the point (closest first). None when none does (no network calls here)."""
+    routes: list[Route] = []
+    for v in state.vehicles.values():
+        if not flies(v.type) and (r := leg_route(state, v)) is not None:
+            routes.append(r)
+    routes += list(ROADS.routes.values())
+    for by_avoid in list(ROADS.detours.values()):
+        routes += [r for r in by_avoid.values() if is_detour(r)]
+    best: tuple[list[tuple[float, float]], float] | None = None
+    for r in routes:
+        got = stretch_along(r.points, lat, lon, half_m)
+        if got is not None and (best is None or got[1] < best[1] - 2 or (got[1] <= best[1] + 2 and len(got[0]) > len(best[0]))):
+            best = got
+    return best[0] if best else None
+
+
 def reroute_if_blocked(state: WorldState, v: Vehicle) -> bool:
     """If the rest of v's leg crosses a closure, re-plan the leg from where v is now, around it.
 
@@ -272,14 +352,19 @@ def travel_minutes(
     route, _ = resolve_route(state, alat, alon, blat, blon)
     if route is not None:
         inc = route_incident_factor(route, incidents)
-        return route.duration_s / 60 * ROUTE_TYPE_FACTOR[vehicle_type] / conditions * inc
+        minutes = route.duration_s / 60 * ROUTE_TYPE_FACTOR[vehicle_type] / conditions
+        return minutes * inc + jam_extra_min(route_jam_km(route, incidents), route.distance_m / 1000, minutes)
+    jams = [i for i in incidents if i.active and is_jam(i)]
+    jammed = jam_km([(alat, alon), (blat, blon)], jams) * ROAD_FACTOR if jams else 0.0
     free_flow_s = ROADS.matrix_s(alat, alon, blat, blon)
     if free_flow_s is not None:
         inc = incident_factor(incidents, alat, alon, blat, blon)[0]
-        return free_flow_s / 60 * ROUTE_TYPE_FACTOR[vehicle_type] / conditions * inc
+        minutes = free_flow_s / 60 * ROUTE_TYPE_FACTOR[vehicle_type] / conditions
+        return minutes * inc + jam_extra_min(jammed, straight_km * ROAD_FACTOR, minutes)
     km = straight_km * ROAD_FACTOR
     inc = incident_factor(incidents, alat, alon, blat, blon)[0]
-    return km / (BASE_SPEED_KMH[vehicle_type] * conditions) * 60 * inc
+    minutes = km / (BASE_SPEED_KMH[vehicle_type] * conditions) * 60
+    return minutes * inc + jam_extra_min(jammed, km, minutes)
 
 
 def vehicle_leg_minutes(

@@ -162,6 +162,8 @@ export interface Incident {
   active: boolean;
   source: "live" | "injected";
   provider: string | null;
+  path?: [number, number][] | null; // the affected road stretch (lat, lon), drawn along the road; null = only the point
+  until?: string | null; // clears by itself at this time (a demo traffic jam)
 }
 
 export interface WeatherNow {

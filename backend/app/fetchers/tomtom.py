@@ -40,6 +40,7 @@ INCIDENT_FIELDS = (
 # iconCategory -> our incident kind (1 accident, 6 jam, 7 lane closed, 8 road closed, 9 road works)
 CATEGORY_KIND: dict[int, IncidentKind] = {1: "accident", 6: "congestion", 7: "congestion", 8: "road_closure", 9: "congestion"}
 MAX_INCIDENTS = 40
+MAX_PATH_POINTS = 60  # an incident's road geometry, thinned for the map
 
 
 def tomtom_key() -> str | None:
@@ -161,8 +162,12 @@ async def fetch_incidents(state: WorldState, client: httpx.AsyncClient) -> None:
             continue  # skip minor jams, fog, rain etc. (weather is handled separately)
         geom = item.get("geometry") or {}
         coords = geom.get("coordinates") or []
+        path = None
         if geom.get("type") == "LineString" and coords:
             lon, lat = coords[len(coords) // 2]
+            step = max(1, -(-len(coords) // MAX_PATH_POINTS))  # keep the road's shape, at most ~MAX_PATH_POINTS
+            line = coords[::step] + ([coords[-1]] if (len(coords) - 1) % step else [])
+            path = [(round(c[1], 6), round(c[0], 6)) for c in line if len(c) >= 2] or None
         elif geom.get("type") == "Point" and len(coords) == 2:
             lon, lat = coords
         else:
@@ -181,6 +186,7 @@ async def fetch_incidents(state: WorldState, client: httpx.AsyncClient) -> None:
             created_at=utcnow(),
             source="live",
             provider="tomtom",
+            path=path,  # the affected road as TomTom reports it
         )
     replace_provider_incidents(state, "tomtom", fresh)
 

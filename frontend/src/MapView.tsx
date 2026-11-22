@@ -8,6 +8,7 @@ import { GLYPH, vehicleGlyph } from "./glyphs";
 import { conditionText, LEVEL_LABEL, levelOf, responseOf, responseText } from "./severity";
 import { doctorOf, doctorText, ORIGIN_LABEL } from "./doctor";
 import { t as tx, tOr, useLang } from "./i18n";
+import { drawIncident } from "./incidentLayer";
 
 export type ClickMode = "closure" | "emergency" | "call" | null; // call: where a new 112 call is
 
@@ -22,7 +23,7 @@ const PLACE_STYLE: Record<string, { r: number; color: string; fill: string }> = 
 };
 
 const HIGHLIGHT = "#5b9bff"; // the selected vehicle's legs
-const DETOUR = "#f0883e"; // legs that go around a road closure
+const DETOUR = "#f0883e"; // legs that go around a road closure (a traffic jam is a thicker dark-amber band, incidentLayer.ts)
 const EN_ROUTE = "#4f8ff7"; // to the pickup
 const LOADED = "#3fb950"; // patient or load on board
 const GROUNDED = "#8f9cab";
@@ -275,15 +276,15 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
           .addTo(ls.places);
       }
     }
-    const incidentsKey = `${lang}|${state.incidents.map((i) => `${i.id}:${i.active}`).join(",")}`;
+    // Incidents along the road they affect (incidentLayer.ts); redrawn when one appears, clears or gets its road
+    const incidentsKey = `${lang}|${state.incidents.map((i) => `${i.id}:${i.active}:${i.path?.length ?? 0}`).join(",")}`;
     if (drawn.current.incidents !== incidentsKey) {
       drawn.current.incidents = incidentsKey;
       ls.incidents.clearLayers();
       for (const inc of state.incidents) {
-        const color = inc.kind === "congestion" ? "#d6a23a" : "#f2555a";
-        L.circle([inc.lat, inc.lon], { radius: inc.radius_m, color, weight: 1.5, fillColor: color, fillOpacity: 0.15, dashArray: inc.source === "live" ? "4 4" : undefined })
-          .bindTooltip(`${incidentLabel(inc.kind)}: ${inc.description}`)
-          .addTo(ls.incidents);
+        if (!inc.active) continue;
+        const until = inc.until ? tx("ops.map.incidentUntil", { time: fmtTime(inc.until) }) : "";
+        drawIncident(ls.incidents, inc, `${incidentLabel(inc.kind)}: ${inc.description}${until}`);
       }
     }
 
