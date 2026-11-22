@@ -107,7 +107,8 @@ A crew member speaks or types, for example *"Vozilo je obstalo. Oprema je še v 
 - **Slovenian and English everywhere.** A switch in every header. The dashboard defaults to English, the crew phone and the tablet to Slovenian; `?lang=sl` or `?lang=en` in the address sets it for that device.
 - **Demo lock.** With `ADMIN_KEY` set, only devices that carry the key (opened once with `?key=`) can reset, inject, approve, override or spend AI tokens; everyone else sees a read-only dashboard. A shared demo key, not a login: [docs/RELIABILITY_AND_SECURITY.md](docs/RELIABILITY_AND_SECURITY.md).
 - **In-vehicle tablet** (`/vehicle/:id`): turn-by-turn navigation, current job, next stops, one-tap reports without AI, and messages from dispatch when the plan changes.
-- **Crew phone** (`/crew/:id`): push-to-talk in Slovenian or English (browser speech recognition), typed text, quick reports 1–5.
+- **Crew phone** (`/crew/:id`): push-to-talk in Slovenian or English (browser speech recognition), typed text, quick reports 1–5. The same page also carries the patient-compartment clinical log: tap pads for vitals, drugs and events, timers, the ETA to the ER and a 15-minute handover screen (design: [docs/superpowers/specs/2026-11-21-crew-patient-tablet-design.md](docs/superpowers/specs/2026-11-21-crew-patient-tablet-design.md)).
+- **ER inbound board** (`er-dashboard/`, served by the frontend at `/er/`): a separate screen for ER reception. One tile per patient on the way, ordered by arrival time, with the crew's clinical log, alerts, and reception actions (acknowledge, assign a bay, call a team). It reads the backend's `clinical` module (`GET /{world}/er/board`); data contract: [docs/superpowers/specs/2026-11-22-er-dashboard-api-contract.md](docs/superpowers/specs/2026-11-22-er-dashboard-api-contract.md), details: [er-dashboard/README.md](er-dashboard/README.md). All patient data is synthetic.
 - **Audit log:** every event, 112 call, crew message, interpreted event, AI recommendation, dispatcher decision and override, stored in PostgreSQL (memory only without `DATABASE_URL`), filterable on the Audit page and exportable as JSON lines.
 - **Live and Simulation worlds** (below), a status bar showing each data source as fresh, stale or down, a switchable base map and TomTom traffic layer, and keyboard shortcuts (press `?`).
 - **Demo tools (Simulation only):** 12 one-click scenarios, "Random call" (`R`) and "Random failure" (`X`) buttons, a call-stream switch, an AI-triage switch.
@@ -282,16 +283,16 @@ Routes: `/live`, `/sim` (the dashboards), `/fleet?world=sim`, `/reports?world=si
 
 ### Tests
 
-Each backend test file is a standalone script that runs offline (road routing off, no real Claude; a fake client stands in where the AI is tested). Run them from `backend/`:
+Each backend test file runs offline (road routing off, no real Claude; a fake client stands in where the AI is tested). Most are standalone scripts; three (`test_clinical_models.py`, `test_clinical_service.py`, `test_clinical_store.py`) are pytest modules. Run them from `backend/`:
 
 ```bash
 python tests/test_dispatch_rules.py
-for f in tests/test_*.py; do python "$f" || break; done      # all 19 files
+python -m pytest -q tests/test_clinical_store.py              # a pytest module (needs `pip install pytest`)
 ```
 
-They cover dispatch rules, emergency dispatch, doctor cars, surge capacity, service times, the helicopter, plan execution, ops events (capacity, priority, fog), live calls, the 112-call lifecycle, the AI dispatcher, reports, the admin-key lock, navigation, road snapping, tiles, the Claude guard and the message schema (179 test functions in 19 files). `python -m pytest tests` also works if pytest is installed.
+They cover dispatch rules, emergency dispatch, doctor cars, surge capacity, service times, the helicopter, plan execution, ops events (capacity, priority, fog), live calls, the 112-call lifecycle, the AI dispatcher, reports, the admin-key lock, navigation, road snapping, tiles, the Claude guard, the message schema, and the clinical log and ER board (27 test files, 373 test functions). The crew screen's pure logic has 125 more tests in `frontend/tests/crew/` (`cd frontend && node --test tests/crew/*.test.ts`, Node 24).
 
-**CI:** every push to `main` (and every pull request to `main`) runs all backend test scripts and the frontend typecheck and build in GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)); the badge at the top shows the latest result. CI uses no API keys, so it exercises the engine fallback paths.
+**CI:** every push to `main` (and every pull request to `main`) runs all backend test files (scripts, and pytest for the pytest modules), the frontend typecheck, a CSS brace check and the frontend build in GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)); the badge at the top shows the latest result. CI uses no API keys, so it exercises the engine fallback paths. It does not run the `frontend/tests/crew` tests or build `er-dashboard/`.
 
 ### Deployed setup
 
@@ -323,11 +324,14 @@ They cover dispatch rules, emergency dispatch, doctor cars, surge capacity, serv
 │   │   ├── admin_key.py     the demo lock (X-Plan-B-Key)
 │   │   ├── roads.py, routing.py, navigation.py   road routes, travel-time model, tablet navigation
 │   │   ├── guard.py, audit.py, approvals.py, intake.py, demo.py
-│   ├── tests/               standalone test scripts (19 files)
-│   └── tools/               dispatch benchmark and its results
+│   ├── app/clinical/        clinical log and ER board (crew entries, alerts, reception actions)
+│   ├── tests/               test scripts and pytest modules (27 files)
+│   └── tools/               dispatch benchmark and its results, crew_sim.py (demo clinical data)
 ├── frontend/                React, TypeScript, Vite, Leaflet
-│   └── src/                 dashboard (AI dispatcher tab, panels), pages (fleet, reports, audit, crew, tablet),
-│                            i18n.ts and locales/ (Slovenian and English)
+│   ├── src/                 dashboard (AI dispatcher tab, panels), pages (fleet, reports, audit, crew, tablet),
+│   │                        i18n.ts and locales/ (Slovenian and English)
+│   └── public/er/           built copy of er-dashboard, served at /er/
+├── er-dashboard/            ER inbound board (React, Vite); `npm run build:embed` writes it to frontend/public/er
 ├── media/                   promo, ads and showcase-video scripts (renders go to media/out/, not in git)
 ├── docs/                    doctrine, research, benchmark, brief, pitch notes (images/, diagrams/, map/, scenario/)
 ├── .github/workflows/       CI
