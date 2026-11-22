@@ -134,7 +134,7 @@ export interface CallInfo {
 export type TimelineKind =
   | "received" | "triaged" | "dispatched" | "doctor_dispatched" | "rerouted" | "reassigned" | "delayed" | "unit_replaced"
   | "proposal" | "approved" | "reviewed" | "override" | "on_scene" | "doctor_on_scene" | "transporting" | "at_hospital"
-  | "handover_done" | "closed" | "note";
+  | "handover_done" | "closed" | "note" | "disruption" | "recalculated";
 
 export interface TimelineEntry {
   at: string;
@@ -144,6 +144,12 @@ export interface TimelineEntry {
   vehicle_id?: string | null;
   run_id?: string | null; // proposals and approvals: the AI run
   detail?: string | null; // who exactly and how long it took: "rules engine, 0.1 s", "Claude, 12 s"
+  // Re-plans (the case card's re-plan box): the event behind it, the unit replaced, the next arrival before/after
+  event_id?: string | null;
+  unit_before?: string | null;
+  eta_before?: string | null;
+  eta_after?: string | null;
+  eta_of?: "patient" | "pickup" | "hospital" | null;
 }
 
 export interface Incident {
@@ -156,6 +162,8 @@ export interface Incident {
   active: boolean;
   source: "live" | "injected";
   provider: string | null;
+  path?: [number, number][] | null; // the affected road stretch (lat, lon), drawn along the road; null = only the point
+  until?: string | null; // clears by itself at this time (a demo traffic jam)
 }
 
 export interface WeatherNow {

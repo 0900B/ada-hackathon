@@ -106,7 +106,8 @@ class WorldState:
         self.scheduled_day = config.SCHEDULED_DAY
         from .sim.calls import CallGenerator  # no engine imports in that class
 
-        self.calls = CallGenerator()  # live-calls stream (reset by seed_world)
+        # live-calls stream (reset by seed_world); the Simulation world starts with it off (config)
+        self.calls = CallGenerator(enabled=config.SIM_CALLS_ENABLED if name == "sim" else config.CALLS_ENABLED)
         self._ids = itertools.count(1)
         self.reset_simulation()
 
@@ -140,6 +141,8 @@ class WorldState:
         self.pending_question: str | None = None  # a scenario's description, for the next Analyse
         self.pending_scenario_events: set[str] = set()  # the scenario's own event ids
         self.analysed_events = 0  # state.events[:analysed_events] have been seen by an analysis
+        from .clinical.store import ClinicalLog  # local import: avoids a cycle
+        self.clinical = ClinicalLog()
         self.bump()
 
     # --- helpers -------------------------------------------------------------
@@ -220,6 +223,7 @@ class WorldState:
         from .engine.projection import kpis
         from .engine.units import trip_view
         from .roads import ROADS
+        from .clinical.projection import snapshot_extra
 
         def dump(items):
             return [i.model_dump(mode="json") for i in items]
@@ -276,6 +280,7 @@ class WorldState:
                 "auto": self.auto_analyze,
                 "runs": dump(reversed(self.shown_runs())),  # newest first
             },
+            **snapshot_extra(self),
         }
 
     def shown_runs(self) -> list:

@@ -427,8 +427,8 @@ def test_a_free_unit_takes_over_when_it_is_3_min_sooner():
     followup.check(W, force=True)
     assert t.vehicle_id == first, "2 min later is not worth a switch"
     apply_event(W, DelayEvent(type="delay", vehicle_id=first, minutes=20, note="stuck behind a crash"))
-    done = followup.check(W, force=True)
-    assert t.vehicle_id not in (None, first) and done, (t.vehicle_id, done)
+    followup.check(W, force=True)  # the disruption's recalculation has already switched (engine/followup.recheck)
+    assert t.vehicle_id not in (None, first), t.vehicle_id
     e = entries(t, "reassigned")[-1]
     assert e.by == "engine" and "min sooner than" in e.text and "released" in e.text, e
     old = W.vehicles[first]
@@ -522,6 +522,84 @@ def test_random_calls():
     assert t1.call.triage.by == "ai" and t2.call.triage.by == "rules", (t1.call.triage.by, t2.call.triage.by)
 
 
+def test_placed_library_call():
+    """E + a click on the map: a library call of the picked condition at that point, as a real 112 case."""
+    fresh()
+    child_texts = {sl for texts in calls.CHILD_WORDS.values() for sl, _en in texts}
+    lat, lon = 46.0569, 14.5058  # near the centre of Ljubljana
+    for cond in ("cardiac_arrest", "stroke", "stemi", "choking", "major_trauma", "fall"):
+        r = client.post("/sim/admin/random-call", json={"condition": cond, "lat": lat, "lon": lon})
+        assert r.status_code == 200, r.text
+        t = trip_of(r.json())
+        c = t.call
+        assert t.condition == cond and c.kind == "112" and c.text_sl and c.caller_name, (cond, t.condition, c.text_sl)
+        assert c.address.startswith("Map point near") and c.text_sl not in child_texts, c.address
+        pickup = W.places[t.pickup_id]
+        assert abs(pickup.lat - lat) < 1e-4 and abs(pickup.lon - lon) < 1e-4, (pickup.lat, pickup.lon)
+    # A child's call when "child" is ticked; the other ticked modifiers are added to the triage
+    r = client.post("/sim/admin/random-call",
+                    json={"condition": "breathing_difficulty", "lat": lat, "lon": lon, "modifiers": ["child", "deteriorating"]})
+    t = trip_of(r.json())
+    assert t.call.text_sl in child_texts and {"child", "deteriorating"} <= set(t.call.triage.modifiers), t.call.triage
+    assert client.post("/sim/admin/random-call", json={"condition": "nonsense", "lat": lat, "lon": lon}).status_code == 422
+    assert client.post("/live/admin/random-call", json={"condition": "stroke", "lat": lat, "lon": lon}).status_code == 400
+
+
+def test_disruption_starts_a_replan_on_the_case():
+    """A breakdown / delay on a call's unit: a "disruption" entry, then the re-plan entries tagged with the
+    event and the arrival before -> after (the case card's re-plan box)."""
+    fresh()
+    t = trip_of(client.post("/sim/admin/random-call", json={"condition": "cardiac_arrest", "lat": 45.9834, "lon": 14.5768}).json())
+    unit = t.vehicle_id
+    r = client.post("/sim/events", json={"type": "breakdown", "vehicle_id": unit})
+    assert r.status_code == 200, r.text
+    ev_id = r.json()["id"]
+    tl = W.trips[t.id].timeline
+    i = next(i for i, e in enumerate(tl) if e.kind == "disruption")
+    head, rest = tl[i], tl[i + 1:]
+    assert head.event_id == ev_id and "broke down" in head.text, head
+    rep = next(e for e in rest if e.kind == "unit_replaced")
+    assert rep.event_id == ev_id and rep.unit_before == unit and rep.vehicle_id != unit, rep
+    assert rep.eta_before is not None and rep.eta_after is not None and rep.eta_of == "patient", rep
+    # A delay on the new unit: the arrival before -> after, about the delay later
+    n = len(tl)
+    r = client.post("/sim/events", json={"type": "delay", "vehicle_id": rep.vehicle_id, "minutes": 10})
+    new = W.trips[t.id].timeline[n:]
+    assert new[0].kind == "disruption", [e.kind for e in new]
+    d = next(e for e in new if e.kind == "delayed")
+    if W.trips[t.id].vehicle_id == rep.vehicle_id:  # unless a faster free unit took over at once
+        assert d.eta_before and d.eta_after and 9 <= (d.eta_after - d.eta_before).total_seconds() / 60 <= 11, d
+    # Old timelines without the new fields still load; engine timings never read "0.0 s"
+    assert all("0.0 s" not in (e.detail or "") for e in W.trips[t.id].timeline)
+
+
+def test_recalculation_after_a_disruption():
+    """After a delay the engine recalculates the call and says so: a free unit well ahead takes over, also
+    from the dispatcher's own choice when that unit is the one held up; otherwise a "recalculated" line."""
+    def call_and_unit():
+        fresh()
+        t = trip_of(client.post("/sim/admin/random-call", json={"condition": "major_trauma", "lat": 46.0425, "lon": 14.4837}).json())
+        return t.id, t.vehicle_id
+
+    # The dispatcher's choice, then held up for 18 min: the engine switches and says why
+    tid, first = call_and_unit()
+    alts = client.get(f"/sim/trips/{tid}/alternatives?role=ambulance").json()
+    other = next(a["vehicle_id"] for a in alts if a["vehicle_id"] != first and a["vehicle_id"].startswith("A"))
+    assert client.post(f"/sim/trips/{tid}/assign", json={"vehicle_id": other, "mode": "replace", "role": "ambulance"}).status_code == 200
+    n = len(W.trips[tid].timeline)
+    client.post("/sim/events", json={"type": "delay", "vehicle_id": other, "minutes": 18})
+    new = W.trips[tid].timeline[n:]
+    sw = next(e for e in new if e.kind == "reassigned")
+    assert W.trips[tid].vehicle_id != other and "dispatcher's choice but is held up" in sw.text and sw.unit_before == other, sw
+    # A small delay: nobody is enough faster; the engine still says it recalculated
+    tid, first = call_and_unit()
+    n = len(W.trips[tid].timeline)
+    client.post("/sim/events", json={"type": "delay", "vehicle_id": first, "minutes": 2})
+    new = W.trips[tid].timeline[n:]
+    rc = [e for e in new if e.kind == "recalculated"]
+    assert W.trips[tid].vehicle_id == first and rc and "compared" in rc[0].text and rc[0].by == "engine", [e.text for e in new]
+
+
 def _incident(kind: str | None) -> dict:
     r = client.post("/sim/admin/random-incident", json={"kind": kind} if kind else {})
     assert r.status_code == 200, r.text
@@ -578,6 +656,119 @@ def test_random_incidents_hit_current_operations():
     stranded = W.trips[body["event"]["affected_trip_ids"][0]]
     assert body["kind"] == "equipment" and W.vehicles[van].type == "transport" and stranded.kind == "equipment"
     assert stranded.status == "unassigned", "the stranded-equipment decision stays"
+
+
+def test_random_jam_slows_and_clears():
+    """Random failure "jam": a congestion incident on the route of the unit on the 112 call. It slows
+    (never blocks) that unit, says by how much (event log + the call's timeline), is drawn along the
+    route (path) and clears by itself after its time."""
+    from app.engine.events import clear_expired_incidents
+    from app.routing import JAM_SPEED_KMH, is_jam, travel_minutes
+    from app.sim import incidents as demo_incidents
+
+    assert "jam" in demo_incidents.KINDS, "part of the random 'any' pick"
+    fresh()
+    t = trip_of(post_call("Prometna nesreča, voznik je ukleščen.", address="Ižanska cesta 80, Rudnik"))
+    unit = W.vehicles[t.vehicle_id]
+    assert run(3, until=lambda: unit.status == "to_pickup" and unit.busy_until is None and unit.path_to is not None)
+    before = t.eta_pickup
+    body = _incident("jam")
+    ev = body["event"]
+    assert body["kind"] == "jam" and ev["payload"]["vehicle_id"] == unit.id and ev["affected_trip_ids"][0] == t.id, body
+    inc = next(reversed(W.incidents.values()))
+    assert inc.kind == "congestion" and is_jam(inc) and crosses(W, unit, inc), "on the route it is driving"
+    assert inc.path and len(inc.path) >= 2, "drawn along the route"
+    assert inc.until is not None and 20 <= (inc.until - W.sim_time).total_seconds() / 60 <= 30
+    m = re.search(rf"{unit.id} \+(\d+) min", ev["summary"])
+    assert ev["summary"].startswith("Traffic jam") and m and int(m.group(1)) >= 2, ev["summary"]
+    jam_entries = [e for e in entries(t, "delayed") if "traffic jam" in e.text]
+    assert any(e.vehicle_id == unit.id for e in jam_entries), [e.text for e in t.timeline]
+    if t.vehicle_id == unit.id:  # (unless a free unit was clearly faster and took over)
+        assert t.eta_pickup > before + timedelta(minutes=1), (before, t.eta_pickup)
+        slowed = t.eta_pickup
+    # The model: a 5 km straight leg through a 1 km jam (the straight-line fallback adds the road factor):
+    # that stretch at JAM_SPEED_KMH instead of the normal speed.
+    a, b = (46.03, 14.45), (46.03, 14.515)
+    plain = travel_minutes(W, *a, *b, "ambulance", True)
+    W.incidents["JAM-T"] = inc.model_copy(update={"id": "JAM-T", "lat": 46.03, "lon": 14.4825, "radius_m": 500, "until": None})
+    jammed = travel_minutes(W, *a, *b, "ambulance", True)
+    assert 4 < jammed - plain < 9, (plain, jammed)
+    W.incidents["JAM-T"].active = False
+    assert abs(travel_minutes(W, *a, *b, "ambulance", True) - plain) < 0.01, "an inactive jam costs nothing"
+    del W.incidents["JAM-T"]
+    # It clears by itself (the app loop): back to the normal time.
+    inc.until = W.sim_time
+    cleared = clear_expired_incidents(W)
+    assert len(cleared) == 1 and not inc.active and "eased" in cleared[0].summary, [c.summary for c in cleared]
+    project_all(W)
+    if t.vehicle_id == unit.id and t.status in ("assigned", "en_route_pickup"):
+        assert t.eta_pickup < slowed, (slowed, t.eta_pickup)
+    assert JAM_SPEED_KMH < 20
+    # A live jam (TomTom) keeps the plain congestion factor, not the jam model.
+    live = inc.model_copy(update={"source": "live", "active": True})
+    assert not is_jam(live)
+
+
+def test_targeted_failure():
+    """The presenter picks the unit (or its call) and the failure: only that unit is hit; 409 with the
+    reason when the failure does not fit it; fog/hospital full are not about one unit."""
+    fresh()
+    t = trip_of(post_call("Prometna nesreča, voznik je ukleščen.", address="Ižanska cesta 80, Rudnik"))
+    unit = W.vehicles[t.vehicle_id]
+    assert run(3, until=lambda: unit.status == "to_pickup" and unit.busy_until is None and unit.path_to is not None)
+    doctor = t.doctor_vehicle_id
+    assert doctor
+    # A jam ahead on the doctor car's route (not the ambulance's, which the plain button would pick)
+    r = client.post("/sim/admin/random-incident", json={"kind": "jam", "vehicle_id": doctor})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["kind"] == "jam" and body["event"]["payload"]["vehicle_id"] == doctor, body
+    inc = next(reversed(W.incidents.values()))
+    assert crosses(W, W.vehicles[doctor], inc), "placed on the picked unit's route"
+    # Delay by the call: its unit, 10 min
+    r = client.post("/sim/admin/random-incident", json={"kind": "delay", "trip_id": t.id})
+    assert r.status_code == 200 and r.json()["event"]["payload"] == {**r.json()["event"]["payload"], "vehicle_id": unit.id, "minutes": 10}, r.text
+    # Not possible for this unit: 409 with the reason, and nothing else is hit instead
+    idle = next(v for v in W.vehicles.values()
+                if v.type == "ambulance" and v.status == "idle" and not v.queue and not v.current_trip_id)
+    n = len(W.events)
+    r = client.post("/sim/admin/random-incident", json={"kind": "breakdown", "vehicle_id": idle.id})
+    assert r.status_code == 409 and idle.id in r.json()["detail"] and len(W.events) == n, r.text
+    unit = W.vehicles[t.vehicle_id]  # (the delay may have handed the call to a free unit that is clearly faster)
+    r = client.post("/sim/admin/random-incident", json={"kind": "equipment", "vehicle_id": unit.id})
+    assert r.status_code == 409 and "equipment" in r.json()["detail"], r.text
+    assert client.post("/sim/admin/random-incident", json={"kind": "fog", "vehicle_id": unit.id}).status_code == 409
+    assert client.post("/sim/admin/random-incident", json={"vehicle_id": "NOPE"}).status_code == 404
+    # A breakdown of the picked unit: its call is re-dispatched
+    r = client.post("/sim/admin/random-incident", json={"kind": "breakdown", "vehicle_id": unit.id})
+    assert r.status_code == 200 and unit.status == "out_of_service" and t.vehicle_id != unit.id, r.text
+
+
+def test_incident_drawn_along_its_road():
+    """An incident's path: the stretch of a road route around its point (2 x radius, capped)."""
+    from app.roads import stretch_along
+
+    line = [(46.05, 14.50), (46.05, 14.51), (46.05, 14.52)]  # ~770 m per segment, west to east
+    got = stretch_along(line, 46.0502, 14.51, 200)
+    assert got is not None
+    path, off = got
+    assert off < 30 and len(path) == 3 and path[1] == (46.05, 14.51), got
+    from app.geo import haversine_km
+    length = sum(haversine_km(*p, *q) for p, q in zip(path, path[1:])) * 1000
+    assert 390 <= length <= 410, length
+    assert stretch_along(line, 46.06, 14.51, 200) is None, "a road 1 km away is not this road"
+    # A map-click closure next to a unit's route: drawn on that route.
+    fresh()
+    t = trip_of(post_call("Prometna nesreča, voznik je ukleščen.", address="Ižanska cesta 80, Rudnik"))
+    unit = W.vehicles[t.vehicle_id]
+    assert run(3, until=lambda: unit.status == "to_pickup" and unit.busy_until is None and unit.path_to is not None)
+    mid = ((unit.lat + unit.path_to[0]) / 2, (unit.lon + unit.path_to[1]) / 2)
+    r = client.post("/sim/events", json={"type": "road_closure", "lat": mid[0], "lon": mid[1], "radius_m": 300})
+    assert r.status_code == 200, r.text
+    inc = next(reversed(W.incidents.values()))
+    snap = client.get("/sim/state").json()
+    drawn = next(i for i in snap["incidents"] if i["id"] == inc.id)
+    assert drawn["path"] is None or len(drawn["path"]) >= 2, drawn
 
 
 # --- The vehicle card -----------------------------------------------------------------------------

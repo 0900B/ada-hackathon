@@ -79,7 +79,11 @@ def test_default_mode_is_live_calls_with_nothing_planned():
     r = client.post("/sim/admin/reset", json={"scheduled_day": False})
     assert r.status_code == 200 and r.json()["mode"] == "live_calls" and r.json()["trips"] == 0, r.json()
     s = client.get("/sim/state").json()
-    assert s["mode"] == "live_calls" and s["calls"]["active"] and s["calls"]["per_hour"] == config.CALLS_PER_HOUR
+    # The Simulation (demo) world starts with its call stream off, the Live world with it on (config)
+    assert s["mode"] == "live_calls" and s["calls"]["per_hour"] == config.CALLS_PER_HOUR
+    assert s["calls"]["enabled"] is config.SIM_CALLS_ENABLED is False
+    assert WorldState("live").calls.enabled is config.CALLS_ENABLED is True
+    assert WorldState("sim").calls.enabled is False
     assert s["trips"] == [] and s["kpis"]["late_trips"] == 0 and sum(s["kpis"]["unassigned"].values()) == 0
     places = {p["id"]: p for p in s["places"]}
     for v in s["vehicles"]:

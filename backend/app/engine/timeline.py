@@ -44,11 +44,13 @@ DEFAULT_DETAIL = {
 }
 # Timeline kinds counted in ai_stats, and the kinds that are decisions (last_decision_at).
 COUNTED = {"dispatched": "dispatched", "rerouted": "reroutes", "reassigned": "reassignments", "unit_replaced": "reassignments"}
-DECISIONS = {"dispatched", "doctor_dispatched", "rerouted", "reassigned", "unit_replaced", "approved", "reviewed", "override"}
+DECISIONS = {"dispatched", "doctor_dispatched", "rerouted", "reassigned", "unit_replaced", "approved", "reviewed", "override",
+             "recalculated"}
 
 
 def engine_detail(seconds: float, what: str = "rules engine") -> str:
-    return f"{what}, {seconds:.1f} s"
+    """"rules engine, 0.3 s"; "rules engine, <0.1 s" when it took under 50 ms (not "0.0 s")."""
+    return f"{what}, <0.1 s" if seconds < 0.05 else f"{what}, {seconds:.1f} s"
 
 
 def log(
@@ -61,13 +63,18 @@ def log(
     run_id: str | None = None,
     at: datetime | None = None,
     detail: str | None = None,
+    unit_before: str | None = None,
+    eta_before: datetime | None = None,
+    eta_after: datetime | None = None,
+    eta_of: str | None = None,
 ) -> None:
     """Add one entry to the trip's timeline (real world only)."""
     if trip is None or state.is_simulation:
         return
     entry = TimelineEntry(
         at=at or state.sim_time, kind=kind, by=by, text=text[:300], vehicle_id=vehicle_id, run_id=run_id,  # type: ignore[arg-type]
-        detail=(detail or DEFAULT_DETAIL.get(by, by))[:80],
+        detail=(detail or DEFAULT_DETAIL.get(by, by))[:80], unit_before=unit_before, eta_before=eta_before,
+        eta_after=eta_after, eta_of=eta_of,  # type: ignore[arg-type]
     )
     trip.timeline.append(entry)
     if len(trip.timeline) > MAX_ENTRIES:
@@ -122,6 +129,57 @@ def _who(trip: Trip) -> str:
     return "the patient" if trip.kind == "patient" else "the pickup"
 
 
+def milestone(trip: Trip) -> tuple[datetime | None, str]:
+    """The trip's next arrival and what it is: at the patient (or the pickup), or at the hospital once the
+    patient is on board."""
+    if trip.status == "onboard":
+        return trip.eta_dropoff, "hospital"
+    reach = max(trip.eta_pickup, trip.pickup_after) if trip.eta_pickup else None
+    return reach, "patient" if trip.kind == "patient" else "pickup"
+
+
+REPLAN_KINDS = ("unit_replaced", "reassigned", "rerouted", "delayed", "note")
+
+
+def mark_disruption(
+    state: WorldState, event_id: str, text: str, by: str, marks: dict[str, tuple[int, datetime | None]],
+) -> list[str]:
+    """A disruption hit open 112 calls: put a "disruption" entry before what the event logged on each call
+    it touched, tag those entries with the event, and give them the arrival before and after (the case
+    card's re-plan box). A call whose arrival moved by a minute or more without any entry gets one.
+    marks: trip id -> (timeline length, next arrival) taken before the event."""
+    if state.is_simulation:
+        return []
+    marked: list[str] = []
+    for tid, (n0, eta0) in marks.items():
+        trip = state.trips.get(tid)
+        if trip is None or trip.status in DONE:
+            continue
+        eta1, of = milestone(trip)
+        moved = eta0 is not None and eta1 is not None and abs((eta1 - eta0).total_seconds()) >= 60
+        n0 = min(n0, len(trip.timeline))
+        new = trip.timeline[n0:]
+        if not new and not moved:
+            continue
+        for e in new:
+            e.event_id = event_id
+            if e.kind in REPLAN_KINDS and e.eta_before is None and eta0 is not None and eta1 is not None:
+                e.eta_before, e.eta_after, e.eta_of = eta0, eta1, of  # type: ignore[assignment]
+        if not new:
+            mins = (eta1 - eta0).total_seconds() / 60  # type: ignore[operator]
+            log(state, trip, "delayed", "engine", f"Arrival {'later' if mins > 0 else 'earlier'} by {abs(mins):.0f} min",
+                trip.vehicle_id, eta_before=eta0, eta_after=eta1, eta_of=of)
+            trip.timeline[-1].event_id = event_id
+        head = TimelineEntry(at=state.sim_time, kind="disruption", by=by, text=text[:200],  # type: ignore[arg-type]
+                             vehicle_id=None, detail=DEFAULT_DETAIL.get(by, by), event_id=event_id)
+        trip.timeline.insert(n0, head)
+        if len(trip.timeline) > MAX_ENTRIES:
+            del trip.timeline[KEEP_FIRST : len(trip.timeline) - (MAX_ENTRIES - KEEP_FIRST)]
+        marked.append(tid)
+    state.bump()
+    return marked
+
+
 class Tracker:
     """Remembers who serves which trip, then logs what changed (vehicle, doctor, destination)."""
 
@@ -133,10 +191,12 @@ class Tracker:
             for t in state.trips.values()
             if t.status not in DONE
         }
+        self.eta = {t.id: milestone(t)[0] for t in state.trips.values() if t.status not in DONE}
 
     def keep(self, trip: Trip) -> None:
         """Treat trip's current units as already logged (the caller wrote its own entry)."""
         self.before[trip.id] = (trip.vehicle_id, trip.doctor_vehicle_id, trip.dropoff_id, trip.status)
+        self.eta[trip.id] = milestone(trip)[0]
 
     def log_changes(
         self, by: str, summary: str | None = None, created: list[str] | None = None, detail: str | None = None
@@ -195,12 +255,15 @@ class Tracker:
         if old is None:
             log(state, t, "dispatched", by, found or f"{new} dispatched{when}", new, detail=detail)
             self._note(t, new, by, generic)
-        elif down:
-            log(state, t, "unit_replaced", by, f"{old} out of service: {new} sent instead{when}", new, detail=detail)
-            self._note(t, new, by, f"replaces {old} (out of service)")
         else:
-            log(state, t, "reassigned", by, f"Reassigned from {old} to {new}{when}", new, detail=detail)
-            self._note(t, new, by, f"{generic}, instead of {old}")
+            eta_after, of = milestone(t)
+            eta = {"unit_before": old, "eta_before": self.eta.get(t.id), "eta_after": eta_after, "eta_of": of}
+            if down:
+                log(state, t, "unit_replaced", by, f"{old} out of service: {new} sent instead{when}", new, detail=detail, **eta)
+                self._note(t, new, by, f"replaces {old} (out of service)")
+            else:
+                log(state, t, "reassigned", by, f"Reassigned from {old} to {new}{when}", new, detail=detail, **eta)
+                self._note(t, new, by, f"{generic}, instead of {old}")
 
     def _doctor_change(self, t: Trip, old: str | None, by: str) -> None:
         state = self.state

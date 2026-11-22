@@ -30,11 +30,23 @@ export const FAILURES: readonly { value: string; label: string }[] = [
   option("", () => t("dash.demo.any")),
   option("crash", () => t("dash.demo.crash")),
   option("closure", () => t("dash.demo.closure")),
+  option("jam", () => t("dash.demo.jam")),
   option("fog", () => t("dash.demo.fog")),
   option("breakdown", () => t("dash.demo.breakdown")),
   option("delay", () => t("dash.demo.delay")),
   option("capacity", () => t("dash.demo.capacity")),
   option("equipment", () => t("dash.demo.equipment")),
+];
+
+/** "Choose unit…" (the targeted failure): what can be aimed at one unit (fog and a full hospital are global). */
+export const TARGET_ENTRY = "__unit";
+export const TARGET_KINDS: readonly { value: string; label: () => string; equipmentOnly?: boolean }[] = [
+  { value: "breakdown", label: () => t("dash.demo.breakdown") },
+  { value: "delay", label: () => t("dash.target.delay") },
+  { value: "crash", label: () => t("dash.target.crash") },
+  { value: "closure", label: () => t("dash.target.closure") },
+  { value: "jam", label: () => t("dash.target.jam") },
+  { value: "equipment", label: () => t("dash.demo.equipment"), equipmentOnly: true },
 ];
 
 export interface DemoApi {
@@ -60,8 +72,16 @@ async function post(path: string, body: Record<string, unknown>): Promise<Record
 }
 
 /** A random call (optionally of one severity). The backend answers {trip, summary} or the trip itself. */
-export async function randomCall(severity?: string): Promise<{ trip: Trip | null; summary: string }> {
-  const data = await post("/sim/admin/random-call", severity ? { severity } : {});
+/** E + a click on the map: a library call of this condition placed at the point (a real 112 case). */
+export interface PlacedCall {
+  condition: string;
+  lat: number;
+  lon: number;
+  modifiers?: string[];
+}
+
+export async function randomCall(severity?: string, placed?: PlacedCall): Promise<{ trip: Trip | null; summary: string }> {
+  const data = await post("/sim/admin/random-call", placed ? { ...placed } : severity ? { severity } : {});
   const trip = (data.trip as Trip | undefined) ?? ("id" in data && "pickup_id" in data ? (data as unknown as Trip) : null);
   return {
     trip,
@@ -69,9 +89,10 @@ export async function randomCall(severity?: string): Promise<{ trip: Trip | null
   };
 }
 
-/** A random failure (optionally of one kind). The backend answers {event, summary} or the event record. */
-export async function randomIncident(kind?: string): Promise<{ event: EventRecord | null; summary: string }> {
-  const data = await post("/sim/admin/random-incident", kind ? { kind } : {});
+/** A random failure (optionally of one kind; with vehicleId aimed at that unit, "Choose unit…").
+ * The backend answers {event, summary} or the event record. */
+export async function randomIncident(kind?: string, vehicleId?: string): Promise<{ event: EventRecord | null; summary: string }> {
+  const data = await post("/sim/admin/random-incident", { ...(kind ? { kind } : {}), ...(vehicleId ? { vehicle_id: vehicleId } : {}) });
   const event = (data.event as EventRecord | undefined) ?? ("affected_trip_ids" in data ? (data as unknown as EventRecord) : null);
   return { event, summary: String(data.summary ?? event?.summary ?? t("dash.demo.failureInjected")) };
 }

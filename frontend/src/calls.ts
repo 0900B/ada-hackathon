@@ -100,7 +100,7 @@ export function sourceText(by: string | null | undefined, detail?: string | null
 
 const STEP_KINDS = [
   "received", "triaged", "dispatched", "doctor_dispatched", "rerouted", "reassigned", "delayed", "unit_replaced", "proposal",
-  "approved", "reviewed", "override", "on_scene", "doctor_on_scene", "transporting", "at_hospital", "handover_done", "closed", "note",
+  "approved", "reviewed", "override", "on_scene", "doctor_on_scene", "transporting", "at_hospital", "handover_done", "closed", "note", "disruption", "recalculated",
 ] as const;
 /** Timeline step names (follow the UI language). */
 export const STEP_LABEL: Record<string, string> = liveRecord(STEP_KINDS, (k) => tx(`ai.step.${k}`));

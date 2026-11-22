@@ -110,6 +110,8 @@ TimelineKind = Literal[
     "handover_done", "closed", "note",
     "reviewed",  # the AI dispatcher (Claude) reviewed the case and kept the decision (app/ai_dispatcher.py)
     "override",  # the dispatcher changed a unit by hand (app/overrides.py)
+    "disruption",  # a breakdown, delay, closure, fog, ... hit this call: the re-plan entries follow it
+    "recalculated",  # after a disruption the engine compared the free units and kept (or could not change) the unit
 ]
 TimelineBy = Literal["caller", "ai", "rules", "engine", "dispatcher", "crew"]
 AiMode = Literal["assisted", "autonomous"]  # per world (app/ai_dispatcher.py)
@@ -155,6 +157,13 @@ class TimelineEntry(BaseModel):
     # Who exactly, in a few words: "rules engine, 0.1 s", "Claude, 12 s, checked by the engine",
     # "dispatcher override", "keyword rules" (engine/timeline.py fills a default from `by`).
     detail: str | None = None
+    # Re-plans (the case card's re-plan box): the event behind the entry, the unit it replaced, and the
+    # trip's next arrival before and after (at the patient / pickup, or at the hospital once on board).
+    event_id: str | None = None
+    unit_before: str | None = None
+    eta_before: datetime | None = None
+    eta_after: datetime | None = None
+    eta_of: Literal["patient", "pickup", "hospital"] | None = None
 
 
 class Trip(BaseModel):
@@ -250,6 +259,11 @@ class Incident(BaseModel):
     source: Literal["live", "injected"] = "injected"
     provider: str | None = None  # "tomtom", "promet.si" for live incidents; each feed replaces only its own
     active: bool = True
+    # The affected road stretch, (lat, lon) along the road, for the map: a stretch of a unit's route,
+    # a road snapped to near the point, or the feed's own geometry. None = not known (only the point).
+    # The engine still treats the incident as the circle (lat, lon, radius_m).
+    path: list[tuple[float, float]] | None = None
+    until: datetime | None = None  # clears by itself at this world time (a demo traffic jam); None = until cleared
 
 
 class WeatherNow(BaseModel):
@@ -355,6 +369,9 @@ class RoadClosureEvent(BaseModel):
     radius_m: float = Field(default=400, gt=0, le=5000)
     kind: IncidentKind = "road_closure"
     description: str = "Road closed"
+    # Optional: the affected road stretch (lat, lon) for the map; derived from the roads when not given
+    path: list[tuple[float, float]] | None = Field(default=None, max_length=400)
+    duration_min: float | None = Field(default=None, gt=0, le=24 * 60)  # clears by itself after this long
 
 
 class ClearIncidentEvent(BaseModel):

@@ -30,6 +30,7 @@ import {
   CloudSnow,
   Construction,
   Database,
+  ExternalLink,
   Octagon,
   PhoneIncoming,
   Sun,
@@ -134,6 +135,15 @@ export default function App() {
         </nav>
         <span className="header-help muted">{tr("dash.header.help", { key: <kbd>?</kbd> })}</span>
         <AdminLock />
+        <a
+          className="er-link"
+          href={`/er/?world=${lastWorld === "live" ? "live" : "sim"}`}
+          target="_blank"
+          rel="noopener"
+          title={t("dash.nav.er.title")}
+        >
+          {t("dash.nav.er")} <ExternalLink size={14} aria-hidden />
+        </a>
         <LangToggle />
       </header>
       <Routes>
@@ -252,6 +262,20 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
       setTimeout(() => setDemoBusy(false), 600);
     }
   };
+  // E + a click on the map + a condition: in the Simulation a real 112 call from the call library at that
+  // point (caller, Slovenian words, triage, case card); in Live, or with an older backend, the plain event.
+  const sendPicked = async (event: Record<string, unknown>) => {
+    const { lat, lon, condition, modifiers } = event as { lat: number; lon: number; condition: string; modifiers?: string[] };
+    if (!sim || !demo.call) return void send(event);
+    try {
+      const { trip, summary } = await randomCall(undefined, { condition, lat, lon, modifiers });
+      notify("ok", summary);
+      if (trip) openCall(trip.id);
+    } catch (e) {
+      if (e instanceof MissingEndpoint) void send(event);
+      else notify("error", bilingualLines(errorText(e)));
+    }
+  };
   const injectIncident = async (kind?: string) => {
     if (!demo.incident || demoBusy) return;
     setDemoBusy(true);
@@ -271,7 +295,36 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
       setTimeout(() => setDemoBusy(false), 600);
     }
   };
-  const demoButtons = <DemoButtons api={demo} busy={demoBusy} onCall={(s) => void injectCall(s)} onIncident={(k) => void injectIncident(k)} />;
+  // "Choose unit…": a failure aimed at one unit; the popover stays open (with the reason) when it does not fit
+  const injectTargeted = async (vehicleId: string, kind: string): Promise<boolean> => {
+    if (!demo.incident || demoBusy) return false;
+    setDemoBusy(true);
+    try {
+      const { event, summary } = await randomIncident(kind, vehicleId);
+      notify("ok", summary);
+      const tripId = event?.affected_trip_ids?.[0];
+      if (tripId) openCall(tripId);
+      else select(vehicleId, false);
+      return true;
+    } catch (e) {
+      notify("error", bilingualLines(errorText(e)));
+      return false;
+    } finally {
+      setTimeout(() => setDemoBusy(false), 600);
+    }
+  };
+  const caseUnit = caseSel ? (state.trips.find((x) => x.id === caseSel)?.vehicle_id ?? null) : null;
+  const demoButtons = (
+    <DemoButtons
+      api={demo}
+      busy={demoBusy}
+      onCall={(s) => void injectCall(s)}
+      onIncident={(k) => void injectIncident(k)}
+      state={state}
+      preselect={selectedId ?? caseUnit}
+      onTarget={injectTargeted}
+    />
+  );
   const [unseenRun, setUnseenRun] = useState(false);
   const micToggle = useRef<(() => void) | null>(null);
   const agentKeys = useRef<AgentKeys | null>(null);
@@ -481,7 +534,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
             onCancel={() => setPendingCall(null)}
             onSend={(event) => {
               setPendingCall(null);
-              void send(event);
+              void sendPicked(event);
             }}
           />
         )}
@@ -722,8 +775,14 @@ function MapLegend() {
       <span>
         <i className="lg lg-detour" /> {t("dash.legend.detour")}
       </span>
-      <span>
-        <i className="lg lg-closure" /> {t("dash.legend.closure")}
+      <span title={t("dash.legend.closureTitle")}>
+        <i className="lg lg-road lg-closure" /> {t("dash.legend.closure")}
+      </span>
+      <span title={t("dash.legend.crashTitle")}>
+        <i className="lg lg-road lg-crash" /> {t("dash.legend.crash")}
+      </span>
+      <span title={t("dash.legend.jamTitle")}>
+        <i className="lg lg-road lg-jam" /> {t("dash.legend.jam")}
       </span>
     </div>
   );

@@ -43,6 +43,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install pytest  # a few test files (tests/test_clinical_*.py) are pytest modules
 
       - name: Run every backend test script
         shell: bash
@@ -62,7 +63,11 @@ jobs:
           rows=""
           for f in "${scripts[@]}"; do
             start=$SECONDS
-            out=$(timeout 300 python "$f" 2>&1)
+            if grep -qE '^(import pytest|from pytest)' "$f"; then
+              out=$(timeout 300 python -m pytest -q "$f" 2>&1)  # pytest modules: "N passed" in the summary
+            else
+              out=$(timeout 300 python "$f" 2>&1)
+            fi
             rc=$?
             secs=$((SECONDS - start))
             result=$(printf '%s\n' "$out" | grep -Eo '[0-9]+/[0-9]+ passed' | tail -n 1)
