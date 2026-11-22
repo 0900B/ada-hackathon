@@ -65,7 +65,7 @@ export function ScenariosPanel({ state, notify, extra }: { state: WorldSnapshot;
     : mode === "scheduled_day"
       ? t("dash.sc.noStream")
       : !calls.enabled
-        ? t("dash.calls.off")
+        ? null // the switch right above already says "Call stream off"
         : calls.paused_until
           ? t("dash.sc.paused", { time: fmtTime(calls.paused_until), count: calls.generated })
           : `${t("dash.sc.perHour", { count: calls.per_hour })}${calls.next_at ? t("dash.sc.next", { time: fmtTime(calls.next_at) }) : ""}${t("dash.sc.soFar", { count: calls.generated })}`;
