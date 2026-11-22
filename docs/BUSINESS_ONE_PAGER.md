@@ -31,7 +31,7 @@ Fleet and calls in the demo are simulated; roads, traffic and weather are real.
 | Concessionaire and private providers | Fewer late transports (5.3 % against 20.5 %), vans take non-urgent jobs so ambulances stay free for red calls, contracted surge units | simulated |
 | Hospitals | Notification drafts, capacity-aware redirect options | drafts only; capacity numbers invented |
 | Crews | Speak or tap instead of typing; the approved plan on the phone | built |
-| Patients | Critical patients within target 74 % against 35.5 %, **mostly the helicopter rule**; ground units only 42.6 % against 34.3 % ([BENCHMARK.md](BENCHMARK.md)) | simulated |
+| Patients | Critical patients within target 53.8 % against 34.3 %, with the helicopter as it really runs (Brnik, 13 min to take-off, day only); ground units only 42.6 % against 34.3 % ([BENCHMARK.md](BENCHMARK.md)) | simulated |
 
 ## How it is different
 
@@ -72,13 +72,13 @@ the same vehicles and fewer late patients, not new revenue.
 
 | 3 months | 6 months | 12 months |
 |---|---|---|
-| Login (SSO, roles), EU hosting and DPIA, persistent state, self-hosted routing, commercial data licences, NAP access; helicopter model with activation delay, daylight and fog, benchmark re-run; read-only GPS adapter; shadow-replay tool | Advisory pilot live with one provider; two-site failover; measured KPIs and the AI's contribution; second provider | Dispatch-service integration if the pilot supports it; multi-tenant and multi-region; mass-casualty support with a human declaring the event; regulatory review |
+| Login (SSO, roles), EU hosting and DPIA, persistent state, self-hosted routing, commercial data licences, NAP access; helicopter weather from METAR (fog is reported by hand today); read-only GPS adapter; shadow-replay tool | Advisory pilot live with one provider; two-site failover; measured KPIs and the AI's contribution; second provider | Dispatch-service integration if the pilot supports it; multi-tenant and multi-region; mass-casualty support with a human declaring the event; regulatory review |
 
 ## Risks and handling
 
 | Risk | Handling |
 |---|---|
-| Simulation is not reality; the helicopter has no activation delay in our model | Say so, quote ground-only numbers, fix the model, validate on real logs in shadow mode |
+| Simulation is not reality; the helicopter's landing times are our assumption | Say so, quote ground-only numbers too, validate on real logs in shadow mode |
 | Patient safety, automation bias | Human approval, stale plans refused, Autopilot off by default, measure the override rate |
 | Health-data protection, regulation (medical device?) | Pseudonymous IDs, EU hosting, DPIA, AI optional, redaction; classification not assessed, legal review before live use |
 | Integration access, AI vendor and price | API-first, start with an independent operator; the engine works without AI, one module to swap |

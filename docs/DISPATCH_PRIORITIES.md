@@ -72,7 +72,11 @@ If a call is reported as better (e.g. the patient is breathing again), the dispa
    current patient.
 6. **Critical calls get the absolute closest unit**, including the helicopter when it is
    faster, even in the city (the MPDS Echo principle). For serious calls the helicopter goes
-   when it is ≥ 10 min faster; for urgent ones only for remote or long-distance cases (≥ 15 min).
+   when it is ≥ 10 min faster; for urgent ones only for remote or long-distance cases (≥ 15 min
+   faster and ≥ 15 km from the destination hospital). The helicopter's times are the real
+   service's ([SERVICE_TIMES.md](SERVICE_TIMES.md), "Helicopter"): based at Brnik, 13 min from the call
+   to take-off, 2 to 3 min to land, new calls only 08:00 to 16:30. A city call costs it about
+   22 min, so in practice it wins remote calls, and a city call only when no ambulance is free.
 7. **Time to definitive care, not only to the scene.** Stroke and STEMI patients go to UKC (stroke
    centre, catheter lab) with a pre-alert; options are compared by arrival at the hospital as well.
 8. **Explain clinically.** Every AI recommendation states its reason in one sentence, e.g.
@@ -98,7 +102,12 @@ rules above and adds these points that Plan B now follows:
   when one can.
 - **The helicopter is evaluated for every red call.** This is a calculation, not an automatic flight:
   every dispatch summary for a red call says when H1 would arrive and why it was or was not sent
-  (rule 6).
+  (rule 6), e.g. "H1 checked: at the patient 13:22 (take-off in 13 min; not the closest)". At night or in
+  fog it says so instead: "H1 not available: night (HNMP flies 08:00-16:30)".
+- **The helicopter flies by day only and starts at Brnik.** HNMP Brnik takes off on average 13 min
+  after the call (2025; 12 to 16 min in 2021 to 2025) and flies 08:00 to sunset in winter (08:00 to
+  16:30 in 2026), with no night flying ([EMS_RESEARCH.md](EMS_RESEARCH.md) section 4). Plan B uses
+  these figures; a mission under way at 16:30 is finished, no new one starts.
 - **Handover at the hospital takes at most 15 minutes**, after which the crew reports free. Plan B
   models a 15-minute handover, then 10 minutes of cleaning ("returning, unavailable"), and a 1-minute
   turnout for ambulances (5 for doctor cars): see [SERVICE_TIMES.md](SERVICE_TIMES.md).
@@ -127,7 +136,8 @@ which matches his rule.
 | 3. Not displaced twice | `Trip.times_displaced` | |
 | 4. Same level: weight, then worst wait | `engine/actions.py: goes_before`, `engine/dispatch.py: swap_options` | `WEIGHT_CLEARLY_HIGHER` = 1.5, `SWAP_MIN_GAIN_MIN` = 5 |
 | 5. Never divert near or on scene | `engine/actions.py: near_current_patient` | `NEAR_PATIENT_MIN` = 2 |
-| 6. Helicopter per level | `engine/dispatch.py: decide` | `HELICOPTER_GAIN_MIN` = 0 / 10 / 15 |
+| 6. Helicopter per level | `engine/dispatch.py: decide` | `HELICOPTER_GAIN_MIN` = 0 / 10 / 15, `HELICOPTER_REMOTE_KM` = 15 |
+| Helicopter base, activation, landing, hours | `app/hems.py` | `HEMS_ACTIVATION_MIN` = 13, `HEMS_SCENE_LANDING_MIN` = 3, `HEMS_HELIPAD_LANDING_MIN` = 2, `HEMS_HOURS` = 08:00 to 16:30 |
 | 7. Stroke and STEMI judged at UKC | `engine/dispatch.py: decide` | `DEFINITIVE_CARE_CONDITIONS` |
 | 8. Clinical reason | `engine/severity.py: clinical_reason` | |
 | Doctor cars, mutual aid, private ambulances | `engine/doctors.py` | `DOCTOR_CONDITIONS`, `DOCTOR_TARGET_MIN` = 15 |
@@ -262,8 +272,8 @@ that call (`REVIEW_GAP_MIN`).
 
 **The dispatcher intervenes** on any call: `GET /{world}/trips/{id}/alternatives?role=ambulance|doctor|helicopter`
 lists every unit of that role ranked by arrival at the patient, simulated by the engine, with what it
-costs ("free", "diverts TR-003 (urgent), which then waits 12 min longer", "helicopter, doctor on board",
-"private, needs surge capacity"); `POST /{world}/trips/{id}/assign {"vehicle_id", "mode": "replace"|"add"}`
+costs ("free", "diverts TR-003 (urgent), which then waits 12 min longer", "helicopter, doctor on board,
+take-off in 13 min", "private, needs surge capacity"); `POST /{world}/trips/{id}/assign {"vehicle_id", "mode": "replace"|"add"}`
 applies one through the plan path (a doctor car is swapped or added; a further ambulance or the
 helicopter for another patient of the same call becomes a linked trip with the same call record).
 Refused with the reason when it cannot be done (a patient on board, a doctor car busy with another
