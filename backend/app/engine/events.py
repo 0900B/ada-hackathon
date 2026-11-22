@@ -1,6 +1,7 @@
 """Apply operator/injected events to the world and report which trips they affect."""
 from __future__ import annotations
 
+import time
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
@@ -24,7 +25,7 @@ from ..models import (
 )
 from ..roads import ROADS, remaining_points
 from ..routing import flies, leg_route, points_hit, travel_minutes
-from . import timeline
+from . import timeline, units
 from .actions import LJ, ActionError, assign_trip, can_serve, detach_trip, level
 from .doctors import release as release_doctor, send_doctor
 from .service_times import on_scene_for, on_scene_min
@@ -64,8 +65,10 @@ def apply_event(
     tracker = timeline.Tracker(state)
     graded = {t.id: (t.severity, t.condition_label) for t in state.trips.values() if t.call is not None}
 
+    t0 = time.perf_counter()
     summary = _handle(state, ev, created, call)
     project_all(state)
+    tracker.detail = timeline.engine_detail(time.perf_counter() - t0)  # "rules engine, 0.1 s"
     _log_event(state, ev, summary, created, tracker, graded, reported_by)
 
     affected: list[str] = list(dict.fromkeys(created))  # the event's own trips first (e.g. the new call)
@@ -127,10 +130,11 @@ def _log_event(
             text = f"Call {c.call_id} received" + (f' from {c.caller_name}' if c.caller_name else "") + (f': "{words}"' if words else "")
         else:
             text = f"Request {c.call_id}" + (f" from {c.caller_name}" if c.caller_name else "") + (f': "{words}"' if words else "")
-        timeline.log(state, trip, "received", "caller", text, at=c.received_at)
+        timeline.log(state, trip, "received", "caller", text, at=c.received_at,
+                     detail="112 call" if c.kind == "112" else "hospital request")
         if c.triage is not None:
-            timeline.log(state, trip, "triaged", c.triage.by, triage_text(c.triage), at=c.triage.at)
-    tracker.log_changes("engine", summary, created)
+            timeline.log(state, trip, "triaged", c.triage.by, triage_text(c.triage), at=c.triage.at, detail=triage_detail(c.triage))
+    tracker.log_changes("engine", summary, created, detail=tracker.detail)
     if isinstance(ev, DelayEvent):
         v = state.vehicles.get(ev.vehicle_id)
         for tid in route_trip_ids(v) if v else []:
@@ -140,7 +144,7 @@ def _log_event(
             else:
                 when = f": at {'the patient' if t.kind == 'patient' else 'the pickup'} {timeline.hhmm(t.eta_pickup)}" if t.eta_pickup else ""
             timeline.log(state, t, "delayed", reported_by, f"{ev.vehicle_id} delayed {ev.minutes:.0f} min"
-                         + (f" ({ev.note})" if ev.note else "") + when, ev.vehicle_id)
+                         + (f" ({ev.note})" if ev.note else "") + when, ev.vehicle_id, detail=f"{reported_by} report")
     elif isinstance(ev, RoadClosureEvent) and ev.kind == "road_closure":
         inc = next(reversed(state.incidents.values()), None)
         for v in state.vehicles.values():
@@ -173,6 +177,12 @@ def _log_event(
             if (t := state.trips.get(tid)) is not None and place is not None:
                 timeline.log(state, t, "note", reported_by, f"{place.name} can admit only {ev.capacity} more patient(s): "
                              "this patient may need another hospital", t.vehicle_id)
+
+
+def triage_detail(tr) -> str:
+    """The triage entry's source: "Claude, 2.1 s", "keyword rules, 0.0 s", "dispatcher re-grade"."""
+    what = {"ai": "Claude", "rules": "keyword rules", "dispatcher": "dispatcher re-grade"}.get(tr.by, tr.by)
+    return f"{what}, {tr.took_s:.1f} s" if tr.took_s is not None and tr.by != "dispatcher" else what
 
 
 def triage_text(tr) -> str:
@@ -265,6 +275,7 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str], call: Call
             extra = f"; patient of {stranded.id} stranded on board"
             if stranded.priority == "emergency":  # an emergency patient can't wait for an analysis
                 extra += dispatch_call(state, stranded)
+                units.amend(state, stranded, stranded.vehicle_id, f"replaces {v.id} (broke down, patient on board)")
         # 112 calls are re-dispatched at once (highest level first). Scenario jobs and bookings (no
         # call record) and hospital requests stay for the dispatcher/AI, as before.
         for trip in sorted(released, key=level):
@@ -272,6 +283,7 @@ def _handle(state: WorldState, ev: OperatorEvent, created: list[str], call: Call
                 continue  # already dispatched above
             if is_112(trip) and trip.status == "unassigned":
                 extra += f"; {trip.id}" + dispatch_call(state, trip).replace(";", ":", 1)
+                units.amend(state, trip, trip.vehicle_id, f"replaces {v.id} (out of service)")
         return f"{v.name} broke down{extra}" + (f" ({ev.note})" if ev.note else "")
 
     if isinstance(ev, DelayEvent):
@@ -516,6 +528,8 @@ def _book_task(state: WorldState, ev: TaskRequestEvent, created: list[str]) -> s
         return what + "; no vehicle can take it without a late trip, so it is left for the AI to replan"
     step = best["step"]
     assign_trip(state, trip.id, step["vehicle_id"], step["position"], step["interrupt_current"])
+    kind = "van" if best["vehicle_type"] == "transport" else "no van fits; free ambulance"
+    units.note(state, trip, step["vehicle_id"], f"booking: {kind}, {best['insertion']}" + (", late" if late else ""))
     eta = best["trip_eta_dropoff"].astimezone(LJ).strftime("%H:%M") if best["trip_eta_dropoff"] else "?"
     return what + f"; placed on {step['vehicle_id']} ({best['insertion']}), arrives {eta}{late}"
 
@@ -550,6 +564,7 @@ def _ground_helicopters(state: WorldState, ev: FogEvent) -> str:
         summary += f"; {len(released)} trip(s) released for road vehicles ({', '.join(released)})"
         for tid in released:  # helicopter jobs are emergency/urgent calls: send a road unit now
             summary += f"; {tid}" + dispatch_call(state, state.trips[tid]).replace(";", ":", 1)
+            units.amend(state, state.trips[tid], state.trips[tid].vehicle_id, "replaces the helicopter (grounded by fog)")
     if finishing:
         summary += f"; {', '.join(finishing)}"
     return summary + (f" ({ev.note})" if ev.note else "")

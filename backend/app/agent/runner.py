@@ -61,7 +61,8 @@ def _task_key(state: WorldState, run_id: str) -> str:
 def start_run(
     state: WorldState, trigger: str, focus: EventRecord | None = None, question: str | None = None
 ) -> AgentRun | None:
-    """Start an analysis in the background. A newer run supersedes any run still in progress.
+    """Start an analysis in the background. A newer run supersedes any analysis still in progress
+    (not the AI dispatcher's reviews of single cases, see start_review).
 
     Only the operator's own request ("operator") always runs; an automatic one (event, call, message,
     scenario, stale plan) is skipped (returns None) while the Claude usage limit is reached."""
@@ -70,12 +71,25 @@ def start_run(
         log.warning("automatic analysis (%s) skipped: Claude usage limit reached", trigger)
         AUDIT.record(state.name, "agent_run_skipped", f"Automatic AI analysis skipped ({trigger}): {LIMIT_REASON}")
         return None
-    for run in state.agent_runs:
-        if run.status == "running" and (task := _tasks.get(_task_key(state, run.id))):
-            task.cancel()
-            run.status = "superseded"
-            run.finished_at = utcnow()
-            run.log("info", "Superseded by a newer analysis")
+    return _start(state, trigger, focus, question, review_of=None)
+
+
+def start_review(state: WorldState, trip_id: str, focus: EventRecord | None, question: str) -> AgentRun:
+    """The AI dispatcher's review of one case (app/ai_dispatcher.py, which checks the guard and the
+    rate limit first). Runs next to other analyses: it neither supersedes them nor is superseded."""
+    return _start(state, f"review:{trip_id}", focus, question, review_of=trip_id)
+
+
+def _start(
+    state: WorldState, trigger: str, focus: EventRecord | None, question: str | None, review_of: str | None
+) -> AgentRun:
+    if review_of is None:
+        for run in state.agent_runs:
+            if run.status == "running" and run.review_of is None and (task := _tasks.get(_task_key(state, run.id))):
+                task.cancel()
+                run.status = "superseded"
+                run.finished_at = utcnow()
+                run.log("info", "Superseded by a newer analysis")
     run = AgentRun(
         id=state.new_id("RUN"),
         trigger=trigger,
@@ -83,16 +97,18 @@ def start_run(
         question=question,
         started_at=utcnow(),
         model=config.AGENT_MODEL if config.agent_enabled() else None,
+        review_of=review_of,
     )
     state.agent_runs.append(run)
     del state.agent_runs[:-20]  # keep the history bounded
-    state.analysed_events = len(state.events)  # everything reported so far has now been looked at
+    if review_of is None:
+        state.analysed_events = len(state.events)  # everything reported so far has now been looked at
     AUDIT.record(
         state.name,
         "agent_run_started",
         f"AI analysis started ({trigger})",
         ref=run.id,
-        payload={"trigger": trigger, "event_id": run.event_id, "question": question, "model": run.model},
+        payload={"trigger": trigger, "event_id": run.event_id, "question": question, "model": run.model, "review_of": review_of},
     )
     task_key = _task_key(state, run.id)
     task = asyncio.create_task(_run(state, run, focus, question), name=task_key)
@@ -469,9 +485,14 @@ def _finish(state: WorldState, run: AgentRun, rec: Recommendation, engine: str) 
             "trace": run.steps,
         },
     )
-    _log_proposal(state, run, rec, engine)
-    if state.autopilot:
-        _autopilot(state, run, rec)
+    if run.review_of is not None:  # the AI dispatcher's review of one case: keep, apply or propose
+        from ..ai_dispatcher import finish_review  # local import: that module starts runs here
+
+        finish_review(state, run, rec, engine)
+    else:
+        _log_proposal(state, run, rec, engine)
+        if state.autopilot:
+            _autopilot(state, run, rec)
     state.bump()
 
 

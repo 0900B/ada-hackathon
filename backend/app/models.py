@@ -104,8 +104,13 @@ TimelineKind = Literal[
     "received", "triaged", "dispatched", "doctor_dispatched", "rerouted", "reassigned", "delayed",
     "unit_replaced", "proposal", "approved", "on_scene", "doctor_on_scene", "transporting", "at_hospital",
     "handover_done", "closed", "note",
+    "reviewed",  # the AI dispatcher (Claude) reviewed the case and kept the decision (app/ai_dispatcher.py)
+    "override",  # the dispatcher changed a unit by hand (app/overrides.py)
 ]
 TimelineBy = Literal["caller", "ai", "rules", "engine", "dispatcher", "crew"]
+AiMode = Literal["assisted", "autonomous"]  # per world (app/ai_dispatcher.py)
+UnitRole = Literal["ambulance", "doctor", "helicopter", "van"]
+AssignedBy = Literal["engine", "ai", "dispatcher"]
 
 
 class CallTriage(BaseModel):
@@ -120,6 +125,7 @@ class CallTriage(BaseModel):
     needs_doctor: bool = False
     reason_en: str = ""  # one clinical sentence
     reason_sl: str = ""
+    took_s: float | None = None  # how long the triage took (real seconds), for the timeline's detail
 
 
 class CallRecord(BaseModel):
@@ -142,6 +148,9 @@ class TimelineEntry(BaseModel):
     text: str
     vehicle_id: str | None = None
     run_id: str | None = None
+    # Who exactly, in a few words: "rules engine, 0.1 s", "Claude, 12 s, checked by the engine",
+    # "dispatcher override", "keyword rules" (engine/timeline.py fills a default from `by`).
+    detail: str | None = None
 
 
 class Trip(BaseModel):
@@ -180,6 +189,12 @@ class Trip(BaseModel):
     # by what-if copies of the world (WorldState.clone_for_simulation); written only in the real world.
     call: CallRecord | None = None
     timeline: list[TimelineEntry] = Field(default_factory=list)
+    # A further unit the dispatcher added to the same call (several patients): the trip it belongs to.
+    linked_to: str | None = None
+    # Why each unit serves this trip, written where the decision is made (engine/units.py):
+    # {vehicle_id: {"reason", "assigned_by", "assigned_at"}}. Shown as `units` in the snapshot; shared
+    # (not copied) by what-if copies and written only in the real world, like the timeline.
+    unit_notes: dict[str, dict[str, Any]] = Field(default_factory=dict, exclude=True)
 
     @model_validator(mode="after")
     def _equipment_consistent(self) -> Trip:
@@ -568,6 +583,8 @@ class AgentRun(BaseModel):
     error: str | None = None
     decision: dict[str, Any] | None = None
     usage: dict[str, int] = Field(default_factory=dict)
+    # Set for an AI-dispatcher review of one case (app/ai_dispatcher.py): the trip reviewed.
+    review_of: str | None = None
 
     def log(self, kind: str, text: str) -> None:
         self.steps.append(AgentStep(at=utcnow(), kind=kind, text=text[:600]))  # type: ignore[arg-type]

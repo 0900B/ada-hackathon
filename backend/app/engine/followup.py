@@ -15,12 +15,13 @@ Detours around closures are automatic in the simulator and logged there.
 """
 from __future__ import annotations
 
+import time
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from ..models import Plan, PlanStep, Trip
 from ..routing import flies, travel_minutes
-from . import timeline
+from . import timeline, units
 from .actions import level, near_current_patient
 from .candidates import find_candidates, is_free
 from .projection import project_all
@@ -32,6 +33,7 @@ if TYPE_CHECKING:
 FOLLOWUP_EVERY_S = 30.0  # world seconds between checks
 FASTER_FREE_UNIT_MIN_GAIN_MIN = 3.0  # switch to a free unit that reaches the patient at least this much sooner
 OPEN = ("unassigned", "assigned", "en_route_pickup")
+DETAIL = "rules engine follow-up"  # the timeline's source text
 
 
 def _calls(state: WorldState) -> list[Trip]:
@@ -60,21 +62,23 @@ def check(state: WorldState, force: bool = False) -> list[str]:
         if trip.status not in OPEN:
             continue
         tracker = timeline.Tracker(state)
+        t0 = time.perf_counter()
         if trip.vehicle_id is None:
             had_doctor = trip.doctor_vehicle_id
             clause = dispatch_call(state, trip)
             if trip.vehicle_id is not None or trip.doctor_vehicle_id != had_doctor:
                 project_all(state)
-                tracker.log_changes("engine", clause.lstrip("; "))
+                tracker.log_changes("engine", clause.lstrip("; "), detail=timeline.engine_detail(time.perf_counter() - t0, DETAIL))
                 done.append(f"{trip.id}: {clause.lstrip('; ')}")
             continue
         switched = _faster_free_unit(state, trip)
         if switched:
             project_all(state)
             old, text = switched
-            timeline.log(state, trip, "reassigned", "engine", text, trip.vehicle_id)
+            detail = timeline.engine_detail(time.perf_counter() - t0, DETAIL)
+            timeline.log(state, trip, "reassigned", "engine", text, trip.vehicle_id, detail=detail)
             tracker.before.pop(trip.id, None)  # already said; log only the doctor change, if any
-            tracker.log_changes("engine")
+            tracker.log_changes("engine", detail=detail)
             done.append(f"{trip.id}: {text}")
         if trip.needs_doctor and trip.doctor_vehicle_id is None and trip.status in ("assigned", "en_route_pickup"):
             from .doctors import send_doctor
@@ -82,10 +86,11 @@ def check(state: WorldState, force: bool = False) -> list[str]:
             unit = state.vehicles.get(trip.vehicle_id) if trip.vehicle_id else None
             if unit is not None and not flies(unit.type):
                 tracker = timeline.Tracker(state)
+                t0 = time.perf_counter()
                 clause = send_doctor(state, trip)
                 if trip.doctor_vehicle_id is not None:
                     project_all(state)
-                    tracker.log_changes("engine")
+                    tracker.log_changes("engine", detail=timeline.engine_detail(time.perf_counter() - t0, DETAIL))
                     done.append(f"{trip.id}: doctor{clause}")
     if done:
         state.bump()
@@ -137,6 +142,7 @@ def _faster_free_unit(state: WorldState, trip: Trip) -> tuple[str, str] | None:
     trip.dispatched_at = state.sim_time
     who = "the patient" if trip.kind == "patient" else "the pickup"
     why = " (delayed)" if v.busy_until and v.busy_until > state.sim_time else ""
+    units.note(state, trip, best["vehicle_id"], f"free and {gain:.0f} min sooner than {v.id}{why}, {best['pickup_in_min']:.0f} min")
     text = (f"{best['vehicle_id']} is free and {gain:.0f} min sooner than {v.id}{why}: switched, at {who} "
             f"{timeline.hhmm(reach)}; {v.id} released")
     return v.id, text

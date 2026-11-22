@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -193,6 +194,7 @@ async def triage(state: WorldState, text: str, address: str | None, use_ai: bool
     from ..guard import GUARD
 
     at = state.sim_time
+    t0 = time.perf_counter()
     note = ""
     if use_ai and not config.agent_enabled():
         note = "AI off: no API key"
@@ -202,11 +204,14 @@ async def triage(state: WorldState, text: str, address: str | None, use_ai: bool
         try:
             result = await asyncio.wait_for(triage_claude(text, address, at), timeout=TRIAGE_TIMEOUT_S)
             result.triage.at = state.sim_time  # when the answer came (world time moved on meanwhile)
+            result.triage.took_s = round(time.perf_counter() - t0, 1)
             return result
         except Exception as e:  # noqa: BLE001 - any failure: the rules decide
             log.warning("AI triage failed, using the keyword rules: %s", e)
             note = "AI unavailable"
-    return TriageResult(triage_rules(text, state.sim_time), fallback=note)
+    rules = triage_rules(text, state.sim_time)
+    rules.took_s = round(time.perf_counter() - t0, 1)
+    return TriageResult(rules, fallback=note)
 
 
 # --- Keeping the record in step with the trip ------------------------------------------------------

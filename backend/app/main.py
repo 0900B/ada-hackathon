@@ -18,12 +18,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from . import approvals, config, demo, intake
+from . import ai_dispatcher, approvals, config, demo, intake, overrides
 from .agent import runner as agent
 from .agent.messages import FieldMessage, MessageError, parse_message, to_operator_events
 from .guard import GUARD, message_limit_detail
 from .audit import AUDIT
-from .engine import followup, surge
+from .engine import followup, surge, timeline
 from .engine.actions import ActionError
 from .engine.events import EventError, apply_event
 from .engine.plans import apply_plan, simulate_plan
@@ -68,13 +68,16 @@ def bump_all() -> None:
 
 
 def call_problem(w: WorldState, record: EventRecord) -> None:
-    """A generated call that needs a dispatcher's attention: audited; with auto-analyse on (rate-limited)
-    an analysis starts."""
+    """Every 112 call after the engine's dispatch (typed, demo, generated). A critical or serious one is
+    reviewed by the AI dispatcher (app/ai_dispatcher.py: autonomous mode, or assisted with auto-analyse).
+    A call that needs a dispatcher's attention is audited; with auto-analyse on (rate-limited) an analysis
+    starts, unless the AI dispatcher is already reviewing it."""
+    reviewed = ai_dispatcher.on_new_call(w, record)
     problem = calls.problem_of(w, record)
     if problem is None:
         return
     AUDIT.record(w.name, "event", f"{record.summary} [needs attention: {problem}]", ref=record.id, payload=record)
-    if calls.may_analyse(w):
+    if not reviewed and calls.may_analyse(w):
         agent.start_run(w, trigger=f"call:{record.id}", focus=record, question=f"A live call needs attention: {problem}.")
 
 
@@ -324,7 +327,10 @@ async def post_event(event: OperatorEvent = Body(...), state: WorldState = World
     unplaced_booking = event.type == "task_request" and any(
         state.trips[t].status == "unassigned" for t in record.affected_trip_ids if t in state.trips
     )
-    if state.auto_analyze and ((event.type in DISRUPTIVE_EVENTS and not clearing) or unplaced_booking):
+    # A disruption touching an open 112 call: the AI dispatcher reviews that call (app/ai_dispatcher.py);
+    # otherwise, with auto-analyse on, the usual analysis of the event.
+    reviewed = ai_dispatcher.after_event(state, record)
+    if not reviewed and state.auto_analyze and ((event.type in DISRUPTIVE_EVENTS and not clearing) or unplaced_booking):
         agent.start_run(state, trigger=f"event:{record.id}", focus=record)
     return record
 
@@ -378,7 +384,8 @@ async def post_message(msg: FieldMessage, state: WorldState = World) -> dict:
         except EventError as e:
             result["error"] = f"{ev.type}: {e}"
             break
-    if result["applied"] and state.auto_analyze:
+    reviewed = [r for r in result["applied"] if ai_dispatcher.after_event(state, r)]  # the AI dispatcher (every event)
+    if result["applied"] and state.auto_analyze and not reviewed:
         run = agent.start_run(
             state,
             trigger="message",
@@ -398,10 +405,12 @@ def post_simulate(plan: Plan, state: WorldState = World) -> dict:
 @router.post("/plans/apply")
 def post_apply(plan: Plan, state: WorldState = World) -> EventRecord:
     """Operator approved: apply the plan for real."""
+    tracker = timeline.Tracker(state)
     try:
         record = apply_plan(state, plan)
     except ActionError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    tracker.log_changes("dispatcher", detail="dispatcher plan")
     AUDIT.record(state.name, "plan_applied", record.summary, ref=record.id, payload=record)
     return record
 
@@ -461,14 +470,61 @@ def set_ai_triage(req: SwitchRequest, state: WorldState = World) -> dict:
     return {"world": state.name, "ai_triage": state.ai_triage}
 
 
+class AiModeRequest(BaseModel):
+    mode: Literal["assisted", "autonomous"]
+
+
+def _set_ai_mode(state: WorldState, mode: str) -> None:
+    if state.ai_mode != mode:
+        state.ai_mode = mode
+        AUDIT.record(state.name, "setting", f"AI dispatcher: {mode}")
+    state.bump()
+
+
+@router.post("/admin/ai-mode")
+def set_ai_mode(req: AiModeRequest, state: WorldState = World) -> dict:
+    """The AI dispatcher (app/ai_dispatcher.py). "autonomous": Claude reviews every new critical/serious
+    call and every disruption of an open call, and its recommendation is applied (re-checked by the engine,
+    audited). "assisted" (default): the same reviews only with auto-analyse on, as proposals."""
+    _set_ai_mode(state, req.mode)
+    return {"world": state.name, "ai_mode": state.ai_mode, "autopilot": state.autopilot}
+
+
 @router.post("/admin/autopilot")
 def set_autopilot(req: SwitchRequest, state: WorldState = World) -> dict:
-    """Autopilot: the recommended feasible option of every analysis about an active call is approved by
-    the engine (same path as the dispatcher's approval, audited). Surge capacity stays manual."""
-    state.autopilot = req.enabled
-    AUDIT.record(state.name, "setting", f"Autopilot {'on' if req.enabled else 'off'}")
-    state.bump()
+    """The old switch, kept as an alias: on = ai_mode "autonomous", off = "assisted". The recommended
+    feasible option of every analysis about an active call is approved by the engine (same path as the
+    dispatcher's approval, audited). Surge capacity stays manual."""
+    _set_ai_mode(state, "autonomous" if req.enabled else "assisted")
     return {"world": state.name, "autopilot": state.autopilot}
+
+
+class AssignRequest(BaseModel):
+    vehicle_id: str
+    mode: Literal["replace", "add"] = "replace"
+
+
+@router.get("/trips/{trip_id}/alternatives")
+def get_alternatives(trip_id: str, role: Literal["ambulance", "doctor", "helicopter"] = "ambulance",
+                     state: WorldState = World) -> list[dict]:
+    """Who else could do this unit's job, ranked by arrival at the patient (the engine simulates each on a
+    copy): eta, delta_min vs the current unit (negative = sooner), free, cost_text, feasible, note."""
+    try:
+        return overrides.alternatives(state, trip_id, role)
+    except overrides.OverrideError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from e
+
+
+@router.post("/trips/{trip_id}/assign")
+def assign_unit(trip_id: str, req: AssignRequest, state: WorldState = World) -> dict:
+    """The dispatcher intervenes: "replace" swaps the transporting unit (or the doctor car), "add" adds a
+    doctor car, or a further ambulance / the helicopter for another patient of the call (a linked trip).
+    Simulated first, applied through the plan path, audited; timeline "override". Returns {trip, summary};
+    400 with the reason if it cannot be done (e.g. the patient is on board)."""
+    try:
+        return overrides.assign(state, trip_id, req.vehicle_id, req.mode)
+    except overrides.OverrideError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from e
 
 
 @router.post("/calls")
@@ -530,7 +586,8 @@ def random_incident(req: RandomIncidentRequest | None = None, state: WorldState 
     follow = followup.check(state, force=True)  # the engine's automatic reaction, now rather than at the next check
     summary = " ".join(filter(None, [note, record.summary])) + (f"; engine: {'; '.join(follow)}" if follow else "")
     AUDIT.record(state.name, "event", f"Demo incident ({target.kind}): {summary}", ref=record.id, payload=record)
-    if state.auto_analyze and record.type in DISRUPTIVE_EVENTS:
+    reviewed = ai_dispatcher.after_event(state, record)  # after the engine's reaction: Claude reviews the call
+    if not reviewed and state.auto_analyze and record.type in DISRUPTIVE_EVENTS:
         agent.start_run(state, trigger=f"event:{record.id}", focus=record)
     state.bump()
     return {"event": record.model_dump(mode="json"), "summary": summary, "kind": target.kind}

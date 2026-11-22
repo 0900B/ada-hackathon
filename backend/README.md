@@ -46,8 +46,10 @@ Two worlds read them:
   calls go through `dispatch_call` (nearest suitable free unit); transports and equipment are booked onto
   a van (`task_request` with `if_late: "soonest"`: if nothing fits on time, the vehicle that delivers it
   least late). Typical load at 8/h: ambulances and vans 45–65 % busy, queues at most current job + 1.
-  A generated call never starts an AI analysis; a genuine problem (no unit, or late) may, only with
-  auto-analyse on and at most once per 15 world-minutes. Demo scenarios pause new calls for 30 world-minutes.
+  A generated call never starts a general AI analysis; a genuine problem (no unit, or late) may, only with
+  auto-analyse on and at most once per 15 world-minutes. A critical or serious one is reviewed by the AI
+  dispatcher when reviews are on (autonomous mode, or auto-analyse on; see below). Demo scenarios pause
+  new calls for 30 world-minutes.
 - **Scheduled day** (`SCHEDULED_DAY=1`, or `POST /{world}/admin/reset {"scheduled_day": true}`): the
   vans start with a pre-planned day of booked trips (the brief's "initial plan"); no random calls.
 - The snapshot says which: `mode` (`live_calls` / `scheduled_day`) and `calls` (generator status).
@@ -69,7 +71,10 @@ Two worlds read them:
 | POST | `/{world}/admin/reset` | Re-seed that world; optional `{"scheduled_day": true\|false}` switches the mode |
 | POST | `/{world}/admin/calls` | Live-calls generator: `{"enabled": bool, "per_hour": number}` (both optional) |
 | POST | `/{world}/calls` | A 112 call: `{"text", "address"?, "place_id"?, "lat"?, "lon"?, "caller_name"?, "dropoff_id"?}` → Claude triage (rules when unavailable) → dispatch; returns `{trip, summary}` (422: location not found) |
-| POST | `/{world}/admin/ai-triage`, `/{world}/admin/autopilot` | Switches `{"enabled": bool}` (snapshot: `ai_triage`, `autopilot`; both off by default) |
+| POST | `/{world}/admin/ai-triage`, `/{world}/admin/autopilot` | Switches `{"enabled": bool}` (snapshot: `ai_triage`, `autopilot`; both off by default; autopilot on = `ai_mode` autonomous) |
+| POST | `/{world}/admin/ai-mode` | AI dispatcher `{"mode": "assisted" \| "autonomous"}` (snapshot `ai_mode`, default assisted; see below) |
+| GET | `/{world}/trips/{id}/alternatives?role=ambulance\|doctor\|helicopter` | Every unit of that role, ranked by arrival at the patient (engine-simulated): `[{vehicle_id, type, role, eta_scene, eta_minutes, delta_min, free, cost_text, feasible, note, current}]` |
+| POST | `/{world}/trips/{id}/assign` | The dispatcher intervenes: `{"vehicle_id", "mode": "replace" \| "add"}` → `{trip, summary}` (+ `linked_trip` for an added ambulance/helicopter); 400 with the reason if it cannot be done |
 | POST | `/sim/admin/random-call`, `/sim/admin/random-incident` | Demo: a random call (`{"severity"?}`) or a disruption hitting current operations (`{"kind"?}`: crash, closure, fog, breakdown, delay, capacity, equipment); 400 in live, 409 when nothing fits |
 | GET/POST | `/sim/admin/scenarios`, `/sim/admin/scenario/{name}` | Demo scenarios (simulation only) |
 | POST | `/{world}/agent/analyze` | Ask the Claude agent to review the situation (`{"question": "..."}` optional) |
@@ -80,7 +85,9 @@ Two worlds read them:
 ## The Claude agent (`app/agent/`)
 
 With auto-analyse on (a per-world switch, off by default to save tokens), disruptive events (breakdown,
-delay, closure, urgent request, snow) start an analysis automatically; routine live calls never do.
+delay, closure, urgent request, snow) start an analysis automatically (a disruption of an open 112 call
+starts the AI dispatcher's review of that call instead); routine live calls never start one, but a
+critical or serious call is reviewed (see "The AI dispatcher" below).
 Otherwise the operator presses Analyse (the first one after a demo scenario gets its description).
 Claude (`claude-sonnet-5-5` by default; set `AGENT_MODEL=claude-opus-5-5` for Opus) gets the situation, then uses three tools backed by the engine:
 `find_candidates` (vehicles ranked by simulated outcome), `simulate_plan` (what-if for a whole option)
@@ -93,6 +100,26 @@ operator sees it, so all figures in the UI come from the engine, not the model. 
 
 Settings: `ANTHROPIC_API_KEY` (required for Claude), `AGENT_MODEL`, `AGENT_EFFORT` (default `medium`),
 `AGENT_AUTO` (`1`/`0`), `AGENT_MAX_TURNS`, `AGENT_TIMEOUT_S`.
+
+### The AI dispatcher (`app/ai_dispatcher.py`, `app/overrides.py`, `engine/units.py`)
+
+The engine still acts at once (dispatch, detours, replacing a unit that drops out). Claude then reviews
+each case as a focused analysis (`AgentRun.review_of` = the trip): every new critical/serious 112 call,
+and every breakdown, delay, closure on the unit's route or priority change touching an open 112 call.
+- `ai_mode: "autonomous"`: Claude's recommended feasible option is applied through the approval path
+  (re-checked by the engine, audited; timeline `approved` by `ai`); "keep" (no steps) is logged as
+  `reviewed` ("AI dispatcher (Claude) confirmed ..."). Surge capacity stays the dispatcher's decision.
+- `ai_mode: "assisted"` (default): the same reviews only with auto-analyse on; they stay proposals.
+- Guard refused, no key, Claude failed or too slow: the engine's decision stands (timeline note).
+  One review per case at a time, none within 2 world-minutes of the last one.
+
+Snapshot additions: `ai_mode`, `ai_stats` (`cases_active, dispatched, reroutes, reassignments,
+overrides, claude_reviews, claude_changes, last_decision_at`), every timeline entry's `detail` (e.g.
+"rules engine, 0.1 s", "Claude, 12 s, checked by the engine", "dispatcher override"; kinds `reviewed`
+and `override` are new), and for trips with a call record `units`:
+`[{vehicle_id, role (ambulance|doctor|helicopter|van), trip_id, status_text, eta_scene, eta_hospital,
+reason, assigned_by (engine|ai|dispatcher), assigned_at}]` (the transporting unit, the doctor car, and the
+units of trips linked to it with `linked_to`). Details: `docs/DISPATCH_PRIORITIES.md` section 8.
 
 Example events:
 

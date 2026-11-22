@@ -33,6 +33,19 @@ from .models import (
 SNAPSHOT_DONE_HOURS = 3  # finished trips stay in the snapshot this long (world time)
 
 
+def new_ai_stats() -> dict[str, Any]:
+    """Decision counters of one world since its reset (snapshot `ai_stats`; cases_active is computed)."""
+    return {
+        "dispatched": 0,  # units dispatched to a trip (timeline "dispatched")
+        "reroutes": 0,  # detours and redirects (timeline "rerouted")
+        "reassignments": 0,  # a trip moved to another unit (timeline "reassigned", "unit_replaced")
+        "overrides": 0,  # the dispatcher changed a unit by hand (POST /trips/{id}/assign)
+        "claude_reviews": 0,  # AI-dispatcher reviews Claude completed
+        "claude_changes": 0,  # ... whose change was applied (autonomous mode)
+        "last_decision_at": None,  # world time of the last decision on any timeline
+    }
+
+
 class FeedState:
     """Real-world data shared by every world."""
 
@@ -81,10 +94,12 @@ class WorldState:
 
         self.auto_analyze = config.AGENT_AUTO
         # 112 calls (app/intake.py): triage generated and demo calls with Claude (guarded; else the
-        # keyword rules), and approve the recommended option of analyses about an active call by itself.
-        # Both off by default; they survive a reset like auto_analyze.
+        # keyword rules). Off by default; survives a reset like auto_analyze.
         self.ai_triage = False
-        self.autopilot = False
+        # The AI dispatcher (app/ai_dispatcher.py): "assisted" (default: the AI proposes, the dispatcher
+        # approves) or "autonomous" (Claude reviews every red call and every disruption of a case and its
+        # recommendation is applied; the old autopilot switch is this mode). Survives a reset.
+        self.ai_mode: str = "assisted"
         self.epoch = 0  # +1 on every reset: async work started before a reset is dropped
         # Operating mode: live calls (False, default) or a pre-planned scheduled day for the vans.
         # Set on (re)seeding: seed_world(..., scheduled_day=...), POST /{world}/admin/reset.
@@ -111,6 +126,10 @@ class WorldState:
         self.demand_alert = False
         self.call_seq: dict[str, int] = {}  # per-world call id counters ("112", "REQ")
         self.followup_at: datetime | None = None  # next automatic follow-up check (engine/followup.py)
+        # AI dispatcher (app/ai_dispatcher.py): the last review per case {trip_id: {run_id, at}}, and the
+        # decision counters since the reset (engine/timeline.py counts the timeline's decisions).
+        self.reviews: dict[str, dict[str, Any]] = {}
+        self.ai_stats: dict[str, Any] = new_ai_stats()
         self.epoch = getattr(self, "epoch", 0) + 1
         self.trips: dict[str, Trip] = {}
         self.incidents: dict[str, Incident] = {}  # this world's operator-reported/injected incidents
@@ -124,6 +143,24 @@ class WorldState:
         self.bump()
 
     # --- helpers -------------------------------------------------------------
+
+    @property
+    def autopilot(self) -> bool:
+        """The old autopilot switch: the same as the autonomous AI dispatcher mode."""
+        return self.ai_mode == "autonomous"
+
+    @autopilot.setter
+    def autopilot(self, on: bool) -> None:
+        self.ai_mode = "autonomous" if on else "assisted"
+
+    def ai_stats_view(self) -> dict[str, Any]:
+        """ai_stats for the snapshot: the counters plus the open 112 cases."""
+        cases = sum(
+            1 for t in self.trips.values()
+            if t.call is not None and t.call.kind == "112" and t.status not in ("completed", "cancelled")
+        )
+        last = self.ai_stats.get("last_decision_at")
+        return {**self.ai_stats, "cases_active": cases, "last_decision_at": last.isoformat() if last else None}
 
     def bump(self) -> None:
         """Mark the state as changed so SSE clients get a fresh snapshot."""
@@ -181,6 +218,7 @@ class WorldState:
         from . import config  # local imports: these modules depend on this one's types
         from .engine import surge
         from .engine.projection import kpis
+        from .engine.units import trip_view
         from .roads import ROADS
 
         def dump(items):
@@ -207,12 +245,14 @@ class WorldState:
             "mode": "scheduled_day" if self.scheduled_day else "live_calls",
             "calls": self.calls.status(self),
             "ai_triage": self.ai_triage,  # generated/demo calls triaged by Claude (guarded), else by the rules
-            "autopilot": self.autopilot,  # the engine approves the recommended option of analyses about a call
+            "ai_mode": self.ai_mode,  # assisted | autonomous (app/ai_dispatcher.py)
+            "autopilot": self.autopilot,  # = ai_mode autonomous (the old switch)
+            "ai_stats": self.ai_stats_view(),
             # Contracted surge capacity: active, until, units, what an activation would add (engine/surge.py)
             "surge": surge.status(self),
             "places": dump(places),
             "vehicles": [{**v.model_dump(mode="json"), "path": self.vehicle_path(v)} for v in self.vehicles.values()],
-            "trips": dump(trips),
+            "trips": [trip_view(self, t) for t in trips],  # with `units` (engine/units.py)
             "incidents": dump(i for i in self.all_incidents() if i.active),
             "weather": {
                 "now": weather.model_dump(mode="json") if weather else None,
