@@ -50,6 +50,7 @@ export interface CallView {
   timeline: TimelineEntry[];
   closedAt: string | null;
   proposal: AgentRun | null; // a pending AI/engine plan that involves this call
+  reviewing: boolean; // the AI dispatcher (Claude) is reviewing this call right now
 }
 
 const BOOKING = new Set(["transfer", "equipment"]);
@@ -139,13 +140,15 @@ function synthTimeline(t: Trip, received: string, place: (id: string) => string)
   return out;
 }
 
-/** A plan waiting for the dispatcher that moves this call (the newest one). */
+/** A plan waiting for the dispatcher that moves this call, or the AI dispatcher's review of this call
+ * that proposes a change (the newest one). */
 function pendingProposal(t: Trip, runs: AgentRun[]): AgentRun | null {
   for (const run of runs) {
     if (run.status !== "done" || !run.recommendation) continue;
     const rec = run.recommendation;
     const opt = rec.options[rec.recommended_index];
-    if (opt && opt.feasible !== false && opt.steps.some((s) => s.trip_id === t.id)) return run;
+    if (opt && opt.feasible !== false && opt.steps.length > 0 && (run.review_of === t.id || opt.steps.some((s) => s.trip_id === t.id)))
+      return run;
   }
   return null;
 }
@@ -288,6 +291,7 @@ export function callView(t: Trip, state: WorldSnapshot): CallView {
     timeline,
     closedAt: t.status === "completed" || t.status === "cancelled" ? (closedEntry?.at ?? t.eta_dropoff ?? null) : null,
     proposal: pendingProposal(t, state.agent.runs),
+    reviewing: state.agent.runs.some((r) => r.status === "running" && r.review_of === t.id),
   };
 }
 

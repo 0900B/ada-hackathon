@@ -3,6 +3,7 @@ import { Link, Navigate, NavLink, Route, Routes, useLocation, useMatch, useSearc
 import {
   API_URL,
   activateSurge,
+  generalRun,
   postEvent,
   standDownSurge,
   useWorldState,
@@ -300,7 +301,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
   // its situation review open, except while booking, where switching would hide the booking result (a
   // badge marks the tab instead). In Autonomous mode the review stays folded: its one-line summary says
   // what the AI is doing, and the autopilot applies the plan.
-  const latestRun = state.agent.runs[0];
+  const latestRun = generalRun(state.agent.runs); // a case review shows on its case card, not here
   const lastRunId = useRef(latestRun?.id);
   const autonomous = (state.ai_mode ?? (state.autopilot ? "autonomous" : "assisted")) === "autonomous";
   useEffect(() => {

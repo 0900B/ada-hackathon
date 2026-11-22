@@ -167,6 +167,7 @@ export function CaseCard({
           <span>{fmtTime(c.received)}</span>
           {c.kind === "hospital_request" && <span className="call-kind">{t("ai.case.hospitalRequest")}</span>}
           {proposal && !open && <span className="case-flag">{t("ai.case.proposalWaiting")}</span>}
+          {c.reviewing && <span className="case-flag reviewing">{t("ai.case.reviewing")}</span>}
         </span>
         {!open && (
           <span className="case-sum">

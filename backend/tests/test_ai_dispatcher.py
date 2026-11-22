@@ -618,6 +618,26 @@ def test_a_unit_the_dispatcher_assigned_is_never_diverted_automatically():
     assert r.status_code == 200 and t.vehicle_id == "A1" and f"diverts {fall.id}" in r.json()["summary"], r.text
 
 
+def test_the_general_analysis_stays_in_the_snapshot_next_to_case_reviews():
+    """agent.runs (newest first, the last 5) always carries the newest general analysis (review_of None),
+    even after more case reviews: the dashboard's Situation review shows that one (Y/N act on it), and
+    each review shows on its own case card (review_of = the trip)."""
+    from app.models import AgentRun, utcnow
+
+    fresh()
+    W.agent_runs.append(AgentRun(id="RUN-G", trigger="operator", started_at=utcnow(), status="done"))
+    for i in range(6):
+        W.agent_runs.append(AgentRun(id=f"RUN-R{i}", trigger=f"review:TR-00{i}", started_at=utcnow(), status="done",
+                                     review_of=f"TR-00{i}"))
+    W.bump()
+    runs = client.get("/sim/state").json()["agent"]["runs"]
+    assert [r["id"] for r in runs] == ["RUN-R5", "RUN-R4", "RUN-R3", "RUN-R2", "RUN-R1", "RUN-G"], [r["id"] for r in runs]
+    assert runs[0]["review_of"] == "TR-005" and runs[-1]["review_of"] is None
+    W.agent_runs.append(AgentRun(id="RUN-G2", trigger="operator", started_at=utcnow()))
+    W.bump()
+    assert [r["id"] for r in client.get("/sim/state").json()["agent"]["runs"]] == ["RUN-G2", "RUN-R5", "RUN-R4", "RUN-R3", "RUN-R2"]
+
+
 # --- ai_stats, modes, detail -----------------------------------------------------------------------
 
 

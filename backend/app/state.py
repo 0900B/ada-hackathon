@@ -274,6 +274,15 @@ class WorldState:
                 "enabled": config.agent_enabled(),
                 "model": config.AGENT_MODEL,
                 "auto": self.auto_analyze,
-                "runs": dump(reversed(self.agent_runs[-5:])),  # newest first
+                "runs": dump(reversed(self.shown_runs())),  # newest first
             },
         }
+
+    def shown_runs(self) -> list:
+        """The last 5 analyses, plus the newest general one (review_of None) when the AI dispatcher's case
+        reviews have pushed it out: the dashboard's "Situation review" shows that one, never a review."""
+        recent = self.agent_runs[-5:]
+        main = next((r for r in reversed(self.agent_runs) if r.review_of is None), None)
+        if main is not None and all(r is not main for r in recent):
+            recent = [main, *recent]
+        return recent

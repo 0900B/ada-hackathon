@@ -3142,6 +3142,9 @@ button.sm.on {
   color: var(--warn);
   font-weight: 600;
 }
+.case-flag.reviewing {
+  color: var(--accent-text);
+}
 .case-sum {
   display: flex;
   gap: 8px;
