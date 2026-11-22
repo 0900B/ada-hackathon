@@ -3,27 +3,30 @@ import { Link, useParams, useSearchParams } from "react-router";
 import {
   API_URL,
   useWorldState,
-  type Trip,
   type Vehicle,
   type World,
   type WorldSnapshot,
 } from "../api";
-import { ArrowRight, Mic } from "lucide-react";
-import { fmtTime, humanize, vehicleStatusText } from "../format";
+import { Mic, NotebookPen, Radio } from "lucide-react";
+import { fmtTime, humanize } from "../format";
 import { Callsign } from "../icons";
-import { ResponseLine, SeverityBadge } from "../SeverityBadge";
-import { doctorJobLine } from "../doctor";
+import { SeverityBadge } from "../SeverityBadge";
 import { DoctorTag } from "../DoctorTag";
 import { useHotkeys } from "../hotkeys";
 import { DispatchPanel } from "../crew/DispatchPanel";
+import { EtaPanel } from "../crew/EtaPanel";
+import { crewStage } from "../crew/crewLogic";
 import { QUICK, useDispatch } from "../crew/useDispatch";
+import { useWakeLock } from "../crew/useWakeLock";
 import { SPEECH_LANGS, speechSecureContext, usePushToTalk, useSpeechInput } from "../voice";
 import "../voice.css";
+import "../crew/crew.css";
 
 /**
- * Crew view for one vehicle, made for a phone: /crew/:vehicleId?world=sim|live (default sim).
- * Everything the crew says or taps is sent as a field message from this vehicle; the backend
- * turns it into events and starts an AI replan that the dispatcher sees on the dashboard.
+ * Crew view for one vehicle: /crew/:vehicleId?world=sim|live (default sim). Made for the tablet
+ * in the patient compartment (two columns from 900 px) and collapses to one column on a phone.
+ * The ETA comes first; the dispatch panel sends field messages from this vehicle, which the
+ * backend turns into events and an AI replan that the dispatcher sees on the dashboard.
  */
 
 export function CrewPage() {
@@ -81,18 +84,6 @@ function VehiclePicker({ state, world, missing }: { state: WorldSnapshot; world:
   );
 }
 
-/** Where the vehicle is heading next, from the current trip (or the first queued one). */
-function nextStop(v: Vehicle, trip: Trip | undefined, queued: Trip | undefined, place: (id: string) => string) {
-  if (trip) {
-    return trip.status === "onboard"
-      ? { label: `Drop-off: ${place(trip.dropoff_id)}`, eta: trip.eta_dropoff }
-      : { label: `Pickup: ${place(trip.pickup_id)}`, eta: trip.eta_pickup };
-  }
-  if (queued) return { label: `Next trip ${queued.id}: pickup at ${place(queued.pickup_id)}`, eta: queued.eta_pickup };
-  if (v.status === "returning") return { label: `Back to base: ${place(v.base_id)}`, eta: v.busy_until };
-  return null;
-}
-
 function CrewConsole({
   state,
   vehicle,
@@ -106,8 +97,9 @@ function CrewConsole({
 }) {
   const [draft, setDraft] = useState("");
   const dispatch = useDispatch(state, vehicle, world);
-  const tripById = (id: string | null | undefined) => (id ? state.trips.find((t) => t.id === id) : undefined);
-  const trip = tripById(vehicle.current_trip_id);
+  const trip = vehicle.current_trip_id ? state.trips.find((t) => t.id === vehicle.current_trip_id) : undefined;
+  const stage = crewStage(vehicle, trip);
+  useWakeLock();
 
   const speech = useSpeechInput({
     onFinal: (heard) => {
@@ -122,134 +114,96 @@ function CrewConsole({
     m: () => speech.toggle(),
   });
 
-  const placeName = (id: string) => state.places.find((p) => p.id === id)?.name ?? id;
-  const queued = tripById(vehicle.queue[0]);
-  const stop = nextStop(vehicle, trip, queued, placeName);
-  const late = (trip?.delay_min ?? 0) >= 5;
-
   return (
-    <main className="crew">
-      <header className="crew-card crew-head">
-        <div className="crew-head-top">
-          <h1 className="crew-title">
-            <Callsign v={vehicle} /> {vehicle.name}
-          </h1>
-          <span className={`crew-world ${world}`}>{world === "sim" ? "SIM" : "LIVE"}</span>
-        </div>
-        <div className="crew-chips">
-          <span className={`chip st-${vehicle.status}`}>{vehicleStatusText(vehicle, state.trips)}</span>
+    <main className={`crew pt pt-stage-${stage}`}>
+      <header className="pt-head">
+        <h1 className="pt-title">
+          <Callsign v={vehicle} /> <span>{vehicle.name}</span>
+        </h1>
+        {trip && (
+          <div className="pt-who">
+            <strong>{trip.kind === "equipment" ? (trip.cargo ?? "equipment") : trip.patient}</strong>{" "}
+            <span className="muted">
+              {trip.kind === "equipment" ? "equipment" : trip.needs} · {trip.id}
+            </span>
+          </div>
+        )}
+        {trip && (
+          <div className="pt-sev">
+            <SeverityBadge trip={trip} size="md" /> <DoctorTag trip={trip} vehicles={state.vehicles} now={state.sim_time} size="md" />
+          </div>
+        )}
+        <div className="pt-head-chips">
+          {vehicle.grounded_until && <span className="chip warn">Grounded by fog until {fmtTime(vehicle.grounded_until)}</span>}
           <span className={`chip ${connected ? "ok" : "bad"}`}>
             <i className="dot" /> {connected ? "Online" : "Reconnecting"}
           </span>
-          {vehicle.grounded_until && <span className="chip warn">Grounded by fog until {fmtTime(vehicle.grounded_until)}</span>}
         </div>
-
-        {trip ? (
-          <div className="crew-trip">
-            <div className="crew-trip-who">
-              <strong>{trip.kind === "equipment" ? (trip.cargo ?? "equipment") : trip.patient}</strong>{" "}
-              <span className="muted">
-                {trip.kind === "equipment" ? "equipment" : trip.needs} · {trip.id}
-              </span>
-            </div>
-            {vehicle.type === "doctor" && <div className="crew-doctor">{doctorJobLine(vehicle, trip, placeName)}</div>}
-            <div className="crew-sev">
-              <SeverityBadge trip={trip} size="md" /> <DoctorTag trip={trip} vehicles={state.vehicles} now={state.sim_time} size="md" />
-            </div>
-            <div className="crew-route">
-              {placeName(trip.pickup_id)} → {placeName(trip.dropoff_id)}
-            </div>
-            {vehicle.type === "doctor" ? (
-              <div className="crew-eta">
-                {vehicle.status === "to_pickup" ? (
-                  <>
-                    At the scene <strong>{fmtTime(trip.doctor_eta ?? null)}</strong> · {trip.vehicle_id ?? "no ambulance yet"}
-                    {trip.vehicle_id && trip.status !== "onboard" && <> at {fmtTime(trip.eta_pickup)}</>}
-                  </>
-                ) : (
-                  <>
-                    Hospital <strong>{fmtTime(trip.eta_dropoff)}</strong> · with {trip.vehicle_id ?? "the ambulance"}
-                  </>
-                )}
-              </div>
-            ) : (
-              <div className={`crew-eta${late ? " late" : ""}`}>
-                {trip.status === "onboard" ? "Drop-off" : "Pickup"} ETA{" "}
-                <strong>{fmtTime(trip.status === "onboard" ? trip.eta_dropoff : trip.eta_pickup)}</strong>
-                {trip.status !== "onboard" && <> · drop-off {fmtTime(trip.eta_dropoff)}</>}
-                {late && <> · +{Math.round(trip.delay_min ?? 0)} min late</>}
-              </div>
-            )}
-            {trip.status !== "onboard" && vehicle.type !== "doctor" && (
-              <div className="crew-resp">
-                <ResponseLine trip={trip} now={state.sim_time} />
-              </div>
-            )}
-          </div>
-        ) : (
-          <p className="muted crew-trip">No current trip.</p>
-        )}
-        {stop && (
-          <div className="crew-next">
-            <ArrowRight /> Next stop: <strong>{stop.label}</strong>
-            {stop.eta && <> · {fmtTime(stop.eta)}</>}
-            {vehicle.queue.length > (trip ? 0 : 1) && (
-              <span className="muted"> · {vehicle.queue.length - (trip ? 0 : 1)} more queued</span>
-            )}
-            {!trip && queued && (
-              <div className="crew-sev">
-                <SeverityBadge trip={queued} size="md" />
-              </div>
-            )}
-          </div>
-        )}
       </header>
 
-      <section className="crew-talk">
-        {speech.supported ? (
-          <>
-            <button
-              type="button"
-              className={`ptt${speech.listening ? " listening" : ""}`}
-              disabled={dispatch.busy && !speech.listening}
-              aria-pressed={speech.listening}
-              {...ptt}
-            >
-              <span className="ptt-icon">
-                <Mic />
-              </span>
-              <span>{speech.listening ? "Listening… release to send" : "Hold to talk"}</span>
-              <span className="ptt-sub">{speech.listening ? "or tap to stop" : "or tap once and speak"}</span>
-            </button>
-            <div className="crew-talk-bar">
-              <span className="lang-toggle big" role="group" aria-label="Speech language">
-                {SPEECH_LANGS.map((l) => (
-                  <button
-                    key={l.code}
-                    type="button"
-                    aria-pressed={speech.lang === l.code}
-                    onClick={() => speech.setLang(l.code)}
-                  >
-                    {l.label}
-                  </button>
-                ))}
-              </span>
-              <span className="muted">Speaks: {speech.lang === "sl-SI" ? "slovenščina" : "English"}</span>
-            </div>
-            {!speechSecureContext() && <div className="warn-box">Voice input needs HTTPS (or localhost).</div>}
-            {speech.listening && <div className="voice-interim big">{speech.interim || "Govorite… / Speak now…"}</div>}
-            {speech.error && <div className="message error">{speech.error}</div>}
-          </>
-        ) : (
-          <div className="warn-box">Voice input needs Chrome or Edge. Use the buttons or type below.</div>
-        )}
-      </section>
+      <div className="pt-grid">
+        <EtaPanel state={state} vehicle={vehicle} trip={trip} stage={stage} />
 
-      <DispatchPanel dispatch={dispatch} draft={draft} setDraft={setDraft} />
+        <section className="pt-log" aria-label="Clinical log">
+          <h2 className="pt-section-title">
+            <NotebookPen /> Log
+          </h2>
+          <p className="pt-log-empty">Log: next task</p>
+        </section>
 
-      <p className="crew-foot muted">
-        <Link to={`/crew?world=${world}`}>Switch vehicle</Link> · <Link to={`/${world}`}>Dispatcher dashboard</Link>
-      </p>
+        <section className="pt-dispatch" aria-label="Dispatch">
+          <h2 className="pt-section-title">
+            <Radio /> Dispatch
+          </h2>
+          <div className="crew-talk">
+            {speech.supported ? (
+              <>
+                <button
+                  type="button"
+                  className={`ptt${speech.listening ? " listening" : ""}`}
+                  disabled={dispatch.busy && !speech.listening}
+                  aria-pressed={speech.listening}
+                  {...ptt}
+                >
+                  <span className="ptt-icon">
+                    <Mic />
+                  </span>
+                  <span>{speech.listening ? "Listening… release to send" : "Hold to talk to dispatch"}</span>
+                  <span className="ptt-sub">{speech.listening ? "or tap to stop" : "or tap once and speak"}</span>
+                </button>
+                <div className="crew-talk-bar">
+                  <span className="lang-toggle big" role="group" aria-label="Speech language">
+                    {SPEECH_LANGS.map((l) => (
+                      <button
+                        key={l.code}
+                        type="button"
+                        aria-pressed={speech.lang === l.code}
+                        onClick={() => speech.setLang(l.code)}
+                      >
+                        {l.label}
+                      </button>
+                    ))}
+                  </span>
+                  <span className="muted">Speaks: {speech.lang === "sl-SI" ? "slovenščina" : "English"}</span>
+                </div>
+                {!speechSecureContext() && <div className="warn-box">Voice input needs HTTPS (or localhost).</div>}
+                {speech.listening && <div className="voice-interim big">{speech.interim || "Govorite… / Speak now…"}</div>}
+                {speech.error && <div className="message error">{speech.error}</div>}
+              </>
+            ) : (
+              <div className="warn-box">Voice input needs Chrome or Edge. Use the buttons or type below.</div>
+            )}
+          </div>
+
+          <DispatchPanel dispatch={dispatch} draft={draft} setDraft={setDraft} />
+        </section>
+      </div>
+
+      <footer className="pt-foot">
+        <Link to={`/crew?world=${world}`}>Switch vehicle</Link>
+        <Link to={`/${world}`}>Dispatcher dashboard</Link>
+        <span className={`crew-world ${world}`}>{world === "sim" ? "SIM" : "LIVE"}</span>
+      </footer>
     </main>
   );
 }

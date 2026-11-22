@@ -1,0 +1,364 @@
+/* Crew patient-tablet layout (/crew/:vehicleId). Rendered as <main class="crew pt">, so the
+   older .crew-* rules in voice.css still style the dispatch panel; everything here is scoped
+   under .pt and only enlarges or rearranges. Gloved hands in a moving vehicle: targets at least
+   64 px, body text at least 18 px, the ETA at least 64 px on a tablet. */
+
+.pt {
+  max-width: 1440px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  gap: 12px;
+  font-size: 18px;
+  line-height: 1.35;
+  min-height: 100dvh;
+}
+.pt button {
+  font-size: 18px;
+}
+.pt svg.lucide {
+  flex-shrink: 0;
+}
+
+/* --- Header strip ------------------------------------------------------------------------ */
+.pt-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 0 2px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.pt-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 22px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pt .veh {
+  padding: 0 10px;
+  font-size: 18px;
+  line-height: 34px;
+}
+.pt-who {
+  min-width: 0;
+}
+.pt-who strong {
+  font-size: 20px;
+}
+.pt-sev {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.pt-sev .sev {
+  flex-wrap: wrap;
+  white-space: normal;
+}
+.pt-head-chips {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pt-head-chips .chip {
+  font-size: 15px;
+  padding: 4px 10px;
+}
+
+@media (max-width: 899px) {
+  /* Phone: the connection chip stays on the callsign row */
+  .pt-title {
+    flex: 1 1 auto;
+  }
+  .pt-head-chips {
+    order: 1;
+  }
+  .pt-who,
+  .pt-sev {
+    order: 2;
+  }
+}
+
+/* --- Grid: one column on a phone; ETA + log | dispatch from 900 px ------------------------ */
+.pt-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "eta" "log" "dispatch";
+  gap: 12px;
+}
+.pt-eta {
+  grid-area: eta;
+}
+.pt-log {
+  grid-area: log;
+}
+.pt-dispatch {
+  grid-area: dispatch;
+}
+@media (min-width: 900px) {
+  /* The screen is the layout: header, the grid filling the rest, footer. The dispatch column
+     scrolls on its own if a long AI answer appears, so the ETA never moves. */
+  .pt {
+    height: 100dvh;
+  }
+  .pt-grid {
+    flex: 1;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 520px);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas: "eta dispatch" "log dispatch";
+    gap: 16px;
+  }
+  .pt-dispatch {
+    min-height: 0;
+    overflow-y: auto;
+  }
+}
+
+.pt-eta,
+.pt-log,
+.pt-dispatch {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pt-section-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pt-section-title svg.lucide {
+  width: 18px;
+  height: 18px;
+}
+
+/* --- ETA panel --------------------------------------------------------------------------- */
+.pt-eta {
+  border-left: 4px solid var(--accent);
+}
+.pt-eta.late {
+  border-left-color: var(--crit);
+}
+.pt-eta-idle {
+  border-left-color: var(--border-strong);
+}
+.pt-eta-doctor {
+  border-left-color: var(--doctor);
+}
+.pt-eta-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pt-eta-label svg.lucide {
+  width: 20px;
+  height: 20px;
+  color: var(--accent-text);
+}
+.pt-eta.late .pt-eta-label svg.lucide {
+  color: var(--crit);
+}
+.pt-eta-place {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.pt-eta-big {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  line-height: 1;
+  margin: 4px 0;
+}
+.pt-eta-min {
+  font-size: 96px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.pt-eta-unit {
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.pt-eta-then {
+  font-size: 20px;
+  color: var(--text-2);
+}
+.pt-eta-then svg.lucide {
+  vertical-align: -3px;
+  margin-right: 4px;
+}
+.pt-eta-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  font-size: 20px;
+  color: var(--text-2);
+}
+.pt-eta-sub strong {
+  color: var(--text);
+  font-size: 24px;
+}
+.pt-eta-then svg.lucide {
+  width: 20px;
+  height: 20px;
+  color: var(--muted);
+}
+.pt-late {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border: 1px solid var(--prio-em-bd);
+  border-radius: var(--radius-sm);
+  background: var(--prio-em-bg);
+  color: var(--prio-em-fg);
+  font-size: 20px;
+  font-weight: 700;
+}
+.pt-eta .resp {
+  font-size: 18px;
+}
+.pt-status {
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-transform: capitalize;
+}
+.pt-status.st-out_of_service {
+  color: var(--crit);
+}
+.pt-eta-cargo,
+.pt-eta-none {
+  font-size: 20px;
+}
+.pt-eta .crew-next {
+  font-size: 20px;
+  padding: 12px 14px;
+}
+.pt-eta .crew-route {
+  font-size: 22px;
+}
+.pt-eta .crew-doctor {
+  font-size: 22px;
+}
+.pt-eta-doctor .crew-eta {
+  font-size: 22px;
+  color: var(--text-2);
+}
+.pt-eta-doctor .crew-eta strong {
+  font-size: 40px;
+  color: var(--text);
+}
+
+/* --- Log area (filled in by the next task) ----------------------------------------------- */
+.pt-log-empty {
+  margin: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+}
+
+/* --- Dispatch column: voice.css .crew-* rules, enlarged for gloves ----------------------- */
+.pt-dispatch {
+  gap: 12px;
+}
+.pt .ptt {
+  min-height: 96px;
+  font-size: 22px !important;
+}
+/* Talk button and its language switch side by side; notices below span the row. */
+.pt .crew-talk {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 8px 12px;
+}
+.pt .crew-talk > :not(.ptt, .crew-talk-bar) {
+  grid-column: 1 / -1;
+}
+.pt .crew-talk-bar {
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  font-size: 14px;
+}
+.pt .ptt-icon svg.lucide {
+  width: 36px;
+  height: 36px;
+}
+.pt .ptt-sub {
+  font-size: 15px;
+}
+.pt .lang-toggle.big button {
+  min-width: 72px;
+  min-height: 64px;
+  font-size: 18px;
+}
+.pt .crew-form input {
+  min-height: 64px;
+  font-size: 18px;
+}
+.pt .crew-form button {
+  min-height: 64px;
+  padding: 0 22px;
+}
+.pt .crew-quick button {
+  min-height: 64px;
+  font-size: 17px;
+  line-height: 1.25;
+}
+.pt .q-text .muted {
+  font-size: 15px;
+}
+.pt .crew-response {
+  font-size: 18px;
+}
+@media (hover: none) {
+  .pt kbd {
+    display: none; /* no keyboard on a touch screen */
+  }
+}
+
+/* --- Footer ------------------------------------------------------------------------------ */
+.pt-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 24px;
+  font-size: 16px;
+}
+.pt-foot a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  color: var(--accent-text);
+}
+.pt-foot .crew-world {
+  margin-left: auto;
+}
