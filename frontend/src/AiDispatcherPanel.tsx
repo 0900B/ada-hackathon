@@ -111,7 +111,7 @@ export function AiDispatcherPanel({
     setOpen(c.trip.id);
     onSelectCase(c.trip.id);
     if (focus.overrideVehicle) setOverrideUnit({ tripId: c.trip.id, id: focus.overrideVehicle, n: focus.n });
-    requestAnimationFrame(() => cardRefs.current.get(c.trip.id)?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+    requestAnimationFrame(() => cardRefs.current.get(c.trip.id)?.scrollIntoView({ block: "start", behavior: "smooth" }));
   }, [focus, state.version]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A map point was picked for the new call: show the form again
@@ -192,12 +192,13 @@ export function AiDispatcherPanel({
                 "ok",
                 `${trip.call?.call_id ?? trip.id}: ${LEVEL_LABEL[levelOf(trip)]}${conditionText(trip) ? ` · ${conditionText(trip)}` : ""}${trip.vehicle_id ? ` · ${trip.vehicle_id} dispatched` : ""}`,
               );
-              requestAnimationFrame(() => cardRefs.current.get(trip.id)?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+              requestAnimationFrame(() => cardRefs.current.get(trip.id)?.scrollIntoView({ block: "start", behavior: "smooth" }));
             }}
           />
         )}
       </section>
 
+      <div className={`folds${reviewOpen || messageOpen ? " has-open" : ""}`}>
       <div className="fold" ref={reviewRef}>
         <button className="fold-head" onClick={() => setReviewOpen(!reviewOpen)} aria-expanded={reviewOpen}>
           {reviewOpen ? <ChevronDown /> : <ChevronRight />}
@@ -214,7 +215,11 @@ export function AiDispatcherPanel({
         <button className="fold-head" onClick={() => setMessageOpen(!messageOpen)} aria-expanded={messageOpen}>
           {messageOpen ? <ChevronDown /> : <ChevronRight />}
           <MessageSquare />
-          <strong>Message to the AI dispatcher</strong>
+          <strong>
+            <span className="fold-long">Message to the AI dispatcher</span>
+            <span className="fold-short">Message to AI</span>
+          </strong>
+          {listening && <i className="fold-dot live" aria-hidden />}
           <span className={`fold-sum${listening ? " live" : ""}`}>
             {listening ? "Listening…" : (
               <>
@@ -226,6 +231,7 @@ export function AiDispatcherPanel({
         <div className="fold-body" hidden={!messageOpen}>
           <FieldMessage state={state} micToggleRef={micToggleRef} bare onListening={setListening} />
         </div>
+      </div>
       </div>
 
       {active.length === 0 ? (
@@ -329,5 +335,10 @@ function ReviewSummary({ state }: { state: WorldSnapshot }) {
   else if (run.status === "rejected") text = "Rejected: the plan stays as it was";
   else if (run.status === "error") text = "The last analysis failed · A to retry";
   else text = "No action needed · A to analyse";
-  return <span className={`fold-sum${tone}`}>{text}</span>;
+  return (
+    <>
+      {tone && <i className={`fold-dot${tone}`} title={text} aria-hidden />}
+      <span className={`fold-sum${tone}`}>{text}</span>
+    </>
+  );
 }

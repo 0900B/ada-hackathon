@@ -59,6 +59,7 @@ export const BY_LABEL: Record<string, string> = {
   claude: "Claude",
   rules: "Keyword rules",
   engine: "Rules engine",
+  rules_engine: "Rules engine",
   autopilot: "Autopilot",
   dispatcher: "Dispatcher",
   crew: "Crew",
@@ -71,12 +72,13 @@ export const BY_SHORT: Record<string, string> = {
   claude: "Claude",
   rules: "Rules",
   engine: "Engine",
+  rules_engine: "Engine",
   autopilot: "Autopilot",
   dispatcher: "Dispatcher",
   crew: "Crew",
 };
 
-export const isClaude = (by: string | null | undefined) => by === "ai" || by === "claude";
+export const isClaude = (by: string | null | undefined) => by === "ai" || /^claude/i.test(by ?? "");
 
 /** "Rules engine · 0.1 s" from who and the timeline's detail ("rules engine, 0.1 s"). */
 export function sourceText(by: string | null | undefined, detail?: string | null): string {
@@ -204,8 +206,8 @@ function buildUnit(
   const doctorSlot = vid === t.doctor_vehicle_id && vid !== t.vehicle_id;
   let role = roleIn && roleIn !== "unit" ? roleIn : doctorSlot ? "doctor" : (v?.type ?? "ambulance");
   if (doctorSlot && v?.type === "helicopter") role = "helicopter";
-  const roleLabel =
-    role === "helicopter" && doctorSlot ? "Helicopter (doctor on board)" : role === "doctor" && v?.type === "helicopter" ? "Helicopter (doctor on board)" : (ROLE_LABEL[role] ?? role);
+  const doctorOnBoard = v?.type === "helicopter" && t.doctor_vehicle_id === vid; // the helicopter brings the doctor
+  const roleLabel = doctorOnBoard ? "Helicopter (doctor on board)" : (ROLE_LABEL[role] ?? role);
   const phase = unitPhase(t, v, doctorSlot ? "doctor" : role);
   const entry = [...timeline].reverse().find((e) => e.vehicle_id === vid && ASSIGN_KINDS.has(e.kind));
   const by = extra?.assigned_by ?? entry?.by ?? (t.vehicle_id === vid && t.dispatched_at ? "engine" : null);
@@ -239,7 +241,9 @@ function buildUnit(
     eta = t.eta_dropoff;
     etaLabel = `at ${hospital}`;
   }
-  const rawReason = extra?.reason ?? entry?.text ?? null;
+  let rawReason = extra?.reason ?? entry?.text ?? null;
+  // "Dispatcher override: A2 replaces A1, …" next to the "Dispatcher" tag: say it once
+  if (rawReason && by === "dispatcher") rawReason = rawReason.replace(/^Dispatcher(?: override)?:\s*/i, "Override: ");
   return {
     id: vid,
     role,
@@ -349,7 +353,7 @@ export function badgesOf(c: CallView): Badge[] {
         label: "AI classified",
         src: isClaude(by) ? "Claude" : "rules",
         tone: isClaude(by) ? "claude" : "rules",
-        title: `Classified by ${how}${isClaude(by) ? "" : " (keyword rules: Claude off or AI triage switched off)"}${triaged ? `\n${triaged.text}` : ""}`,
+        title: `Classified by ${how}${isClaude(by) ? "" : "\nNot Claude: AI triage is off, or Claude was unavailable"}${triaged ? `\n${triaged.text}` : ""}`,
       });
   }
   const disp = tl.find((e) => e.kind === "dispatched");

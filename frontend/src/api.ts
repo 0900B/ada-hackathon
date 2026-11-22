@@ -532,6 +532,8 @@ export interface Alternative {
   eta_scene?: string | null; // when it would reach the patient
   eta?: string | null; // (same, older spelling)
   delta_min?: number | null; // vs the current unit: + later, - sooner
+  delta_vs_current_min?: number | null; // (same, other spellings)
+  delta?: number | null;
   cost_text?: string | null; // what it costs elsewhere: "takes the last free ambulance"
   feasible?: boolean | null;
 }

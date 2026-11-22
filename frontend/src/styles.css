@@ -2767,6 +2767,49 @@ button.sm.on {
 }
 
 /* Folded sections: Situation review, Message to the AI dispatcher */
+.folds {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.fold-dot {
+  display: none;
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.fold-dot.warn {
+  background: var(--warn);
+}
+.fold-short {
+  display: none;
+}
+/* Low screens (projector, laptops): both folds on one row while closed, so the cases start higher */
+@media (max-height: 820px) {
+  .folds:not(.has-open) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .folds:not(.has-open) .fold-sum,
+  .folds:not(.has-open) .fold-long {
+    display: none;
+  }
+  .folds:not(.has-open) .fold-short {
+    display: inline;
+  }
+  .folds:not(.has-open) .fold-dot {
+    display: inline-block;
+  }
+  .ai-top {
+    padding: 8px 10px;
+  }
+  .ai-stats {
+    margin-bottom: 6px;
+  }
+}
 .fold {
   flex: none;
   border: 1px solid var(--border);
@@ -2784,6 +2827,7 @@ button.sm.on {
   min-height: 32px;
   font-size: 12px;
   text-align: left;
+  overflow: hidden;
 }
 .fold-head > svg {
   width: 14px;
@@ -3309,6 +3353,10 @@ button.link.ut-id {
   color: var(--accent-text);
   background: rgba(79, 143, 247, 0.15);
   border-radius: 3px;
+}
+.ai-tag.claude {
+  color: #fff;
+  background: var(--accent-bg);
 }
 .ai-tag.dispatcher {
   color: var(--text);

@@ -20,7 +20,7 @@ import {
   type Alternative,
   type WorldSnapshot,
 } from "./api";
-import { badgesOf, BY_LABEL, BY_SHORT, isClaude, sourceText, STEP_LABEL, type Badge, type CallView, type CaseUnit } from "./calls";
+import { badgesOf, BY_SHORT, isClaude, sourceText, STEP_LABEL, type Badge, type CallView, type CaseUnit } from "./calls";
 import { DoctorTag } from "./DoctorTag";
 import { fmtTime } from "./format";
 import { VehicleTypeIcon } from "./icons";
@@ -222,7 +222,6 @@ export function CaseCard({
               <UnitTile
                 key={u.id}
                 u={u}
-                c={c}
                 state={state}
                 canOverride={canOverride && !done}
                 overriding={override?.mode === "replace" && override.unit?.id === u.id}
@@ -405,7 +404,6 @@ export function Badges({ badges }: { badges: Badge[] }) {
 
 function UnitTile({
   u,
-  c,
   state,
   canOverride,
   overriding,
@@ -415,7 +413,6 @@ function UnitTile({
   children,
 }: {
   u: CaseUnit;
-  c: CallView;
   state: WorldSnapshot;
   canOverride: boolean;
   overriding: boolean;
@@ -590,7 +587,8 @@ function OverridePanel({
         <ul className="override-list" role="listbox" aria-label="Alternatives">
           {alts.map((a, i) => {
             const eta = a.eta_scene ?? a.eta ?? null;
-            const delta = a.delta_min ?? (eta && currentEta ? (Date.parse(eta) - Date.parse(currentEta)) / 60_000 : null);
+            const delta =
+              a.delta_min ?? a.delta_vs_current_min ?? a.delta ?? (eta && currentEta ? (Date.parse(eta) - Date.parse(currentEta)) / 60_000 : null);
             const v = state.vehicles.find((x) => x.id === a.vehicle_id);
             const type = (v?.type ?? a.vehicle_type ?? null) as CaseUnit["type"];
             return (
