@@ -3971,7 +3971,7 @@ button.link.tl-unit {
   white-space: pre-line;
 }
 
-/* Re-plan box on a case card (ReplanBox.tsx): a disruption hit the call, the re-plan line by line */
+/* Re-plan box on a case card (ReplanBox.tsx): a disruption hit the call: a small step chain and the decision */
 .case.replan-on {
   border-top-color: var(--warn);
   border-right-color: var(--warn);
