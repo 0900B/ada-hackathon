@@ -56,3 +56,29 @@ export function erEta(trip: Pick<Trip, "eta_dropoff" | "delay_min">, nowIso: str
     lateMin: known ? Math.max(0, Math.round(delay)) : 0,
   };
 }
+
+/** One line of what the ER has done about this case. `value` is the bay name or the team. */
+export type EchoItem = { kind: "ack" } | { kind: "bay"; value: string } | { kind: "team"; value: string };
+
+/**
+ * What reception has done about this case (acknowledged, bay, teams activated), read from the
+ * `clinical` section of the shared snapshot: `{cases: [{case_id, acknowledged, bay, teams_activated}]}`
+ * (the ER backend's board, see its API contract). Defensive: a missing section, an error note, another
+ * case or anything malformed gives an empty list, and a bay or team that is not text is ignored.
+ */
+export function erEcho(clinical: unknown, caseId: string): EchoItem[] {
+  if (!clinical || typeof clinical !== "object") return [];
+  const cases = (clinical as { cases?: unknown }).cases;
+  if (!Array.isArray(cases)) return [];
+  const card = cases.find(
+    (c): c is Record<string, unknown> => !!c && typeof c === "object" && (c as { case_id?: unknown }).case_id === caseId,
+  );
+  if (!card) return [];
+  const out: EchoItem[] = [];
+  if (card.acknowledged === true) out.push({ kind: "ack" });
+  if (typeof card.bay === "string" && card.bay.trim() !== "") out.push({ kind: "bay", value: card.bay });
+  if (Array.isArray(card.teams_activated)) {
+    for (const t of card.teams_activated) if (typeof t === "string" && t.trim() !== "") out.push({ kind: "team", value: t });
+  }
+  return out;
+}

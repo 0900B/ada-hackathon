@@ -338,6 +338,32 @@ export function ageMinutes(e: Pick<ClinicalEntry, "t" | "observed_t">, nowIso: s
   return Math.max(0, Math.floor((now - then) / 60_000));
 }
 
+const eventKey = (e: ClinicalEntry): unknown => (e.type === "event" && e.content ? e.content.key : undefined);
+
+/**
+ * Elapsed minutes for the timers panel: since the last drug, since CPR started (until a later ROSC),
+ * and since stroke onset (counted from when it started, `observed_t`, not from when it was logged).
+ * Elapsed time only, never advice. Discarded and superseded entries do not count; an unreadable time
+ * gives null.
+ */
+export function timers(
+  log: readonly ClinicalEntry[],
+  nowIso: string,
+): { lastDrugMin: number | null; cprMin: number | null; strokeOnsetMin: number | null } {
+  const vis = visibleEntries(log);
+  const drug = vis.find((e) => e.type === "drug_administered");
+  const cpr = vis.find((e) => eventKey(e) === "cpr_started");
+  const rosc = vis.find((e) => eventKey(e) === "rosc");
+  const stroke = vis.find((e) => eventKey(e) === "stroke_onset");
+  const happened = (e: ClinicalEntry) => parseMs(e.observed_t == null ? e.t : e.observed_t);
+  const roscAfterCpr = !!cpr && !!rosc && (happened(rosc) ?? -Infinity) > (happened(cpr) ?? Infinity);
+  return {
+    lastDrugMin: drug ? ageMinutes(drug, nowIso) : null,
+    cprMin: cpr && !roscAfterCpr ? ageMinutes(cpr, nowIso) : null,
+    strokeOnsetMin: stroke ? ageMinutes(stroke, nowIso) : null,
+  };
+}
+
 /**
  * How old the newest vitals are and whether a new set is due. Overdue from the level's interval
  * on (`ageMin >= VITALS_DUE_MIN[level]`, as `ageMin` is rounded down). No vitals, or an age that

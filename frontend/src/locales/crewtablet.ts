@@ -101,6 +101,19 @@ export const en = {
   "pt.event.stemi": "STEMI",
   "pt.event.transfusion_started": "Transfusion started",
   "pt.event.patient_worse": "Patient worse",
+
+  // Timers and the ER echo
+  "pt.tm.title": "Timers and ER",
+  "pt.tm.lastDrug": "Last drug {min} min ago",
+  "pt.tm.cpr": "CPR running {min} min",
+  "pt.tm.stroke": "Stroke onset {min} min ago",
+  "pt.echo.ack": "ER has acknowledged",
+  "pt.echo.bay": "Bay {bay}",
+  "pt.echo.team": "Team activated: {team}",
+  "pt.team.stroke": "stroke",
+  "pt.team.heart": "heart",
+  "pt.team.trauma": "trauma",
+  "pt.team.resuscitation_room": "resuscitation room",
 };
 
 export const sl: Translation<typeof en> = {
@@ -192,4 +205,16 @@ export const sl: Translation<typeof en> = {
   "pt.event.stemi": "STEMI",
   "pt.event.transfusion_started": "Začetek transfuzije",
   "pt.event.patient_worse": "Pacientu se slabša",
+
+  "pt.tm.title": "Časovniki in UC",
+  "pt.tm.lastDrug": "Zadnje zdravilo pred {min} min",
+  "pt.tm.cpr": "Oživljanje traja {min} min",
+  "pt.tm.stroke": "Začetek kapi pred {min} min",
+  "pt.echo.ack": "UC je potrdil prejem",
+  "pt.echo.bay": "Ležišče {bay}",
+  "pt.echo.team": "Ekipa aktivirana: {team}",
+  "pt.team.stroke": "kap",
+  "pt.team.heart": "srce",
+  "pt.team.trauma": "travma",
+  "pt.team.resuscitation_room": "reanimacija",
 };

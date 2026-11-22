@@ -19,7 +19,6 @@ import { DoctorTag } from "../DoctorTag";
 import { useHotkeys } from "../hotkeys";
 import { DispatchPanel } from "../crew/DispatchPanel";
 import { EtaPanel } from "../crew/EtaPanel";
-import { crewStage } from "../crew/crewLogic";
 import { QUICK, useDispatch } from "../crew/useDispatch";
 import { useWakeLock } from "../crew/useWakeLock";
 import { useClinicalLog } from "../crew/useClinicalLog";
@@ -30,6 +29,8 @@ import { DrugPad } from "../crew/DrugPad";
 import { VitalsPad } from "../crew/VitalsPad";
 import { EventPad } from "../crew/EventPad";
 import { observedAt } from "../crew/padLogic";
+import { TimersPanel } from "../crew/TimersPanel";
+import { crewStage, erEcho } from "../crew/crewLogic";
 import { SPEECH_LANGS, speechSecureContext } from "../voice";
 import "../voice.css";
 import "../crew/crew.css";
@@ -282,6 +283,11 @@ function CrewConsole({
         {logOn && trip && (
           <section className="pt-rec" aria-label={t("pt.vp.title")}>
             <VitalsPanel entries={log.entries} nowIso={state.sim_time} level={levelOf(trip)} onEnter={() => setPad("vitals")} />
+            <TimersPanel
+              entries={log.entries}
+              nowIso={state.sim_time}
+              echo={erEcho((state as unknown as { clinical?: unknown }).clinical, trip.id)}
+            />
             <div className="pt-pad-buttons">
               <button type="button" onClick={() => setPad("drug")}>
                 <Pill /> {t("pt.pad.drug")}

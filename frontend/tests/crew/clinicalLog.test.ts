@@ -20,6 +20,7 @@ import {
   storageKey,
   parseLog,
   syncPending,
+  timers,
   type ClinicalEntry,
   type SyncState,
 } from "../../src/crew/clinicalLog.ts";
@@ -657,4 +658,39 @@ test("syncPending: only the sync mark changes, every other field is kept", async
   const [a] = threePending();
   const [out] = await syncPending([a], async () => "sent");
   assert.deepEqual({ ...out, sync: "pending" }, a);
+});
+
+// --- timers: elapsed minutes only, never advice ------------------------------------------------
+
+const ev = (key: string, t: string, over: Partial<Input> = {}) => mk({ type: "event", content: { key, label: key }, t, ...over });
+const drugAt = (t: string) => mk({ type: "drug_administered", content: { drug: "Morphine", dose: 5, unit: "mg", route: "i.v." }, t });
+
+test("timers: minutes since the last drug", () => {
+  const r = timers([drugAt(at(-600)), drugAt(at(-240))], at(0));
+  assert.equal(r.lastDrugMin, 4);
+});
+
+test("timers: CPR running counts from CPR started", () => {
+  assert.equal(timers([ev("cpr_started", at(-720))], at(0)).cprMin, 12);
+});
+
+test("timers: a later ROSC stops the CPR timer, an earlier one does not", () => {
+  assert.equal(timers([ev("cpr_started", at(-720)), ev("rosc", at(-60))], at(0)).cprMin, null);
+  assert.equal(timers([ev("rosc", at(-900)), ev("cpr_started", at(-300))], at(0)).cprMin, 5);
+});
+
+test("timers: stroke onset counts from when it started (observed_t), not when it was logged", () => {
+  const e = ev("stroke_onset", at(-60), { observed_t: at(-960) });
+  assert.equal(timers([e], at(0)).strokeOnsetMin, 16);
+});
+
+test("timers: nothing logged gives all null", () => {
+  assert.deepEqual(timers([], at(0)), { lastDrugMin: null, cprMin: null, strokeOnsetMin: null });
+});
+
+test("timers: a discarded entry does not count, and an unreadable time gives null, never NaN", () => {
+  const d = drugAt(at(-120));
+  const log = discardEntry([d], d.client_entry_id, { id: "x", recordedAt: at(1) });
+  assert.equal(timers(log, at(0)).lastDrugMin, null);
+  assert.equal(timers([drugAt(at(-120))], "garbage").lastDrugMin, null);
 });

@@ -861,3 +861,33 @@
   padding: 2px 14px;
   font-size: 18px;
 }
+
+/* --- Timers and the ER echo --------------------------------------------------------------- */
+.pt-tm {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pt-tm-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  font-size: 18px;
+  color: var(--text-2);
+}
+.pt-tm-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.pt-tm-list svg.lucide {
+  width: 18px;
+  height: 18px;
+}
+.pt-tm-er {
+  color: var(--accent-text);
+  font-weight: 600;
+}

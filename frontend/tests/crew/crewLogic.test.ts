@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { crewStage, erEta, minutesUntil } from "../../src/crew/crewLogic.ts";
+import { crewStage, erEcho, erEta, minutesUntil } from "../../src/crew/crewLogic.ts";
 
 const patientTrip = { kind: "patient" } as const;
 const equipmentTrip = { kind: "equipment" } as const;
@@ -94,4 +94,36 @@ test("erEta: an invalid now gives null minutes but keeps a valid arriveAt", () =
   const e = erEta({ eta_dropoff: "2026-11-21T23:40:00Z", delay_min: null }, "garbage");
   assert.equal(e.minutes, null);
   assert.equal(e.arriveAt, "2026-11-21T23:40:00Z");
+});
+
+// --- erEcho: what the ER has done about this case, read from the shared snapshot -------------
+
+const board = (cases: unknown[]) => ({ as_of: "2026-11-22T03:30:00+00:00", cases });
+
+test("erEcho: acknowledged, bay and activated teams of this case, in that order", () => {
+  const clinical = board([
+    { case_id: "TR-002", acknowledged: true, bay: "R2", teams_activated: ["stroke", "heart"] },
+    { case_id: "TR-009", acknowledged: false, bay: null, teams_activated: [] },
+  ]);
+  assert.deepEqual(erEcho(clinical, "TR-002"), [
+    { kind: "ack" },
+    { kind: "bay", value: "R2" },
+    { kind: "team", value: "stroke" },
+    { kind: "team", value: "heart" },
+  ]);
+});
+
+test("erEcho: not acknowledged and nothing else gives an empty list", () => {
+  assert.deepEqual(erEcho(board([{ case_id: "TR-002", acknowledged: false, bay: null, teams_activated: [] }]), "TR-002"), []);
+});
+
+test("erEcho: no clinical section, an error note, another case or malformed data all give []", () => {
+  for (const bad of [undefined, null, {}, 5, "x", { error: "boom" }, board([]), board([{ case_id: "TR-009", acknowledged: true }]), { cases: "nope" }, { cases: [null, 3] }]) {
+    assert.deepEqual(erEcho(bad, "TR-002"), [], JSON.stringify(bad));
+  }
+});
+
+test("erEcho: a team or bay that is not text is ignored, not shown", () => {
+  const clinical = board([{ case_id: "TR-002", acknowledged: true, bay: 7, teams_activated: ["stroke", 3, null] }]);
+  assert.deepEqual(erEcho(clinical, "TR-002"), [{ kind: "ack" }, { kind: "team", value: "stroke" }]);
 });
