@@ -491,9 +491,9 @@ export const setCalls = (world: World, body: { enabled?: boolean; per_hour?: num
 export const analyzeNow = (world: World, question?: string) =>
   post<AgentRun>(`/${world}/agent/analyze`, { question: question ?? null });
 export const approveOption = (world: World, runId: string, optionIndex: number) =>
-  post<AgentRun>(`/${world}/agent/runs/${runId}/approve`, { option_index: optionIndex });
+  post<AgentRun>(`/${world}/agent/runs/${encodeURIComponent(runId)}/approve`, { option_index: optionIndex });
 export const rejectRun = (world: World, runId: string) =>
-  post<AgentRun>(`/${world}/agent/runs/${runId}/reject`, { reason: null });
+  post<AgentRun>(`/${world}/agent/runs/${encodeURIComponent(runId)}/reject`, { reason: null });
 /** Turn automatic analysis of events on/off for one world. Older backends answer 404 (no such endpoint). */
 export async function setAgentAuto(world: World, enabled: boolean): Promise<{ world: World; auto: boolean } | "unsupported"> {
   const res = await controlFetch(`${API_URL}/${world}/agent/auto`, {
@@ -571,7 +571,7 @@ export async function fetchNavigation(world: World, id: string): Promise<Navigat
 }
 
 export async function fetchVehicle(world: World, id: string): Promise<VehicleDetail> {
-  const res = await fetch(`${API_URL}/${world}/vehicles/${id}`);
+  const res = await fetch(`${API_URL}/${world}/vehicles/${encodeURIComponent(id)}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return (await res.json()) as VehicleDetail;
 }
