@@ -311,7 +311,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
       onCall={(s) => void injectCall(s)}
       onIncident={(k) => void injectIncident(k)}
       state={state}
-      preselect={selectedId ?? caseUnit}
+      preselect={[selectedId, caseUnit]}
       onTarget={injectTargeted}
     />
   );
