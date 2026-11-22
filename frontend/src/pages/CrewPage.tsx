@@ -255,7 +255,6 @@ function CrewConsole({
             <Callsign v={vehicle} /> {vehicle.name}
           </h1>
           <div className="crew-head-right">
-            <LangToggle className="crew-uilang" />
             <AdminLock variant="crew" />
             <span className={`crew-world ${world}`}>{world === "sim" ? t("tab.chipSim") : t("tab.chipLive")}</span>
           </div>
@@ -266,6 +265,8 @@ function CrewConsole({
             <i className="dot" /> {connected ? t("tab.online") : t("tab.reconnecting")}
           </span>
           {vehicle.grounded_until && <span className="chip warn">{t("tab.grounded", { time: fmtTime(vehicle.grounded_until) })}</span>}
+          {/* the UI language switch sits at the end of the chip row: the title row is full on a phone */}
+          <LangToggle className="crew-uilang crew-uilang-end" />
         </div>
 
         {trip ? (

@@ -2813,6 +2813,7 @@ html:lang(sl) .booking-times input[placeholder] {
 }
 .ai-actions .demo-buttons .split-main {
   padding: 3px 6px;
+  white-space: nowrap; /* "Naključni klic" / "Naključna motnja" stay on one line */
 }
 .ai-actions .demo-buttons .split-caret {
   padding: 0 4px;

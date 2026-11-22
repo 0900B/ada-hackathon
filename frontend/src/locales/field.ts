@@ -286,7 +286,7 @@ export const sl: Translation<typeof en> = {
   "tab.compass.NW": "SZ",
 
   "tab.nav.onto": " na {road}",
-  "tab.nav.ontoThen": ", nato na {road}",
+  "tab.nav.ontoThen": " in nadaljujte na {road}",
   "tab.nav.roadRef": "cesto {ref}",
   "tab.nav.arrive": "Prispeli boste na cilj",
   "tab.nav.arriveSide": "Cilj bo na {side}",

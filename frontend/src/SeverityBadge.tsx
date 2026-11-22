@@ -14,7 +14,7 @@ import {
   timeWeight,
   type Graded,
 } from "./severity";
-import { t as tx, useLang, useT } from "./i18n";
+import { fmtDec, t as tx, useLang, useT } from "./i18n";
 
 const MOD_ICON: Record<string, typeof Baby> = {
   child: Baby,
@@ -33,7 +33,7 @@ export function severityTitle(t: Graded): string {
   return [
     `${LEVEL_LABEL[level]}${cond ? ` · ${cond}` : ""}`,
     LEVEL_HELP[level],
-    w != null ? tx("sev.weightLine", { w }) : "",
+    w != null ? tx("sev.weightLine", { w: fmtDec(w) }) : "",
     t.modifiers?.length ? tx("sev.caseLine", { mods: t.modifiers.map(modifierLabel).join(", ") }) : "",
     target != null ? tx("sev.targetLine", { target }) : "",
   ]
@@ -45,8 +45,8 @@ export function severityTitle(t: Graded): string {
 export function TimeWeight({ w }: { w: number }) {
   const t = useT();
   return (
-    <span className={`sev-tw${w >= 8 ? " hi" : w >= 5 ? " mid" : ""}`} aria-label={t("sev.weightAria", { w })}>
-      T{w}
+    <span className={`sev-tw${w >= 8 ? " hi" : w >= 5 ? " mid" : ""}`} aria-label={t("sev.weightAria", { w: fmtDec(w) })}>
+      T{fmtDec(w)}
     </span>
   );
 }

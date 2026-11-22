@@ -238,7 +238,7 @@ export const sl: Translation<typeof en> = {
   "ops.st.toScene": "na kraj",
   "ops.st.onScene": "na kraju",
   "ops.st.escort": "spremstvo",
-  "ops.st.return": "povratek",
+  "ops.st.return": "nazaj",
   "ops.st.idle": "prosto",
   "ops.st.pickup": "prevzem",
   "ops.st.loading": "nakladanje",
