@@ -60,8 +60,16 @@ async function post(path: string, body: Record<string, unknown>): Promise<Record
 }
 
 /** A random call (optionally of one severity). The backend answers {trip, summary} or the trip itself. */
-export async function randomCall(severity?: string): Promise<{ trip: Trip | null; summary: string }> {
-  const data = await post("/sim/admin/random-call", severity ? { severity } : {});
+/** E + a click on the map: a library call of this condition placed at the point (a real 112 case). */
+export interface PlacedCall {
+  condition: string;
+  lat: number;
+  lon: number;
+  modifiers?: string[];
+}
+
+export async function randomCall(severity?: string, placed?: PlacedCall): Promise<{ trip: Trip | null; summary: string }> {
+  const data = await post("/sim/admin/random-call", placed ? { ...placed } : severity ? { severity } : {});
   const trip = (data.trip as Trip | undefined) ?? ("id" in data && "pickup_id" in data ? (data as unknown as Trip) : null);
   return {
     trip,

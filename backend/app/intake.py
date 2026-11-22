@@ -28,7 +28,7 @@ from . import config
 from .agent.triage import TriageResult, triage
 from .audit import AUDIT
 from .engine.candidates import nearest_place_name
-from .engine.events import apply_event
+from .engine.events import EventError, apply_event
 from .engine.severity import CONDITIONS
 from .geo import haversine_km
 from .guard import GUARD
@@ -133,12 +133,24 @@ def resolve_address(state: WorldState, address: str) -> Location | None:
 
 def _map_point_label(state: WorldState, lat: float, lon: float) -> str:
     """'Map point near Polje (3.5 km)': the nearest named place (not an earlier call's location), not
-    'Map point near 3.5 km from Polje (call)'."""
-    named = [p for p in state.places.values() if p.kind not in ("call_location", "incident_site")]
-    if not named:
+    'Map point near 3.5 km from Polje (call)'. Named after the district (Šiška, Rudnik, ...), or a hospital or
+    health centre right next to it; never after our own ambulance bases ("Ambulance base West")."""
+    def dist(p: Any) -> float:
+        return haversine_km(lat, lon, p.lat, p.lon)
+
+    areas = [p for p in state.places.values() if p.kind == "residential"]
+    landmarks = [p for p in state.places.values() if p.kind in ("hospital", "health_centre")]
+    close = min(landmarks, key=dist) if landmarks else None
+    named = [p for p in state.places.values() if p.kind not in ("call_location", "incident_site", "base")]
+    if close is not None and dist(close) < 0.4:
+        p = close
+    elif areas:
+        p = min(areas, key=dist)
+    elif named:
+        p = min(named, key=dist)
+    else:
         return f"Map point near {nearest_place_name(state, lat, lon)}"
-    p = min(named, key=lambda p: haversine_km(lat, lon, p.lat, p.lon))
-    km = haversine_km(lat, lon, p.lat, p.lon)
+    km = dist(p)
     return f"Map point near {p.name}" if km < 0.3 else f"Map point near {p.name} ({km:.1f} km)"
 
 
@@ -236,11 +248,26 @@ def library() -> list[tuple[str, str, str, tuple[str, float, float] | None]]:
 _last_ai_random: dict[str, float] = {}
 
 
-async def random_call(state: WorldState, severity: str | None = None) -> tuple[EventRecord, TriageResult]:
+async def random_call(state: WorldState, severity: str | None = None, condition: str | None = None,
+                      at: tuple[float, float] | None = None,
+                      modifiers: list[str] | None = None) -> tuple[EventRecord, TriageResult]:
+    """A library call. With `condition` only that condition's calls; with `at` (E + a click on the map) it
+    is placed there, with a street call's words (a mountain call's words would not fit) and, when
+    `modifiers` has "child", a child's call. Other picked modifiers are added to the triage."""
     rng = state.calls.text_rng
-    pool = [e for e in library() if severity is None or CONDITIONS[e[0]][1] == severity]
+    pool = [e for e in library() if (severity is None or CONDITIONS[e[0]][1] == severity)
+            and (condition is None or e[0] == condition)]
+    if at is not None:
+        pool = [e for e in pool if e[3] is None] or pool
+        child_texts = {sl for texts in gen.CHILD_WORDS.values() for sl, _en in texts}
+        want_child = bool(modifiers and "child" in modifiers)
+        pool = [e for e in pool if (e[1] in child_texts) == want_child] or pool
+    if not pool:
+        raise EventError(f"No call in the library for {condition or severity}")
     condition, sl, en, remote = rng.choice(pool)
-    if remote is not None:
+    if at is not None:
+        loc = Location(None, round(at[0], 5), round(at[1], 5), _map_point_label(state, at[0], at[1]))
+    elif remote is not None:
         name, lat, lon = remote
         loc = Location(None, lat, lon, name)
     else:
@@ -256,6 +283,9 @@ async def random_call(state: WorldState, severity: str | None = None) -> tuple[E
     result = await triage(state, sl, loc.label, use_ai=use_ai)
     if not result.text_en:
         result.text_en = en
+    extra = [m for m in (modifiers or []) if m not in result.triage.modifiers]
+    if extra:  # what the dispatcher ticked in the picker (getting worse, several patients, child)
+        result.triage.modifiers = [*result.triage.modifiers, *extra]
     call = CallRecord(call_id=gen.new_call_id(state, "112"), kind="112", received_at=received,
                       caller_name=gen.caller_name(rng), address=loc.label, text_sl=sl, text_en=en)
     return _apply(state, loc, result, call, None, en), result

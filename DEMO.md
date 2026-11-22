@@ -28,7 +28,7 @@ break it and override it.
 ## 1. Setup checklist (the morning of the demo)
 
 **Deploy (code freeze 12:00)**
-- [ ] **No pushes to `main` between 12:00 and the pitch.** A push redeploys and restarts the backend: the simulation resets, the Claude usage counters reset, and the switches below fall back to their defaults (Assisted, call stream on).
+- [ ] **No pushes to `main` between 12:00 and the pitch.** A push redeploys and restarts the backend: the simulation resets, the Claude usage counters reset, and the switches below fall back to their defaults (Assisted; the Simulation call stream is off by default).
 - [ ] Railway, backend service, **Variables** (look at the names, never print the values): `ANTHROPIC_API_KEY`, `TOMTOM_API_KEY`, `ADMIN_KEY`, `DATABASE_URL` (a **reference** to the Postgres service, not a pasted copy), and optionally `NAP_USERNAME` + `NAP_PASSWORD` (access is pending; the app runs without). Also check that nobody set `SIM_SPEEDUP`, `CALLS_PER_HOUR`, `CLAUDE_MAX_PER_5MIN`, `CLAUDE_MAX_PER_DAY` or `AGENT_MODEL` to something unintended; the defaults are 5, 5, 12, 300 and `claude-sonnet-5-5`. All names: [backend/.env.example](backend/.env.example).
 - [ ] Open `https://ada-hackathon-production.up.railway.app/health` in a browser (reading needs no key). Look for: `ok: true`; **`admin_lock: true`**; **`claude.enabled: true`**, `claude.limited: false`, `claude.today` small; the `traffic` source with `kind: "live"` (not `"fallback"`) and `weather` `fresh`; `tomtom_requests_today` not `null`; **`audit.status: "connected"`** (not "memory only"); `traffic_tiles.available: true` and `capped: false`; no `last_error` on a source.
 
@@ -42,7 +42,7 @@ break it and override it.
 
 **State (about 10 minutes before)**
 - [ ] Simulation → **Scenarios** tab → **Reset simulation**. This also re-anchors the Simulation clock to the real time of day: the helicopter flies only 08:00–16:30 on that clock, which at 5× runs out about 40 real minutes after a reset at 13:00. Reset again if the sim time is after 16:30.
-- [ ] Same tab: **Call stream off** (switch under "Operations"). Otherwise a random call every ~2.4 real minutes can take the units your story needs. It survives resets and scenario buttons, not a backend restart. Leave the **Live** world as it is.
+- [ ] Same tab: check the **call stream is off** (the Simulation default since 22 Nov; switch under "Operations"). Otherwise a random call every ~2.4 real minutes can take the units your story needs. It survives resets and scenario buttons, not a backend restart. Leave the **Live** world as it is.
 - [ ] **AI dispatcher** tab: set the mode to **Autonomous** (switch at the top). Then unfold **Situation review**, check the chip says **`Claude · claude-sonnet-5-5`** (not "Engine only") and leave **Auto-analyse off**: in Autonomous mode Claude reviews every critical or serious case anyway, and you start the one fleet-wide analysis yourself with **A** (no stray analysis, no wasted tokens). Fold it again.
 - [ ] Click **New 112 call** and pre-fill the form (it stays filled; the tab keeps its state): *What the caller says:* `Mož se je zgrudil na dvorišču, ne diha, nihče ne dela oživljanja.` *Where:* `Šmarska cesta 3, Škofljica` (about 13 minutes from the ambulances, and far enough from Brnik that the helicopter is never the closest unit, before or after the breakdown; in our local checks at a daytime clock). Do not submit.
 - [ ] **Dry run** with a stopwatch (section 2, all of it), then **Reset simulation** and put the switches back. One run uses about **5 of the 12 Claude calls allowed per rolling 5 minutes** (triage, two case reviews, the crew message, one analysis), so do not rehearse within 5 minutes of the pitch (`claude.retry_after_s` in `/health` shows the wait if you hit the limit).
@@ -77,7 +77,7 @@ break it and override it.
 | The status bar says "profile" instead of "TomTom live" | Do not use **Road closure** or **Car crash** as the failure (no detour is drawn without TomTom, the unit only slows) | "The status bar shows which source is live; traffic falls back to a time-of-day model." |
 | Override refused (for example the patient is already on board, or the unit is at the patient) | Skip it and say so | "The system refuses what cannot be done and says why." |
 | The scene looks odd, or T1 has already delivered the blood | **Reset simulation**, then repeat the step. **Prepare crew demo** can be pressed again | (nothing) |
-| Backend restarted | Cold start: reset the two switches (Autonomous, call stream off) and the form; 20 seconds | (nothing) |
+| Backend restarted | Cold start: set Autonomous again and re-fill the form (the Simulation call stream starts off); 20 seconds | (nothing) |
 | Wi-Fi drops | Laptop and phone to the hotspot; the backend is on Railway, only the devices need the internet | (nothing) |
 | Page stuck on "Connecting to …railway.app" | Some networks hold back the live stream. The page switches to fetching the state every 1.5 s after about 5 s by itself; if it still hangs, turn the VPN on or use the phone hotspot (seen on 22 Nov: fixed by a VPN). **Test the venue Wi-Fi before the pitch.** | (nothing) |
 | Nothing works | Play `showcase-crew-replan.mp4` or `showcase-112-to-hospital.mp4` | "This is the same run, recorded." |

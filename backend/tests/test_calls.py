@@ -522,6 +522,29 @@ def test_random_calls():
     assert t1.call.triage.by == "ai" and t2.call.triage.by == "rules", (t1.call.triage.by, t2.call.triage.by)
 
 
+def test_placed_library_call():
+    """E + a click on the map: a library call of the picked condition at that point, as a real 112 case."""
+    fresh()
+    child_texts = {sl for texts in calls.CHILD_WORDS.values() for sl, _en in texts}
+    lat, lon = 46.0569, 14.5058  # near the centre of Ljubljana
+    for cond in ("cardiac_arrest", "stroke", "stemi", "choking", "major_trauma", "fall"):
+        r = client.post("/sim/admin/random-call", json={"condition": cond, "lat": lat, "lon": lon})
+        assert r.status_code == 200, r.text
+        t = trip_of(r.json())
+        c = t.call
+        assert t.condition == cond and c.kind == "112" and c.text_sl and c.caller_name, (cond, t.condition, c.text_sl)
+        assert c.address.startswith("Map point near") and c.text_sl not in child_texts, c.address
+        pickup = W.places[t.pickup_id]
+        assert abs(pickup.lat - lat) < 1e-4 and abs(pickup.lon - lon) < 1e-4, (pickup.lat, pickup.lon)
+    # A child's call when "child" is ticked; the other ticked modifiers are added to the triage
+    r = client.post("/sim/admin/random-call",
+                    json={"condition": "breathing_difficulty", "lat": lat, "lon": lon, "modifiers": ["child", "deteriorating"]})
+    t = trip_of(r.json())
+    assert t.call.text_sl in child_texts and {"child", "deteriorating"} <= set(t.call.triage.modifiers), t.call.triage
+    assert client.post("/sim/admin/random-call", json={"condition": "nonsense", "lat": lat, "lon": lon}).status_code == 422
+    assert client.post("/live/admin/random-call", json={"condition": "stroke", "lat": lat, "lon": lon}).status_code == 400
+
+
 def _incident(kind: str | None) -> dict:
     r = client.post("/sim/admin/random-incident", json={"kind": kind} if kind else {})
     assert r.status_code == 200, r.text
