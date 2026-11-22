@@ -646,8 +646,9 @@ def _priority_change(state: WorldState, ev: PriorityChangeEvent, affected: list[
             detach_trip(state, trip)
             trip.status = "unassigned"
             parts.append(f"released from {v.id} ({why})")
-        elif ev_priority == "emergency" and raised and _better_unit(state, trip, v):
-            # Raised to a level where another unit should go (doctrine rules 1, 2, 6): re-dispatch.
+        elif ev_priority == "emergency" and raised and not units.held(trip, v.id) and _better_unit(state, trip, v):
+            # Raised to a level where another unit should go (doctrine rules 1, 2, 6): re-dispatch, unless
+            # the dispatcher chose this unit by hand (their decision stands; Override changes it).
             detach_trip(state, trip)
             trip.status = "unassigned"
             parts.append("re-evaluated" + dispatch_call(state, trip).replace("; dispatched", ": dispatched", 1))
