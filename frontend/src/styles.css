@@ -130,12 +130,10 @@ svg.lucide {
   font-weight: 700;
   letter-spacing: 0.02em;
 }
-.wordmark::before {
-  content: "";
-  width: 4px;
-  height: 18px;
-  border-radius: 1px;
-  background: var(--accent-bg);
+.wordmark-logo {
+  display: block;
+  height: 24px;
+  width: auto;
 }
 .brand-sub {
   font-size: 12px;

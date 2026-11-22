@@ -1,5 +1,7 @@
 # Bypass — AI dispatch co-pilot
 
+<p align="center"><img src="docs/images/bypass-logo.png" alt="Bypass" width="420"></p>
+
 [![CI](https://github.com/0900B/ada-hackathon/actions/workflows/ci.yml/badge.svg)](https://github.com/0900B/ada-hackathon/actions/workflows/ci.yml)
 
 **When something goes wrong in the field, a crew can simply say it in Slovenian. Bypass shows the dispatcher what is at risk and two or three simulated plans to approve. Every 112 call is dispatched the second it arrives, and an AI dispatcher reviews each case, with a human who can take over any decision.**

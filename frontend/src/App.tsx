@@ -120,7 +120,9 @@ export default function App() {
     <div className="app">
       <header className="header">
         <div className="brand">
-          <h1 className="wordmark">{BRAND.product}</h1>
+          <h1 className="wordmark">
+            <img className="wordmark-logo" src="/bypass-logo.png" alt={BRAND.product} />
+          </h1>
           <span className="brand-sub" title={`${BRAND.tagline} · ${BRAND.operator}`}>
             {BRAND.tagline} · <strong>{BRAND.operator}</strong>
           </span>
