@@ -41,6 +41,12 @@ LJ = ZoneInfo("Europe/Ljubljana")
 DEMAND_FREE_SHARE = 0.25  # free own ambulances at most this share of those crewed (3 crewed: none free)
 DEMAND_RED_WAIT_MIN = RED_REFERENCE_MIN  # a red call predicted to wait longer than this (15 min)
 DEMAND_PAST_TARGET = 2  # or at least this many open calls predicted past their response target
+# The alert itself has hysteresis (with three ambulances the raw trigger is on 22-53 % of the time):
+# raised only when the trigger has been on for DEMAND_RAISE_AFTER_MIN world-minutes AND patients are
+# affected (a red call over 15 min, or DEMAND_PAST_TARGET calls past their target); cleared only when
+# that (trigger on and patients affected) has been false for DEMAND_CLEAR_AFTER_MIN.
+DEMAND_RAISE_AFTER_MIN = 5.0
+DEMAND_CLEAR_AFTER_MIN = 5.0
 
 # The contracted pool and the default offer.
 SURGE_AMBULANCES = ("P1", "P2")
@@ -173,10 +179,55 @@ def status(state: WorldState) -> dict[str, Any]:
     }
 
 
+def patients_affected(d: dict[str, Any]) -> bool:
+    """The trigger is about patients, not only about how many ambulances are free."""
+    return bool(d.get("red_over_15_min")) or len(d.get("past_target") or []) >= DEMAND_PAST_TARGET
+
+
+def update_demand_alert(state: WorldState, d: dict[str, Any] | None = None) -> bool:
+    """Advance the alert's hysteresis with the current trigger (world time); returns whether it is raised."""
+    d = d if d is not None else demand(state)
+    now = state.sim_time
+    if d["high"]:
+        if state.demand_high_since is None or state.demand_high_since > now:
+            state.demand_high_since = now
+    else:
+        state.demand_high_since = None
+    sustained = state.demand_high_since is not None and now - state.demand_high_since >= timedelta(minutes=DEMAND_RAISE_AFTER_MIN)
+    # "On" for the alert: the trigger and patients affected. All units busy alone keeps nothing raised.
+    on = d["high"] and patients_affected(d)
+    if on:
+        state.demand_low_since = None
+        if not state.demand_alert and sustained:
+            state.demand_alert = True
+    elif state.demand_alert:
+        if state.demand_low_since is None or state.demand_low_since > now:
+            state.demand_low_since = now
+        if now - state.demand_low_since >= timedelta(minutes=DEMAND_CLEAR_AFTER_MIN):
+            state.demand_alert, state.demand_low_since = False, None
+    return state.demand_alert
+
+
+def assume_sustained(state: WorldState) -> None:
+    """For a demo scenario that stages demand which built up before it starts (the surge scenario):
+    the trigger counts as on for long enough already."""
+    if demand(state)["high"]:
+        state.demand_high_since = state.sim_time - timedelta(minutes=DEMAND_RAISE_AFTER_MIN)
+
+
+def alert_on(state: WorldState) -> bool:
+    return bool(getattr(state, "demand_alert", False))
+
+
 def high_demand_alert(state: WorldState) -> Alert | None:
     d = demand(state)
-    if not d["high"]:
+    if not update_demand_alert(state, d):
         return None
+    if not (d["high"] and patients_affected(d)):  # still raised for under DEMAND_CLEAR_AFTER_MIN after it eased
+        return Alert(id="high_demand", kind="high_demand", severity="medium",
+                     message="High demand easing: no patient has waited too long for under "
+                             f"{DEMAND_CLEAR_AFTER_MIN:g} min; keep watching before standing anything down.",
+                     trip_id=d.get("worst_trip_id"))
     why = "; ".join(d["reasons"])
     if active(state):
         help_ = f"surge capacity is active until {_hhmm(state.surge_until)}"

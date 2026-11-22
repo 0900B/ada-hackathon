@@ -5,14 +5,14 @@ import math
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
-from ..engine import surge
+from ..engine import surge, timeline
 from ..engine.doctors import stand_down_reserve
-from ..engine.service_times import HANDOVER_MIN, after_dropoff_min, on_scene_min, turnout_min
+from ..engine.service_times import HANDOVER_MIN, after_dropoff_min, handover_min, on_scene_min, turnout_min
 from ..models import Vehicle
 from ..roads import ROADS, key, nearest_fraction, point_along
 from ..geo import haversine_km
 from .fleet_details import fuel_rate
-from ..routing import flies, leg_route, reroute_if_blocked, travel_minutes
+from ..routing import avoid_key, flies, leg_route, reroute_if_blocked, travel_minutes
 
 if TYPE_CHECKING:
     from ..state import WorldState
@@ -27,6 +27,8 @@ def tick(state: WorldState, dt_s: float) -> None:
     for v in list(state.vehicles.values()):
         if v.grounded_until and state.sim_time >= v.grounded_until:
             v.grounded_until = None  # the fog has lifted: the helicopter can fly again
+        if v.handover_until and state.sim_time >= v.handover_until:
+            _handover_done(state, v)
         if v.status == "out_of_service":
             v.waiting_until = None
             continue
@@ -42,6 +44,22 @@ def tick(state: WorldState, dt_s: float) -> None:
         under_contract = v.contract_until is not None and not v.contract_ended and v.contract_until > state.sim_time
         if v.origin != "own" and v.status == "idle" and v.current_trip_id is None and not v.queue and not under_contract:
             stand_down_reserve(state, v)  # a mutual-aid or private unit is home again: it leaves our fleet
+
+
+def _handover_done(state: WorldState, v: Vehicle) -> None:
+    """The handover at the drop-off is over: the call is closed (the unit is cleaned and restocked)."""
+    trip = state.trips.get(v.handover_trip_id) if v.handover_trip_id else None
+    v.handover_trip_id = v.handover_until = None
+    if trip is None:
+        return
+    dest = state.places[trip.dropoff_id].name
+    if trip.kind == "equipment":
+        timeline.log(state, trip, "handover_done", "crew", f"{trip.cargo or 'Equipment'} delivered and signed for at {dest}", v.id)
+    else:
+        timeline.log(state, trip, "handover_done", "crew", f"Patient handed over at {dest}", v.id)
+    ready = v.busy_until if v.busy_until and v.busy_until > state.sim_time else None
+    after = f"; {v.id} cleaning and restocking, available {timeline.hhmm(ready)}" if ready else f"; {v.id} available"
+    timeline.log(state, trip, "closed", "engine", ("Request closed" if trip.call and trip.call.kind != "112" else "Call closed") + after, v.id)
 
 
 def _advance_doctor(state: WorldState, v: Vehicle, dt_min: float) -> None:
@@ -74,6 +92,7 @@ def _advance_doctor(state: WorldState, v: Vehicle, dt_min: float) -> None:
             if _move_towards(state, v, scene.lat, scene.lon, dt_min, True):
                 v.status = "loading"  # on scene with the crew
                 trip.doctor_eta = state.sim_time
+                timeline.log(state, trip, "doctor_on_scene", "crew", f"Doctor car {v.id} on scene: physician joins the crew", v.id)
             return
     if v.status == "loading":
         if not left_scene:
@@ -115,7 +134,8 @@ def _move_towards(state: WorldState, v: Vehicle, lat: float, lon: float, dt_min:
         return True
     assert v.path_from is not None
     if not flying:
-        reroute_if_blocked(state, v)  # a closure ahead: re-plan the rest of the leg around it
+        if reroute_if_blocked(state, v):  # a closure ahead: re-plan the rest of the leg around it
+            _log_reroute(state, v)
         if not v.on_road:
             route = leg_route(state, v)
             if route is not None:
@@ -153,10 +173,30 @@ def _move_towards(state: WorldState, v: Vehicle, lat: float, lon: float, dt_min:
     return False
 
 
+def _log_reroute(state: WorldState, v: Vehicle) -> None:
+    """A detour on the timeline of the trip v is driving to (once per closure, not every re-plan)."""
+    trip = state.trips.get(v.current_trip_id) if v.current_trip_id else None
+    if trip is None:
+        return
+    last = trip.timeline[-1] if trip.timeline else None
+    if last is not None and last.kind == "rerouted" and last.vehicle_id == v.id and state.sim_time - last.at < timedelta(minutes=3):
+        return  # already said (e.g. when the closure was reported)
+    keys = set(v.path_avoid or ())
+    names = [i.description for i in state.all_incidents() if i.active and avoid_key(i) in keys]
+    around = f" around {names[0]}" if names else " around a road closure"
+    timeline.log(state, trip, "rerouted", "engine", f"{v.id} rerouted{around}", v.id)
+
+
 def _advance(state: WorldState, v: Vehicle, dt_min: float) -> None:
     v.waiting_until = None  # set again below while it stands at a pickup that is not ready yet
     if v.status == "loading":
         v.status = "with_patient"
+        trip = state.trips.get(v.current_trip_id) if v.current_trip_id else None
+        if trip is not None:
+            dest = state.places[trip.dropoff_id].name
+            what = "the patient" if trip.kind == "patient" else (trip.cargo or "the equipment")
+            timeline.log(state, trip, "transporting", "crew", f"{v.id} left the scene with {what} for {dest}, "
+                         f"arrives {timeline.hhmm(trip.eta_dropoff)}", v.id)
 
     if v.current_trip_id is None and v.status != "with_patient":
         if v.queue:
@@ -192,6 +232,13 @@ def _advance(state: WorldState, v: Vehicle, dt_min: float) -> None:
         trip.eta_pickup = state.sim_time
         v.status = "loading"  # on scene: assessment, treatment, loading
         v.busy_until = state.sim_time + timedelta(minutes=on_scene_min(trip, v.type))
+        where = state.places[trip.pickup_id].name
+        if trip.kind == "equipment":
+            timeline.log(state, trip, "on_scene", "crew", f"{v.id} at {where}: loading {trip.cargo or 'the equipment'}", v.id)
+        else:
+            mins = (state.sim_time - trip.pickup_after).total_seconds() / 60
+            after = f", {mins:.0f} min after the call" if trip.call is not None and trip.call.kind == "112" and mins >= 0 else ""
+            timeline.log(state, trip, "on_scene", "crew", f"{v.id} on scene at {where}{after}", v.id)
     elif v.status == "with_patient" and trip:
         trip.status = "completed"
         trip.eta_dropoff = state.sim_time
@@ -202,5 +249,8 @@ def _advance(state: WorldState, v: Vehicle, dt_min: float) -> None:
         v.current_trip_id = None
         v.status = "returning"  # handover, then cleaning and restocking: not available until busy_until
         v.busy_until = state.sim_time + timedelta(minutes=after_dropoff_min(trip, v.type))
+        v.handover_trip_id, v.handover_until = trip.id, state.sim_time + timedelta(minutes=handover_min(trip, v.type))
+        what = "handing over the patient" if trip.kind == "patient" else "unloading"
+        timeline.log(state, trip, "at_hospital", "crew", f"{v.id} at {dest.name}: {what}", v.id)
     elif v.status == "returning":
         v.status = "idle"

@@ -4,7 +4,8 @@ Run from backend/:  python tests/test_surge.py   (or: python -m pytest tests)
 Offline: road routing off, no Claude. Live-calls mode, calls generator off.
 
 - The demand trigger: no own ambulance free (25 % or less of those crewed), a red call over 15 min,
-  or two calls past their target -> alert "high_demand"; never activates anything.
+  or two calls past their target; the alert "high_demand" once that has lasted 5 world-minutes and
+  patients are affected (hysteresis, more in tests/test_calls.py); never activates anything.
 - Activation only by the dispatcher (endpoint or an approved option); stand-down; expiry.
 - Use rules while active: transports to private vans first; urgent calls to a contracted ambulance
   only when our own is over 45 min away or it is 10 min sooner; red calls only when no public unit
@@ -102,7 +103,15 @@ def test_trigger_no_own_ambulance_free():
     project_all(W)
     d = surge.demand(W)
     assert d["high"] and "0 of 3 own ambulances free" in d["reasons"], d
-    a = high_demand()
+    # The alert has hysteresis: no ambulance free alone (no patient affected) never raises it, however long.
+    assert high_demand() is None
+    W.sim_time += timedelta(minutes=surge.DEMAND_RAISE_AFTER_MIN + 1)
+    project_all(W)
+    assert surge.demand(W)["high"] and high_demand() is None, "busy, but no patient waits too long"
+    W.vehicles["H1"].status = "out_of_service"
+    _, t = call("home_polje", "serious", "seizure")  # now a red call waits over 15 min: patients are affected
+    assert t.id in surge.demand(W)["red_over_15_min"], surge.demand(W)
+    a = high_demand()  # the trigger has been on for over 5 min already: raised at once
     assert a is not None and "Activating contracted units would help (2 ambulances, 3 private vans for 2 h)" in a.message, a
     assert all(v not in W.vehicles for v in CONTRACTED), "the trigger never activates anything"
 
@@ -116,6 +125,9 @@ def test_trigger_red_call_over_15_min_and_calls_past_target():
     _, t = call("home_polje", "serious", "seizure")
     d = surge.demand(W)
     assert t.id in d["red_over_15_min"] and any(f"red call {t.id}" in r for r in d["reasons"]), d
+    assert high_demand() is None, "raised only once the trigger has been on for 5 world-minutes"
+    W.sim_time += timedelta(minutes=surge.DEMAND_RAISE_AFTER_MIN)
+    project_all(W)
     assert high_demand().trip_id == t.id and high_demand().severity == "critical"
     _, t2 = call("home_moste", "urgent", "fall")  # 60-min target; nobody gets there in time either
     W.vehicles["A3"].status = "out_of_service"

@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 from ..engine.candidates import find_candidates, is_free, nearest_place_name
 from ..engine.dispatch import swap_options
 from ..engine.doctors import per_call_reserve
-from ..engine.surge import active as surge_active, available as surge_available, demand as surge_demand, offer_text as surge_offer
+from ..engine.surge import active as surge_active, alert_on as surge_alert_on, available as surge_available, demand as surge_demand, offer_text as surge_offer
 from ..engine.severity import clinical_reason
 from ..engine.plans import simulate_plan
 from ..engine.projection import DONE, incoming_patients, kpis, over_capacity, project_route
@@ -132,7 +132,8 @@ def build_situation(state: WorldState) -> dict[str, Any]:
         **(
             {
                 "demand": {
-                    "high_demand": d["high"],
+                    # the alert (sustained and affecting patients, engine/surge.py), not every busy moment
+                    "high_demand": surge_alert_on(state),
                     "reasons": d["reasons"],
                     "surge_capacity": {"active_until": hhmm(state.surge_until)}
                     if surge_active(state)

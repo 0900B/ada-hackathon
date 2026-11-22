@@ -85,11 +85,63 @@ class Vehicle(BaseModel):
     fuel_pct: float = 100.0
     km_today: float = 0.0
     shift_end: datetime | None = None
+    # Set by the simulator on arrival at the drop-off: the handover of this trip ends at this time
+    # (then cleaning). Only for the call timeline ("handover_done", "closed").
+    handover_trip_id: str | None = Field(default=None, exclude=True)
+    handover_until: datetime | None = Field(default=None, exclude=True)
 
 
 class CrewMember(BaseModel):
     name: str  # fictional
-    role: str  # e.g. "Driver / paramedic", "Emergency physician", "Pilot"
+    role: str  # e.g. "Medical rescuer (driver)", "Emergency physician", "Pilot"
+
+
+# --- The call record and the call timeline (app/intake.py, engine/timeline.py) ---------------
+
+CallKind = Literal["112", "hospital_request"]
+TriageBy = Literal["ai", "rules", "dispatcher"]
+TimelineKind = Literal[
+    "received", "triaged", "dispatched", "doctor_dispatched", "rerouted", "reassigned", "delayed",
+    "unit_replaced", "proposal", "approved", "on_scene", "doctor_on_scene", "transporting", "at_hospital",
+    "handover_done", "closed", "note",
+]
+TimelineBy = Literal["caller", "ai", "rules", "engine", "dispatcher", "crew"]
+
+
+class CallTriage(BaseModel):
+    """How the call was graded: by Claude (ai), by the keyword rules (rules), or by the dispatcher."""
+
+    by: TriageBy
+    at: datetime
+    severity: CallSeverity
+    condition: str | None = None
+    condition_label: str | None = None
+    modifiers: list[str] = Field(default_factory=list)
+    needs_doctor: bool = False
+    reason_en: str = ""  # one clinical sentence
+    reason_sl: str = ""
+
+
+class CallRecord(BaseModel):
+    """The request behind a trip: a 112 call (caller's words, address) or a hospital's request."""
+
+    call_id: str  # "112-0042" (per-world counter); hospital requests "REQ-0007"
+    kind: CallKind = "112"
+    received_at: datetime
+    caller_name: str | None = None  # fictional
+    address: str | None = None  # e.g. "Zaloška cesta 45, Moste"
+    text_sl: str = ""  # the caller's words
+    text_en: str = ""
+    triage: CallTriage | None = None
+
+
+class TimelineEntry(BaseModel):
+    at: datetime
+    kind: TimelineKind
+    by: TimelineBy
+    text: str
+    vehicle_id: str | None = None
+    run_id: str | None = None
 
 
 class Trip(BaseModel):
@@ -123,6 +175,11 @@ class Trip(BaseModel):
     doctor_vehicle_id: str | None = None  # the doctor car supporting this call, or "H1" when the helicopter serves it
     doctor_eta: datetime | None = None  # when the doctor reaches (or reached) the patient
     doctor_target_min: float | None = None  # minutes from the call: the 15-min red reference
+    # The 112 call or hospital request behind this trip (None: a plain booking or a scenario job), and
+    # everything that happened to it, oldest first (bounded, see engine/timeline.py). Shared, not copied,
+    # by what-if copies of the world (WorldState.clone_for_simulation); written only in the real world.
+    call: CallRecord | None = None
+    timeline: list[TimelineEntry] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _equipment_consistent(self) -> Trip:
@@ -340,6 +397,9 @@ class UrgentRequestEvent(BaseModel):
     severity: Literal["critical", "serious", "urgent"] | None = None
     condition: str | None = None  # e.g. "cardiac_arrest", "stroke", "stemi", "fracture"
     modifiers: list[str] = Field(default_factory=list)  # child, multiple_patients, deteriorating, ...
+    # The call-taker (or the AI triage) asks for a doctor on scene even if the condition alone would not
+    # (critical/serious calls only); the conditions in engine.severity.DOCTOR_CONDITIONS always get one.
+    needs_doctor: bool = False
 
     @model_validator(mode="after")
     def _severity_sets_priority(self) -> UrgentRequestEvent:

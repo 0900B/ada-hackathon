@@ -191,7 +191,42 @@ whenever the trigger is on and patients are affected):
 | 8, with surge capacity | 5 / 5 | 50 / 47 min | 0 / 1 | 2 / 1 |
 
 With only three own ambulances the first condition ("none free") is on 22 to 53 % of the time even at
-5 calls per hour, so the alert shows often; the button is still only an offer.
+5 calls per hour, so the alert itself has **hysteresis** (`engine/surge.update_demand_alert`): it is
+raised only when the trigger has been on for 5 world-minutes (`DEMAND_RAISE_AFTER_MIN`) **and**
+patients are affected (a red call predicted over 15 min, or two calls past their target), and cleared
+only when that has been false for 5 minutes (`DEMAND_CLEAR_AFTER_MIN`; meanwhile it shows as "easing").
+All units busy with nobody waiting too long never raises it. Measured over 5 seeds x 8 world-hours:
+at 5 calls per hour the raw trigger is on 36 % of the time, the alert 19 % (raised about 3 times per
+8 hours); at 8.75 per hour 71 % and 58 %. The engine's and the AI's surge option follow the alert.
+
+## 7. 112 calls from the first second to the end
+
+Every call has a **call record** (`Trip.call`) and a **timeline** (`Trip.timeline`):
+
+- **Intake** (`app/intake.py`): a call typed by the call-taker (`POST /{world}/calls`: the caller's
+  words, an address, a known place or a map point) is **triaged by Claude** (a small structured-output
+  request, `agent/triage.py`, through the usage guard) and, when Claude is off, limited, slow (12 s) or
+  fails, by the **keyword rules** (`agent/messages.grade_text`), so a call is never lost. As a safety
+  net the red-flag words may raise Claude's level, never lower it. The call then goes through the
+  normal dispatch path (`urgent_request`, section 3), with a doctor car when the triage asks for one.
+- **Generated calls** (`sim/calls.py`) carry a fictional caller, a street address and the caller's
+  words in Slovenian and English (several texts per condition, each checked against the keyword rules);
+  the rules triage them, Claude only with the world's **AI triage** switch on (and while the guard has
+  requests to spare). Words come from a separate random stream: the calls and the benchmark are unchanged.
+- **Timeline** (`engine/timeline.py`): received, triaged, dispatched, doctor dispatched, rerouted,
+  reassigned, delayed, unit replaced, proposal, approved, on scene, doctor on scene, transporting, at
+  hospital, handover done, closed, note; each says who (caller, ai, rules, engine, dispatcher, crew).
+- **Automatic follow-up of 112 calls** (`engine/followup.py`, every 30 world-seconds, logged by the
+  engine): a call whose unit drops out is re-dispatched at once; a call no unit could take is
+  dispatched as soon as one can; before arrival a **free** ambulance that reaches the patient **3 min
+  sooner** (`FASTER_FREE_UNIT_MIN_GAIN_MIN`, e.g. after a delay) takes over; a call that needs a doctor
+  and has none gets the first free doctor car. Detours around closures are automatic (simulator). Calls
+  without a 112 record (scenario jobs, bookings, hospital requests) keep the old behaviour, so the
+  stranded-patient and stranded-equipment decisions stay with the dispatcher. Trade-offs (overrides of
+  other calls, swaps, reserve units, surge) stay **proposals**.
+- **Autopilot** (per world, off by default): the recommended feasible option of every analysis about an
+  active call is approved by the engine through the dispatcher's own approval path (re-checked,
+  applied, audited); activating contracted surge capacity always stays with the dispatcher.
 
 ## Sources
 
