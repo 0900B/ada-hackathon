@@ -154,6 +154,7 @@ button {
   color: #fff;
 }
 .switch {
+  text-decoration: none;
   display: inline-flex;
   align-items: center;
   gap: 6px;

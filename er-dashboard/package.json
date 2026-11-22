@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:embed": "vite build --base=/er/ --outDir ../frontend/public/er --emptyOutDir",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },

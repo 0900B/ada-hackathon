@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, AlertTriangle, Bot, Volume2, VolumeX, WifiOff } from "lucide-react";
+import { Activity, AlertTriangle, Bot, Truck, Volume2, VolumeX, WifiOff } from "lucide-react";
 import type { ErAlert, World } from "./api";
 import { useAlertSound, useAutoTeams, usePersistentFlag } from "./automation";
 import { CaseModal } from "./CaseModal";
@@ -115,6 +115,11 @@ export default function App() {
           {urgentAlerts.length > 0 && <span className="pill alert">{urgentAlerts.length} need attention</span>}
         </p>
         <div className="top-right">
+          {import.meta.env.BASE_URL !== "/" && (
+            <a className="switch" href="/" title="Back to the dispatch dashboard">
+              <Truck size={16} aria-hidden /> Dispatch dashboard
+            </a>
+          )}
           <button type="button" className={`switch ${sound ? "on" : ""}`} aria-pressed={sound} onClick={toggleSound} title="Play a sound when a new critical alert appears">
             {sound ? <Volume2 size={16} aria-hidden /> : <VolumeX size={16} aria-hidden />} Alert sound {sound ? "on" : "off"}
           </button>
