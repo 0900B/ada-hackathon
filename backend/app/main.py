@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from datetime import timedelta
 from typing import Literal
 
+import anyio.from_thread
 import httpx
 from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Path, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -630,9 +631,15 @@ def random_incident(req: RandomIncidentRequest | None = None, state: WorldState 
     follow = followup.check(state, force=True)  # the engine's automatic reaction, now rather than at the next check
     summary = " ".join(filter(None, [note, record.summary])) + (f"; engine: {'; '.join(follow)}" if follow else "")
     AUDIT.record(state.name, "event", f"Demo incident ({target.kind}): {summary}", ref=record.id, payload=record)
-    reviewed = ai_dispatcher.after_event(state, record)  # after the engine's reaction: Claude reviews the call
-    if not reviewed and state.auto_analyze and record.type in DISRUPTIVE_EVENTS:
-        agent.start_run(state, trigger=f"event:{record.id}", focus=record)
+
+    def ai_after() -> None:
+        reviewed = ai_dispatcher.after_event(state, record)  # after the engine's reaction: Claude reviews the call
+        if not reviewed and state.auto_analyze and record.type in DISRUPTIVE_EVENTS:
+            agent.start_run(state, trigger=f"event:{record.id}", focus=record)
+
+    # This endpoint is a plain def (FastAPI runs it in a worker thread, where no event loop runs): Claude's
+    # review and the analysis are background tasks, so they are started on the event loop's thread.
+    anyio.from_thread.run_sync(ai_after)
     state.bump()
     return {"event": record.model_dump(mode="json"), "summary": summary, "kind": target.kind}
 

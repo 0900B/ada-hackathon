@@ -364,6 +364,21 @@ def test_a_disruption_of_a_case_is_reviewed_once_at_a_time_and_not_too_often():
     assert [e.kind for e in t.timeline].count("reviewed") == 3  # the call, the first and the third disruption
 
 
+def test_a_random_failure_from_the_demo_buttons_is_reviewed():
+    """Random failure / Choose unit (a plain-def endpoint, run in a worker thread) starts Claude's review
+    too: found missing in a live run (no event loop in the worker thread)."""
+    fresh()
+    W.vehicles["H1"].status = "out_of_service"
+    W.ai_mode = "autonomous"
+    with claude_on(FakeClaude(keep())):
+        r = client.post("/sim/admin/random-call", json={"condition": "cardiac_arrest", "lat": 46.0425, "lon": 14.4837})
+        t = W.trips[r.json()["trip"]["id"]]
+        n = len(reviews_of(t))
+        r = client.post("/sim/admin/random-incident", json={"kind": "delay", "vehicle_id": t.vehicle_id})
+        assert r.status_code == 200, r.text
+        assert len(reviews_of(t)) == n + 1, [x.trigger for x in reviews_of(t)]
+
+
 # --- trip.units ------------------------------------------------------------------------------------
 
 
