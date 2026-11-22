@@ -38,6 +38,17 @@ export const FAILURES: readonly { value: string; label: string }[] = [
   option("equipment", () => t("dash.demo.equipment")),
 ];
 
+/** "Choose unit…" (the targeted failure): what can be aimed at one unit (fog and a full hospital are global). */
+export const TARGET_ENTRY = "__unit";
+export const TARGET_KINDS: readonly { value: string; label: () => string; equipmentOnly?: boolean }[] = [
+  { value: "breakdown", label: () => t("dash.demo.breakdown") },
+  { value: "delay", label: () => t("dash.target.delay") },
+  { value: "crash", label: () => t("dash.target.crash") },
+  { value: "closure", label: () => t("dash.target.closure") },
+  { value: "jam", label: () => t("dash.target.jam") },
+  { value: "equipment", label: () => t("dash.demo.equipment"), equipmentOnly: true },
+];
+
 export interface DemoApi {
   call: boolean; // POST /sim/admin/random-call exists
   incident: boolean; // POST /sim/admin/random-incident exists
@@ -78,9 +89,10 @@ export async function randomCall(severity?: string, placed?: PlacedCall): Promis
   };
 }
 
-/** A random failure (optionally of one kind). The backend answers {event, summary} or the event record. */
-export async function randomIncident(kind?: string): Promise<{ event: EventRecord | null; summary: string }> {
-  const data = await post("/sim/admin/random-incident", kind ? { kind } : {});
+/** A random failure (optionally of one kind; with vehicleId aimed at that unit, "Choose unit…").
+ * The backend answers {event, summary} or the event record. */
+export async function randomIncident(kind?: string, vehicleId?: string): Promise<{ event: EventRecord | null; summary: string }> {
+  const data = await post("/sim/admin/random-incident", { ...(kind ? { kind } : {}), ...(vehicleId ? { vehicle_id: vehicleId } : {}) });
   const event = (data.event as EventRecord | undefined) ?? ("affected_trip_ids" in data ? (data as unknown as EventRecord) : null);
   return { event, summary: String(data.summary ?? event?.summary ?? t("dash.demo.failureInjected")) };
 }

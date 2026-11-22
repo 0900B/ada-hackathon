@@ -3960,3 +3960,105 @@ button.link.tl-unit {
 .toast span {
   white-space: pre-line;
 }
+
+/* "Choose unit…" in Random failure: the targeted failure popover (DemoButtons.tsx) */
+.demo-buttons {
+  position: relative;
+}
+.target-pop {
+  position: absolute;
+  z-index: 1300;
+  top: 100%;
+  left: 0;
+  right: 0;
+  min-width: 0;
+  margin-top: 4px;
+  padding: 8px 10px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  font-size: 12px;
+  white-space: normal;
+}
+.target-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.target-head .icon-btn {
+  padding: 2px;
+  min-height: 0;
+  border: none;
+  background: transparent;
+}
+.target-head .icon-btn svg {
+  width: 14px;
+  height: 14px;
+}
+.target-label {
+  margin: 6px 0 4px;
+  color: var(--text-2);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.target-units {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 168px;
+  overflow-y: auto;
+}
+.target-units button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 4px 6px;
+  margin-bottom: 2px;
+  font-size: 12px;
+  min-height: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: transparent;
+}
+.target-units button.on,
+.target-kinds button.on {
+  border-color: var(--accent);
+  background: rgba(79, 143, 247, 0.16);
+  color: var(--text);
+}
+.target-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.target-kinds button {
+  font-size: 12px;
+  padding: 3px 7px;
+  min-height: 0;
+}
+.target-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 10px;
+}
+.target-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 4px 10px;
+  min-height: 0;
+}
+.target-actions svg {
+  width: 13px;
+  height: 13px;
+}
+.target-empty {
+  margin: 4px 0;
+  color: var(--text-2);
+}
