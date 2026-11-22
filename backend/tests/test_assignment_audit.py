@@ -283,6 +283,34 @@ def test_doctor_car_added_and_busy_one_not_stolen():
     assert t2.doctor_vehicle_id != "D1" and "no doctor car free" in rec.summary, rec.summary
 
 
+# --- 6b. Follow-up: a faster free unit takes over a delayed unit's call, not a dispatcher's choice
+
+
+def test_followup_switches_delayed_unit_but_keeps_dispatcher_choice():
+    from app.engine import followup
+
+    for by_dispatcher in (False, True):
+        fresh()
+        out("H1", "A2")
+        rec, t = call(*near("home_moste"), "serious", "major_trauma")
+        first = t.vehicle_id
+        other = "A3" if first == "A1" else "A1"
+        if by_dispatcher:
+            units.note(W, t, first, "dispatcher's choice", by="dispatcher")
+        W.vehicles[first].busy_until = W.sim_time + timedelta(minutes=20)  # held up
+        W.vehicles[first].busy_reason = "delay"
+        o = W.vehicles[other]
+        o.lat, o.lon = W.places["home_moste"].lat + 0.01, W.places["home_moste"].lon
+        project_all(W)
+        done = followup._faster_free_unit(W, t)  # (check() runs it for calls with a 112 record)
+        print(f"  follow-up (dispatcher={by_dispatcher}):", done)
+        if by_dispatcher:
+            assert done is None and t.vehicle_id == first, done
+            done = followup._faster_free_unit(W, t, release_hold=True)  # a disruption pushed it back >= 3 min
+        assert done and t.vehicle_id == other and "sooner than" in done[1], done
+        no_double_booking()
+
+
 # --- 7. Determinism and consistency -------------------------------------------------------------
 
 
