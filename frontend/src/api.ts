@@ -414,8 +414,14 @@ export function useWorldState(world: World) {
       if (Date.now() - lastPollOk > 2 * POLL_MS) setConnected(false); // while polling works, stay "Connected"
     };
     es.onmessage = (msg) => {
+      let snap: WorldSnapshot;
+      try {
+        snap = JSON.parse(msg.data) as WorldSnapshot;
+      } catch {
+        return; // a malformed message: skip it (the poll takes over if the stream stays broken)
+      }
       lastStreamMsg = Date.now();
-      apply(JSON.parse(msg.data) as WorldSnapshot);
+      apply(snap);
     };
 
     const poll = async () => {
