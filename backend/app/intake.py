@@ -30,6 +30,7 @@ from .audit import AUDIT
 from .engine.candidates import nearest_place_name
 from .engine.events import apply_event
 from .engine.severity import CONDITIONS
+from .geo import haversine_km
 from .guard import GUARD
 from .models import CallRecord, EventRecord, UrgentRequestEvent
 from .sim import calls as gen
@@ -131,10 +132,14 @@ def resolve_address(state: WorldState, address: str) -> Location | None:
 
 
 def _map_point_label(state: WorldState, lat: float, lon: float) -> str:
-    """'Map point near Polje (3.5 km)', not 'Map point near 3.5 km from Polje'."""
-    name = nearest_place_name(state, lat, lon)
-    far = re.fullmatch(r"([\d.]+) km from (.+)", name)
-    return f"Map point near {far.group(2)} ({far.group(1)} km)" if far else f"Map point near {name}"
+    """'Map point near Polje (3.5 km)': the nearest named place (not an earlier call's location), not
+    'Map point near 3.5 km from Polje (call)'."""
+    named = [p for p in state.places.values() if p.kind not in ("call_location", "incident_site")]
+    if not named:
+        return f"Map point near {nearest_place_name(state, lat, lon)}"
+    p = min(named, key=lambda p: haversine_km(lat, lon, p.lat, p.lon))
+    km = haversine_km(lat, lon, p.lat, p.lon)
+    return f"Map point near {p.name}" if km < 0.3 else f"Map point near {p.name} ({km:.1f} km)"
 
 
 def resolve(state: WorldState, address: str | None, place_id: str | None, lat: float | None, lon: float | None) -> Location | None:

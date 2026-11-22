@@ -191,6 +191,8 @@ def test_unknown_address_is_refused_and_a_map_point_works():
     assert "km from" not in t.call.address, t.call.address  # "near Polje (3.5 km)", not "near 3.5 km from Polje"
     far = trip_of(post_call("Padel je s kolesa.", lat=46.10, lon=14.62))
     assert re.fullmatch(r"Map point near .+ \([\d.]+ km\)", far.call.address), far.call.address
+    again = trip_of(post_call("Padel je s kolesa.", lat=46.1002, lon=14.6202))  # next to the last call's location
+    assert again.call.address == far.call.address, (again.call.address, far.call.address)  # named after a place, not "(call)"
     body = post_call("Sum na kap, povešen ustni kot.", place_id="home_vic")
     assert trip_of(body).pickup_id == "home_vic" and trip_of(body).call.address == "Vič"
     body = post_call("Krči.", address="Celovška cesta 12, Šiška")  # an area's street: near the area
