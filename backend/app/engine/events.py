@@ -285,15 +285,22 @@ _path_tries: dict[tuple, int] = {}  # incident -> number of cached road routes w
 
 def fill_incident_paths(state: WorldState) -> None:
     """An incident reported where no road route ran yet (a map click, a scenario) gets its road
-    stretch as soon as one does (routing.road_stretch, from cached routes; looked up again only
-    when new routes have arrived). Stays None if no route ever passes it."""
-    n = len(ROADS.routes) + sum(len(d) for d in ROADS.detours.values())
+    stretch: from a cached road route as soon as one passes it (routing.road_stretch), else from
+    OSRM in the background (roads.RoadNetwork._fetch_segment). Looked up again only when new routes
+    or segments have arrived. Stays None if neither finds the road."""
+    n = len(ROADS.routes) + sum(len(d) for d in ROADS.detours.values()) + len(ROADS.segments)
     for inc in state.incidents.values():
         k = (state.name, inc.id, inc.created_at)
         if inc.active and inc.path is None and _path_tries.get(k) != n:
             _path_tries[k] = n
             half = inc.radius_m if is_jam(inc) else min(inc.radius_m, INCIDENT_PATH_MAX_HALF_M)
             inc.path = road_stretch(state, inc.lat, inc.lon, half)
+            if inc.path is None:
+                seg = ROADS.segment(inc.lat, inc.lon, half)
+                if seg is None:
+                    ROADS.want_segment(inc.lat, inc.lon, half)
+                elif seg:
+                    inc.path = seg
     if len(_path_tries) > 2000:
         _path_tries.clear()
 

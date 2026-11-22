@@ -201,6 +201,8 @@ class RoadNetwork:
         self.routes: dict[tuple[Key, Key], Route] = {}
         self.detours: dict[tuple[Key, Key], dict[Avoid, Route]] = {}  # leg -> closures avoided -> route
         self.detour_pause_until = 0.0
+        # The road stretch through a reported incident (for drawing it), from OSRM: [] = none found
+        self.segments: dict[tuple[Key, int], list[tuple[float, float]]] = {}
         self.matrix: dict[tuple[Key, Key], float] = {}  # free-flow seconds between places
         self.matrix_keys: frozenset[Key] = frozenset()
         self.queue: asyncio.PriorityQueue | None = None
@@ -258,6 +260,15 @@ class RoadNetwork:
         if ka != kb and avoid and self.detours_available() and avoid not in self.detours.get((ka, kb), {}):
             self._enqueue(0, ("detour", ka, kb, avoid))  # a vehicle may be waiting for it
 
+    def segment(self, lat: float, lon: float, half_m: float) -> list[tuple[float, float]] | None:
+        """The road stretch through (lat, lon) found by _fetch_segment: None = not looked up yet, [] = none."""
+        return self.segments.get((key(lat, lon), int(half_m)))
+
+    def want_segment(self, lat: float, lon: float, half_m: float) -> None:
+        k = (key(lat, lon), int(half_m))
+        if k not in self.segments:
+            self._enqueue(2, ("segment", *k))  # after routes vehicles are waiting for
+
     def want_matrix(self, points: list[tuple[float, float]]) -> None:
         keys = frozenset(key(lat, lon) for lat, lon in points)
         if len(keys) >= 2 and not keys <= self.matrix_keys:
@@ -274,6 +285,8 @@ class RoadNetwork:
                     await self._fetch_matrix(client, job_id[1])
                 elif job_id[0] == "detour":
                     await self._fetch_detour(client, job_id[1], job_id[2], job_id[3])
+                elif job_id[0] == "segment":
+                    await self._fetch_segment(client, job_id[1], job_id[2])
                 else:
                     await self._fetch_route(client, job_id[1], job_id[2])
                 on_update()
@@ -329,6 +342,52 @@ class RoadNetwork:
         best = data["routes"][0]
         pts = [(lat, lon) for lon, lat in best["geometry"]["coordinates"]]
         return make_route(float(best["duration"]), float(best["distance"]), pts, a, b, "osrm")
+
+    async def _fetch_segment(self, client: httpx.AsyncClient, k: Key, half_m: int) -> None:
+        """The road through an incident's point, half_m either way (to draw it along the road): OSRM
+        snaps the point to its street, then routes across it from half_m before to half_m after in a
+        few directions (N-S, E-W, the diagonals); the candidate that stays on that street and is
+        closest to a straight pass wins. Several OSRM requests, paced like the rest of the queue."""
+        r = await client.get(f"{OSRM_URL}/nearest/v1/driving/{k[1]},{k[0]}", params={"number": 1}, timeout=10)
+        r.raise_for_status()
+        points = r.json().get("waypoints") or []
+        if not points or points[0].get("distance", 999) > 80:
+            self.segments[(k, half_m)] = []
+            return
+        slon, slat = points[0]["location"]
+        street = (points[0].get("name") or "").strip()
+        reach = half_m * 1.3
+        best: list[tuple[float, float]] | None = None
+        best_len = 0.0
+        for bearing in (0, 180, 90, 270, 45, 225, 135, 315):  # both ways: one-way carriageways
+            await asyncio.sleep(REQUEST_PAUSE_S)
+            dlat = reach * math.cos(math.radians(bearing)) / 110_540
+            dlon = reach * math.sin(math.radians(bearing)) / (111_320 * math.cos(math.radians(slat)))
+            coords = f"{slon - dlon},{slat - dlat};{slon},{slat};{slon + dlon},{slat + dlat}"
+            r = await client.get(f"{OSRM_URL}/route/v1/driving/{coords}",
+                                 params={"overview": "full", "geometries": "geojson", "steps": "true"}, timeout=15)
+            if r.status_code != 200 or r.json().get("code") != "Ok":
+                continue
+            steps = [s for leg in r.json()["routes"][0].get("legs", []) for s in leg.get("steps", [])]
+            # The stretches of the route on the incident's street (side streets the ends snapped to dropped)
+            runs: list[list[tuple[float, float]]] = [[]]
+            for s in steps:
+                if street and s.get("name") != street:
+                    if runs[-1]:
+                        runs.append([])
+                    continue
+                runs[-1] += [(lat, lon) for lon, lat in (s.get("geometry") or {}).get("coordinates", [])]
+            for run in runs:
+                got = stretch_along(run, slat, slon, half_m, max_off_m=15)
+                if got is None:
+                    continue
+                length = sum(haversine_km(a[0], a[1], b[0], b[1]) for a, b in zip(got[0], got[0][1:])) * 1000
+                if length > best_len and length <= 2.4 * half_m:  # (longer: it loops back on itself)
+                    best, best_len = got[0], length
+            if best_len >= 1.8 * half_m:
+                break  # most of the stretch either way of the point
+        self.segments[(k, half_m)] = best if best and best_len >= 0.5 * half_m else []
+        self.stats["segments"] = self.stats.get("segments", 0) + 1
 
     async def _tomtom_route(self, client: httpx.AsyncClient, a: Key, b: Key) -> Route:
         from .fetchers import tomtom  # local import: tomtom depends on models only

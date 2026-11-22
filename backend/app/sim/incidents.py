@@ -53,6 +53,17 @@ JAM_RADIUS_M = 500
 JAM_CLEAR_M = JAM_RADIUS_M + 100
 JAM_DURATION_MIN = (20, 30)
 DELAY_MIN = (10, 25)
+TARGETED_DELAY_MIN = 10  # "delay" on a unit the presenter picked
+# Failures the presenter can aim at one unit (fog and a full hospital are not about one unit)
+TARGETED_KINDS = ("breakdown", "delay", "crash", "closure", "jam", "equipment")
+WHY_NOT_UNIT = {
+    "breakdown": "is not on its way to a patient or carrying one",
+    "delay": "is not on a job",
+    "crash": "is not driving a leg long enough for a crash ahead of it",
+    "closure": "is not driving a leg long enough for a closure ahead of it",
+    "jam": "is not driving a leg long enough for a traffic jam ahead of it",
+    "equipment": "is not a van with equipment on board",
+}
 WHY_NONE = {
     "crash": "no emergency unit is driving a long enough leg",
     "closure": "no emergency unit is driving a long enough leg",
@@ -115,10 +126,12 @@ def _point_on(path: list[tuple[float, float]], share: float) -> tuple[float, flo
     return path[-1]
 
 
-def _closure(state: WorldState, rng: random.Random, kind: str) -> Target | None:
+def _closure(state: WorldState, rng: random.Random, kind: str, only: str | None = None) -> Target | None:
+    # only: the unit the presenter picked (any road unit driving a job); else an emergency unit
     units = sorted(
         (v for v in state.vehicles.values()
-         if v.type in ("ambulance", "doctor") and v.status in ("to_pickup", "with_patient") and _trip(state, v) is not None),
+         if (v.id == only if only else v.type in ("ambulance", "doctor")) and not flies(v.type)
+         and v.status in ("to_pickup", "with_patient") and _trip(state, v) is not None),
         key=lambda v: (v.type != "ambulance", *_rank(state, v)),
     )
     jam = kind == "jam"
@@ -156,10 +169,12 @@ def _on_the_way(state: WorldState, v: Vehicle) -> bool:
     return t is not None and (v.status == "with_patient" or t.status in ("assigned", "en_route_pickup"))
 
 
-def _breakdown(state: WorldState, rng: random.Random) -> Target | None:
+def _breakdown(state: WorldState, rng: random.Random, only: str | None = None) -> Target | None:
     def ok(v: Vehicle) -> bool:
         if v.status == "out_of_service" or flies(v.type) or not _on_the_way(state, v):
             return False
+        if only:
+            return v.id == only and v.status != "loading"  # the picked unit, on its way or carrying a patient
         if v.type in ("ambulance", "doctor"):
             return v.status != "loading"  # not while treating on scene
         t = _job(state, v)
@@ -175,16 +190,17 @@ def _breakdown(state: WorldState, rng: random.Random) -> Target | None:
     return Target("breakdown", BreakdownEvent(type="breakdown", vehicle_id=v.id, note=note), v.id, job.id if job else None)
 
 
-def _delay(state: WorldState, rng: random.Random) -> Target | None:
+def _delay(state: WorldState, rng: random.Random, only: str | None = None) -> Target | None:
     units = sorted(
         (v for v in state.vehicles.values()
-         if v.type in ("ambulance", "transport") and v.status != "out_of_service" and (_on_the_way(state, v) or v.status == "loading")),
+         if (v.id == only and not flies(v.type) if only else v.type in ("ambulance", "transport"))
+         and v.status != "out_of_service" and (_on_the_way(state, v) or v.status == "loading")),
         key=lambda v: (v.type != "ambulance", v.status in ("loading", "with_patient"), *_rank(state, v)),
     )
     if not units:
         return None
     v = units[0]
-    minutes = rng.randint(*DELAY_MIN)
+    minutes = TARGETED_DELAY_MIN if only else rng.randint(*DELAY_MIN)
     note = rng.choice(["stuck behind a crash", "stuck in heavy traffic", "road works, single lane", "wrong turn, turning back"])
     job = _job(state, v)
     return Target("delay", DelayEvent(type="delay", vehicle_id=v.id, minutes=minutes, note=note), v.id, job.id if job else None)
@@ -217,10 +233,10 @@ def _capacity(state: WorldState, rng: random.Random) -> Target | None:
     return Target("capacity", ev, t.vehicle_id, t.id, "dispatcher")
 
 
-def _equipment(state: WorldState, rng: random.Random) -> Target | None:
+def _equipment(state: WorldState, rng: random.Random, only: str | None = None) -> Target | None:
     for v in state.vehicles.values():
         t = _trip(state, v)
-        if v.type == "transport" and t is not None and t.kind == "equipment" and t.status == "onboard" and v.status != "out_of_service":
+        if (not only or v.id == only) and v.type == "transport" and t is not None and t.kind == "equipment" and t.status == "onboard" and v.status != "out_of_service":
             note = f"engine failure with {t.cargo or 'equipment'} on board"
             return Target("equipment", BreakdownEvent(type="breakdown", vehicle_id=v.id, note=note), v.id, t.id)
     return None
@@ -236,6 +252,34 @@ FINDERS = {
     "capacity": _capacity,
     "equipment": _equipment,
 }
+# The same, aimed at one unit (the presenter's pick): (state, rng, vehicle id)
+UNIT_FINDERS = {
+    "crash": lambda s, r, vid: _closure(s, r, "crash", vid),
+    "closure": lambda s, r, vid: _closure(s, r, "closure", vid),
+    "jam": lambda s, r, vid: _closure(s, r, "jam", vid),
+    "breakdown": _breakdown,
+    "delay": _delay,
+    "equipment": _equipment,
+}
+
+
+def pick_for_unit(state: WorldState, rng: random.Random, vehicle_id: str, kind: str | None = None) -> tuple[Target | None, str]:
+    """A failure aimed at one unit (the targeted failure): the asked-for kind, or with none the first
+    that fits it (breakdown, delay, crash, ...). No other unit and no other kind is chosen instead:
+    (None, why) when it does not fit this unit."""
+    v = state.vehicles.get(vehicle_id)
+    if v is None:
+        return None, f"Unknown unit {vehicle_id}"
+    if kind is not None and kind not in UNIT_FINDERS:
+        return None, f"A {kind} is not about one unit: use Random failure"
+    if v.status == "out_of_service":
+        return None, f"{v.id} is out of service"
+    for k in [kind] if kind else list(TARGETED_KINDS):
+        if (t := UNIT_FINDERS[k](state, rng, v.id)) is not None:
+            return t, ""
+    if kind:
+        return None, f"No {kind} possible for {v.id}: it {WHY_NOT_UNIT[kind]}"
+    return None, f"Nothing to inject for {v.id}: it is not on a job"
 
 
 def pick(state: WorldState, rng: random.Random, kind: str | None = None) -> tuple[Target | None, str]:

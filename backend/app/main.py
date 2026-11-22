@@ -588,17 +588,34 @@ async def random_call(req: RandomCallRequest | None = None, state: WorldState = 
 
 class RandomIncidentRequest(BaseModel):
     kind: Literal["crash", "closure", "jam", "fog", "breakdown", "delay", "capacity", "equipment"] | None = None
+    vehicle_id: str | None = None  # the targeted failure: aimed at this unit (route kinds: ahead on its route)
+    trip_id: str | None = None  # ... or at the unit of this call
 
 
 @router.post("/admin/random-incident")
 def random_incident(req: RandomIncidentRequest | None = None, state: WorldState = World) -> dict:
     """Demo: a disruption that hits current operations (sim/incidents.py), applied through the normal
     event path. The event's payload names the unit hit (vehicle_id) and its call comes first in
-    affected_trip_ids. 409 when nothing is happening to disrupt. Simulation only."""
+    affected_trip_ids. 409 when nothing is happening to disrupt. Simulation only.
+    With vehicle_id (or trip_id: its unit) the failure is aimed at that unit: breakdown, delay (10 min),
+    crash/closure/jam ahead on its route, equipment; 409 with the reason when it does not fit the unit."""
     if not state.hypothetical:
         raise HTTPException(status_code=400, detail="Demo incidents run in the simulation, not in live mode")
     project_all(state)
-    target, note = incidents.pick(state, state.calls.text_rng, req.kind if req else None)
+    vehicle_id = req.vehicle_id if req else None
+    if req and req.trip_id and not vehicle_id:
+        trip = state.trips.get(req.trip_id)
+        if trip is None:
+            raise HTTPException(status_code=404, detail=f"Unknown call {req.trip_id}")
+        vehicle_id = trip.vehicle_id
+        if vehicle_id is None:
+            raise HTTPException(status_code=409, detail=f"{req.trip_id} has no unit yet")
+    if vehicle_id:
+        if vehicle_id not in state.vehicles:
+            raise HTTPException(status_code=404, detail=f"Unknown unit {vehicle_id}")
+        target, note = incidents.pick_for_unit(state, state.calls.text_rng, vehicle_id, req.kind if req else None)
+    else:
+        target, note = incidents.pick(state, state.calls.text_rng, req.kind if req else None)
     if target is None:
         raise HTTPException(status_code=409, detail=note)
     try:

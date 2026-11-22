@@ -654,6 +654,41 @@ def test_random_jam_slows_and_clears():
     assert not is_jam(live)
 
 
+def test_targeted_failure():
+    """The presenter picks the unit (or its call) and the failure: only that unit is hit; 409 with the
+    reason when the failure does not fit it; fog/hospital full are not about one unit."""
+    fresh()
+    t = trip_of(post_call("Prometna nesreča, voznik je ukleščen.", address="Ižanska cesta 80, Rudnik"))
+    unit = W.vehicles[t.vehicle_id]
+    assert run(3, until=lambda: unit.status == "to_pickup" and unit.busy_until is None and unit.path_to is not None)
+    doctor = t.doctor_vehicle_id
+    assert doctor
+    # A jam ahead on the doctor car's route (not the ambulance's, which the plain button would pick)
+    r = client.post("/sim/admin/random-incident", json={"kind": "jam", "vehicle_id": doctor})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["kind"] == "jam" and body["event"]["payload"]["vehicle_id"] == doctor, body
+    inc = next(reversed(W.incidents.values()))
+    assert crosses(W, W.vehicles[doctor], inc), "placed on the picked unit's route"
+    # Delay by the call: its unit, 10 min
+    r = client.post("/sim/admin/random-incident", json={"kind": "delay", "trip_id": t.id})
+    assert r.status_code == 200 and r.json()["event"]["payload"] == {**r.json()["event"]["payload"], "vehicle_id": unit.id, "minutes": 10}, r.text
+    # Not possible for this unit: 409 with the reason, and nothing else is hit instead
+    idle = next(v for v in W.vehicles.values()
+                if v.type == "ambulance" and v.status == "idle" and not v.queue and not v.current_trip_id)
+    n = len(W.events)
+    r = client.post("/sim/admin/random-incident", json={"kind": "breakdown", "vehicle_id": idle.id})
+    assert r.status_code == 409 and idle.id in r.json()["detail"] and len(W.events) == n, r.text
+    unit = W.vehicles[t.vehicle_id]  # (the delay may have handed the call to a free unit that is clearly faster)
+    r = client.post("/sim/admin/random-incident", json={"kind": "equipment", "vehicle_id": unit.id})
+    assert r.status_code == 409 and "equipment" in r.json()["detail"], r.text
+    assert client.post("/sim/admin/random-incident", json={"kind": "fog", "vehicle_id": unit.id}).status_code == 409
+    assert client.post("/sim/admin/random-incident", json={"vehicle_id": "NOPE"}).status_code == 404
+    # A breakdown of the picked unit: its call is re-dispatched
+    r = client.post("/sim/admin/random-incident", json={"kind": "breakdown", "vehicle_id": unit.id})
+    assert r.status_code == 200 and unit.status == "out_of_service" and t.vehicle_id != unit.id, r.text
+
+
 def test_incident_drawn_along_its_road():
     """An incident's path: the stretch of a road route around its point (2 x radius, capped)."""
     from app.roads import stretch_along
