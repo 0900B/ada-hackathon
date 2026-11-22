@@ -2,7 +2,15 @@
 __pycache__/
 *.pyc
 .env
+.env.*
+!.env.example
 .DS_Store
+Thumbs.db
+*.log
+.pytest_cache/
+*.tsbuildinfo
+.idea/
+.vscode/
 node_modules/
 dist/
 .playwright-mcp/
