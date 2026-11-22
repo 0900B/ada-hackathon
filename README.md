@@ -10,7 +10,7 @@ It is built for a **fictional independent EMS operator, "Ljubljana Demo EMS"**. 
 
 The fleet, the crews and the 112 calls are **simulated** (synthetic, no real patient data). Weather, traffic, incidents and road routes come from real providers (with fallbacks), the same in both worlds. Details in [Limits and next steps](#limits-and-next-steps).
 
-[Demo script](DEMO.md) · [Pitch notes](docs/PITCH_NOTES.md) · [Architecture](#architecture) · [Run it](#run-it) · [Documentation index](#documentation-index)
+**Live app:** [frontend-tau-rust-6kpoiztcvd.vercel.app](https://frontend-tau-rust-6kpoiztcvd.vercel.app/live) · [Demo script](DEMO.md) · [Pitch notes](docs/PITCH_NOTES.md) · [Architecture](#architecture) · [Run it](#run-it) · [Documentation index](#documentation-index)
 
 ---
 
