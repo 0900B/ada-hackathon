@@ -237,7 +237,8 @@ def build_case(state: WorldState, trip: Trip, entries: list[ClinicalEntry]) -> d
         "acknowledged": any(e.type == "er_action" and e.content.get("action") == "acknowledge" for e in live),
         "bay": _bay(live),
         "teams_activated": _teams(live),
-        "handover": handover_timer(state, arrived, _latest(live, "handover")),
+        # a unit that declared itself free has finished the handover, even if no handover entry was recorded
+        "handover": handover_timer(state, arrived, _latest(live, "handover") or _latest(live, "free")),
         "suggested_actions": [],  # filled below, from the card itself
         "alert_ids": [],  # filled below, from the alerts of this one case
     }

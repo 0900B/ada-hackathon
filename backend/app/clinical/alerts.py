@@ -47,6 +47,7 @@ TEAM_BY_EVENT: dict[str, tuple[str, str]] = {
 _ARRIVED = frozenset(config.STAGES[config.STAGES.index("NA CILJU"):])  # NA CILJU and everything after
 _BEFORE_ARRIVAL = frozenset(config.STAGES[: config.STAGES.index("NA CILJU")])
 _ONBOARD = ("PRI PACIENTU", "S KRAJA")
+_HANDED_OVER = frozenset({"PREDAJA PACIENTA", "PROST"})  # the patient is with the ER team: nothing left to alert or suggest
 
 
 # --- Small helpers -----------------------------------------------------------------------------
@@ -89,11 +90,13 @@ def _reading_time(state: WorldState, reading: dict[str, Any]) -> datetime:
 # --- Handover timer ----------------------------------------------------------------------------
 
 def handover_timer(state: WorldState, arrived_at: datetime | None, handover_entry: ClinicalEntry | None) -> dict[str, Any] | None:
-    """The 15-minute handover clock, from arrival until a handover entry is recorded.
+    """The 15-minute handover clock, from arrival until a handover entry (or a free one) is recorded.
 
     None while the patient has not (yet) been marked arrived: a handover or free entry can move the
     stage before the engine marks the trip completed, and then there is no arrival to count from.
     Once handed over `done_at` is set, `minutes_left` is None and the clock is no longer overdue.
+    The caller passes the handover entry, or the free entry when there is none (a unit that reports
+    itself free has finished the handover).
     """
     if arrived_at is None:
         return None
@@ -167,6 +170,8 @@ def _no_vitals(state: WorldState, card: dict[str, Any]) -> dict[str, Any] | None
 
 
 def _case_alerts(state: WorldState, card: dict[str, Any]) -> list[dict[str, Any]]:
+    if card["stage"] in _HANDED_OVER:  # derived on read, nothing is written; the facts stay on the card
+        return []
     now = state.sim_time
     found: list[dict[str, Any] | None] = []
     for rule, severity, messages in EVENT_RULES:
@@ -211,7 +216,11 @@ def compute_alerts(state: WorldState, cards: list[dict[str, Any]]) -> list[dict[
 # --- Suggested actions -------------------------------------------------------------------------
 
 def suggested_actions(card: dict[str, Any]) -> list[dict[str, Any]]:
-    """What reception might do next for this case, from the card alone. Never recorded: the ER decides."""
+    """What reception might do next for this case, from the card alone. Never recorded: the ER decides.
+
+    Nothing once the patient is handed over (stage PREDAJA PACIENTA or PROST): there is no bay or team to arrange."""
+    if card["stage"] in _HANDED_OVER:
+        return []
     actions: list[dict[str, Any]] = []
     if not card["acknowledged"] and card["stage"] not in _ARRIVED:
         actions.append({"action": "acknowledge", "reason": "The patient is on the way and reception has not acknowledged the case"})

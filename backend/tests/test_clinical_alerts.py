@@ -309,6 +309,32 @@ def test_handover_timer_runs_15_minutes_then_overdue_then_stops_on_handover():
     assert "handover_overdue" not in rules_of(w, t) and card_of(w, t)["alert_ids"] == []
 
 
+def test_a_free_entry_alone_finishes_the_handover_clock():  # final review F2: free implies handover is over
+    w = fresh_world()
+    t = er_trip(w)
+    arrive_naturally(w, t)
+    drive(w, 16)
+    assert card_of(w, t)["handover"]["overdue"] is True and "handover_overdue" in rules_of(w, t)
+    freed = rec(w, t, type="free", content={"note": "unit free"})  # no handover entry was ever recorded
+    c = card_of(w, t)
+    assert c["stage"] == "PROST"
+    h = c["handover"]
+    assert h["done_at"] == freed.observed_t.isoformat() and h["minutes_left"] is None and h["overdue"] is False
+    assert h["started_at"] == t.eta_dropoff.isoformat()
+    assert "handover_overdue" not in rules_of(w, t)
+
+
+def test_a_handover_entry_wins_over_a_later_free_entry_for_the_clock():
+    w = fresh_world()
+    t = er_trip(w)
+    arrive_naturally(w, t)
+    drive(w, 2)
+    handed = rec(w, t, type="handover", content={"note": "handed over"})
+    drive(w, 3)
+    rec(w, t, type="free", content={"note": "unit free"})
+    assert card_of(w, t)["handover"]["done_at"] == handed.observed_t.isoformat()  # the earlier, real handover time
+
+
 def test_handover_timer_function_reports_minutes_left_and_overdue():
     w = fresh_world()
     arrived = w.sim_time - timedelta(minutes=5)
@@ -345,6 +371,48 @@ def test_handover_before_the_engine_marks_arrival_has_no_timer_and_no_alert():  
     rec(w, t, type="free", content={"note": "unit free"})
     c = card_of(w, t)
     assert c["stage"] == "PROST" and c["handover"] is None and "handover_overdue" not in rules_of(w, t)
+
+
+# --- A handed-over case no longer alerts (final review F1) -------------------------------------
+
+def test_a_handed_over_or_free_case_has_no_alerts_and_no_suggestions():
+    for closing in ("handover", "free"):
+        w = fresh_world()
+        t = er_trip(w)
+        event(w, t, "arrest")
+        rec(w, t, content={"spo2": 80})
+        before = card_of(w, t)
+        assert {"arrest", "vitals_out_of_limits"} <= rules_of(w, t) and before["alert_ids"] and before["suggested_actions"]
+        arrive_naturally(w, t)
+        arrived = card_of(w, t)
+        assert arrived["stage"] == "NA CILJU"  # the rule is not simply off: an arrived case still alerts and suggests
+        assert {"arrest", "vitals_out_of_limits"} <= rules_of(w, t) and arrived["alert_ids"] and arrived["suggested_actions"]
+
+        inbound = er_trip(w, pickup="home_vic")  # a new case on its way, with a (medium) alert of its own
+        inbound.eta_dropoff = w.sim_time + timedelta(minutes=config.ARRIVING_UNACKED_MIN - 2)
+        assert "arriving_unacknowledged" in rules_of(w, inbound)
+        n = len(get_log(w))
+        rec(w, t, type=closing, content={"note": "done"})
+        c = card_of(w, t)
+        assert c["stage"] == ("PREDAJA PACIENTA" if closing == "handover" else "PROST")
+        assert alerts_of(w, t) == [] and c["alert_ids"] == [] and c["suggested_actions"] == [], closing
+        assert len(get_log(w)) == n + 1  # derived on read: only the entry itself was written, nothing for the suppression
+        assert c["events"] and c["vitals"]["spo2"]["value"] == 80  # the facts stay on the card, only the alerts stop
+
+        board_alerts = board(w)["alerts"]  # the new inbound alert is now the first on the board, not the old critical one
+        assert board_alerts and board_alerts[0]["case_id"] == inbound.id
+        assert all(a["case_id"] != t.id for a in board_alerts)
+        assert compute_alerts(w, [c]) == [] and suggested_actions(c) == []
+
+
+def test_a_case_handed_over_before_the_engine_marks_arrival_stops_alerting_too():
+    w = fresh_world()
+    t = er_trip(w)
+    event(w, t, "arrest")
+    rec(w, t, content={"spo2": 80})
+    assert t.status != "completed" and "arrest" in rules_of(w, t)  # onboard or on the way: still alerts
+    rec(w, t, type="handover", content={"note": "handed over early"})
+    assert alerts_of(w, t) == [] and card_of(w, t)["suggested_actions"] == []
 
 
 # --- No vitals ---------------------------------------------------------------------------------
