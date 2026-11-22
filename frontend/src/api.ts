@@ -38,6 +38,11 @@ export interface Vehicle {
   queue: string[];
   busy_until: string | null;
   grounded_until?: string | null; // helicopters: grounded by fog until then (no new flights)
+  // Helicopter (HNMP, daytime only; backend app/hems.py): off duty at night until then (no new calls)
+  off_duty_until?: string | null;
+  unavailable?: "night" | "fog" | null;
+  unavailable_text?: string | null; // English, e.g. "Unavailable (night): flies 08:00-16:30, available 08:00"
+  hours?: string | null; // flying hours, "08:00-16:30"
   waiting_until?: string | null; // standing at a pickup until the patient is ready
   on_road: boolean;
   path_progress: number;

@@ -20,9 +20,10 @@ import {
   type Alternative,
   type WorldSnapshot,
 } from "./api";
-import { badgesOf, BY_SHORT, isClaude, sourceText, STEP_LABEL, type Badge, type CallView, type CaseUnit } from "./calls";
+import { badgesOf, BY_SHORT, callStatusLabel, isClaude, sourceText, STEP_LABEL, type Badge, type CallView, type CaseUnit } from "./calls";
 import { DoctorTag } from "./DoctorTag";
 import { fmtTime } from "./format";
+import { t as tx, useLang, useT, type TKey } from "./i18n";
 import { VehicleTypeIcon } from "./icons";
 import { TimeWeight } from "./SeverityBadge";
 import { conditionText, LEVEL_LABEL, levelOf, modifierLabel, timeWeight } from "./severity";
@@ -49,17 +50,16 @@ interface OverrideTarget {
   unit: CaseUnit | null;
 }
 
-const ADD_ROLES = [
-  { role: "doctor", label: "Doctor car" },
-  { role: "helicopter", label: "Helicopter (doctor on board)" },
-  { role: "ambulance", label: "Second ambulance" },
-];
+/** A menu role whose label follows the UI language. */
+const roleItem = (role: string, key: TKey) => ({
+  role,
+  get label() {
+    return tx(key);
+  },
+});
+const ADD_ROLES = [roleItem("doctor", "ai.role.doctor"), roleItem("helicopter", "ai.role.heliDoctor"), roleItem("ambulance", "ai.role.secondAmbulance")];
 // A case without a unit yet: the dispatcher assigns one (instead of waiting for the AI)
-const ASSIGN_ROLES = [
-  { role: "ambulance", label: "Ambulance" },
-  { role: "transport", label: "Transport van" },
-  { role: "helicopter", label: "Helicopter" },
-];
+const ASSIGN_ROLES = [roleItem("ambulance", "ai.role.ambulance"), roleItem("transport", "ai.role.transport"), roleItem("helicopter", "ai.role.helicopter")];
 
 /**
  * One case as an incident sheet: what it is and its status, where, what is happening (the caller's
@@ -97,10 +97,12 @@ export function CaseCard({
   notify: Notify;
   refCb: (el: HTMLElement | null) => void;
 }) {
-  const t = c.trip;
-  const level = levelOf(t);
-  const cond = conditionText(t);
-  const w = timeWeight(t);
+  const t = useT();
+  const lang = useLang();
+  const trip = c.trip;
+  const level = levelOf(trip);
+  const cond = conditionText(trip);
+  const w = timeWeight(trip);
   const [busy, setBusy] = useState(false);
   const [tlOpen, setTlOpen] = useState(false);
   const [override, setOverride] = useState<OverrideTarget | null>(null);
@@ -123,7 +125,7 @@ export function CaseCard({
     setBusy(true);
     try {
       await approveOption(state.world, run.id, run.recommendation.recommended_index);
-      notify("ok", `Approved ${run.id}: ${run.recommendation.options[run.recommendation.recommended_index]?.title ?? ""}`);
+      notify("ok", t("ai.case.approvedToast", { id: run.id, title: run.recommendation.options[run.recommendation.recommended_index]?.title ?? "" }));
     } catch (e) {
       notify("error", e instanceof Error ? e.message : String(e));
     } finally {
@@ -133,7 +135,14 @@ export function CaseCard({
 
   const first = c.units[0];
   const badges = badgesOf(c);
-  const hasDoctor = c.units.some((u) => u.role === "doctor" || (u.role === "helicopter" && u.id === t.doctor_vehicle_id));
+  const hasDoctor = c.units.some((u) => u.role === "doctor" || (u.role === "helicopter" && u.id === trip.doctor_vehicle_id));
+  // The caller's words: both languages, the UI language first
+  const words = [
+    { lang: "sl", text: c.textSl },
+    { lang: "en", text: c.textEn && c.textEn !== c.textSl ? c.textEn : null },
+  ].filter((x): x is { lang: string; text: string } => Boolean(x.text));
+  if (lang === "en") words.reverse();
+  const wordsFirst = words[0]?.lang;
   const noUnit = c.units.length === 0;
   const addRoles = noUnit
     ? ASSIGN_ROLES
@@ -145,19 +154,19 @@ export function CaseCard({
       className={`case lvl-${level}${open ? " open" : ""}${selected ? " selected" : ""}${isNew ? " case-new" : ""}${c.status === "waiting" ? " waiting" : ""}${done ? " done" : ""}`}
       ref={refCb}
     >
-      <button className="case-head" onClick={onToggle} aria-expanded={open} title={open ? "Collapse" : "Open the case and show its units on the map"}>
+      <button className="case-head" onClick={onToggle} aria-expanded={open} title={open ? t("ai.case.collapse") : t("ai.case.open")}>
         <span className="case-title">
           <span className="case-level">{LEVEL_LABEL[level]}</span>
           {cond && <span className="case-cond">· {cond}</span>}
           {w != null && <TimeWeight w={w} />}
-          <span className={`case-status ${STATUS_CLASS[c.status] ?? ""}`}>{c.status}</span>
+          <span className={`case-status ${STATUS_CLASS[c.status] ?? ""}`}>{callStatusLabel(c.status)}</span>
         </span>
         <span className="case-meta">
           {open ? <ChevronDown /> : <ChevronRight />}
           <span className="case-id">{c.id}</span>
           <span>{fmtTime(c.received)}</span>
-          {c.kind === "hospital_request" && <span className="call-kind">Hospital request</span>}
-          {proposal && !open && <span className="case-flag">AI proposal waiting</span>}
+          {c.kind === "hospital_request" && <span className="call-kind">{t("ai.case.hospitalRequest")}</span>}
+          {proposal && !open && <span className="case-flag">{t("ai.case.proposalWaiting")}</span>}
         </span>
         {!open && (
           <span className="case-sum">
@@ -165,10 +174,10 @@ export function CaseCard({
             {first ? (
               <span className="case-sum-unit">
                 {first.id} {first.eta ? `${first.etaLabel} ${fmtTime(first.eta)}` : first.etaLabel}
-                {c.units.length > 1 ? ` · +${c.units.length - 1} unit${c.units.length > 2 ? "s" : ""}` : ""}
+                {c.units.length > 1 ? t("ai.case.moreUnits", { count: c.units.length - 1 }) : ""}
               </span>
             ) : (
-              !done && <span className="case-sum-unit bad">No unit yet</span>
+              !done && <span className="case-sum-unit bad">{t("ai.case.noUnit")}</span>
             )}
           </span>
         )}
@@ -179,34 +188,32 @@ export function CaseCard({
       {open && (
         <div className="case-body">
           <section className="case-sec">
-            <h4>Where</h4>
+            <h4>{t("ai.case.where")}</h4>
             <div className="case-where">
               <div>
                 <div className="case-address">{c.address}</div>
-                {c.caller && <div className="muted small">{c.kind === "hospital_request" ? "Requested by" : "Caller"}: {c.caller}</div>}
+                {c.caller && (
+                  <div className="muted small">
+                    {t(c.kind === "hospital_request" ? "ai.case.requestedBy" : "ai.case.caller")}: {c.caller}
+                  </div>
+                )}
               </div>
-              <button className="sm" onClick={onShowOnMap} title="Centre the map on the patient and blink the call marker">
-                <MapPin /> On map
+              <button className="sm" onClick={onShowOnMap} title={t("ai.case.onMapTitle")}>
+                <MapPin /> {t("ai.case.onMap")}
               </button>
             </div>
           </section>
 
           <section className="case-sec">
-            <h4>What's happening</h4>
-            {(c.textSl || c.textEn) && (
+            <h4>{t("ai.case.what")}</h4>
+            {words.length > 0 && (
               <blockquote className="call-words">
-                {c.textSl && (
-                  <div>
-                    <span className="lang-tag">SL</span>
-                    {c.textSl}
+                {words.map((x) => (
+                  <div key={x.lang} className={x.lang === wordsFirst ? undefined : "muted"}>
+                    <span className="lang-tag">{x.lang.toUpperCase()}</span>
+                    {x.text}
                   </div>
-                )}
-                {c.textEn && c.textEn !== c.textSl && (
-                  <div className="muted">
-                    <span className="lang-tag">EN</span>
-                    {c.textEn}
-                  </div>
-                )}
+                ))}
               </blockquote>
             )}
             <TriageLine c={c} />
@@ -214,10 +221,10 @@ export function CaseCard({
 
           <section className="case-sec">
             <h4>
-              Units
-              <DoctorTag trip={t} vehicles={state.vehicles} now={state.sim_time} />
+              {t("ai.case.units")}
+              <DoctorTag trip={trip} vehicles={state.vehicles} now={state.sim_time} />
             </h4>
-            {c.units.length === 0 && !done && <div className="case-nounit">No unit yet: the AI dispatcher keeps looking for one</div>}
+            {c.units.length === 0 && !done && <div className="case-nounit">{t("ai.case.noUnitLooking")}</div>}
             {c.units.map((u) => (
               <UnitTile
                 key={u.id}
@@ -252,11 +259,13 @@ export function CaseCard({
             {proposal?.recommendation && (
               <div className="case-proposal">
                 <div>
-                  <span className={`src-tag ${proposal.engine === "claude" ? "claude" : "rules"}`}>{proposal.engine === "claude" ? "Claude" : "Rules engine"}</span>{" "}
-                  <strong>AI proposes:</strong> {proposal.recommendation.options[proposal.recommendation.recommended_index]?.title}
+                  <span className={`src-tag ${proposal.engine === "claude" ? "claude" : "rules"}`}>
+                    {proposal.engine === "claude" ? "Claude" : t("ai.case.rulesEngine")}
+                  </span>{" "}
+                  <strong>{t("ai.case.aiProposes")}</strong> {proposal.recommendation.options[proposal.recommendation.recommended_index]?.title}
                 </div>
                 <button className="approve primary sm" disabled={busy} onClick={() => void approve()}>
-                  <Check /> Approve
+                  <Check /> {t("ai.case.approve")}
                 </button>
               </div>
             )}
@@ -264,7 +273,7 @@ export function CaseCard({
               <div className="case-add">
                 <div className="split">
                   <button className="sm" onClick={() => setAddOpen((o) => !o)} aria-haspopup="menu" aria-expanded={addOpen}>
-                    <Plus /> {noUnit ? "Assign a unit" : "Add unit"} <ChevronDown />
+                    <Plus /> {t(noUnit ? "ai.case.assignUnit" : "ai.case.addUnit")} <ChevronDown />
                   </button>
                   {addOpen && (
                     <AddMenu
@@ -301,7 +310,7 @@ export function CaseCard({
             {result && (
               <div className="case-result">
                 <Check /> <span>{result}</span>
-                <button className="link" onClick={() => setResult(null)} aria-label="Dismiss">
+                <button className="link" onClick={() => setResult(null)} aria-label={t("common.dismiss")}>
                   <X />
                 </button>
               </div>
@@ -312,7 +321,7 @@ export function CaseCard({
 
           <section className="case-sec case-tl-sec">
             <button className="link case-tl-toggle" onClick={() => setTlOpen((o) => !o)} aria-expanded={tlOpen}>
-              {tlOpen ? <ChevronDown /> : <ChevronRight />} Timeline ({c.timeline.length} {c.timeline.length === 1 ? "step" : "steps"})
+              {tlOpen ? <ChevronDown /> : <ChevronRight />} {t("ai.case.timeline", { count: c.timeline.length })}
             </button>
             {tlOpen && (
               <ol className="case-tl">
@@ -323,7 +332,7 @@ export function CaseCard({
                     <span className={`tl-by by-${isClaude(e.by) ? "ai" : e.by}`}>{BY_SHORT[e.by] ?? e.by}</span>
                     <span className="tl-text">
                       {e.vehicle_id && (
-                        <button className="link tl-unit" onClick={() => onSelectVehicle(e.vehicle_id!, true)} title={`Open ${e.vehicle_id}'s vehicle card`}>
+                        <button className="link tl-unit" onClick={() => onSelectVehicle(e.vehicle_id!, true)} title={t("ai.case.openVehicle", { id: e.vehicle_id })}>
                           {e.vehicle_id}
                         </button>
                       )}
@@ -334,7 +343,7 @@ export function CaseCard({
                 {!done && (
                   <li className="tl-next muted">
                     <span className="tl-time">…</span>
-                    <span className="tl-step">{c.status}</span>
+                    <span className="tl-step">{callStatusLabel(c.status)}</span>
                   </li>
                 )}
               </ol>
@@ -348,33 +357,40 @@ export function CaseCard({
 
 /** The AI's triage: who classified it, level and condition, the reason, case modifiers. */
 function TriageLine({ c }: { c: CallView }) {
-  const t = c.trip;
+  const t = useT();
+  const lang = useLang();
+  const trip = c.trip;
   const by = c.triageBy;
   if (c.kind === "hospital_request" && !c.reasonEn) {
-    return <div className="case-triage muted small">Hospital request: graded {LEVEL_LABEL[levelOf(t)].toLowerCase()} by the request, no triage needed</div>;
+    const level = LEVEL_LABEL[levelOf(trip)];
+    return <div className="case-triage muted small">{t("ai.triage.hospital", { level: lang === "en" ? level.toLowerCase() : level })}</div>;
   }
-  const label = by === "dispatcher" ? "Dispatcher" : isClaude(by) ? "AI triage · Claude" : by === "rules" ? "AI triage · rules" : "Triage";
+  const label =
+    by === "dispatcher" ? t("ai.triage.dispatcher") : isClaude(by) ? t("ai.triage.claude") : by === "rules" ? t("ai.triage.rules") : t("ai.triage.plain");
   const src = by === "dispatcher" ? "dispatcher" : isClaude(by) ? "claude" : "rules";
-  const mods = t.modifiers ?? [];
+  const mods = trip.modifiers ?? [];
   // "Catastrophic bleeding: rapid loss of …" after "Critical · Catastrophic bleeding": drop the repeat
-  const condLabel = conditionText(t);
-  let why = c.reasonEn?.trim() ?? "";
+  // (the backend's reason comes in both languages: the Slovenian one starts with the Slovenian label)
+  const condLabel = conditionText(trip);
+  let why = ((lang === "sl" ? c.reasonSl : null) ?? c.reasonEn)?.trim() ?? "";
   if (condLabel && why.toLowerCase().startsWith(`${condLabel.toLowerCase()}:`)) why = why.slice(condLabel.length + 1).trim();
+  // Slovenian: the backend's label can differ a little from ours ("Huda težka sapa"): drop a short "Label:" head too
+  else if (lang === "sl" && trip.condition) why = why.replace(/^[^:.]{2,40}:\s+/, "");
   return (
-    <div className="case-triage" title={`Classified by ${sourceText(by, c.triageDetail)}`}>
+    <div className="case-triage" title={t("ai.triage.classifiedBy", { source: sourceText(by, c.triageDetail) })}>
       <span className={`src-tag ${src}`}>{label}</span>
       <span className="case-triage-text">
         <strong>
-          {LEVEL_LABEL[levelOf(t)]}
-          {conditionText(t) ? ` · ${conditionText(t)}` : ""}
+          {LEVEL_LABEL[levelOf(trip)]}
+          {condLabel ? ` · ${condLabel}` : ""}
         </strong>
         {why ? <span className="case-triage-why">: {why}</span> : null}
       </span>
-      {(mods.length > 0 || t.needs_doctor || c.trip.call?.triage?.needs_doctor) && (
+      {(mods.length > 0 || trip.needs_doctor || c.trip.call?.triage?.needs_doctor) && (
         <span className="case-mods">
-          {(t.needs_doctor || c.trip.call?.triage?.needs_doctor) && (
+          {(trip.needs_doctor || c.trip.call?.triage?.needs_doctor) && (
             <span className="mod-tag doctor">
-              <Stethoscope /> Doctor needed
+              <Stethoscope /> {t("ai.doctorNeeded")}
             </span>
           )}
           {mods.map((m) => (
@@ -389,8 +405,9 @@ function TriageLine({ c }: { c: CallView }) {
 }
 
 export function Badges({ badges }: { badges: Badge[] }) {
+  const t = useT();
   return (
-    <div className="case-badges" aria-label="Who did what">
+    <div className="case-badges" aria-label={t("ai.case.whoDidWhat")}>
       {badges.map((b) => (
         <span key={b.key} className={`who-badge ${b.tone}`} title={b.title}>
           {b.check && <Check />}
@@ -421,12 +438,16 @@ function UnitTile({
   onSelect: () => void;
   children?: ReactNode;
 }) {
+  const t = useT();
   const left = minsUntil(u.eta, state.sim_time);
-  const who = u.by === "dispatcher" ? "Dispatcher" : "AI";
+  const who = u.by === "dispatcher" ? t("ai.unit.dispatcher") : t("ai.unit.ai");
+  const decided = u.assignedAt
+    ? t("ai.unit.decidedByAt", { source: u.source, time: fmtTime(u.assignedAt) })
+    : t("ai.unit.decidedBy", { source: u.source });
   return (
     <div className={`unit-tile role-${u.role} ph-${u.phase}${overriding ? " overriding" : ""}`}>
       <div className="ut-head">
-        <button className="link ut-id" onClick={onSelect} title={`${u.name}: open the vehicle card`}>
+        <button className="link ut-id" onClick={onSelect} title={t("ai.unit.openCard", { name: u.name })}>
           {u.type && <VehicleTypeIcon type={u.type} />}
           {u.id}
         </button>
@@ -447,23 +468,29 @@ function UnitTile({
       )}
       <div className="ut-step">{u.step}</div>
       {u.reason && (
-        <div className={`ut-reason${u.by === "dispatcher" ? " by-dispatcher" : ""}`} title={`Decided by ${u.source}${u.assignedAt ? ` at ${fmtTime(u.assignedAt)}` : ""}\n${u.reason}`}>
+        <div className={`ut-reason${u.by === "dispatcher" ? " by-dispatcher" : ""}`} title={`${decided}\n${u.reason}`}>
           <span className={`ai-tag${u.by === "dispatcher" ? " dispatcher" : isClaude(u.by) ? " claude" : ""}`}>{who}</span>
           <span className="ut-reason-text">{u.reason}</span>
-          {u.by !== "dispatcher" && <span className="ut-src">{u.by ? (BY_SHORT[u.by] ?? u.by) : "Engine"}</span>}
+          {u.by !== "dispatcher" && <span className="ut-src">{u.by ? (BY_SHORT[u.by] ?? u.by) : t("ai.byShort.engine")}</span>}
         </div>
       )}
       <div className="ut-actions">
         {canOverride && (
-          <button className={`sm${overriding ? " on" : ""}`} onClick={onOverride} aria-expanded={overriding} title={`Choose another unit instead of ${u.id}`}>
-            <Repeat /> Override <ChevronDown />
+          <button className={`sm${overriding ? " on" : ""}`} onClick={onOverride} aria-expanded={overriding} title={t("ai.unit.overrideTitle", { id: u.id })}>
+            <Repeat /> {t("ai.unit.override")} <ChevronDown />
           </button>
         )}
-        <button className="sm" onClick={onCentre} title={`Centre the map on ${u.id}`}>
-          <Crosshair /> Centre
+        <button className="sm" onClick={onCentre} title={t("ai.unit.centreTitle", { id: u.id })}>
+          <Crosshair /> {t("ai.unit.centre")}
         </button>
-        <a className="button-link sm" href={`/vehicle/${encodeURIComponent(u.id)}?world=${state.world}`} target="_blank" rel="noopener" title={`${u.id}'s tablet view`}>
-          <Tablet /> Tablet <ExternalLink />
+        <a
+          className="button-link sm"
+          href={`/vehicle/${encodeURIComponent(u.id)}?world=${state.world}`}
+          target="_blank"
+          rel="noopener"
+          title={t("ai.unit.tabletTitle", { id: u.id })}
+        >
+          <Tablet /> {t("ai.unit.tablet")} <ExternalLink />
         </a>
       </div>
       {children}
@@ -511,6 +538,7 @@ function OverridePanel({
   onMissing: () => void;
   notify: Notify;
 }) {
+  const t = useT();
   const [alts, setAlts] = useState<Alternative[] | null>(null);
   const [currentEta, setCurrentEta] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -555,7 +583,12 @@ function OverridePanel({
         role,
         ...(target.unit ? { replaces: target.unit.id } : {}),
       });
-      onDone(r.summary ?? (target.unit ? `${picked} replaces ${target.unit.id} on ${c.id}` : target.mode === "replace" ? `${picked} assigned to ${c.id}` : `${picked} added to ${c.id}`));
+      onDone(
+        r.summary ??
+          (target.unit
+            ? t("ai.ov.doneReplace", { picked, id: target.unit.id, case: c.id })
+            : t(target.mode === "replace" ? "ai.ov.doneAssign" : "ai.ov.doneAdd", { picked, case: c.id })),
+      );
     } catch (e) {
       if (e instanceof MissingEndpoint) onMissing();
       else {
@@ -569,22 +602,27 @@ function OverridePanel({
   };
 
   const roleLabel = ([...ADD_ROLES, ...ASSIGN_ROLES].find((r) => r.role === role)?.label ?? role).toLowerCase();
-  const title = target.unit ? `Replace ${target.unit.id} with…` : target.mode === "replace" ? `Assign ${roleLabel}…` : `Add ${roleLabel}…`;
+  const title = target.unit
+    ? t("ai.ov.replace", { id: target.unit.id })
+    : t(target.mode === "replace" ? "ai.ov.assign" : "ai.ov.add", { role: roleLabel });
   const pickedAlt = alts?.find((a) => a.vehicle_id === picked);
   return (
     <div className="override" role="group" aria-label={title} ref={box}>
       <div className="override-head">
         <strong>{title}</strong>
-        <span className="muted small">ranked by the rules engine · at the patient{target.unit ? ` · vs ${target.unit.id}` : ""}</span>
-        <button className="link vc-close" onClick={onClose} aria-label="Close">
+        <span className="muted small">
+          {t("ai.ov.ranked")}
+          {target.unit ? t("ai.ov.vs", { id: target.unit.id }) : ""}
+        </span>
+        <button className="link vc-close" onClick={onClose} aria-label={t("common.close")}>
           <X />
         </button>
       </div>
-      {!alts && !error && <div className="muted small">Asking the engine for alternatives…</div>}
+      {!alts && !error && <div className="muted small">{t("ai.ov.asking")}</div>}
       {error && <div className="message error">{error}</div>}
-      {alts && alts.length === 0 && <div className="muted small">No other unit can take this now.</div>}
+      {alts && alts.length === 0 && <div className="muted small">{t("ai.ov.none")}</div>}
       {alts && alts.length > 0 && (
-        <ul className="override-list" role="listbox" aria-label="Alternatives">
+        <ul className="override-list" role="listbox" aria-label={t("ai.ov.alternatives")}>
           {alts.map((a, i) => {
             const eta = a.eta_scene ?? a.eta ?? null;
             const delta =
@@ -605,12 +643,12 @@ function OverridePanel({
                     {type && <VehicleTypeIcon type={type} />}
                     <strong>{a.vehicle_id}</strong>
                     <span className="muted">{a.name && a.name !== a.vehicle_id ? a.name : ""}</span>
-                    <span className="oo-eta" title="When it would reach the patient">
-                      {eta ? fmtTime(eta) : "no estimate"}
+                    <span className="oo-eta" title={t("ai.ov.etaTitle")}>
+                      {eta ? fmtTime(eta) : t("ai.ov.noEstimate")}
                     </span>
                     {delta != null && target.unit && (
                       <span className={`oo-delta${delta > 0.5 ? " worse" : delta < -0.5 ? " better" : ""}`}>
-                        {Math.abs(delta) < 0.5 ? "same" : `${delta > 0 ? "+" : "−"}${Math.round(Math.abs(delta))} min`}
+                        {Math.abs(delta) < 0.5 ? t("ai.ov.same") : `${delta > 0 ? "+" : "−"}${Math.round(Math.abs(delta))} min`}
                       </span>
                     )}
                   </span>
@@ -625,24 +663,18 @@ function OverridePanel({
         <button className="primary sm" disabled={!picked || busy} onClick={() => void confirm()}>
           <Check />{" "}
           {busy
-            ? "Applying…"
+            ? t("ai.ov.applying")
             : picked
               ? target.unit
-                ? `Confirm: ${picked} replaces ${target.unit.id}`
-                : target.mode === "replace"
-                  ? `Confirm: assign ${picked}`
-                  : `Confirm: add ${picked}`
-              : "Pick a unit"}
+                ? t("ai.ov.confirmReplace", { picked, id: target.unit.id })
+                : t(target.mode === "replace" ? "ai.ov.confirmAssign" : "ai.ov.confirmAdd", { picked })
+              : t("ai.ov.pick")}
         </button>
         <button className="sm ghost" onClick={onClose}>
-          Cancel
+          {t("common.cancel")}
         </button>
       </div>
-      {pickedAlt && target.unit && (
-        <div className="muted small">
-          {target.unit?.id} is released. Logged as the dispatcher's decision, not the AI's.
-        </div>
-      )}
+      {pickedAlt && target.unit && <div className="muted small">{t("ai.ov.released", { id: target.unit.id })}</div>}
     </div>
   );
 }

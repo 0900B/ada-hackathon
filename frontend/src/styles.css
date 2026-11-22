@@ -149,6 +149,73 @@ svg.lucide {
   margin-left: auto;
   font-size: 12px;
 }
+/* UI language switch "SL | EN" (LangToggle: header, tablet, crew phone): inherits the colour of its
+   bar. Not .lang-toggle, which is the speech-language segmented control (voice.css). */
+.ui-lang {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.ui-lang-item {
+  display: inline-flex;
+  align-items: center;
+}
+.ui-lang-sep {
+  opacity: 0.45;
+  padding: 0 1px;
+}
+.ui-lang button {
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: inherit;
+  opacity: 0.6;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 3px 5px;
+  cursor: pointer;
+}
+.ui-lang button:hover {
+  opacity: 1;
+}
+.ui-lang button.on {
+  opacity: 1;
+  border-color: currentColor;
+}
+.header .ui-lang {
+  color: var(--text-2);
+  margin-left: -8px; /* sits close to the lock chip */
+}
+/* One header row at 1280 px and up in both languages: the tagline gives way (ellipsis) first */
+.header {
+  flex-wrap: nowrap;
+  gap: 18px;
+}
+.header .nav a {
+  padding: 0 10px;
+}
+.header .brand {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.header .wordmark {
+  flex: none;
+}
+.header .brand-sub {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.header .nav,
+.header .header-help {
+  flex: none;
+  white-space: nowrap;
+}
 .chips {
   display: flex;
   gap: 6px;
@@ -315,7 +382,7 @@ svg.lucide {
   top: 10px;
   left: 50%;
   transform: translateX(-50%);
-  width: 440px;
+  width: 520px; /* condition names fit in both languages ("Catastrophic bleeding", "Masivna krvavitev") */
   max-width: calc(100% - 120px);
   display: flex;
   flex-direction: column;
@@ -480,6 +547,11 @@ svg.lucide {
   border-radius: var(--radius);
   font-size: 13px;
   font-weight: 600;
+  width: max-content; /* not squeezed to half the map (longer Slovenian hints) */
+  max-width: calc(100% - 24px);
+}
+.map-hint .link {
+  white-space: nowrap;
 }
 .map-hint svg.lucide {
   color: var(--warn);
@@ -535,7 +607,7 @@ svg.lucide {
   color: var(--muted);
   font-size: 13px;
   font-weight: 600;
-  padding: 6px 4px;
+  padding: 6px 3px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -551,7 +623,7 @@ svg.lucide {
 }
 .tab-badge {
   display: inline-block;
-  margin-left: 6px;
+  margin-left: 5px;
   min-width: 18px;
   padding: 0 5px;
   border-radius: 3px;
@@ -2397,7 +2469,7 @@ tr.row-selected {
   justify-content: flex-start;
   gap: 1px;
   min-height: 0;
-  padding: 3px 7px 4px 8px;
+  padding: 3px 6px 4px 7px;
   text-align: left;
   font-weight: 400;
   background: var(--surface);
@@ -2414,7 +2486,7 @@ tr.row-selected {
 .vchip-top {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   font-size: 12px;
   white-space: nowrap;
   min-width: 0;
@@ -2593,6 +2665,13 @@ tr.row-selected {
   width: 64px;
   flex: 0 0 64px;
 }
+.booking-times label {
+  white-space: nowrap;
+}
+html:lang(sl) .booking-times input[placeholder] {
+  width: 82px;
+  flex-basis: 82px; /* "samod." (automatic) */
+}
 
 /* Scenarios tab: operations mode and call stream */
 .ops-mode {
@@ -2734,6 +2813,7 @@ tr.row-selected {
 }
 .ai-actions .demo-buttons .split-main {
   padding: 3px 6px;
+  white-space: nowrap; /* "Naključni klic" / "Naključna motnja" stay on one line */
 }
 .ai-actions .demo-buttons .split-caret {
   padding: 0 4px;

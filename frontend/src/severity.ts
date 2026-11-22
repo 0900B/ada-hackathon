@@ -5,20 +5,26 @@
  * helper here falls back to it (emergency -> serious, urgent -> urgent, scheduled -> routine).
  */
 import type { Priority, Trip } from "./api";
+import { getLang, hasKey, liveRecord, t as tx } from "./i18n";
 
 export type Level = "critical" | "serious" | "urgent" | "routine";
 
 export const LEVELS: Level[] = ["critical", "serious", "urgent", "routine"];
 export const LEVEL_RANK: Record<Level, number> = { critical: 0, serious: 1, urgent: 2, routine: 3 };
-export const LEVEL_LABEL: Record<Level, string> = { critical: "Critical", serious: "Serious", urgent: "Urgent", routine: "Routine" };
-export const LEVEL_SHORT: Record<Level, string> = { critical: "CRIT", serious: "SER", urgent: "URG", routine: "RTN" };
+/** "Critical" / "Kritično" (follows the UI language at the time of reading). */
+export const LEVEL_LABEL: Record<Level, string> = liveRecord(LEVELS, (l) => tx(`level.${l}`));
+/** "CRIT" / "KRIT" for strips and dense lists. */
+export const LEVEL_SHORT: Record<Level, string> = liveRecord(LEVELS, (l) => tx(`levelShort.${l}`));
 /** What each level means, for tooltips. */
-export const LEVEL_HELP: Record<Level, string> = {
-  critical: "Life-threatening now (e.g. cardiac arrest). Target: at the patient within 8 min in the city.",
-  serious: "May become life-threatening soon (e.g. stroke, heart attack, major trauma). Target: within 18 min.",
-  urgent: "Possibly dangerous, not immediately (e.g. fractures, urgent transfers). Target: within 60 min.",
-  routine: "Planned or non-urgent transport, by appointment.",
-};
+export const LEVEL_HELP: Record<Level, string> = liveRecord(LEVELS, (l) => tx(`levelHelp.${l}`));
+
+const capitalise = (code: string) => code.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+
+/** A condition code's label in the UI language ("Cardiac arrest" / "Srčni zastoj"). */
+export function conditionLabel(code: string): string {
+  const key = `cond.${code}`;
+  return hasKey(key) ? tx(key) : capitalise(code);
+}
 /** Plan B's response targets (minutes from the call to reaching the patient), used when the backend sends none. */
 export const LEVEL_TARGET_MIN: Record<Level, number | null> = { critical: 8, serious: 18, urgent: 60, routine: null };
 /** The old three-step priority each level maps to (what older backends understand). */
@@ -31,36 +37,48 @@ export interface Condition {
   weight: number; // time sensitivity within the level, 1-10
 }
 
+/** A condition whose label follows the UI language. */
+const condition = (code: string, level: Level, weight: number): Condition => ({
+  code,
+  level,
+  weight,
+  get label() {
+    return conditionLabel(code);
+  },
+});
+
 /** Conditions by level, most time-critical first (the codes the UI sends with a new call). */
 export const CONDITIONS: Condition[] = [
-  { code: "cardiac_arrest", label: "Cardiac arrest", level: "critical", weight: 10 },
-  { code: "choking", label: "Choking", level: "critical", weight: 9 },
-  { code: "catastrophic_bleeding", label: "Catastrophic bleeding", level: "critical", weight: 8 },
-  { code: "anaphylaxis", label: "Anaphylaxis", level: "critical", weight: 8 },
-  { code: "stroke", label: "Stroke", level: "serious", weight: 6 },
-  { code: "stemi", label: "Heart attack (STEMI)", level: "serious", weight: 6 },
-  { code: "breathing_difficulty", label: "Severe breathing difficulty", level: "serious", weight: 5 },
-  { code: "major_trauma", label: "Major trauma", level: "serious", weight: 5 },
-  { code: "seizure", label: "Ongoing seizure", level: "serious", weight: 4 },
-  { code: "sepsis", label: "Suspected sepsis", level: "serious", weight: 4 },
-  { code: "fall", label: "Fall or fracture", level: "urgent", weight: 2 },
+  condition("cardiac_arrest", "critical", 10),
+  condition("choking", "critical", 9),
+  condition("catastrophic_bleeding", "critical", 8),
+  condition("anaphylaxis", "critical", 8),
+  condition("stroke", "serious", 6),
+  condition("stemi", "serious", 6),
+  condition("breathing_difficulty", "serious", 5),
+  condition("major_trauma", "serious", 5),
+  condition("seizure", "serious", 4),
+  condition("sepsis", "serious", 4),
+  condition("fall", "urgent", 2),
 ];
 
 export interface Modifier {
   code: string;
   label: string;
 }
+const modifier = (code: string): Modifier => ({
+  code,
+  get label() {
+    return modifierLabel(code);
+  },
+});
 /** Case modifiers that move a call up within its level (the first three can be set on a new call). */
-export const MODIFIERS: Modifier[] = [
-  { code: "child", label: "Child" },
-  { code: "deteriorating", label: "Getting worse" },
-  { code: "multiple_patients", label: "Several patients" },
-  { code: "late_stroke_window", label: "Late in the stroke window" },
-  { code: "no_bystander_cpr", label: "No bystander CPR" },
-];
+export const MODIFIERS: Modifier[] = ["child", "deteriorating", "multiple_patients", "late_stroke_window", "no_bystander_cpr"].map(modifier);
 
-export const modifierLabel = (code: string) =>
-  MODIFIERS.find((m) => m.code === code)?.label ?? code.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+export function modifierLabel(code: string): string {
+  const key = `mod.${code}`;
+  return hasKey(key) ? tx(key) : capitalise(code);
+}
 
 /** What the helpers need from a trip (all severity fields optional: older backends lack them). */
 export type Graded = Pick<Trip, "priority"> &
@@ -71,10 +89,18 @@ export function levelOf(t: Graded): Level {
   return t.priority === "emergency" ? "serious" : t.priority === "urgent" ? "urgent" : "routine";
 }
 
+/**
+ * The call's condition for display. English keeps the backend's label as before; Slovenian maps the
+ * condition code to its Slovenian label (the backend's label is English), falling back to the label.
+ */
 export function conditionText(t: Graded): string | null {
+  if (getLang() === "sl" && t.condition) {
+    const key = `cond.${t.condition}`;
+    if (hasKey(key)) return tx(key);
+  }
   if (t.condition_label) return t.condition_label;
   if (!t.condition) return null;
-  return CONDITIONS.find((c) => c.code === t.condition)?.label ?? t.condition.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+  return conditionLabel(t.condition);
 }
 
 /** Time sensitivity 1-10 within the level, or null when unknown. */
@@ -130,8 +156,16 @@ export function responseOf(t: Trip, now: string): ResponseInfo | null {
 
 /** "reached in 11 min · target 8", "reaches in 6 min · target 8", "no unit yet · target 8". */
 export function responseText(r: ResponseInfo): string {
-  if (r.minutes == null) return `no unit yet · target ${r.target} min`;
-  return `${r.reached ? "reached" : "reaches"} in ${r.minutes} min · target ${r.target}`;
+  if (r.minutes == null) return tx("resp.none", { target: r.target });
+  return tx(r.reached ? "resp.reached" : "resp.reaches", { m: r.minutes, target: r.target });
+}
+
+/** The tooltip for a call's response line. */
+export function responseTitle(r: ResponseInfo): string {
+  if (r.minutes == null) return tx("resp.titleNone", { waited: Math.round(r.waited), target: r.target });
+  return r.missed
+    ? tx("resp.titleOver", { m: r.minutes, target: r.target, over: r.minutes - r.target })
+    : tx("resp.titleTimed", { m: r.minutes, target: r.target });
 }
 
 /** Open critical and serious calls not yet reached that will miss their target, worst first. */

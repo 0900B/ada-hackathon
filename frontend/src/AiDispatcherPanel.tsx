@@ -8,6 +8,7 @@ import { FieldMessage } from "./FieldMessage";
 import { fmtTime } from "./format";
 import { NewCallForm } from "./NewCallForm";
 import { conditionText, LEVEL_LABEL, levelOf } from "./severity";
+import { liveRecord, t as tx, tr, useT } from "./i18n";
 
 type Notify = (kind: "ok" | "error", text: string) => void;
 
@@ -17,12 +18,8 @@ export interface CaseFocus {
   overrideVehicle?: string; // open this unit's override list (vehicle card "Override")
 }
 
-const EXPLAIN: Record<AiMode, string> = {
-  autonomous: "Autonomous: the AI dispatcher handles each case; you can intervene anytime",
-  assisted: "Assisted: the AI proposes, you approve",
-};
-
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+/** The mode's one-line explanation (follows the UI language). */
+const EXPLAIN: Record<AiMode, string> = liveRecord(["autonomous", "assisted"] as const, (m) => tx(`ai.explain.${m}`));
 
 /**
  * The right panel's first tab: the AI dispatcher. It classifies every 112 call, dispatches, routes and
@@ -67,6 +64,7 @@ export function AiDispatcherPanel({
   micToggleRef: { current: (() => void) | null };
   agentKeys: RefObject<AgentKeys | null>;
 }) {
+  const t = useT();
   const [open, setOpen] = useState<string | null>(null); // trip id
   const [showClosed, setShowClosed] = useState(false);
   const [form, setForm] = useState(false);
@@ -143,7 +141,7 @@ export function AiDispatcherPanel({
       onShowOnMap={() => onShowCall(c.trip.id)}
       onMissingOverride={() => {
         setCanOverride(false);
-        notify("error", "This backend cannot override units yet: use the vehicle card (breakdown, delay) or the Events tab.");
+        notify("error", t("ai.toast.noOverride"));
       }}
       notify={notify}
       refCb={(el) => (el ? cardRefs.current.set(c.trip.id, el) : cardRefs.current.delete(c.trip.id))}
@@ -155,18 +153,18 @@ export function AiDispatcherPanel({
       <section className="panel ai-top">
         <div className="ai-head">
           <h2 className="panel-title">
-            <Bot /> AI dispatcher
+            <Bot /> {t("ai.title")}
           </h2>
           <ModeSwitch state={state} notify={notify} />
         </div>
         <AiStatus state={state} />
         <div className="ai-actions">
           <button className={`primary sm calls-new${form ? " on" : ""}`} onClick={() => setForm((f) => !f)} aria-expanded={form}>
-            <PhoneIncoming /> New 112 call
+            <PhoneIncoming /> {t("ai.newCall")}
           </button>
           {demo}
           {state.ai_triage !== undefined && (
-            <label className="switch ai-triage" title="New 112 calls are classified by Claude (otherwise by keyword rules)">
+            <label className="switch ai-triage" title={t("ai.triageSwitchTitle")}>
               <input
                 type="checkbox"
                 role="switch"
@@ -174,7 +172,7 @@ export function AiDispatcherPanel({
                 onChange={(e) => setAiTriage(state.world, e.target.checked).catch((err) => notify("error", err instanceof Error ? err.message : String(err)))}
               />
               <span className="switch-track" aria-hidden />
-              AI triage
+              {t("ai.triageSwitch")}
             </label>
           )}
         </div>
@@ -190,7 +188,7 @@ export function AiDispatcherPanel({
               onSelectCase(trip.id);
               notify(
                 "ok",
-                `${trip.call?.call_id ?? trip.id}: ${LEVEL_LABEL[levelOf(trip)]}${conditionText(trip) ? ` · ${conditionText(trip)}` : ""}${trip.vehicle_id ? ` · ${trip.vehicle_id} dispatched` : ""}`,
+                `${trip.call?.call_id ?? trip.id}: ${LEVEL_LABEL[levelOf(trip)]}${conditionText(trip) ? ` · ${conditionText(trip)}` : ""}${trip.vehicle_id ? t("ai.toast.dispatched", { v: trip.vehicle_id }) : ""}`,
               );
               requestAnimationFrame(() => cardRefs.current.get(trip.id)?.scrollIntoView({ block: "start", behavior: "smooth" }));
             }}
@@ -203,7 +201,7 @@ export function AiDispatcherPanel({
         <button className="fold-head" onClick={() => setReviewOpen(!reviewOpen)} aria-expanded={reviewOpen}>
           {reviewOpen ? <ChevronDown /> : <ChevronRight />}
           <ScanSearch />
-          <strong>Situation review</strong>
+          <strong>{t("ai.review")}</strong>
           <ReviewSummary state={state} />
         </button>
         <div className="fold-body" hidden={!reviewOpen}>
@@ -216,16 +214,12 @@ export function AiDispatcherPanel({
           {messageOpen ? <ChevronDown /> : <ChevronRight />}
           <MessageSquare />
           <strong>
-            <span className="fold-long">Message to the AI dispatcher</span>
-            <span className="fold-short">Message to AI</span>
+            <span className="fold-long">{t("ai.message")}</span>
+            <span className="fold-short">{t("ai.messageShort")}</span>
           </strong>
           {listening && <i className="fold-dot live" aria-hidden />}
           <span className={`fold-sum${listening ? " live" : ""}`}>
-            {listening ? "Listening…" : (
-              <>
-                speech or text · <kbd>M</kbd>
-              </>
-            )}
+            {listening ? t("ai.listening") : tr("ai.speechOrText", { kbd: <kbd>M</kbd> })}
           </span>
         </button>
         <div className="fold-body" hidden={!messageOpen}>
@@ -235,19 +229,19 @@ export function AiDispatcherPanel({
       </div>
 
       {active.length === 0 ? (
-        <p className="muted cases-empty">No active cases. New 112 calls appear here as the AI classifies and dispatches them.</p>
+        <p className="muted cases-empty">{t("ai.noCases")}</p>
       ) : (
-        <ul className="cases" aria-label="Active cases">
+        <ul className="cases" aria-label={t("ai.activeCases")}>
           {active.map((c) => card(c, !known.current!.has(caseKey(c))))}
         </ul>
       )}
       {closed.length > 0 && (
         <div className="calls-closed">
           <button className="link calls-closed-toggle" onClick={() => setShowClosed((s) => !s)} aria-expanded={showClosed}>
-            {showClosed ? <ChevronDown /> : <ChevronRight />} Closed in the last 3 h ({closed.length})
+            {showClosed ? <ChevronDown /> : <ChevronRight />} {t("ai.closedToggle", { n: closed.length })}
           </button>
           {showClosed && (
-            <ul className="cases" aria-label="Closed cases">
+            <ul className="cases" aria-label={t("ai.closedCases")}>
               {closed.map((c) => card(c, false))}
             </ul>
           )}
@@ -259,6 +253,7 @@ export function AiDispatcherPanel({
 
 /** Autonomous / Assisted: snapshot ai_mode (POST /admin/ai-mode), or the older autopilot switch. */
 function ModeSwitch({ state, notify }: { state: WorldSnapshot; notify: Notify }) {
+  const t = useT();
   const [pending, setPending] = useState<AiMode | null>(null);
   const fromState: AiMode = state.ai_mode ?? (state.autopilot ? "autonomous" : "assisted");
   useEffect(() => {
@@ -285,10 +280,10 @@ function ModeSwitch({ state, notify }: { state: WorldSnapshot; notify: Notify })
     }
   };
   return (
-    <div className="mode-switch" role="radiogroup" aria-label="AI dispatcher mode">
+    <div className="mode-switch" role="radiogroup" aria-label={t("ai.modeAria")}>
       {(["autonomous", "assisted"] as AiMode[]).map((m) => (
         <button key={m} role="radio" aria-checked={mode === m} className={mode === m ? "on" : ""} onClick={() => void choose(m)} title={EXPLAIN[m]}>
-          {m === "autonomous" ? "Autonomous" : "Assisted"}
+          {t(m === "autonomous" ? "ai.mode.autonomous" : "ai.mode.assisted")}
         </button>
       ))}
     </div>
@@ -297,13 +292,14 @@ function ModeSwitch({ state, notify }: { state: WorldSnapshot; notify: Notify })
 
 /** The mode's one-line explanation and what the AI dispatcher has done (ai_stats, else the timelines). */
 function AiStatus({ state }: { state: WorldSnapshot }) {
+  const t = useT();
   const mode: AiMode | null = state.ai_mode ?? (state.autopilot === undefined ? null : state.autopilot ? "autonomous" : "assisted");
   const s = aiStatsOf(state);
   const title = [
-    `${plural(s.dispatched, "call")} dispatched by the AI`,
-    `Claude changed ${plural(s.claude_changes, "decision")} of the rules engine`,
-    s.last_decision_at ? `Last decision ${fmtTime(s.last_decision_at)}` : "",
-    "Counted over the calls of the last 3 hours",
+    t("ai.stats.dispatched", { count: s.dispatched }),
+    t("ai.stats.changed", { count: s.claude_changes }),
+    s.last_decision_at ? t("ai.stats.last", { time: fmtTime(s.last_decision_at) }) : "",
+    t("ai.stats.window"),
   ]
     .filter(Boolean)
     .join("\n");
@@ -311,8 +307,10 @@ function AiStatus({ state }: { state: WorldSnapshot }) {
     <>
       {mode && <p className={`ai-explain mode-${mode}`}>{EXPLAIN[mode]}</p>}
       <p className="ai-stats" title={title}>
-        Handling <strong>{plural(s.cases_active, "case")}</strong> · {plural(s.reroutes, "reroute")} · {plural(s.reassignments, "reassignment")} ·{" "}
-        <span className={s.overrides ? "ai-stats-hi" : undefined}>{plural(s.overrides, "override")}</span> · {plural(s.claude_reviews, "Claude review")}
+        {tr("ai.stats.handling", { cases: <strong>{t("ai.stats.cases", { count: s.cases_active })}</strong> })} ·{" "}
+        {t("ai.stats.reroutes", { count: s.reroutes })} · {t("ai.stats.reassignments", { count: s.reassignments })} ·{" "}
+        <span className={s.overrides ? "ai-stats-hi" : undefined}>{t("ai.stats.overrides", { count: s.overrides })}</span> ·{" "}
+        {t("ai.stats.reviews", { count: s.claude_reviews })}
       </p>
     </>
   );
@@ -320,21 +318,22 @@ function AiStatus({ state }: { state: WorldSnapshot }) {
 
 /** The general analysis in one line, for the folded "Situation review". */
 function ReviewSummary({ state }: { state: WorldSnapshot }) {
+  const t = useT();
   const run = state.agent.runs[0];
   const rec = run?.recommendation;
   let text: string;
   let tone = "";
-  if (!run) text = "watching the fleet · A to analyse";
+  if (!run) text = t("ai.sum.watching");
   else if (run.status === "running") {
-    text = "Analysing…";
+    text = t("ai.sum.analysing");
     tone = " live";
   } else if (run.status === "done" && rec && rec.options.length > 0) {
-    text = `Waiting for your decision: ${rec.options[rec.recommended_index]?.title ?? "plan"}`;
+    text = t("ai.sum.waiting", { title: rec.options[rec.recommended_index]?.title ?? t("ai.sum.plan") });
     tone = " warn";
-  } else if (run.status === "approved") text = `Approved: ${run.decision?.title ?? "plan"}`;
-  else if (run.status === "rejected") text = "Rejected: the plan stays as it was";
-  else if (run.status === "error") text = "The last analysis failed · A to retry";
-  else text = "No action needed · A to analyse";
+  } else if (run.status === "approved") text = t("ai.sum.approved", { title: run.decision?.title ?? t("ai.sum.plan") });
+  else if (run.status === "rejected") text = t("ai.sum.rejected");
+  else if (run.status === "error") text = t("ai.sum.failed");
+  else text = t("ai.sum.noAction");
   return (
     <>
       {tone && <i className={`fold-dot${tone}`} title={text} aria-hidden />}

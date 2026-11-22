@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Place, Trip, Vehicle, WorldSnapshot } from "./api";
 import { Crosshair, ExternalLink, IdCard, Smartphone, Tablet, Timer, TriangleAlert, Wrench, X } from "lucide-react";
-import { fmtTime, humanize } from "./format";
+import { fmtTime, nightText, vehicleStatusText } from "./format";
 import { VehicleTypeIcon } from "./icons";
 import { conditionText, LEVEL_LABEL, levelOf } from "./severity";
 import { ResponseLine, SeverityBadge } from "./SeverityBadge";
@@ -9,6 +9,7 @@ import { doctorJob } from "./doctor";
 import { DoctorTag, OriginTag } from "./DoctorTag";
 import { RespondingTo } from "./RespondingTo";
 import { UnitReason } from "./UnitReason";
+import { tOr, useT, t as tx } from "./i18n";
 
 type Send = (event: Record<string, unknown>) => Promise<void>;
 
@@ -18,16 +19,19 @@ function shortPlace(p: Place | undefined): string {
   if (!p) return "?";
   return p.name
     .replace(/^UKC Ljubljana$/, "UKC")
-    .replace(/^Oncology Institute Ljubljana$/, "Oncology")
-    .replace(/^Dialysis centre.*$/, "Dialysis")
+    .replace(/^Oncology Institute Ljubljana$/, tx("ops.place.oncology"))
+    .replace(/^Dialysis centre.*$/, tx("ops.place.dialysis"))
     .replace(/^General Hospital (\S+).*$/, "SB $1")
     .replace(/^Health centre (Ljubljana )?/, "ZD ")
-    .replace(/^Ambulance base /, "Base ")
-    .replace(/^Breakdown site of (.*)$/, "breakdown site")
-    .replace(/^Call location$/, "call location");
+    .replace(/^Ambulance base (.*)$/, (_m, name: string) => tx("ops.place.base", { name }))
+    .replace(/^Breakdown site of (.*)$/, tx("ops.place.breakdownSite"))
+    .replace(/^Call location$/, tx("ops.place.callLocation"));
 }
 
-const what = (t: Trip) => (t.kind === "equipment" ? (t.cargo ?? "equipment") : `${t.patient ?? t.label} (${t.needs})`);
+/** A patient's transport need ("stretcher" / "nosila"); unknown codes as sent. */
+const needsLabel = (needs: string) => tOr(`ops.needs.${needs}`, needs);
+
+const what = (t: Trip) => (t.kind === "equipment" ? (t.cargo ?? tx("ops.equipment")) : `${t.patient ?? t.label} (${needsLabel(t.needs)})`);
 
 interface Summary {
   tone: "idle" | "moving" | "loaded" | "returning" | "held" | "down" | "grounded";
@@ -43,8 +47,8 @@ function summarize(v: Vehicle, state: WorldSnapshot, places: Map<string, Place>,
   const own = state.trips.filter((t) => t.vehicle_id === v.id && t.status !== "completed" && t.status !== "cancelled");
   const late = own.filter((t) => (t.delay_min ?? 0) >= 5);
   const warnings: string[] = [];
-  if (late.length) warnings.push(`${late.length} late trip${late.length > 1 ? "s" : ""} (up to +${Math.round(Math.max(...late.map((t) => t.delay_min ?? 0)))} min)`);
-  if (state.alerts.some((a) => a.kind === "low_fuel" && a.vehicle_id === v.id)) warnings.push(`low fuel (${Math.round(v.fuel_pct)}%)`);
+  if (late.length) warnings.push(tx("ops.warnLate", { count: late.length, max: Math.round(Math.max(...late.map((t) => t.delay_min ?? 0))) }));
+  if (state.alerts.some((a) => a.kind === "low_fuel" && a.vehicle_id === v.id)) warnings.push(tx("ops.warnFuel", { pct: Math.round(v.fuel_pct) }));
 
   if (v.status === "out_of_service") {
     // A load left inside: the trip now starts at this vehicle's breakdown site
@@ -54,11 +58,16 @@ function summarize(v: Vehicle, state: WorldSnapshot, places: Map<string, Place>,
         t.status !== "onboard" &&
         places.get(t.pickup_id)?.name === `Breakdown site of ${v.name}`,
     );
-    warnings.unshift("out of service");
+    warnings.unshift(tx("ops.outOfService"));
     return {
       tone: "down",
-      status: "down",
-      text: stranded ? `${stranded.kind === "equipment" ? stranded.cargo : `patient ${stranded.patient}`} on board · ${stranded.id}` : "out of service",
+      status: tx("ops.st.down"),
+      text: stranded
+        ? tx("ops.strandedOnBoard", {
+            what: stranded.kind === "equipment" ? (stranded.cargo ?? tx("ops.equipment")) : tx("ops.patientNamed", { name: stranded.patient }),
+            id: stranded.id,
+          })
+        : tx("ops.outOfService"),
       warnings,
     };
   }
@@ -69,57 +78,60 @@ function summarize(v: Vehicle, state: WorldSnapshot, places: Map<string, Place>,
   let s: Summary;
   if (v.type === "doctor") {
     // A doctor car never carries the patient: it joins the ambulance's crew and escorts it
-    const unit = trip?.vehicle_id ?? "the ambulance";
+    const unit = trip?.vehicle_id ?? tx("dr.theAmbulance");
     s =
       v.status === "to_pickup" && trip
-        ? { tone: "moving", status: "to scene", text: `→ ${shortPlace(places.get(trip.pickup_id))} · doctor for ${trip.id}`, warnings, job: trip }
+        ? { tone: "moving", status: tx("ops.st.toScene"), text: tx("ops.drForTrip", { place: shortPlace(places.get(trip.pickup_id)), id: trip.id }), warnings, job: trip }
         : v.status === "loading" && trip
-          ? { tone: "loaded", status: "on scene", text: `on scene with ${unit} · ${trip.id}`, warnings, job: trip }
+          ? { tone: "loaded", status: tx("ops.st.onScene"), text: tx("ops.onSceneWith", { unit, id: trip.id }), warnings, job: trip }
           : v.status === "with_patient" && trip
-            ? { tone: "loaded", status: "escort", text: `escorting to ${shortPlace(places.get(trip.dropoff_id))} · ${trip.id}`, warnings, job: trip }
+            ? { tone: "loaded", status: tx("ops.st.escort"), text: tx("ops.escortingTo", { place: shortPlace(places.get(trip.dropoff_id)), id: trip.id }), warnings, job: trip }
             : v.status === "returning"
-              ? { tone: "returning", status: "return", text: `→ ${shortPlace(base)}`, warnings }
-              : { tone: "idle", status: "idle", text: base ? `at ${shortPlace(base)}` : "available", warnings };
+              ? { tone: "returning", status: tx("ops.st.return"), text: `→ ${shortPlace(base)}`, warnings }
+              : { tone: "idle", status: tx("ops.st.idle"), text: base ? tx("ops.atPlace", { place: shortPlace(base) }) : tx("ops.available"), warnings };
   } else if (v.status === "to_pickup" && trip) {
-    s = { tone: "moving", status: "pickup", text: `→ ${shortPlace(places.get(trip.pickup_id))} · ${trip.id} ${what(trip)}`, warnings, job: trip };
+    s = { tone: "moving", status: tx("ops.st.pickup"), text: `→ ${shortPlace(places.get(trip.pickup_id))} · ${trip.id} ${what(trip)}`, warnings, job: trip };
   } else if (v.status === "loading" && trip) {
-    s = { tone: "loaded", status: "loading", text: `${what(trip)} at ${shortPlace(places.get(trip.pickup_id))} · ${trip.id}`, warnings, job: trip };
+    s = { tone: "loaded", status: tx("ops.st.loading"), text: tx("ops.loadingAt", { what: what(trip), place: shortPlace(places.get(trip.pickup_id)), id: trip.id }), warnings, job: trip };
   } else if (v.status === "with_patient" && trip) {
     s = {
       tone: "loaded",
-      status: trip.kind === "equipment" ? "cargo" : "patient",
+      status: tx(trip.kind === "equipment" ? "ops.st.cargo" : "ops.st.patient"),
       text: `→ ${shortPlace(places.get(trip.dropoff_id))} · ${trip.id} ${what(trip)}`,
       warnings,
       job: trip,
     };
   } else if (v.status === "to_pickup" && v.queue.length) {
     // just re-planned (e.g. diverted): the simulator picks the next trip on its next tick
-    s = { tone: "moving", status: "pickup", text: `→ next ${v.queue[0]}`, warnings };
+    s = { tone: "moving", status: tx("ops.st.pickup"), text: tx("ops.toNext", { id: v.queue[0] }), warnings };
   } else if (v.status === "returning" && v.queue.length) {
     // Just delivered (unloading) with the next job queued: it goes there, not back to base
     const next = trips.get(v.queue[0]);
     s = {
       tone: v.busy_until ? "loaded" : "moving",
-      status: v.busy_until ? "unloading" : "pickup",
-      text: next ? `next → ${shortPlace(places.get(next.pickup_id))} · ${next.id}` : `next ${v.queue[0]}`,
+      status: tx(v.busy_until ? "ops.st.unloading" : "ops.st.pickup"),
+      text: next ? tx("ops.nextTo", { place: shortPlace(places.get(next.pickup_id)), id: next.id }) : tx("ops.next", { id: v.queue[0] }),
       warnings,
       job: next,
     };
   } else if (v.status === "returning") {
-    s = { tone: "returning", status: "return", text: `→ ${shortPlace(base)}`, warnings };
+    s = { tone: "returning", status: tx("ops.st.return"), text: `→ ${shortPlace(base)}`, warnings };
   } else {
     const atBase = base && Math.abs(base.lat - v.lat) < 0.0005 && Math.abs(base.lon - v.lon) < 0.0005;
     s = {
       tone: "idle",
-      status: "idle",
-      text: v.queue.length ? `next ${v.queue[0]}` : atBase ? `at ${shortPlace(base)}` : "waiting",
+      status: tx("ops.st.idle"),
+      text: v.queue.length ? tx("ops.next", { id: v.queue[0] }) : atBase ? tx("ops.atPlace", { place: shortPlace(base) }) : tx("ops.waiting"),
       warnings,
     };
   }
+  const night = nightText(v); // the helicopter flies by day only
   if (groundedUntil) {
-    s = { ...s, tone: "grounded", status: "fog", text: `grounded until ${groundedUntil}${s.tone === "idle" ? "" : ` · ${s.text}`}` };
+    s = { ...s, tone: "grounded", status: tx("ops.st.fog"), text: `${tx("ops.groundedUntil", { time: groundedUntil })}${s.tone === "idle" ? "" : ` · ${s.text}`}` };
+  } else if (night && s.tone === "idle") {
+    s = { ...s, tone: "grounded", status: tx("heli.nightShort"), text: night };
   } else if (held) {
-    s = { ...s, tone: "held", status: "held", text: `until ${held} · ${s.text}` };
+    s = { ...s, tone: "held", status: tx("ops.st.held"), text: tx("ops.heldUntil", { time: held, text: s.text }) };
   }
   return s;
 }
@@ -145,6 +157,7 @@ export function VehicleStrip({
   send: Send;
   busy: boolean;
 }) {
+  const t = useT();
   const [open, setOpen] = useState<{ id: string; left: number } | null>(null);
   const strip = useRef<HTMLDivElement>(null);
   const places = new Map(state.places.map((p) => [p.id, p]));
@@ -172,13 +185,13 @@ export function VehicleStrip({
   const v = open ? state.vehicles.find((x) => x.id === open.id) : undefined;
   return (
     <>
-      <div className="vstrip" ref={strip} onScroll={() => setOpen(null)} role="toolbar" aria-label="Vehicles">
+      <div className="vstrip" ref={strip} onScroll={() => setOpen(null)} role="toolbar" aria-label={t("ops.stripAria")}>
         {state.vehicles.map((veh) => {
           const s = summarize(veh, state, places, trips);
           const level = s.job ? levelOf(s.job) : null;
           const cond = s.job ? conditionText(s.job) : null;
           const title = `${veh.name} · ${s.status} · ${s.text}${level ? ` · ${LEVEL_LABEL[level]}${cond ? `: ${cond}` : ""}` : ""}${
-            s.warnings.length ? ` · warning: ${s.warnings.join(", ")}` : ""
+            s.warnings.length ? t("ops.chipWarning", { list: s.warnings.join(", ") }) : ""
           }`;
           return (
             <button
@@ -195,7 +208,7 @@ export function VehicleStrip({
                 <strong>{veh.id}</strong>
                 <span className="vchip-status">{s.status}</span>
                 {s.warnings.length > 0 && (
-                  <span className={`vchip-warn${s.tone === "down" ? " bad" : ""}`} aria-label="Warning">
+                  <span className={`vchip-warn${s.tone === "down" ? " bad" : ""}`} aria-label={t("ops.warningAria")}>
                     <TriangleAlert />
                   </span>
                 )}
@@ -274,12 +287,13 @@ function VehiclePopover({
   onOpenCall?: (tripId: string) => void;
   onOverride?: (tripId: string, vehicleId: string) => void;
 }) {
+  const t = useT();
   const trip = v.current_trip_id ? trips.get(v.current_trip_id) : undefined;
   const next = v.queue.map((id) => trips.get(id)).filter((t): t is Trip => Boolean(t));
   const down = v.status === "out_of_service";
   const name = (id: string) => places.get(id)?.name ?? id;
   return (
-    <div className="vpop" style={{ left }} role="dialog" aria-label={`${v.name} details`}>
+    <div className="vpop" style={{ left }} role="dialog" aria-label={t("ops.popAria", { name: v.name })}>
       <div className="vpop-head">
         <span className="vchip-icon">
           <VehicleTypeIcon type={v.type} />
@@ -288,16 +302,18 @@ function VehiclePopover({
           {v.id} · {v.name}
         </strong>
         <OriginTag v={v} />
-        <button className="link vc-close" onClick={onClose} aria-label="Close">
+        <button className="link vc-close" onClick={onClose} aria-label={t("common.close")}>
           <X />
         </button>
       </div>
       <RespondingTo v={v} state={state} onOpenCall={onOpenCall} />
       <UnitReason v={v} state={state} onOverride={onOverride} />
       <div className={`vpop-status tone-${s.tone}`}>
-        {humanize(v.status)}
-        {v.grounded_until ? ` · grounded by fog until ${fmtTime(v.grounded_until)}` : ""}
-        {v.busy_until && v.status !== "loading" ? ` · held until ${fmtTime(v.busy_until)}` : ""} · fuel {Math.round(v.fuel_pct)}%{v.crew.length ? ` · crew of ${v.crew.length}` : ""}
+        {vehicleStatusText(v, state.trips)}
+        {v.grounded_until ? t("ops.popGrounded", { time: fmtTime(v.grounded_until) }) : nightText(v) ? ` · ${nightText(v)}` : ""}
+        {v.busy_until && v.status !== "loading" ? t("ops.popHeld", { time: fmtTime(v.busy_until) }) : ""}
+        {t("ops.popFuel", { pct: Math.round(v.fuel_pct) })}
+        {v.crew.length ? t("ops.popCrew", { n: v.crew.length }) : ""}
       </div>
       {trip ? (
         <div className="vpop-trip">
@@ -313,20 +329,26 @@ function VehiclePopover({
           </div>
           <div className="muted">
             {v.type === "doctor"
-              ? `at the scene ${fmtTime(trip.doctor_eta ?? null)} · ${trip.vehicle_id ?? "no ambulance yet"} ${trip.status === "onboard" ? "has the patient" : `at ${fmtTime(trip.eta_pickup)}`}`
-              : `${trip.status === "onboard" ? "on board" : `pickup ${fmtTime(trip.eta_pickup)}`} · drop-off ${fmtTime(trip.eta_dropoff)}`}
-            {(trip.delay_min ?? 0) >= 5 && <span className="late"> · +{Math.round(trip.delay_min ?? 0)} min late</span>}
+              ? `${t("ops.popDoctorAtScene", { time: fmtTime(trip.doctor_eta ?? null) })} · ${trip.vehicle_id ?? t("ops.popNoAmbulance")} ${
+                  trip.status === "onboard" ? t("ops.popHasPatient") : t("ops.popAtTime", { time: fmtTime(trip.eta_pickup) })
+                }`
+              : `${trip.status === "onboard" ? t("ops.popOnBoard") : t("ops.popPickup", { time: fmtTime(trip.eta_pickup) })} · ${t("ops.popDropoff", {
+                  time: fmtTime(trip.eta_dropoff),
+                })}`}
+            {(trip.delay_min ?? 0) >= 5 && <span className="late">{t("ops.popLate", { min: Math.round(trip.delay_min ?? 0) })}</span>}
           </div>
           <div className="small">
             <ResponseLine trip={trip} now={state.sim_time} />
           </div>
         </div>
       ) : (
-        <div className="muted">{down ? `Out of service${s.text !== "out of service" ? `: ${s.text}` : ""}` : "No current trip"}</div>
+        <div className="muted">
+          {down ? `${t("ops.popOutOfService")}${s.text !== t("ops.outOfService") ? `: ${s.text}` : ""}` : t("ops.popNoTrip")}
+        </div>
       )}
       {next.length > 0 && (
         <div className="muted small">
-          Then {next.length} more: {next.slice(0, 3).map((t) => t.id).join(", ")}
+          {t("ops.popThen", { count: next.length, ids: next.slice(0, 3).map((x) => x.id).join(", ") })}
           {next.length > 3 ? "…" : ""}
         </div>
       )}
@@ -337,22 +359,22 @@ function VehiclePopover({
       )}
       <div className="vpop-actions">
         <button onClick={onCenter}>
-          <Crosshair /> Centre
+          <Crosshair /> {t("ops.centre")}
         </button>
         <button onClick={onOpenCard}>
-          <IdCard /> Vehicle card
+          <IdCard /> {t("ops.vehicleCard")}
         </button>
         <button disabled={busy || down} onClick={() => send({ type: "delay", vehicle_id: v.id, minutes: 10, note: "reported from vehicle strip" })}>
           <Timer /> +10 min
         </button>
         <button disabled={busy || down} onClick={() => send({ type: "breakdown", vehicle_id: v.id, note: "reported from vehicle strip" })}>
-          <Wrench /> Breakdown
+          <Wrench /> {t("ops.breakdown")}
         </button>
         <a className="button-link" href={`/crew/${encodeURIComponent(v.id)}?world=${state.world}`} target="_blank" rel="noopener">
-          <Smartphone /> Crew view <ExternalLink />
+          <Smartphone /> {t("ops.crewView")} <ExternalLink />
         </a>
         <a className="button-link" href={`/vehicle/${encodeURIComponent(v.id)}?world=${state.world}`} target="_blank" rel="noopener">
-          <Tablet /> Tablet view <ExternalLink />
+          <Tablet /> {t("ops.tabletView")} <ExternalLink />
         </a>
       </div>
     </div>

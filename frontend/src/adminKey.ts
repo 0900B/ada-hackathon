@@ -10,11 +10,14 @@
  * No dependency on api.ts: api.ts and demoInject.ts import from here.
  */
 import { useSyncExternalStore } from "react";
+import { t } from "./i18n";
 
 const STORAGE_KEY = "planb.adminKey";
 export const KEY_HEADER = "X-Plan-B-Key";
-export const VIEW_ONLY_MESSAGE = "View only: enter the admin key to control the demo";
-export const KEY_REJECTED_MESSAGE = "Admin key not accepted: enter it again to control the demo";
+/** "View only: enter the admin key to control the demo" (in the UI language). */
+export const viewOnlyMessage = () => t("dash.lock.viewOnlyMsg");
+/** "Admin key not accepted: enter it again to control the demo" (in the UI language). */
+export const keyRejectedMessage = () => t("dash.lock.rejectedMsg");
 /** Header values are Latin-1 and a key never has spaces or control characters. */
 export const validKey = (k: string) => /^[\x21-\x7e]+$/.test(k);
 
@@ -97,7 +100,7 @@ export function controlHeaders(extra?: HeadersInit): Headers {
 export async function controlFetch(input: string, init: RequestInit = {}): Promise<Response> {
   const res = await fetch(input, { ...init, headers: controlHeaders(init.headers) });
   if (res.status === 401) {
-    const message = key ? KEY_REJECTED_MESSAGE : VIEW_ONLY_MESSAGE;
+    const message = key ? keyRejectedMessage() : viewOnlyMessage();
     requestKeyPrompt(message);
     throw new ViewOnlyError(message);
   }

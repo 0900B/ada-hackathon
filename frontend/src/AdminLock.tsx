@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Lock, LockOpen } from "lucide-react";
 import { checkAdminKey, fetchAdminLock } from "./api";
+import { useT } from "./i18n";
 import {
-  KEY_REJECTED_MESSAGE,
+  keyRejectedMessage,
   clearAdminKey,
   getPromptNote,
   setAdminKey,
@@ -22,6 +23,7 @@ type Variant = "header" | "tablet" | "crew";
  * Same component on the dashboard header, the in-vehicle tablet and the crew phone.
  */
 export function AdminLock({ variant = "header" }: { variant?: Variant }) {
+  const t = useT();
   const key = useAdminKey();
   const promptSeq = usePromptRequest();
   const [backendLock, setBackendLock] = useState<boolean | null>(null); // does the backend have an ADMIN_KEY? null: unknown
@@ -62,7 +64,7 @@ export function AdminLock({ variant = "header" }: { variant?: Variant }) {
     void checkAdminKey(key).then((v) => {
       if (stop || v !== "rejected") return;
       setRejected(true);
-      openPrompt(KEY_REJECTED_MESSAGE);
+      openPrompt(keyRejectedMessage());
     });
     return () => {
       stop = true;
@@ -102,7 +104,7 @@ export function AdminLock({ variant = "header" }: { variant?: Variant }) {
     const k = draft.trim();
     if (!k || busy) return;
     if (!validKey(k)) {
-      setError("A key has no spaces or special characters.");
+      setError(t("dash.lock.noSpaces"));
       return;
     }
     setBusy(true);
@@ -110,7 +112,7 @@ export function AdminLock({ variant = "header" }: { variant?: Variant }) {
     const verdict = await checkAdminKey(k);
     setBusy(false);
     if (verdict === "rejected") {
-      setError("That key was not accepted.");
+      setError(t("dash.lock.notAccepted"));
       return;
     }
     setRejected(false);
@@ -120,13 +122,13 @@ export function AdminLock({ variant = "header" }: { variant?: Variant }) {
 
   const noLock = backendLock === false;
   const state = noLock ? "nolock" : !key ? "view" : rejected ? "rejected" : "ok";
-  const label = { nolock: "No lock set", view: "View only", rejected: "Key rejected", ok: "Control unlocked" }[state];
+  const label = { nolock: t("dash.lock.nolock"), view: t("dash.lock.view"), rejected: t("dash.lock.rejected"), ok: t("dash.lock.ok") }[state];
   const Icon = state === "ok" || state === "nolock" ? LockOpen : Lock;
   const title = {
-    nolock: "The backend has no ADMIN_KEY: anyone with the link can control the demo.",
-    view: "View only: control actions need the admin key. Click to enter it.",
-    rejected: "The stored admin key was not accepted. Click to enter it again.",
-    ok: "This device holds the admin key and can control the demo. Click to change or clear it.",
+    nolock: t("dash.lock.titleNolock"),
+    view: t("dash.lock.titleView"),
+    rejected: t("dash.lock.titleRejected"),
+    ok: t("dash.lock.titleOk"),
   }[state];
 
   return (
@@ -149,7 +151,7 @@ export function AdminLock({ variant = "header" }: { variant?: Variant }) {
           className="adminlock-pop"
           style={{ top }}
           role="dialog"
-          aria-label="Admin key"
+          aria-label={t("dash.lock.adminKey")}
           onSubmit={(e) => {
             e.preventDefault();
             void submit();
@@ -157,24 +159,20 @@ export function AdminLock({ variant = "header" }: { variant?: Variant }) {
         >
           {noLock ? (
             <>
-              <p>The backend has no admin key set (ADMIN_KEY), so the controls are open to anyone with the link.</p>
+              <p>{t("dash.lock.noLockText")}</p>
               <div className="adminlock-row">
                 <button type="button" className="adminlock-act" onClick={() => setOpen(false)}>
-                  Close
+                  {t("common.close")}
                 </button>
               </div>
             </>
           ) : (
             <>
-              <strong>{key ? "Admin key on this device" : "Admin key"}</strong>
+              <strong>{key ? t("dash.lock.onDevice") : t("dash.lock.adminKey")}</strong>
               {note ? (
                 <p className="adminlock-note">{note}</p>
               ) : (
-                <p className="adminlock-help">
-                  {key
-                    ? "Enter another key to replace it, or clear it to go back to view only."
-                    : "View only. Enter the admin key to reset, inject failures, approve plans and run the AI."}
-                </p>
+                <p className="adminlock-help">{key ? t("dash.lock.helpReplace") : t("dash.lock.helpView")}</p>
               )}
               <input
                 type="password"
@@ -184,8 +182,8 @@ export function AdminLock({ variant = "header" }: { variant?: Variant }) {
                   setDraft(e.target.value);
                   setError("");
                 }}
-                placeholder="Admin key"
-                aria-label="Admin key"
+                placeholder={t("dash.lock.adminKey")}
+                aria-label={t("dash.lock.adminKey")}
                 autoComplete="off"
                 autoCapitalize="off"
                 autoCorrect="off"
@@ -195,7 +193,7 @@ export function AdminLock({ variant = "header" }: { variant?: Variant }) {
               {error && <p className="adminlock-error">{error}</p>}
               <div className="adminlock-row">
                 <button type="submit" className="adminlock-act primary" disabled={busy || !draft.trim()}>
-                  {busy ? "Checking…" : "Unlock"}
+                  {busy ? t("dash.lock.checking") : t("dash.lock.unlock")}
                 </button>
                 {key && (
                   <button
@@ -206,11 +204,11 @@ export function AdminLock({ variant = "header" }: { variant?: Variant }) {
                       setOpen(false);
                     }}
                   >
-                    Clear key
+                    {t("dash.lock.clear")}
                   </button>
                 )}
                 <button type="button" className="adminlock-act" onClick={() => setOpen(false)}>
-                  Close
+                  {t("common.close")}
                 </button>
               </div>
             </>

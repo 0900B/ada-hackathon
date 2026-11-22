@@ -204,6 +204,22 @@
 .mdt-spacer {
   flex: 1;
 }
+/* UI language switch "SL | EN" (top bar and vehicle picker): touch-sized, follows the day/night theme */
+.mdt .ui-lang.mdt-uilang {
+  color: var(--m-text);
+  font-size: 15px;
+}
+.mdt .ui-lang.mdt-uilang button {
+  min-height: 40px;
+  min-width: 40px;
+  padding: 6px 7px;
+  border-radius: 6px;
+  touch-action: manipulation;
+}
+.mdt .ui-lang.mdt-uilang button.on {
+  color: var(--m-accent-text);
+  border-color: var(--m-accent-text);
+}
 .mdt-clock {
   font-size: 24px;
   font-weight: 700;
@@ -923,6 +939,9 @@
   display: block;
   overflow-y: auto;
   padding: 24px;
+}
+.mdt-picker-lang {
+  float: right;
 }
 .mdt-picker h1 {
   margin: 0 0 6px;

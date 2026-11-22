@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, PhoneIncoming, Zap, type LucideIcon } from "lucide-react";
 import { CALL_LEVELS, FAILURES, type DemoApi } from "./demoInject";
+import { useT } from "./i18n";
 
 /** "Random call" and "Random failure" for the demo (Simulation only; hidden when the backend lacks them). */
 export function DemoButtons({
@@ -14,14 +15,15 @@ export function DemoButtons({
   onCall: (severity?: string) => void;
   onIncident: (kind?: string) => void;
 }) {
+  const t = useT();
   if (!api.call && !api.incident) return null;
   return (
-    <div className="demo-buttons" role="group" aria-label="Demo injections">
+    <div className="demo-buttons" role="group" aria-label={t("dash.demo.aria")}>
       {api.call && (
-        <SplitMenu icon={PhoneIncoming} label="Random call" hotkey="R" options={CALL_LEVELS} busy={busy} onPick={onCall} />
+        <SplitMenu icon={PhoneIncoming} label={t("dash.demo.randomCall")} hotkey="R" options={CALL_LEVELS} busy={busy} onPick={onCall} />
       )}
       {api.incident && (
-        <SplitMenu icon={Zap} label="Random failure" hotkey="X" options={FAILURES} busy={busy} onPick={onIncident} />
+        <SplitMenu icon={Zap} label={t("dash.demo.randomFailure")} hotkey="X" options={FAILURES} busy={busy} onPick={onIncident} />
       )}
     </div>
   );
@@ -42,6 +44,7 @@ function SplitMenu({
   busy: boolean;
   onPick: (value?: string) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -67,7 +70,7 @@ function SplitMenu({
       <button className="split-main" disabled={busy} onClick={() => onPick()} title={`${label} (${hotkey})`}>
         <Icon /> {busy ? "…" : label} <kbd>{hotkey}</kbd>
       </button>
-      <button className="split-caret" disabled={busy} onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} aria-label={`${label}: choose`}>
+      <button className="split-caret" disabled={busy} onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} aria-label={t("dash.demo.choose", { label })}>
         <ChevronDown />
       </button>
       {open && (
