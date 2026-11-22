@@ -84,6 +84,19 @@ def test_oversized_verbatim_and_bad_confidence_rejected():
     ENTRY_IN.validate_python({**note, "confidence": 0.5, "client_entry_id": "c" * 64})
 
 
+def test_unit_case_id_and_supersedes_are_length_limited():  # final review minor #6
+    note = {**base, "type": "note", "content": {"text": "x"}}
+    for field in ("unit", "case_id", "supersedes"):
+        parsed = ENTRY_IN.validate_python({**note, field: "x" * 64})
+        assert getattr(parsed, field) == "x" * 64
+        with pytest.raises(ValidationError):
+            ENTRY_IN.validate_python({**note, field: "x" * 65})
+    for field in ("unit", "case_id"):
+        with pytest.raises(ValidationError):
+            ENTRY_IN.validate_python({**note, field: ""})
+    assert ENTRY_IN.validate_python({**note, "supersedes": None}).supersedes is None
+
+
 def test_every_entry_type_validates_and_state_defaults_to_heard():
     samples = {
         "triage": {"level": "red", "problem_type": "stroke"},

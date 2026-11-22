@@ -197,6 +197,21 @@ def test_wrong_vehicle_409_unknown_trip_404_bad_body_422():
     assert len(get_log(w)) == 0
 
 
+def test_overlong_unit_case_id_and_supersedes_are_422_and_change_nothing():  # final review minor #6
+    c, w = make()
+    t = er_trip(w)
+    for field in ("unit", "case_id", "supersedes"):
+        before = mark(w)
+        r = c.post("/sim/clinical/entries", json=entry(t, **{field: "x" * 65}))
+        assert r.status_code == 422, (field, r.status_code, r.text)
+        assert mark(w) == before, field
+    before = mark(w)
+    assert c.post("/sim/clinical/entries", json=entry(t, unit="")).status_code == 422
+    assert mark(w) == before
+    assert c.post("/sim/clinical/entries", json=entry(t, unit="x" * 64)).status_code == 409  # 64 is within the limit: the vehicle rule answers
+    assert len(get_log(w)) == 0
+
+
 def test_422_names_the_field_and_the_type_discriminator_survives_fastapi():
     c, w = make()
     t = er_trip(w)

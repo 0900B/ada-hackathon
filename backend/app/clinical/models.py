@@ -114,14 +114,14 @@ class ERActionContent(_Content):
 # --- Entries a client may send -----------------------------------------------------------------
 
 class EntryBase(BaseModel):
-    case_id: str = Field(min_length=1)
-    unit: str = Field(min_length=1)
+    case_id: str = Field(min_length=1, max_length=64)
+    unit: str = Field(min_length=1, max_length=64)
     source: Source
     state: EntryState = "heard"
     observed_t: AwareDatetime | None = None
     verbatim: str | None = Field(None, max_length=500)
     confidence: float | None = Field(None, ge=0, le=1)
-    supersedes: str | None = None
+    supersedes: str | None = Field(None, max_length=64)
     client_entry_id: str | None = Field(None, max_length=64)
 
 
