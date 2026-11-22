@@ -370,10 +370,14 @@ def test_units_say_why_each_unit_was_chosen():
     snap = next(x for x in client.get("/sim/state").json()["trips"] if x["id"] == t.id)
     amb, doc = snap["units"]
     assert amb["vehicle_id"] == t.vehicle_id and amb["role"] == "ambulance" and amb["assigned_by"] == "engine"
-    assert amb["reason"].startswith("nearest free ambulance, ") and amb["reason"].endswith(" min"), amb
+    # No minutes in the reason: the card shows the unit's live ETA (eta_scene) next to it, and a number
+    # written at dispatch would disagree with it once the road route is known.
+    assert amb["reason"] == "nearest free ambulance", amb
     assert amb["status_text"] in ("turning out", "about to leave", "driving to the patient") and amb["eta_scene"] and amb["eta_hospital"]
     assert doc["vehicle_id"] == t.doctor_vehicle_id and doc["role"] == "doctor" and doc["eta_hospital"] is None
-    assert doc["reason"].startswith("doctor needed for cardiac arrest: first doctor car on scene"), doc
+    assert doc["reason"] == "doctor needed for cardiac arrest: first doctor car on scene", doc
+    # The timeline keeps the estimate made at dispatch, as a record ("at the patient 09:05 (in 5 min)").
+    assert last(t, "dispatched").text.startswith(f"Dispatched {t.vehicle_id} (nearest free ambulance): at the patient ")
     assert set(amb) >= {"vehicle_id", "role", "status_text", "eta_scene", "eta_hospital", "reason", "assigned_by", "assigned_at"}
     # The helicopter: one unit, with its doctor on board.
     fresh()
@@ -382,6 +386,9 @@ def test_units_say_why_each_unit_was_chosen():
     assert h.vehicle_id == "H1" and h.doctor_vehicle_id == "H1"
     (u,) = next(x for x in W.snapshot()["trips"] if x["id"] == h.id)["units"]
     assert u["role"] == "helicopter" and u["reason"].startswith("helicopter") and "doctor on board" in u["reason"], u
+    # Its timeline entry is the whole dispatch clause, though it has "; " inside its parentheses.
+    e = last(h, "dispatched")
+    assert e.text.startswith("Dispatched H1 (helicopter") and "take-off in " in e.text and "): at the patient " in e.text, e.text
     # Available soon: A1 finishing at UKC is clearly sooner than a free A3 far away.
     fresh(("A1", "A3"))
     _, x = call112("serious", "breathing_difficulty", place_id="home_bezigrad")

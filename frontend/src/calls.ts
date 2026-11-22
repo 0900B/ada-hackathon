@@ -153,13 +153,20 @@ function pendingProposal(t: Trip, runs: AgentRun[]): AgentRun | null {
   return null;
 }
 
-/** "Dispatched A1 (nearest free ambulance): at the patient 14:09" -> "Nearest free ambulance · at the patient 14:09". */
+/** A unit's reason from its timeline entry (calls without `units`): "Dispatched A1 (nearest free ambulance): at the
+ * patient 14:09" -> "Nearest free ambulance". No time: the unit's live ETA is shown next to it, and the time estimated
+ * at the decision would soon disagree with it (e.g. once the road route is known). */
 export function shortReason(text: string): string {
-  const m = /^(?:Dispatched|Re-evaluated: dispatched|Placed on)\s+\S+\s+\(([^)]+)\)(?::\s*(.*))?$/i.exec(text.trim());
-  if (!m) return text;
-  const why = m[1][0].toUpperCase() + m[1].slice(1);
-  const when = m[2] ? m[2].replace(/\s*\(in \d+ min\)/, "").split(",")[0] : "";
-  return when ? `${why} · ${when}` : why;
+  const s = text.trim();
+  const m = /^(?:Dispatched|Re-evaluated: dispatched|Placed on)\s+\S+\s+\(/i.exec(s);
+  if (m) {
+    let depth = 1;
+    let i = m[0].length;
+    for (; i < s.length && depth > 0; i++) depth += s[i] === "(" ? 1 : s[i] === ")" ? -1 : 0;
+    const why = depth === 0 ? s.slice(m[0].length, i - 1) : "";
+    if (why) return why[0].toUpperCase() + why.slice(1);
+  }
+  return s.replace(/:\s*at (?:the patient|the pickup) \d{1,2}:\d{2}\b.*$/i, ""); // "Reassigned from H1 to A3: at the patient 11:52"
 }
 
 const mins = (a: number, b: number) => (a - b) / 60_000;

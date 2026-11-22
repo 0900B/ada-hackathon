@@ -347,7 +347,7 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
                 why = f"protect cover: {amb.id} is the last ambulance free near {state.places[amb.base_id].name}; van"
             else:
                 why = "no ambulance free; van"
-            units.note(state, trip, best["vehicle_id"], f"{why}, {best['pickup_in_min']:.0f} min{kept}")
+            units.note(state, trip, best["vehicle_id"], f"{why}{kept}")
             return (
                 f"; dispatched {best['vehicle_id']} ({why}, {best['insertion']}): at {who} "
                 f"{_hhmm(best['trip_eta_pickup'])} (in {best['pickup_in_min']:.0f} min), at {dest} {_hhmm(best['trip_eta_dropoff'])}"
@@ -364,7 +364,7 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
         best = pool[0]
         _apply_steps(state, Plan(steps=[PlanStep(**best["step"])]))
         trip.dispatched_at = state.sim_time
-        units.note(state, trip, best["vehicle_id"], f"no ambulance free: {best['insertion']}, {best['pickup_in_min']:.0f} min{kept}")
+        units.note(state, trip, best["vehicle_id"], f"no ambulance free: {best['insertion']}{kept}")
         return (
             f"; dispatched {best['vehicle_id']} (no ambulance free; {best['insertion']}): at {who} "
             f"{_hhmm(best['trip_eta_pickup'])} (in {best['pickup_in_min']:.0f} min), at {dest} {_hhmm(best['trip_eta_dropoff'])}"
@@ -386,8 +386,9 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
         else ""
     )
     when = f"at {who} {_hhmm(o.reach)} (in {_mins(o.reach, state.sim_time):.0f} min), at {dest} {_hhmm(o.cand['trip_eta_dropoff'])}"
-    in_min = f"{_mins(o.reach, state.sim_time):.0f} min"
-    # `unit_reason`: one line for trip.units (engine/units.py), e.g. "nearest free ambulance, 4 min"
+    # `unit_reason`: one line for trip.units (engine/units.py), e.g. "nearest free ambulance". Never the
+    # minutes to the patient: the card shows the unit's live ETA next to it (re-estimated once the road
+    # route is known), so a number written now would soon disagree with it.
     if flies(v.type):
         road = d.best_road
         # what the decision compared: arrival at UKC for stroke and heart attack, else at the patient
@@ -403,10 +404,10 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
             why += f"; diverted from {o.displaced.id} ({o.displaced.severity})"
         up = f"take-off in {takeoff:.0f} min" if takeoff is not None else ""  # activation at its base (app/hems.py)
         clause = f"; dispatched {v.id} ({why}{'; ' + up if up else ''}): {when}"
-        unit_reason = f"{why}, {in_min}{'; ' + up if up else ''}"
+        unit_reason = f"{why}{'; ' + up if up else ''}"
     elif o.kind == "free":
         clause = f"; dispatched {v.id} (nearest free ambulance): {when}"
-        unit_reason = f"nearest free ambulance, {in_min}"
+        unit_reason = "nearest free ambulance"
     elif o.kind == "soon":
         cur = state.trips[v.current_trip_id] if v.current_trip_id else None
         if cur and cur.status == "onboard":
@@ -421,16 +422,16 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
         if free and free is not o and free.rank - o.rank >= 1:
             unit_reason = f"available soon: {where}, {free.rank - o.rank:.0f} min sooner{' ' + compare if compare else ''} than {free.vehicle_id}"
         else:
-            unit_reason = f"available soon: {where}{'' if free else '; no unit free'}, {in_min}"
+            unit_reason = f"available soon: {where}{'' if free else '; no unit free'}"
     elif o.kind == "override" and o.displaced is not None:
         clause = (
             f"; dispatched {v.id}, diverted from {o.displaced.id} ({o.displaced.severity}) to this {trip.severity} call: "
             f"{when}{sooner}"
         )
-        unit_reason = f"diverted from {o.displaced.id} ({o.displaced.severity}) to this {trip.severity} call, {in_min}"
+        unit_reason = f"diverted from {o.displaced.id} ({o.displaced.severity}) to this {trip.severity} call"
     else:
         clause = f"; dispatched {v.id} (no unit free; {o.cand['insertion']}): {when}"
-        unit_reason = f"no unit free: {o.cand['insertion']}, {in_min}"
+        unit_reason = f"no unit free: {o.cand['insertion']}"
     if d.private_reason:  # surge capacity: a contracted ambulance, by the use rules
         clause = f"; dispatched {v.id} (contracted private ambulance: {d.private_reason}): {when}"
         unit_reason = f"contracted private ambulance: {d.private_reason}"

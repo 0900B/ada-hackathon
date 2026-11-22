@@ -107,9 +107,8 @@ def send_doctor(state: WorldState, trip: Trip, unit_id: str | None = None, unit_
         return f"; {why}: consider the helicopter (doctor on board)"
     best = min(free, key=lambda v: doctor_arrival(state, v, trip))
     at = dispatch_doctor_car(state, trip, best)
-    in_min = _mins(at, state.sim_time)
     note(state, trip, best.id, f"doctor needed for {(trip.condition_label or 'this call').lower()}: "
-         f"first doctor car on scene, {in_min:.0f} min")
+         "first doctor car on scene")  # (its ETA is on the card)
     if reach is None:
         rel = ""
     elif abs(_mins(at, reach)) < 1:
