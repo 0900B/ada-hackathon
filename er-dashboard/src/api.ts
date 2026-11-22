@@ -181,15 +181,45 @@ export interface ActionBody {
   action: "acknowledge" | "bay_assigned" | "team_activated";
   bay?: string;
   team?: Team;
+  /** Stored with the entry (max 500). Used to mark calls the dashboard made by itself. */
+  note?: string;
+  /**
+   * Idempotency key (scoped to unit "er" on the server). A person's click gets a random one; an automatic
+   * call gets a fixed one per case and team, so two open dashboards cannot call the same team twice.
+   */
+  clientEntryId?: string;
 }
 
 export function postAction(world: World, caseId: string, body: ActionBody): Promise<LogEntry> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const key = storedKey();
   if (key) headers["X-Plan-B-Key"] = key;
+  const { clientEntryId, ...rest } = body;
   return request<LogEntry>(`/${world}/er/cases/${encodeURIComponent(caseId)}/actions`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ ...body, client_entry_id: crypto.randomUUID() }),
+    body: JSON.stringify({ ...rest, client_entry_id: clientEntryId ?? crypto.randomUUID() }),
   });
 }
+
+// ---- live tracking of the unit on a case ---------------------------------------------------------------
+
+export type LatLng = [number, number];
+export interface VehicleStop {
+  kind: "pickup" | "dropoff" | "base" | string;
+  trip_id: string | null;
+  label?: string;
+  place?: string;
+  lat: number;
+  lon: number;
+  eta?: string;
+}
+export interface VehicleTrack {
+  vehicle: { id: string; name: string; type: string; lat: number; lon: number; status: string; current_trip_id: string | null };
+  stops: VehicleStop[];
+  /** legs[i] is the road line from the previous point (the vehicle for i = 0) to stops[i]. */
+  legs: LatLng[][];
+}
+
+export const fetchVehicle = (world: World, vehicleId: string, signal?: AbortSignal) =>
+  request<VehicleTrack>(`/${world}/vehicles/${encodeURIComponent(vehicleId)}`, { signal });

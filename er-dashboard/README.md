@@ -23,6 +23,12 @@ npm run dev          # http://localhost:5174
 - `VITE_API_URL` sets the backend address (default `http://localhost:8000` in dev, the Railway URL in a production build). The Railway backend must contain the clinical module, otherwise the page says the board is switched off.
 - With the demo lock on (`ADMIN_KEY` set on the server), open the page once with `?key=…`. Reading always works; the three reception actions need the key.
 
+## What it does
+
+- **Grid of cases.** One tile per patient bound for the ER, ordered by arrival time. Click a tile to open a popup with a live map (the ambulance, its route, the patient and the ER; refreshed every 2 s from `GET /{world}/vehicles/{id}`) next to all the case data and the reception actions. Esc or a click outside closes it.
+- **Alert sound** (header switch, off until clicked because browsers require it). A new critical alert (cardiac arrest) plays a siren; a new high alert (STEMI, airway, stroke window, vitals out of limits) plays two chimes. Alerts already on screen when the page opens stay silent.
+- **Auto-call teams** (header switch, on by default). The dashboard calls the ER teams the backend suggests for each case (its rule table: problem type and key events). Each call is stored with the note "Called automatically: …" and a fixed idempotency key per case and team, so several open dashboards never call a team twice. It is rule-based, not an AI model. A person can still call teams by hand.
+
 ## How it works
 
 - `src/api.ts` is the only file that talks to the network. `src/useBoard.ts` polls `GET /{world}/er/board` every 1.5 s and keeps the last good board when a poll fails. To switch to the SSE stream, change that hook only: every frame of `/{world}/stream` carries the same board under `clinical`.

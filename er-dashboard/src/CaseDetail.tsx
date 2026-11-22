@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertTriangle, ArrowLeft, Check } from "lucide-react";
+import { AlertTriangle, Check } from "lucide-react";
 import { postAction } from "./api";
 import type { ActionBody, CaseCard, CaseDetailData, ErAlert, LogEntry, Team, Vital, World } from "./api";
 import { ago, clock, minutesBetween, sexLabel } from "./format";
@@ -97,7 +97,9 @@ function describeEntry(e: LogEntry): string {
       return String(k.text ?? "");
     case "er_action": {
       const a = String(k.action);
-      return a === "bay_assigned" ? `Bay ${k.bay} assigned` : a === "team_activated" ? `${TEAM_LABEL[k.team as Team] ?? k.team} activated` : "Acknowledged";
+      const what = a === "bay_assigned" ? `Bay ${k.bay} assigned` : a === "team_activated" ? `${TEAM_LABEL[k.team as Team] ?? k.team} called` : "Acknowledged";
+      // the note says why, for example "Called automatically: problem type: stroke"
+      return e.verbatim ? `${what}. ${e.verbatim}` : what;
     }
     default:
       return "";
@@ -230,7 +232,6 @@ export function CaseDetail({
   data,
   alerts,
   asOf,
-  onBack,
   onChanged,
 }: {
   world: World;
@@ -238,7 +239,6 @@ export function CaseDetail({
   data: CaseDetailData | null;
   alerts: ErAlert[];
   asOf: string;
-  onBack: () => void;
   onChanged: () => void;
 }) {
   const problem = caseTitle(c.problem);
@@ -248,9 +248,6 @@ export function CaseDetail({
 
   return (
     <article className="detail" aria-label={`Case ${c.case_id}`}>
-      <button type="button" className="back" onClick={onBack}>
-        <ArrowLeft size={16} aria-hidden /> All cases
-      </button>
       <header className={`d-head level-${c.level.value}`}>
         <div>
           <h2>{problem}</h2>

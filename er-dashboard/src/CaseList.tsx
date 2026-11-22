@@ -69,7 +69,7 @@ export function CaseRow({
       <button
         type="button"
         className={`row level-${c.level.value} ${c.level.inferred ? "assumed" : ""} ${selected ? "selected" : ""}`}
-        aria-pressed={selected}
+        aria-haspopup="dialog"
         onClick={onSelect}
       >
         <EtaBlock c={c} asOf={asOf} />
