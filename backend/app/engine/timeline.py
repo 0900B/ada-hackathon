@@ -44,7 +44,8 @@ DEFAULT_DETAIL = {
 }
 # Timeline kinds counted in ai_stats, and the kinds that are decisions (last_decision_at).
 COUNTED = {"dispatched": "dispatched", "rerouted": "reroutes", "reassigned": "reassignments", "unit_replaced": "reassignments"}
-DECISIONS = {"dispatched", "doctor_dispatched", "rerouted", "reassigned", "unit_replaced", "approved", "reviewed", "override"}
+DECISIONS = {"dispatched", "doctor_dispatched", "rerouted", "reassigned", "unit_replaced", "approved", "reviewed", "override",
+             "recalculated"}
 
 
 def engine_detail(seconds: float, what: str = "rules engine") -> str:
@@ -142,13 +143,14 @@ REPLAN_KINDS = ("unit_replaced", "reassigned", "rerouted", "delayed", "note")
 
 def mark_disruption(
     state: WorldState, event_id: str, text: str, by: str, marks: dict[str, tuple[int, datetime | None]],
-) -> None:
+) -> list[str]:
     """A disruption hit open 112 calls: put a "disruption" entry before what the event logged on each call
     it touched, tag those entries with the event, and give them the arrival before and after (the case
     card's re-plan box). A call whose arrival moved by a minute or more without any entry gets one.
     marks: trip id -> (timeline length, next arrival) taken before the event."""
     if state.is_simulation:
-        return
+        return []
+    marked: list[str] = []
     for tid, (n0, eta0) in marks.items():
         trip = state.trips.get(tid)
         if trip is None or trip.status in DONE:
@@ -173,7 +175,9 @@ def mark_disruption(
         trip.timeline.insert(n0, head)
         if len(trip.timeline) > MAX_ENTRIES:
             del trip.timeline[KEEP_FIRST : len(trip.timeline) - (MAX_ENTRIES - KEEP_FIRST)]
+        marked.append(tid)
     state.bump()
+    return marked
 
 
 class Tracker:

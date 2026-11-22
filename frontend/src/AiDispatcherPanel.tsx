@@ -72,7 +72,7 @@ export function AiDispatcherPanel({
   const [listening, setListening] = useState(false);
   const [overrideUnit, setOverrideUnit] = useState<{ tripId: string; id: string; n: number } | null>(null);
   // A disruption hit a case: its card opens with the re-plan box, until closed or another case is opened
-  const [replan, setReplan] = useState<{ tripId: string; since: string } | null>(null);
+  const [replan, setReplan] = useState<{ tripId: string; since: string; mode: "disruption" | "new" } | null>(null);
   const { active, closed } = callsOf(state);
   const cardRefs = useRef(new Map<string, HTMLElement>());
   const reviewRef = useRef<HTMLDivElement>(null);
@@ -144,10 +144,29 @@ export function AiDispatcherPanel({
     if (!newest || newest.ms <= seenDisruption.current) return;
     seenDisruption.current = newest.ms;
     const hit = newest;
-    setReplan({ tripId: hit.tripId, since: hit.at });
+    setReplan({ tripId: hit.tripId, since: hit.at, mode: "disruption" });
     setOpen(hit.tripId);
     onSelectCase(hit.tripId);
     requestAnimationFrame(() => cardRefs.current.get(hit.tripId)?.scrollIntoView({ block: "start", behavior: "smooth" }));
+  }, [state.version]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A new call (typed, E on the map, Random call, generated): its card shows how the AI dispatcher handles it
+  // (triage, dispatch, doctor car, review), until closed or another case is opened. Not for those on page load.
+  const seenCases = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const ids = active.map((c) => `${state.epoch ?? 0}:${c.trip.id}`);
+    if (seenCases.current === null) {
+      seenCases.current = new Set(ids);
+      return;
+    }
+    const fresh = active.filter((c) => !seenCases.current!.has(`${state.epoch ?? 0}:${c.trip.id}`));
+    ids.forEach((id) => seenCases.current!.add(id));
+    const c = fresh[fresh.length - 1];
+    const received = c?.trip.timeline?.find((e) => e.kind === "received");
+    if (!c || !received) return;
+    setReplan({ tripId: c.trip.id, since: received.at, mode: "new" });
+    setOpen(c.trip.id);
+    onSelectCase(c.trip.id);
   }, [state.version]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Opening another case closes the re-plan box (collapsing the same case keeps it)
@@ -182,7 +201,7 @@ export function AiDispatcherPanel({
       onSelectVehicle={onSelectVehicle}
       onCentreVehicle={onCentreVehicle}
       onShowOnMap={() => onShowCall(c.trip.id)}
-      replan={replan && replan.tripId === c.trip.id ? replan.since : null}
+      replan={replan && replan.tripId === c.trip.id ? { since: replan.since, mode: replan.mode } : null}
       onCloseReplan={() => setReplan(null)}
       onMissingOverride={() => {
         setCanOverride(false);

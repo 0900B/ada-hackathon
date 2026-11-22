@@ -78,7 +78,12 @@ def apply_event(
     _log_event(state, ev, summary, created, tracker, graded, reported_by)
     event_id = state.new_id("EV")
     if marks:
-        timeline.mark_disruption(state, event_id, timeline._clauses(summary)[0], reported_by, marks)
+        marked = timeline.mark_disruption(state, event_id, timeline._clauses(summary)[0], reported_by, marks)
+        if marked:
+            from .followup import recheck  # local: followup imports this module
+
+            recheck(state, marked, _hit_vehicles(state, ev), {tid: marks[tid][1] for tid in marked})
+            project_all(state)
 
     affected: list[str] = list(dict.fromkeys(created))  # the event's own trips first (e.g. the new call)
     for t in state.trips.values():
@@ -104,6 +109,19 @@ def apply_event(
     state.events.append(record)
     state.bump()
     return record
+
+
+def _hit_vehicles(state: WorldState, ev: OperatorEvent) -> set[str]:
+    """The units a disruption hit: the delayed / broken-down unit, or every unit whose leg crosses a new
+    closure, crash or jam (the dispatcher's choice of such a unit may be changed: followup.recheck)."""
+    vid = getattr(ev, "vehicle_id", None)
+    if vid:
+        return {vid}
+    if isinstance(ev, RoadClosureEvent):
+        inc = next(reversed(state.incidents.values()), None)
+        if inc is not None:
+            return {v.id for v in state.vehicles.values() if v.current_trip_id and crosses(state, v, inc)}
+    return set()
 
 
 def _vehicle(state: WorldState, vehicle_id: str):

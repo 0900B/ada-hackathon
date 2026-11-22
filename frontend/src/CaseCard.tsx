@@ -99,7 +99,7 @@ export function CaseCard({
   onMissingOverride: () => void;
   notify: Notify;
   refCb: (el: HTMLElement | null) => void;
-  replan: string | null; // a disruption hit this call: its time; show the re-plan box
+  replan: { since: string; mode: "disruption" | "new" } | null; // show the box: a disruption hit the call, or it is new
   onCloseReplan: () => void;
 }) {
   const t = useT();
@@ -156,7 +156,7 @@ export function CaseCard({
 
   return (
     <li
-      className={`case lvl-${level}${open ? " open" : ""}${selected ? " selected" : ""}${isNew ? " case-new" : ""}${c.status === "waiting" ? " waiting" : ""}${done ? " done" : ""}${replan ? " replan-on" : ""}`}
+      className={`case lvl-${level}${open ? " open" : ""}${selected ? " selected" : ""}${isNew ? " case-new" : ""}${c.status === "waiting" ? " waiting" : ""}${done ? " done" : ""}${replan ? (replan.mode === "new" ? " newcall-on" : " replan-on") : ""}`}
       ref={refCb}
     >
       <button className="case-head" onClick={onToggle} aria-expanded={open} title={open ? t("ai.case.collapse") : t("ai.case.open")}>
@@ -191,8 +191,9 @@ export function CaseCard({
 
       {replan && (
         <ReplanBox
+          mode={replan.mode}
           timeline={c.timeline}
-          since={replan}
+          since={replan.since}
           reviewing={c.reviewing}
           proposal={proposal?.recommendation?.options[proposal.recommendation.recommended_index]?.title ?? null}
           busy={busy}

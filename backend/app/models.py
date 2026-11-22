@@ -111,6 +111,7 @@ TimelineKind = Literal[
     "reviewed",  # the AI dispatcher (Claude) reviewed the case and kept the decision (app/ai_dispatcher.py)
     "override",  # the dispatcher changed a unit by hand (app/overrides.py)
     "disruption",  # a breakdown, delay, closure, fog, ... hit this call: the re-plan entries follow it
+    "recalculated",  # after a disruption the engine compared the free units and kept (or could not change) the unit
 ]
 TimelineBy = Literal["caller", "ai", "rules", "engine", "dispatcher", "crew"]
 AiMode = Literal["assisted", "autonomous"]  # per world (app/ai_dispatcher.py)

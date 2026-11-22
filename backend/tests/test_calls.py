@@ -427,8 +427,8 @@ def test_a_free_unit_takes_over_when_it_is_3_min_sooner():
     followup.check(W, force=True)
     assert t.vehicle_id == first, "2 min later is not worth a switch"
     apply_event(W, DelayEvent(type="delay", vehicle_id=first, minutes=20, note="stuck behind a crash"))
-    done = followup.check(W, force=True)
-    assert t.vehicle_id not in (None, first) and done, (t.vehicle_id, done)
+    followup.check(W, force=True)  # the disruption's recalculation has already switched (engine/followup.recheck)
+    assert t.vehicle_id not in (None, first), t.vehicle_id
     e = entries(t, "reassigned")[-1]
     assert e.by == "engine" and "min sooner than" in e.text and "released" in e.text, e
     old = W.vehicles[first]
@@ -571,6 +571,33 @@ def test_disruption_starts_a_replan_on_the_case():
         assert d.eta_before and d.eta_after and 9 <= (d.eta_after - d.eta_before).total_seconds() / 60 <= 11, d
     # Old timelines without the new fields still load; engine timings never read "0.0 s"
     assert all("0.0 s" not in (e.detail or "") for e in W.trips[t.id].timeline)
+
+
+def test_recalculation_after_a_disruption():
+    """After a delay the engine recalculates the call and says so: a free unit well ahead takes over, also
+    from the dispatcher's own choice when that unit is the one held up; otherwise a "recalculated" line."""
+    def call_and_unit():
+        fresh()
+        t = trip_of(client.post("/sim/admin/random-call", json={"condition": "major_trauma", "lat": 46.0425, "lon": 14.4837}).json())
+        return t.id, t.vehicle_id
+
+    # The dispatcher's choice, then held up for 18 min: the engine switches and says why
+    tid, first = call_and_unit()
+    alts = client.get(f"/sim/trips/{tid}/alternatives?role=ambulance").json()
+    other = next(a["vehicle_id"] for a in alts if a["vehicle_id"] != first and a["vehicle_id"].startswith("A"))
+    assert client.post(f"/sim/trips/{tid}/assign", json={"vehicle_id": other, "mode": "replace", "role": "ambulance"}).status_code == 200
+    n = len(W.trips[tid].timeline)
+    client.post("/sim/events", json={"type": "delay", "vehicle_id": other, "minutes": 18})
+    new = W.trips[tid].timeline[n:]
+    sw = next(e for e in new if e.kind == "reassigned")
+    assert W.trips[tid].vehicle_id != other and "dispatcher's choice but is held up" in sw.text and sw.unit_before == other, sw
+    # A small delay: nobody is enough faster; the engine still says it recalculated
+    tid, first = call_and_unit()
+    n = len(W.trips[tid].timeline)
+    client.post("/sim/events", json={"type": "delay", "vehicle_id": first, "minutes": 2})
+    new = W.trips[tid].timeline[n:]
+    rc = [e for e in new if e.kind == "recalculated"]
+    assert W.trips[tid].vehicle_id == first and rc and "compared" in rc[0].text and rc[0].by == "engine", [e.text for e in new]
 
 
 def _incident(kind: str | None) -> dict:

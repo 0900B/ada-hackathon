@@ -134,7 +134,7 @@ export interface CallInfo {
 export type TimelineKind =
   | "received" | "triaged" | "dispatched" | "doctor_dispatched" | "rerouted" | "reassigned" | "delayed" | "unit_replaced"
   | "proposal" | "approved" | "reviewed" | "override" | "on_scene" | "doctor_on_scene" | "transporting" | "at_hospital"
-  | "handover_done" | "closed" | "note" | "disruption";
+  | "handover_done" | "closed" | "note" | "disruption" | "recalculated";
 
 export interface TimelineEntry {
   at: string;

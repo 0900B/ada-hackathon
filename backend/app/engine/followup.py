@@ -17,7 +17,7 @@ Detours around closures are automatic in the simulator and logged there.
 from __future__ import annotations
 
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 from ..models import Plan, PlanStep, Trip
@@ -108,10 +108,11 @@ def _in_jam(state: WorldState, v) -> bool:
     return any(i.active and is_jam(i) and crosses(state, v, i) for i in state.all_incidents())
 
 
-def _faster_free_unit(state: WorldState, trip: Trip) -> tuple[str, str] | None:
+def _faster_free_unit(state: WorldState, trip: Trip, release_hold: bool = False) -> tuple[str, str] | None:
     """Move the call to a free own ambulance that reaches the patient FASTER_FREE_UNIT_MIN_GAIN_MIN
     sooner than its unit (never a unit on scene or within 2 min of the patient, never the helicopter's
-    call). Returns (old unit, timeline text) when it switched."""
+    call). Returns (old unit, timeline text) when it switched. release_hold: the dispatcher's unit was
+    just hit by a disruption (the basis of their choice changed), so it may be switched too."""
     from .plans import _apply_steps
     from .surge import is_contracted
 
@@ -120,8 +121,8 @@ def _faster_free_unit(state: WorldState, trip: Trip) -> tuple[str, str] | None:
     # may be there on purpose (to keep an area's last ambulance for red calls, engine/dispatch.py).
     if v is None or v.type != "ambulance" or trip.status not in ("assigned", "en_route_pickup") or not trip.eta_pickup:
         return None
-    if units.held(trip):
-        return None  # the dispatcher chose this unit: their override stands (unless it drops out)
+    if units.held(trip) and not release_hold:
+        return None  # the dispatcher chose this unit: their override stands (unless it drops out or is held up)
     if near_current_patient(state, v, trip) is not None:
         return None
     now_reach = max(trip.eta_pickup, trip.pickup_after)
@@ -159,3 +160,76 @@ def _faster_free_unit(state: WorldState, trip: Trip) -> tuple[str, str] | None:
     text = (f"{best['vehicle_id']} is free and {gain:.0f} min sooner than {v.id}{why}: switched, at {who} "
             f"{timeline.hhmm(reach)}; {v.id} released")
     return v.id, text
+
+
+def _free_alternatives(state: WorldState, trip: Trip, v) -> tuple[dict | None, int]:
+    """The free own ambulances that could take the call, simulated: (the soonest, how many compared)."""
+    from .surge import is_contracted
+
+    ids = {o.id for o in state.vehicles.values()
+           if o.id != v.id and o.type == "ambulance" and o.origin == "own" and not is_contracted(o) and is_free(state, o)}
+    if not ids:
+        return None, 0
+    cands = [
+        c for c in find_candidates(state, trip.id, limit=50)
+        if c["vehicle_id"] in ids and c["vehicle_free"] and not c["step"]["interrupt_current"] and c["trip_eta_pickup"]
+    ]
+    return (min(cands, key=lambda c: c["trip_eta_pickup"]) if cands else None), len(cands)
+
+
+def recheck(state: WorldState, trip_ids: list[str], hit: set[str], eta_before: dict[str, datetime | None]) -> None:
+    """Right after a disruption (engine/events.py): recalculate each open 112 call it touched and say so on
+    its timeline, also when nothing changes. A free ambulance FASTER_FREE_UNIT_MIN_GAIN_MIN sooner takes the
+    call, also from a unit the dispatcher chose if the disruption hit that unit (the basis of their choice
+    changed; they can override again), when it pushed that unit's arrival back by FASTER_FREE_UNIT_MIN_GAIN_MIN
+    or more (a dispatcher who chose a slower unit on purpose keeps it after a small delay). hit: the vehicles the
+    disruption hit; eta_before: each call's next arrival before it. Real world only."""
+    from .events import is_112
+
+    if state.is_simulation:
+        return
+    for tid in trip_ids:
+        trip = state.trips.get(tid)
+        if trip is None or not is_112(trip):
+            continue
+        v = state.vehicles.get(trip.vehicle_id) if trip.vehicle_id else None
+        if v is None or v.type != "ambulance" or trip.status not in ("assigned", "en_route_pickup") or not trip.eta_pickup:
+            continue  # no unit (the follow-up re-dispatches), on scene, or a helicopter / van call
+        t0 = time.perf_counter()
+        was_held = units.held(trip)
+        tracker = timeline.Tracker(state)
+        before = eta_before.get(tid)
+        pushed = (max(trip.eta_pickup, trip.pickup_after) - before).total_seconds() / 60 if before else 0.0
+        switched = _faster_free_unit(state, trip, release_hold=v.id in hit and pushed >= FASTER_FREE_UNIT_MIN_GAIN_MIN)
+        if switched:
+            project_all(state)
+            old, text = switched
+            if was_held:
+                text = f"{old} was the dispatcher's choice but is held up: {text}"
+            eta_after, of = timeline.milestone(trip)
+            detail = timeline.engine_detail(time.perf_counter() - t0, "rules engine recalculation")
+            timeline.log(state, trip, "reassigned", "engine", text, trip.vehicle_id, detail=detail, unit_before=old,
+                         eta_before=tracker.eta.get(trip.id), eta_after=eta_after, eta_of=of)
+            tracker.before.pop(trip.id, None)  # already said; log only a doctor change, if any
+            tracker.log_changes("engine", detail=detail)
+            continue
+        best, n = _free_alternatives(state, trip, v)
+        now_reach = max(trip.eta_pickup, trip.pickup_after)
+        who = "the patient" if trip.kind == "patient" else "the pickup"
+        if best is None:
+            text = f"Recalculated: no free ambulance could take over; {v.id} stays (at {who} {timeline.hhmm(now_reach)})"
+        else:
+            reach = max(best["trip_eta_pickup"], trip.pickup_after)
+            gain = (now_reach - reach).total_seconds() / 60
+            other = best["vehicle_id"]
+            if gain >= FASTER_FREE_UNIT_MIN_GAIN_MIN and was_held:
+                text = (f"Recalculated: {other} would be {gain:.0f} min sooner, but {v.id} is the dispatcher's choice "
+                        f"(Override to switch)")
+            elif gain >= 1:
+                text = (f"Recalculated: {other} would be only {int(gain)} min sooner (a switch needs "
+                        f"{FASTER_FREE_UNIT_MIN_GAIN_MIN:.0f}): {v.id} stays, at {who} {timeline.hhmm(now_reach)}")
+            else:
+                text = f"Recalculated: {v.id} is still the fastest, at {who} {timeline.hhmm(now_reach)} (next best {other} {timeline.hhmm(reach)})"
+            text = f"{text}; compared {n} free ambulance{'s' if n != 1 else ''}"
+        timeline.log(state, trip, "recalculated", "engine", text, v.id,
+                     detail=timeline.engine_detail(time.perf_counter() - t0, "rules engine recalculation"))

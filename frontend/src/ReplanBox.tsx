@@ -1,4 +1,4 @@
-import { ArrowRight, Bot, Cpu, Loader2, Radio, UserRound, X, Zap, type LucideIcon } from "lucide-react";
+import { ArrowRight, Bot, Cpu, Loader2, PhoneIncoming, Radio, UserRound, X, Zap, type LucideIcon } from "lucide-react";
 import type { TimelineEntry } from "./api";
 import { isClaude, sourceText, STEP_LABEL } from "./calls";
 import { fmtTime } from "./format";
@@ -12,6 +12,7 @@ import { useT } from "./i18n";
  * until the dispatcher closes it or opens another case (AiDispatcherPanel).
  */
 export function ReplanBox({
+  mode = "disruption",
   timeline,
   since,
   reviewing,
@@ -21,8 +22,9 @@ export function ReplanBox({
   onClose,
   onSelectVehicle,
 }: {
+  mode?: "disruption" | "new"; // a disruption hit the call, or a new call the AI dispatcher is handling
   timeline: TimelineEntry[];
-  since: string; // the disruption entry's time
+  since: string; // the disruption entry's time (new: the "received" entry's time)
   reviewing: boolean; // Claude is reviewing this case right now
   proposal: string | null; // a pending proposal's title (Assisted mode)
   busy: boolean;
@@ -31,24 +33,33 @@ export function ReplanBox({
   onSelectVehicle: (vehicleId: string) => void;
 }) {
   const t = useT();
+  const isNew = mode === "new";
+  const headKind = isNew ? "received" : "disruption";
   let start = -1;
   for (let i = timeline.length - 1; i >= 0; i--) {
-    if (timeline[i].kind === "disruption" && timeline[i].at === since) {
+    if (timeline[i].kind === headKind && timeline[i].at === since) {
       start = i;
       break;
     }
   }
   if (start < 0) return null;
   const head = timeline[start];
-  const lines = timeline.slice(start + 1).filter((e) => !SKIP.has(e.kind)).slice(0, 10);
+  // A new call: what the AI dispatcher did with it, until the next disruption (that gets its own box)
+  let rest = timeline.slice(start + 1);
+  if (isNew) {
+    const stop = rest.findIndex((e) => e.kind === "disruption");
+    if (stop >= 0) rest = rest.slice(0, stop);
+  }
+  const lines = rest.filter((e) => !(isNew ? SKIP_NEW : SKIP).has(e.kind)).slice(0, 10);
+  const HeadIcon = isNew ? PhoneIncoming : Zap;
   return (
-    <section className="replan" aria-label={t("ai.replan.aria")} aria-live="polite">
+    <section className={`replan${isNew ? " new" : ""}`} aria-label={t("ai.replan.aria")} aria-live="polite">
       <div className="replan-head">
-        <Zap className="replan-icon" aria-hidden />
+        <HeadIcon className="replan-icon" aria-hidden />
         <span className="replan-title">
-          {t("ai.replan.title")} {fmtTime(head.at)}
+          {t(isNew ? "ai.replan.newTitle" : "ai.replan.title")} {fmtTime(head.at)}
         </span>
-        <span className="replan-what">{head.text}</span>
+        <span className="replan-what">{isNew ? t("ai.replan.newWhat") : head.text}</span>
         <button className="link replan-close" onClick={onClose} title={t("ai.replan.close")} aria-label={t("ai.replan.close")}>
           <X />
         </button>
@@ -91,6 +102,8 @@ export function ReplanBox({
 
 const STAGGER_S = 0.35; // seconds between lines appearing (the real times are on each line)
 const SKIP = new Set(["received", "triaged", "disruption"]);
+// A new call's box shows the triage and dispatch, not the crew's progress (on scene, transporting, ...)
+const SKIP_NEW = new Set(["received", "disruption", "on_scene", "doctor_on_scene", "transporting", "at_hospital", "handover_done", "closed"]);
 
 function whoIcon(by: string): LucideIcon {
   if (isClaude(by)) return Bot;
@@ -113,6 +126,11 @@ function ReplanLine({ e, i, onSelectVehicle }: { e: TimelineEntry; i: number; on
       <Icon className="replan-who" aria-hidden />
       <div className="replan-main">
         <div className="replan-row">
+          {(e.by === "engine" || e.by === "rules" || isClaude(e.by)) && (
+            <span className="replan-ai" title={t("ai.replan.aiChipTitle")}>
+              {t("ai.replan.aiChip")}
+            </span>
+          )}
           <span className="replan-step">{STEP_LABEL[e.kind] ?? e.kind}</span>
           <span className="replan-src">{sourceText(e.by, e.detail)}</span>
           <span className="replan-time">{fmtTime(e.at)}</span>
