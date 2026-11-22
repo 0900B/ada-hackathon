@@ -196,6 +196,18 @@ def test_unknown_address_is_refused_and_a_map_point_works():
     assert abs(p.lat - W.places["home_siska"].lat) < 0.01 and abs(p.lon - W.places["home_siska"].lon) < 0.01
 
 
+def test_street_without_cesta_is_found():
+    """Callers say "Dunajska 100", not "Dunajska cesta 100": without Claude the address must still be found."""
+    fresh()
+    for typed, full in (("Dunajska 100", "Dunajska cesta 100"), ("celovska 150, Ljubljana", "Celovška cesta 150"),
+                        ("Šmartinska 152", "Šmartinska cesta 152"), ("Topniška 7", "Topniška ulica 7")):
+        short, long = intake.resolve_address(W, typed), intake.resolve_address(W, full)
+        assert short is not None and long is not None, typed
+        assert abs(short.lat - long.lat) < 0.01 and abs(short.lon - long.lon) < 0.01, (typed, short, long)
+    assert intake.resolve_address(W, "Ljubljana") is None  # no street, no area: still asked for
+    assert intake.resolve_address(W, "Nekje 12") is None
+
+
 # --- Intake: Claude, and the rules when Claude is limited or fails ---------------------------------
 
 

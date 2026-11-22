@@ -87,6 +87,19 @@ def _jitter(text: str) -> tuple[float, float]:
     return ((h % 1000) / 999 - 0.5) * 2 * ADDRESS_JITTER[0], (((h // 1000) % 1000) / 999 - 0.5) * 2 * ADDRESS_JITTER[1]
 
 
+def _street_in(street: str, n: str) -> bool:
+    """The street is named in the normalized text n: in full, or the way callers often say it, without
+    "cesta"/"ulica" ("Dunajska 100" for Dunajska cesta 100), as a whole word."""
+    s = _norm(street)
+    if s in n:
+        return True
+    words = s.split()
+    return (
+        len(words) == 2 and words[1] in ("cesta", "ulica") and len(words[0]) >= 6
+        and re.search(rf"\b{re.escape(words[0])}\b", n) is not None
+    )
+
+
 def _area_place(state: WorldState, area: str):
     return next((p for p in state.places.values() if p.kind == "residential" and p.name == area), None)
 
@@ -102,8 +115,8 @@ def resolve_address(state: WorldState, address: str) -> Location | None:
     if exact is not None:
         return Location(exact.id, exact.lat, exact.lon, exact.name)
     area = next((a for a in gen.STREETS if re.search(rf"\b{re.escape(_norm(a))}\b", n)), None)
-    street_area = next((a for a, streets in gen.STREETS.items() for s in streets if _norm(s) in n), None)
-    central = next((s for s in CENTRAL_STREETS if _norm(s) in n), None)
+    street_area = next((a for a, streets in gen.STREETS.items() for s in streets if _street_in(s, n)), None)
+    central = next((s for s in CENTRAL_STREETS if _street_in(s, n)), None)
     dlat, dlon = _jitter(n)
     where = area or (None if central else street_area)
     if where and (p := _area_place(state, where)) is not None:
