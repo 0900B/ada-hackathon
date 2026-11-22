@@ -1,6 +1,6 @@
 # Crew view redesign: the patient-compartment tablet
 
-Branch `Metelko` (in line with `main` at `b7eeac9`, 2026-11-21 23:05). Status: **draft, user decisions applied at 23:15 (no clinical parser, see 4.4). Waiting for a final yes.** No code written yet.
+Branch `metelko-crew-merge` (merged with `main` at `f93e544`, 2026-11-22). Status: **implemented, not on `main` yet.** Built: ETA-first layout, dispatch panel, voice and typed log with confirm, tap pads for vitals, drugs and events, timers, ER echo, 15 minute handover screen, Slovenian and English text, entries sent in the ER backend's contract shape. Checked against a local backend (entries on the ER board, ER actions shown on the tablet, handover stops the ER card's timer). Cut or open: no spoken parsing of drugs or vitals (a dictation parser was started by another session and is not part of this), a doctor car's entries are refused by the backend (409, shown as not accepted), event labels in the handover read-out are English, the Slovenian text is not checked by a paramedic.
 
 Tags: **[U]** decided by the user in this conversation; **[C]** my call, change it if you disagree; **[M]** read in the code; **[A]** assumption to confirm.
 
