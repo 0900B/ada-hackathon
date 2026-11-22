@@ -36,7 +36,10 @@ L = main.live
 client = TestClient(main.app)
 
 # The twenty top-level keys WorldState.snapshot() carried before the clinical section existed.
-# Hard-coded on purpose: deriving it from snapshot() would make the check circular.
+# Hard-coded on purpose: deriving it from snapshot() would make the check circular. It is a FLOOR, not
+# the full list: upstream keeps adding keys (surge, epoch, ai_mode ...), so "nothing was removed" is
+# checked against this set and "only `clinical` was added" is checked against the same world with the
+# kill switch on (see assert_only_clinical_added).
 EXPECTED_KEYS = {
     "world", "hypothetical", "speedup", "version", "sim_time", "real_time", "mode", "calls", "places",
     "vehicles", "trips", "incidents", "weather", "traffic", "roads", "sources", "alerts", "kpis",
@@ -83,19 +86,29 @@ def post(path: str, payload: dict, status: int = 201) -> dict:
     return r.json()
 
 
+def assert_only_clinical_added(keys: set) -> None:
+    """`keys` (a snapshot's top-level keys) must hold every original key, plus `clinical`, plus nothing
+    that the same world does not already emit with the kill switch on (so upstream's own new keys pass)."""
+    assert EXPECTED_KEYS <= keys, f"snapshot lost keys: {sorted(EXPECTED_KEYS - keys)}"
+    assert "clinical" in keys
+    with clinical_env("0"):
+        without = set(W.snapshot())
+    assert keys - {"clinical"} == without, f"snapshot differs beyond `clinical`: {sorted(keys ^ without)}"
+
+
 # --- snapshot compatibility -----------------------------------------------------------------------
 
 @clean_worlds
 def test_snapshot_keeps_every_existing_key_and_adds_clinical():
     s = W.snapshot()
-    assert set(s) == EXPECTED_KEYS | {"clinical"}
+    assert_only_clinical_added(set(s))
     json.dumps(s)  # the SSE stream does exactly this: the whole snapshot must be plain JSON
 
 
 @clean_worlds
 def test_state_endpoint_carries_clinical():
     body = client.get("/sim/state").json()
-    assert set(body) == EXPECTED_KEYS | {"clinical"}
+    assert_only_clinical_added(set(body))
     assert body["clinical"]["world"] == "sim" and body["clinical"]["seq"] == 0 and body["clinical"]["cases"] == []
     legacy = client.get("/state").json()  # the un-prefixed alias points at the sim world
     assert legacy["clinical"]["world"] == "sim"
@@ -110,7 +123,7 @@ def test_failure_in_clinical_never_breaks_state():
         assert r.status_code == 200
         body = r.json()
         assert body["clinical"]["error"].startswith("RuntimeError"), body["clinical"]
-        assert set(body) == EXPECTED_KEYS | {"clinical"}  # every other section is still there
+        assert_only_clinical_added(set(body))  # every other section is still there
         assert W.snapshot()["clinical"]["error"].startswith("RuntimeError")
     assert "error" not in client.get("/sim/state").json()["clinical"]  # and it recovers on its own
 
@@ -121,7 +134,7 @@ def test_kill_switch_removes_the_section():
         assert "clinical" not in W.snapshot()
         r = client.get("/sim/state")
         assert r.status_code == 200
-        assert "clinical" not in r.json() and set(r.json()) == EXPECTED_KEYS
+        assert "clinical" not in r.json() and EXPECTED_KEYS <= set(r.json())  # exactly today's snapshot
     assert "clinical" in W.snapshot()  # switched back on at once: the switch is read on every call
 
 
