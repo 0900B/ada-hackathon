@@ -91,7 +91,9 @@ def _primary_status(state: WorldState, v, trip: Trip) -> str:
     if trip.id in route:
         ahead = route[: route.index(trip.id)]
         if not ahead:
-            return "ready after handover and cleaning" if v.busy_until and v.busy_until > state.sim_time else "about to leave"
+            if v.busy_until and v.busy_until > state.sim_time:
+                return "held up" if v.busy_reason == "delay" else "ready after handover and cleaning"
+            return "about to leave"
         return f"finishing {ahead[0]}, then this call" if len(ahead) == 1 else f"after {', '.join(ahead)}"
     return v.status.replace("_", " ")
 
