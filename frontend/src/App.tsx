@@ -30,6 +30,7 @@ import {
   CloudSnow,
   Construction,
   Database,
+  ExternalLink,
   Octagon,
   PhoneIncoming,
   Sun,
@@ -134,6 +135,15 @@ export default function App() {
         </nav>
         <span className="header-help muted">{tr("dash.header.help", { key: <kbd>?</kbd> })}</span>
         <AdminLock />
+        <a
+          className="er-link"
+          href={`/er/?world=${lastWorld === "live" ? "live" : "sim"}`}
+          target="_blank"
+          rel="noopener"
+          title={t("dash.nav.er.title")}
+        >
+          {t("dash.nav.er")} <ExternalLink size={14} aria-hidden />
+        </a>
         <LangToggle />
       </header>
       <Routes>

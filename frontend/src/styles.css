@@ -4267,6 +4267,24 @@ button.link.tl-unit {
 .target-empty {
   margin: 4px 0;
   color: var(--text-2);
+/* Corner link to the ER dashboard (served from /er/ on the same site; opens in a new tab) */
+.header .er-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 4px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.header .er-link:hover {
+  color: var(--text);
+  border-color: var(--accent);
 }
 
 /* The new-call box (ReplanBox mode "new"): the AI dispatcher's triage and dispatch, in the accent blue */
