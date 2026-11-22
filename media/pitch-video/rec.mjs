@@ -1,5 +1,5 @@
 /**
- * Pitch-video recorder: drives the real deployed Plan B UI with Playwright and records each page
+ * Pitch-video recorder: drives the real deployed Bypass UI with Playwright and records each page
  * with the Chrome DevTools screencast at device scale 2 (so crops/zooms in the edit stay sharp).
  * Frames land in media/out/pitch-raw/<take>/<page>/ with their timestamps; marks (named moments)
  * go to marks.json; frames.mjs turns a page's frames into a constant-frame-rate MP4.

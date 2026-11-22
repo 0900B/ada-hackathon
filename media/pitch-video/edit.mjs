@@ -150,12 +150,12 @@ const pages = {
   title: () => `<div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(6,9,13,.93) 0%,rgba(6,9,13,.82) 45%,rgba(6,9,13,.25) 80%)"></div>
     <div style="position:absolute;left:120px;top:0;bottom:0;display:flex;flex-direction:column;justify-content:center">
     <div style="display:flex;align-items:center;gap:22px"><div style="width:12px;height:120px;border-radius:5px;background:#4f8ff7"></div>
-    <div style="font-size:120px;font-weight:780;letter-spacing:-.03em;line-height:1">Plan B <span style="color:#8f9cab;font-weight:500">—</span> AI dispatcher</div></div>
+    <div style="font-size:120px;font-weight:780;letter-spacing:-.03em;line-height:1">Bypass <span style="color:#8f9cab;font-weight:500">—</span> AI dispatcher</div></div>
     <div style="margin-top:34px;margin-left:34px;font-size:40px;font-weight:550;color:#b8c4d1">Real Claude · simulated fleet · Ljubljana</div></div>`,
   close: () => `<div style="position:absolute;inset:0;background:radial-gradient(1200px 700px at 20% 40%,rgba(37,99,235,.25),transparent 60%),linear-gradient(180deg,#0b0f14,#06090d)"></div>
     <div style="position:absolute;left:130px;top:0;bottom:0;display:flex;flex-direction:column;justify-content:center;gap:26px">
     <div style="font-size:92px;font-weight:760;letter-spacing:-.025em;line-height:1.12">AI proposes.<br>Engine computes.<br><span style="color:#8cb6ff">Dispatcher decides.</span></div>
-    <div style="margin-top:30px;display:flex;align-items:center;gap:18px;font-size:56px;font-weight:760"><div style="width:10px;height:58px;border-radius:4px;background:#4f8ff7"></div>Plan B</div></div>`,
+    <div style="margin-top:30px;display:flex;align-items:center;gap:18px;font-size:56px;font-weight:760"><div style="width:10px;height:58px;border-radius:4px;background:#4f8ff7"></div>Bypass</div></div>`,
   splitbg: () => `<div style="position:absolute;inset:0;background:radial-gradient(700px 700px at 82% 45%,rgba(37,99,235,.16),transparent 70%),#06090d"></div>
     <div style="position:absolute;left:1371px;top:39px;width:470px;height:1012px;border-radius:16px;border:4px solid #2c3846;box-shadow:0 30px 80px rgba(0,0,0,.65)"></div>
     <div style="position:absolute;left:30px;top:47px;width:1304px;height:986px;border-radius:10px;border:2px solid #242e3a"></div>`,
