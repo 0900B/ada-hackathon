@@ -1,15 +1,14 @@
-import { AlertTriangle, ArrowRight, Bot, Check, Cpu, Gavel, Loader2, PencilLine, PhoneIncoming, Radio, UserRound, X, Zap, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Bot, Check, Loader2, PencilLine, PhoneIncoming, UserRound, X, Zap, type LucideIcon } from "lucide-react";
 import type { TimelineEntry } from "./api";
-import { isClaude, sourceText, STEP_LABEL, type CaseUnit } from "./calls";
+import { isClaude, sourceText, type CaseUnit } from "./calls";
 import { fmtTime } from "./format";
 import { useT } from "./i18n";
 
 /**
- * The re-plan box on a case card: a disruption hit this call (breakdown, delay, closure, jam, fog, ...)
- * and what happened next, line by line, as it happens: the engine's re-dispatch or reroute with its real
- * time ("Rules engine · 0.1 s"), the unit before -> after, the arrival before -> after, then Claude's
- * review. The lines appear one after another for readability; the times shown are the real ones. Stays
- * until the dispatcher closes it or opens another case (AiDispatcherPanel).
+ * The compact AI box on a case card: a new call the AI dispatcher is handling, or a disruption that hit
+ * the call. One small step chain (each step ticks when it is done: who did it and how long it took),
+ * then the decision in one block: who goes and when, why, and Claude's verdict. The full step-by-step log
+ * stays in the case timeline. Stays until the dispatcher closes it or opens another case (AiDispatcherPanel).
  */
 export function ReplanBox({
   mode = "disruption",
@@ -54,60 +53,156 @@ export function ReplanBox({
     const stop = rest.findIndex((e) => e.kind === "disruption");
     if (stop >= 0) rest = rest.slice(0, stop);
   }
-  const lines = rest.filter((e) => !(isNew ? SKIP_NEW : SKIP).has(e.kind)).slice(0, 10);
+  const verdict = claudeVerdict(rest, reviewing, proposal);
+  const steps = isNew ? newCallSteps(rest, units, t) : disruptionSteps(rest, t);
+  steps.push(claudeStep(verdict, rest, autonomous, t));
+  const decision = rest.find((e) => DECIDES.has(e.kind) && e.by !== "crew");
+  const why = isNew ? unitReasons(units) : engineWhy(decision);
+  const swap = !isNew && decision?.unit_before && decision.vehicle_id && decision.unit_before !== decision.vehicle_id ? decision : null;
+  const moved = rest.filter((e) => e.eta_before && e.eta_after).pop();
+  const delta = !isNew && moved ? minutes(moved.eta_before!, moved.eta_after!) : null;
   const HeadIcon = isNew ? PhoneIncoming : Zap;
   return (
-    <section className={`replan${isNew ? " new" : ""}`} aria-label={t("ai.replan.aria")} aria-live="polite">
+    <section className={`replan rp${isNew ? " new" : ""}`} aria-label={t("ai.replan.aria")} aria-live="polite">
       <div className="replan-head">
         <HeadIcon className="replan-icon" aria-hidden />
         <span className="replan-title">
           {t(isNew ? "ai.replan.newTitle" : "ai.replan.title")} {fmtTime(head.at)}
         </span>
-        <span className="replan-what">{isNew ? t("ai.replan.newWhat") : head.text}</span>
+        <span className="replan-what">{isNew ? t("ai.rp.newWhat") : head.text}</span>
         <button className="link replan-close" onClick={onClose} title={t("ai.replan.close")} aria-label={t("ai.replan.close")}>
           <X />
         </button>
       </div>
-      <ol className="replan-lines">
-        {lines.map((e, i) => (
-          <ReplanLine key={`${e.at}|${e.kind}|${i}`} e={e} i={i} onSelectVehicle={onSelectVehicle} />
+
+      <ol className="rp-steps">
+        {steps.map((s) => (
+          <li key={s.key} className={`rp-step ${s.state}`} title={s.title}>
+            {s.state === "active" ? <Loader2 className="replan-spin" aria-hidden /> : s.state === "warn" ? <AlertTriangle aria-hidden /> : s.state === "off" ? null : <Check aria-hidden />}
+            <span className="rp-step-label">{s.label}</span>
+            {s.src && <span className="rp-step-src">{s.src}</span>}
+          </li>
         ))}
-        {reviewing && (
-          <li className="replan-line pending by-ai" style={{ animationDelay: `${lines.length * STAGGER_S}s` }}>
-            <Loader2 className="replan-who replan-spin" aria-hidden />
-            <div className="replan-main">
-              <div className="replan-text">{t("ai.replan.reviewing")}</div>
-            </div>
-          </li>
-        )}
-        {!reviewing && lines.length === 0 && (
-          <li className="replan-line pending">
-            <Loader2 className="replan-who replan-spin" aria-hidden />
-            <div className="replan-main">
-              <div className="replan-text">{t("ai.replan.waiting")}</div>
-            </div>
-          </li>
-        )}
       </ol>
-      <Decision
-        units={units}
-        after={rest}
-        reviewing={reviewing}
-        proposal={proposal}
-        busy={busy}
-        onApprove={onApprove}
-        delay={(lines.length + (reviewing ? 1 : 0)) * STAGGER_S}
-        autonomous={autonomous}
-        onSelectVehicle={onSelectVehicle}
-      />
+
+      <div className="rp-decision">
+        {units.length === 0 ? (
+          <div className="decision-none">{t("ai.decision.noUnit")}</div>
+        ) : (
+          <ul className="rp-units">
+            {units.map((u, i) => (
+              <li key={u.id}>
+                <button className="link rp-unit" onClick={() => onSelectVehicle(u.id)}>
+                  {u.id}
+                </button>
+                {i === 0 && swap && (
+                  <span className="rp-was">
+                    {t("ai.rp.was", { id: swap.unit_before! })}
+                  </span>
+                )}
+                <span className="rp-role">{u.roleLabel}</span>
+                <span className="rp-eta">
+                  {u.etaLabel} <b>{u.eta ? fmtTime(u.eta) : "–"}</b>
+                </span>
+                {i === 0 && delta != null && delta !== 0 && (
+                  <span className={`replan-d ${delta > 0 ? "worse" : "better"}`}>
+                    {delta > 0 ? t("ai.replan.later", { n: delta }) : t("ai.replan.earlier", { n: -delta })}
+                  </span>
+                )}
+                {u.by === "dispatcher" && <span className="decision-by by-dispatcher">{t("ai.decision.byDispatcher")}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+        {why && (
+          <div className="rp-why">
+            <span className="rp-why-label">{t("ai.rp.why")}</span> {why}
+          </div>
+        )}
+        <ClaudeLine verdict={verdict} autonomous={autonomous} busy={busy} onApprove={onApprove} />
+      </div>
     </section>
   );
 }
 
+type StepState = "done" | "active" | "warn" | "off";
+type Step = { key: string; label: string; src: string; state: StepState; title: string };
+type T = ReturnType<typeof useT>;
+
+const DECIDES = new Set(["reassigned", "unit_replaced", "recalculated", "rerouted", "dispatched", "override"]);
+
+function step(key: string, label: string, e: TimelineEntry | undefined, state: StepState = "done"): Step {
+  return { key, label, src: e ? sourceText(e.by, e.detail) : "", state, title: e?.text ?? "" };
+}
+
+/** A new call: classified (Claude or the keyword rules), dispatched (the rules engine). */
+function newCallSteps(rest: TimelineEntry[], units: CaseUnit[], t: T): Step[] {
+  const triaged = rest.find((e) => e.kind === "triaged");
+  const sent = rest.find((e) => e.kind === "dispatched");
+  return [
+    triaged ? step("triaged", t("ai.rp.classified"), triaged) : step("triaged", t("ai.rp.classified"), undefined, "active"),
+    sent || units.length ? step("dispatched", t("ai.rp.dispatched"), sent) : step("dispatched", t("ai.rp.finding"), undefined, "active"),
+  ];
+}
+
+/** A disruption: its impact on the call (+N min), then the engine's recalculation (switched or kept). */
+function disruptionSteps(rest: TimelineEntry[], t: T): Step[] {
+  const out: Step[] = [];
+  const impact = rest.find((e) => (e.kind === "delayed" || e.kind === "rerouted") && e.eta_before && e.eta_after);
+  if (impact) {
+    const d = minutes(impact.eta_before!, impact.eta_after!);
+    out.push(step("impact", d ? t("ai.rp.impact", { d: d > 0 ? `+${d}` : `${d}` }) : t("ai.rp.impactNone"), impact, d > 0 ? "warn" : "done"));
+  }
+  const engine = rest.find((e) => ["reassigned", "unit_replaced", "recalculated"].includes(e.kind) && !isClaude(e.by));
+  if (engine) {
+    const switched = engine.kind !== "recalculated" && engine.vehicle_id;
+    out.push(step("engine", switched ? t("ai.rp.switched", { id: engine.vehicle_id! }) : t("ai.rp.kept"), engine));
+  } else {
+    out.push(step("engine", t("ai.rp.recalculating"), undefined, "active"));
+  }
+  return out;
+}
+
+function claudeStep(v: Verdict, rest: TimelineEntry[], autonomous: boolean, t: T): Step {
+  const e = [...rest].reverse().find((x) => isClaude(x.by) && (x.kind === "reviewed" || x.kind === "note" || x.kind === "proposal"));
+  if (v.kind === "reviewing") return step("claude", t("ai.rp.claudeCheck"), undefined, "active");
+  if (v.kind === "agreed" || v.kind === "changed" || v.kind === "proposed") return step("claude", t("ai.rp.claudeCheck"), e);
+  if (v.kind === "refused" || v.kind === "unavailable") return step("claude", t("ai.rp.claudeCheck"), e, "warn");
+  return { key: "claude", label: t("ai.rp.claudeCheck"), src: autonomous ? t("ai.rp.notAsked") : t("ai.rp.assisted"), state: "off", title: "" };
+}
+
+function minutes(a: string, b: string): number {
+  return Math.round((Date.parse(b) - Date.parse(a)) / 60000);
+}
+
+/** Why these units: each unit's reason, as the engine (or the dispatcher) wrote it. */
+function unitReasons(units: CaseUnit[]): string {
+  return units
+    .filter((u) => u.reason)
+    .map((u) => `${u.id}: ${u.reason}`)
+    .join(" · ");
+}
+
+/** Why the engine decided what it did after the disruption, in one short clause. */
+function engineWhy(e: TimelineEntry | undefined): string {
+  if (!e) return "";
+  let s = e.text.replace(/^Recalculated:\s*/i, "");
+  s = s.split(/: switched|; compared|; [A-Z]\d+ released/)[0];
+  return s.length > 160 ? `${s.slice(0, 157)}…` : s;
+}
+
 type VerdictKind = "reviewing" | "agreed" | "changed" | "refused" | "unavailable" | "proposed" | "override" | "none";
+type Verdict = { kind: VerdictKind; text: string };
+
+/** Claude's reason, short: the part in brackets when there is one ("keep A1 ... (A1 and A2 tie)" -> "A1 and A2 tie"). */
+function shortReason(text: string): string {
+  const m = /\(([^()]*(?:\([^()]*\)[^()]*)*)\)\s*$/.exec(text);
+  const s = (m ? m[1] : text).trim();
+  return s.length > 180 ? `${s.slice(0, 177)}…` : s;
+}
 
 /** What Claude made of the decision, from the timeline after the box's start. */
-function claudeVerdict(after: TimelineEntry[], reviewing: boolean, proposal: string | null): { kind: VerdictKind; text: string } {
+function claudeVerdict(after: TimelineEntry[], reviewing: boolean, proposal: string | null): Verdict {
   if (reviewing) return { kind: "reviewing", text: "" };
   for (let i = after.length - 1; i >= 0; i--) {
     const e = after[i];
@@ -115,8 +210,7 @@ function claudeVerdict(after: TimelineEntry[], reviewing: boolean, proposal: str
     if (e.kind === "reviewed" && isClaude(e.by)) {
       const changed = /\bchanged:\s*/i.exec(e.text);
       if (changed) return { kind: "changed", text: e.text.slice(changed.index + changed[0].length) };
-      const kept = /reviewed:\s*no change\s*[—-]?\s*/i.exec(e.text);
-      return { kind: "agreed", text: kept ? e.text.slice(kept.index + kept[0].length) : e.text };
+      return { kind: "agreed", text: shortReason(e.text) };
     }
     if (e.kind === "note" && isClaude(e.by) && /decision stands/.test(e.text)) {
       return { kind: "refused", text: e.text.replace(/^AI dispatcher \(Claude\)\s*/i, "") };
@@ -138,143 +232,23 @@ const VERDICT_ICON: Record<VerdictKind, LucideIcon> = {
   none: Bot,
 };
 
-/** The decision, prominent: who serves the call now and when, who decided, and Claude's check. */
-function Decision({
-  units,
-  after,
-  reviewing,
-  proposal,
-  busy,
-  onApprove,
-  delay,
-  autonomous,
-  onSelectVehicle,
-}: {
-  units: CaseUnit[];
-  after: TimelineEntry[];
-  reviewing: boolean;
-  proposal: string | null;
-  busy: boolean;
-  onApprove: () => void;
-  delay: number;
-  autonomous: boolean;
-  onSelectVehicle: (id: string) => void;
-}) {
+/** Claude's verdict on the decision, one line. */
+function ClaudeLine({ verdict: v, autonomous, busy, onApprove }: { verdict: Verdict; autonomous: boolean; busy: boolean; onApprove: () => void }) {
   const t = useT();
-  const v = claudeVerdict(after, reviewing, proposal);
-  const label = v.kind === "none" && autonomous ? t("ai.decision.claude.noneAuto") : t(`ai.decision.claude.${v.kind}`);
   const VIcon = VERDICT_ICON[v.kind];
+  const label = v.kind === "none" && autonomous ? t("ai.decision.claude.noneAuto") : t(`ai.decision.claude.${v.kind}`);
   return (
-    <div className="decision" style={{ animationDelay: `${delay}s` }}>
-      <div className="decision-head">
-        <Gavel aria-hidden />
-        <span className="decision-title">{t("ai.decision.title")}</span>
+    <div className={`decision-claude rp-claude v-${v.kind}`}>
+      <VIcon className={v.kind === "reviewing" ? "replan-spin" : undefined} aria-hidden />
+      <div className="decision-claude-main">
+        <span className="decision-claude-label">{label}</span>
+        {v.text && <span className="decision-claude-text">{v.text}</span>}
       </div>
-      {units.length === 0 ? (
-        <div className="decision-none">{t("ai.decision.noUnit")}</div>
-      ) : (
-        <ul className="decision-units">
-          {units.map((u) => (
-            <li key={u.id}>
-              <button className="link decision-unit" onClick={() => onSelectVehicle(u.id)}>
-                {u.id}
-              </button>
-              <span className="decision-role">{u.roleLabel}</span>
-              <span className="decision-eta">
-                {u.etaLabel} <b>{u.eta ? fmtTime(u.eta) : "–"}</b>
-              </span>
-              <span className={`decision-by ${u.by === "dispatcher" ? "by-dispatcher" : "by-ai"}`}>
-                {u.by === "dispatcher" ? t("ai.decision.byDispatcher") : t("ai.replan.aiChip")}
-              </span>
-            </li>
-          ))}
-        </ul>
+      {v.kind === "proposed" && (
+        <button className="primary sm" onClick={onApprove} disabled={busy}>
+          {t("ai.replan.approve")}
+        </button>
       )}
-      <div className={`decision-claude v-${v.kind}`}>
-        <VIcon className={v.kind === "reviewing" ? "replan-spin" : undefined} aria-hidden />
-        <div className="decision-claude-main">
-          <span className="decision-claude-label">{label}</span>
-          {v.text && <span className="decision-claude-text">{v.text}</span>}
-        </div>
-        {v.kind === "proposed" && (
-          <button className="primary sm" onClick={onApprove} disabled={busy}>
-            {t("ai.replan.approve")}
-          </button>
-        )}
-      </div>
     </div>
-  );
-}
-
-const STAGGER_S = 0.35; // seconds between lines appearing (the real times are on each line)
-const SKIP = new Set(["received", "triaged", "disruption"]);
-// A new call's box shows the triage and dispatch, not the crew's progress (on scene, transporting, ...)
-const SKIP_NEW = new Set(["received", "disruption", "on_scene", "doctor_on_scene", "transporting", "at_hospital", "handover_done", "closed"]);
-
-function whoIcon(by: string): LucideIcon {
-  if (isClaude(by)) return Bot;
-  if (by === "dispatcher") return UserRound;
-  if (by === "crew") return Radio;
-  return Cpu;
-}
-
-function ReplanLine({ e, i, onSelectVehicle }: { e: TimelineEntry; i: number; onSelectVehicle: (id: string) => void }) {
-  const t = useT();
-  const Icon = whoIcon(e.by);
-  const eta =
-    e.eta_before && e.eta_after
-      ? { before: e.eta_before, after: e.eta_after, delta: Math.round((Date.parse(e.eta_after) - Date.parse(e.eta_before)) / 60000) }
-      : null;
-  const where = e.eta_of === "hospital" ? t("ai.replan.atHospital") : e.eta_of === "pickup" ? t("ai.replan.atPickup") : t("ai.replan.atPatient");
-  const swapped = e.unit_before && e.vehicle_id && e.unit_before !== e.vehicle_id;
-  return (
-    <li className={`replan-line by-${isClaude(e.by) ? "ai" : e.by}`} style={{ animationDelay: `${i * STAGGER_S}s` }}>
-      <Icon className="replan-who" aria-hidden />
-      <div className="replan-main">
-        <div className="replan-row">
-          {(e.by === "engine" || e.by === "rules" || isClaude(e.by)) && (
-            <span className="replan-ai" title={t("ai.replan.aiChipTitle")}>
-              {t("ai.replan.aiChip")}
-            </span>
-          )}
-          <span className="replan-step">{STEP_LABEL[e.kind] ?? e.kind}</span>
-          <span className="replan-src">{sourceText(e.by, e.detail)}</span>
-          <span className="replan-time">{fmtTime(e.at)}</span>
-        </div>
-        <div className="replan-text">{e.text}</div>
-        {(swapped || eta) && (
-          <div className="replan-delta">
-            {swapped && (
-              <span className="replan-units">
-                <s>{e.unit_before}</s>
-                <ArrowRight aria-hidden />
-                <button className="link" onClick={() => onSelectVehicle(e.vehicle_id!)}>
-                  {e.vehicle_id}
-                </button>
-              </span>
-            )}
-            {eta && (
-              <span className="replan-eta">
-                {where}{" "}
-                {eta.delta !== 0 && (
-                  <>
-                    <s>{fmtTime(eta.before)}</s>
-                    <ArrowRight aria-hidden />
-                  </>
-                )}
-                <b>{fmtTime(eta.after)}</b>
-                <span className={`replan-d${eta.delta > 0 ? " worse" : eta.delta < 0 ? " better" : ""}`}>
-                  {eta.delta > 0
-                    ? t("ai.replan.later", { n: eta.delta })
-                    : eta.delta < 0
-                      ? t("ai.replan.earlier", { n: -eta.delta })
-                      : t("ai.replan.same")}
-                </span>
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-    </li>
   );
 }

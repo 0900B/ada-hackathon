@@ -4532,3 +4532,123 @@ button.link.tl-unit {
     animation: none;
   }
 }
+
+
+/* Compact AI box (ReplanBox.tsx): a step chain, then one decision block */
+.rp .rp-steps {
+  list-style: none;
+  margin: 0;
+  padding: 7px 8px 2px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 4px;
+}
+.rp-step {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  animation: replan-in 0.3s ease-out both;
+}
+.rp-step svg {
+  width: 12px;
+  height: 12px;
+  align-self: center;
+  color: var(--ok);
+}
+.rp-step.active svg {
+  color: var(--accent);
+}
+.rp-step.warn svg {
+  color: var(--warn);
+}
+.rp-step.off {
+  color: var(--muted);
+  border-style: dashed;
+}
+.rp-step-label {
+  font-weight: 700;
+}
+.rp-step-src {
+  color: var(--muted);
+  font-size: 10.5px;
+}
+.rp-decision {
+  margin: 6px 8px 8px;
+  padding: 7px 9px;
+  border-left: 3px solid var(--text);
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+}
+.rp-units {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.rp-units li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  font-variant-numeric: tabular-nums;
+}
+.rp-unit {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+}
+.rp-was {
+  font-size: 11.5px;
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.rp-role {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.rp-eta {
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.rp-eta b {
+  font-size: 14px;
+  color: var(--text);
+}
+.rp-units .decision-by {
+  margin-left: auto;
+}
+.rp-why {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text-2);
+}
+.rp-why-label {
+  font-weight: 700;
+  color: var(--text);
+}
+.rp-claude {
+  margin-top: 6px;
+  padding: 4px 7px;
+  font-size: 12px;
+}
+.rp-claude .decision-claude-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rp-step {
+    animation: none;
+  }
+}
