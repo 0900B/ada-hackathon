@@ -130,6 +130,13 @@ def resolve_address(state: WorldState, address: str) -> Location | None:
     return None
 
 
+def _map_point_label(state: WorldState, lat: float, lon: float) -> str:
+    """'Map point near Polje (3.5 km)', not 'Map point near 3.5 km from Polje'."""
+    name = nearest_place_name(state, lat, lon)
+    far = re.fullmatch(r"([\d.]+) km from (.+)", name)
+    return f"Map point near {far.group(2)} ({far.group(1)} km)" if far else f"Map point near {name}"
+
+
 def resolve(state: WorldState, address: str | None, place_id: str | None, lat: float | None, lon: float | None) -> Location | None:
     if place_id:
         p = state.places.get(place_id)
@@ -137,7 +144,7 @@ def resolve(state: WorldState, address: str | None, place_id: str | None, lat: f
             raise LocationError(f"Unknown place {place_id}")
         return Location(p.id, p.lat, p.lon, (address or "").strip() or p.name)
     if lat is not None and lon is not None:
-        return Location(None, lat, lon, (address or "").strip() or f"Map point near {nearest_place_name(state, lat, lon)}")
+        return Location(None, lat, lon, (address or "").strip() or _map_point_label(state, lat, lon))
     return resolve_address(state, address) if address else None
 
 
