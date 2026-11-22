@@ -131,7 +131,8 @@ def _units_line(state: WorldState, trip: Trip) -> str:
     parts = []
     for u in trip_units(state, trip):
         at = f"; at the patient {timeline.hhmm(_dt(u['eta_scene']))}" if u["eta_scene"] else ""
-        parts.append(f"{u['vehicle_id']} ({u['role']}: {u['reason']}{at})")
+        mine = "; chosen by the dispatcher by hand: do not change it" if u["assigned_by"] == "dispatcher" else ""
+        parts.append(f"{u['vehicle_id']} ({u['role']}: {u['reason']}{at}{mine})")
     return ", ".join(parts) or "no unit could take it yet"
 
 
@@ -227,8 +228,8 @@ def finish_review(state: WorldState, run: AgentRun, rec: Recommendation, engine:
     option = rec.options[idx] if 0 <= idx < len(rec.options) else None
     if option is None or (not option.steps and not option.activate_surge):
         reason = _first_sentence(rec.reasoning)
-        timeline.log(state, trip, "reviewed", "ai", f"AI dispatcher (Claude) confirmed {_who_serves(trip)}"
-                     + (f": {reason}" if reason else ""), trip.vehicle_id, run.id, detail=took)
+        timeline.log(state, trip, "reviewed", "ai", f"AI dispatcher (Claude) reviewed: no change — keep {_who_serves(trip)}"
+                     + (f" ({reason})" if reason else ""), trip.vehicle_id, run.id, detail=took)
         run.log("info", "AI dispatcher: the engine's decision is kept")
         return
     autonomous = state.ai_mode == "autonomous"
@@ -240,13 +241,17 @@ def finish_review(state: WorldState, run: AgentRun, rec: Recommendation, engine:
                      detail=f"{took}, refused by the engine")
         return
     elif autonomous:
+        old = trip.vehicle_id
+        checked = f"{took}, checked by the engine"
         try:
-            approve(state, run, idx, by="ai", detail=f"{took}, checked by the engine")
+            approve(state, run, idx, by="ai", detail=checked)
         except ApprovalError as e:
             timeline.log(state, trip, "note", "ai", f"AI dispatcher (Claude) wanted: {option.title}; not applied "
-                         f"({e.detail[:140]}): the engine's decision stands", trip.vehicle_id, run.id,
-                         detail=f"{took}, refused by the engine")
+                         f"({e.detail[:140]}): the {'dispatcher' if 'by hand' in e.detail else 'engine'}'s decision stands",
+                         trip.vehicle_id, run.id, detail=f"{took}, refused by the engine")
             return
+        what = f"{trip.vehicle_id} instead of {old} — {option.title}" if trip.vehicle_id != old and old else option.title
+        timeline.log(state, trip, "reviewed", "ai", f"AI dispatcher (Claude) changed: {what}", trip.vehicle_id, run.id, detail=checked)
         state.ai_stats["claude_changes"] += 1
         return
     # Assisted mode (or surge capacity): a proposal on every trip the option moves, and on the case.

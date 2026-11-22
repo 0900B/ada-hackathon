@@ -73,8 +73,8 @@ Two worlds read them:
 | POST | `/{world}/calls` | A 112 call: `{"text", "address"?, "place_id"?, "lat"?, "lon"?, "caller_name"?, "dropoff_id"?}` → Claude triage (rules when unavailable) → dispatch; returns `{trip, summary}` (422: location not found) |
 | POST | `/{world}/admin/ai-triage`, `/{world}/admin/autopilot` | Switches `{"enabled": bool}` (snapshot: `ai_triage`, `autopilot`; both off by default; autopilot on = `ai_mode` autonomous) |
 | POST | `/{world}/admin/ai-mode` | AI dispatcher `{"mode": "assisted" \| "autonomous"}` (snapshot `ai_mode`, default assisted; see below) |
-| GET | `/{world}/trips/{id}/alternatives?role=ambulance\|doctor\|helicopter` | Every unit of that role, ranked by arrival at the patient (engine-simulated): `[{vehicle_id, type, role, eta_scene, eta_minutes, delta_min, free, cost_text, feasible, note, current}]` |
-| POST | `/{world}/trips/{id}/assign` | The dispatcher intervenes: `{"vehicle_id", "mode": "replace" \| "add"}` → `{trip, summary}` (+ `linked_trip` for an added ambulance/helicopter); 400 with the reason if it cannot be done |
+| GET | `/{world}/trips/{id}/alternatives?role=ambulance\|doctor\|helicopter` | Every unit of that role, ranked by arrival at the patient (engine-simulated), a bare list: `[{vehicle_id, name, type, vehicle_type, role, eta_scene, eta_minutes, delta_min, free, cost_text, feasible, note, current}]` |
+| POST | `/{world}/trips/{id}/assign` | The dispatcher intervenes: `{"vehicle_id", "mode": "replace" \| "add", "role"?, "replaces"?}` → `{trip, summary}` (+ `linked_trip`); `role` must match the vehicle (400), `replaces` must still serve the call (409; may name a linked trip's unit); "replace" on a call with no unit assigns one; 400 with the reason if it cannot be done |
 | POST | `/sim/admin/random-call`, `/sim/admin/random-incident` | Demo: a random call (`{"severity"?}`) or a disruption hitting current operations (`{"kind"?}`: crash, closure, fog, breakdown, delay, capacity, equipment); 400 in live, 409 when nothing fits |
 | GET/POST | `/sim/admin/scenarios`, `/sim/admin/scenario/{name}` | Demo scenarios (simulation only) |
 | POST | `/{world}/agent/analyze` | Ask the Claude agent to review the situation (`{"question": "..."}` optional) |
@@ -107,8 +107,12 @@ The engine still acts at once (dispatch, detours, replacing a unit that drops ou
 each case as a focused analysis (`AgentRun.review_of` = the trip): every new critical/serious 112 call,
 and every breakdown, delay, closure on the unit's route or priority change touching an open 112 call.
 - `ai_mode: "autonomous"`: Claude's recommended feasible option is applied through the approval path
-  (re-checked by the engine, audited; timeline `approved` by `ai`); "keep" (no steps) is logged as
-  `reviewed` ("AI dispatcher (Claude) confirmed ..."). Surge capacity stays the dispatcher's decision.
+  (re-checked by the engine, audited); the timeline says `reviewed` by `ai`: "AI dispatcher (Claude)
+  changed: A3 instead of A1 — ..." or, when Claude keeps the decision (no steps), "AI dispatcher (Claude)
+  reviewed: no change — keep A1 ...". Surge capacity stays the dispatcher's decision.
+- A unit the dispatcher assigned (override or approved plan; `assigned_by: "dispatcher"`) sticks: the
+  follow-up's faster-free-unit rule, the AI dispatcher and the autopilot leave it alone; only a drop-out
+  replaces it.
 - `ai_mode: "assisted"` (default): the same reviews only with auto-analyse on; they stay proposals.
 - Guard refused, no key, Claude failed or too slow: the engine's decision stands (timeline note).
   One review per case at a time, none within 2 world-minutes of the last one.

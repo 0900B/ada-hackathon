@@ -502,6 +502,8 @@ def set_autopilot(req: SwitchRequest, state: WorldState = World) -> dict:
 class AssignRequest(BaseModel):
     vehicle_id: str
     mode: Literal["replace", "add"] = "replace"
+    role: Literal["ambulance", "doctor", "helicopter", "van"] | None = None  # checked against the vehicle
+    replaces: str | None = None  # the unit replaced (checked; may be a linked trip's unit); none = assign
 
 
 @router.get("/trips/{trip_id}/alternatives")
@@ -522,7 +524,7 @@ def assign_unit(trip_id: str, req: AssignRequest, state: WorldState = World) -> 
     Simulated first, applied through the plan path, audited; timeline "override". Returns {trip, summary};
     400 with the reason if it cannot be done (e.g. the patient is on board)."""
     try:
-        return overrides.assign(state, trip_id, req.vehicle_id, req.mode)
+        return overrides.assign(state, trip_id, req.vehicle_id, req.mode, req.role, req.replaces)
     except overrides.OverrideError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from e
 

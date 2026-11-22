@@ -45,6 +45,15 @@ def fresh(state: WorldState, trip: Trip, vehicle_id: str) -> bool:
     return n is not None and n["assigned_at"] >= state.sim_time
 
 
+def held(trip: Trip, vehicle_id: str | None = None) -> bool:
+    """The dispatcher chose this unit (an override, or a plan they approved): automatic changes (the
+    follow-up's faster free unit, the AI dispatcher, the autopilot) leave it alone. Only a drop-out
+    (breakdown, fog) replaces it. vehicle_id: default the transporting unit."""
+    vid = vehicle_id or trip.vehicle_id
+    n = trip.unit_notes.get(vid) if vid else None
+    return n is not None and n["assigned_by"] == "dispatcher"
+
+
 def role_of(v) -> str:
     return ROLES.get(v.type, v.type)
 

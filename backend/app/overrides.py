@@ -92,7 +92,9 @@ def _entry(state: WorldState, v, reach: datetime | None, current_reach: datetime
            cost: str, feasible: bool, note: str, current: bool) -> dict[str, Any]:
     return {
         "vehicle_id": v.id,
+        "name": v.name,
         "type": v.type,
+        "vehicle_type": v.type,  # (= type)
         "role": role_of(v),
         "eta_scene": _iso(reach),
         "eta_minutes": round(_mins(reach, state.sim_time), 1) + 0.0 if reach else None,  # (+ 0.0: never -0.0)
@@ -221,16 +223,31 @@ def _doctor_alternatives(state: WorldState, trip: Trip) -> list[dict[str, Any]]:
 # --- Assign ---------------------------------------------------------------------------------------
 
 
-def assign(state: WorldState, trip_id: str, vehicle_id: str, mode: str) -> dict[str, Any]:
-    """The dispatcher puts vehicle_id on the call (replace or add). Returns {trip, summary} (+ linked_trip)."""
+def assign(state: WorldState, trip_id: str, vehicle_id: str, mode: str, role: str | None = None,
+           replaces: str | None = None) -> dict[str, Any]:
+    """The dispatcher puts vehicle_id on the call (replace or add). Returns {trip, summary} (+ linked_trip).
+    role (optional): ambulance | doctor | helicopter | van, checked against the vehicle. replaces
+    (optional): the unit being replaced, checked against the call's current units; when it is the unit
+    of a linked trip (a further patient), that trip's unit is replaced. Without it, "replace" swaps the
+    transporting unit (or the doctor car), or assigns one to a call that has none."""
     if mode not in ("replace", "add"):
         raise OverrideError(400, 'mode must be "replace" or "add"')
-    trip = _trip(state, trip_id)
+    case = trip = _trip(state, trip_id)
     if trip.status in DONE:
         raise OverrideError(400, f"{trip.id} is {trip.status}")
     v = state.vehicles.get(vehicle_id) or state.reserve_vehicles.get(vehicle_id)
     if v is None:
         raise OverrideError(404, f"Unknown vehicle {vehicle_id}")
+    if role and role != role_of(v) and not (role == "ambulance" and v.type == "transport"):
+        raise OverrideError(400, f"{v.id} is the wrong role: {role_of(v)}, not {role}")
+    if mode == "replace" and replaces:
+        linked = next((t for t in state.trips.values() if t.linked_to == trip.id and t.vehicle_id == replaces
+                       and t.status not in DONE), None)
+        if linked is not None:
+            trip = linked  # the unit of a further patient of this call
+        elif replaces not in (trip.vehicle_id, trip.doctor_vehicle_id):
+            raise OverrideError(409, f"{replaces} no longer serves {trip.id} (now: "
+                                     f"{', '.join(filter(None, [trip.vehicle_id, trip.doctor_vehicle_id])) or 'no unit'})")
     if vehicle_id in state.reserve_vehicles and vehicle_id not in PER_CALL_RESERVE:
         raise OverrideError(400, f"{v.name} is contracted surge capacity: activate surge capacity first")
     project_all(state)
@@ -252,7 +269,9 @@ def assign(state: WorldState, trip_id: str, vehicle_id: str, mode: str) -> dict[
     AUDIT.record(state.name, "override", f"Dispatcher override on {trip.id}: {summary}", ref=trip.id,
                  payload={"trip_id": trip.id, "vehicle_id": vehicle_id, "mode": mode, "linked_trip_id": linked.id if linked else None})
     state.bump()
-    out = {"trip": trip_view(state, trip), "summary": summary}
+    out = {"trip": trip_view(state, case), "summary": summary}  # the call asked about (its units include linked ones)
+    if case is not trip:
+        out["linked_trip"] = trip_view(state, trip)
     if linked is not None:
         out["linked_trip"] = trip_view(state, linked)
     return out

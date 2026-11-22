@@ -60,6 +60,11 @@ def approve(
     if not 0 <= option_index < len(options):
         raise ApprovalError(400, "option_index out of range")
     option = options[option_index]
+    if autopilot:  # the dispatcher's own choice of a unit is never changed automatically
+        for s in option.steps:
+            t = state.trips.get(s.trip_id)
+            if t is not None and t.vehicle_id and t.vehicle_id != s.vehicle_id and units.held(t):
+                raise ApprovalError(409, f"the dispatcher assigned {t.vehicle_id} to {t.id} by hand: their decision stands")
     tracker = timeline.Tracker(state)
     applied_event = None
     executed: list[str] = []
@@ -114,7 +119,7 @@ def approve(
             units.note(state, trip, s.vehicle_id, f"{what}: {option.title}", decided_by)
     for tid in dict.fromkeys(s.trip_id for s in option.steps):
         trip = state.trips.get(tid)
-        if trip is not None and trip.status not in DONE:
+        if trip is not None and trip.status not in DONE and by != "ai":  # (the AI dispatcher logs "reviewed: changed")
             timeline.log(state, trip, "approved", actor, f"{who} approved: {option.title}", trip.vehicle_id, run.id, detail=detail)
     tracker.log_changes(actor, detail=detail)
     state.bump()

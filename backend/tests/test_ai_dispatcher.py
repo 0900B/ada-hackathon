@@ -203,9 +203,10 @@ def test_autonomous_applies_claudes_change_through_the_approval_path():
     (r,) = reviews_of(t)
     assert r.status == "approved" and r.decision["by"] == "ai" and r.engine == "claude", (r.status, r.steps[-3:])
     assert t.vehicle_id not in (None, first)
-    a = last(t, "approved")
+    a = last(t, "reviewed")
     assert a.by == "ai" and a.detail.startswith("Claude, ") and a.detail.endswith("checked by the engine"), a
-    assert "AI dispatcher (Claude) approved: Send the other ambulance" in a.text and a.run_id == r.id
+    assert a.text == f"AI dispatcher (Claude) changed: {t.vehicle_id} instead of {first} — Send the other ambulance", a.text
+    assert a.run_id == r.id and "approved" not in kinds(t), kinds(t)
     moved = last(t, "reassigned")
     assert moved.by == "ai" and moved.vehicle_id == t.vehicle_id, kinds(t)
     u = unit(t, t.vehicle_id)
@@ -230,8 +231,8 @@ def test_autonomous_keep_is_logged_as_reviewed():
     t = W.trips[holder["body"]["trip"]["id"]]
     e = last(t, "reviewed")
     assert e is not None and e.by == "ai" and e.detail.startswith("Claude, "), kinds(t)
-    assert e.text == f"AI dispatcher (Claude) confirmed {t.vehicle_id} and doctor car {t.doctor_vehicle_id} for {t.id}: " \
-                     "A1 is the closest free ambulance and D1 the closest doctor car", e.text
+    assert e.text == f"AI dispatcher (Claude) reviewed: no change — keep {t.vehicle_id} and doctor car {t.doctor_vehicle_id} " \
+                     f"for {t.id} (A1 is the closest free ambulance and D1 the closest doctor car)", e.text
     assert reviews_of(t)[0].status == "done" and W.ai_stats["claude_reviews"] == 1 and W.ai_stats["claude_changes"] == 0
     assert not any(k in kinds(t) for k in ("approved", "reassigned", "proposal")), kinds(t)
 
@@ -512,6 +513,59 @@ def test_the_dispatcher_replaces_and_adds_units_or_is_told_why_not():
     r = client.post(f"/sim/trips/{t.id}/assign", json={"vehicle_id": "A3", "mode": "replace"})
     assert r.status_code == 400 and r.json()["detail"].startswith(f"The patient of {t.id} is on board A1"), r.text
     assert W.ai_stats["overrides"] == 3, "refusals are not counted"
+
+
+def test_a_dispatcher_override_sticks_until_the_unit_drops_out():
+    from app.engine import followup
+
+    fresh()
+    W.vehicles["H1"].status = "out_of_service"
+    W.ai_mode = "autonomous"
+    _, t = call112("serious", "breathing_difficulty", place_id="home_bezigrad")
+    park("A3", "home_medvode", "idle")  # far away: the follow-up would normally take the call back from it
+    r = client.post(f"/sim/trips/{t.id}/assign", json={"vehicle_id": "A3", "mode": "replace", "role": "ambulance",
+                                                       "replaces": t.vehicle_id})
+    assert r.status_code == 200 and t.vehicle_id == "A3", r.text
+    better = [a for a in alternatives(t, "ambulance") if a["free"] and a["feasible"] and (a["delta_min"] or 0) <= -3]
+    assert better, "a free ambulance is clearly sooner, so without the override the follow-up would switch"
+    assert followup.check(W, force=True) == [] and t.vehicle_id == "A3", "the follow-up leaves the override alone"
+    run(1)
+    followup.check(W, force=True)
+    assert t.vehicle_id == "A3"
+    # Claude (autonomous) wants the faster unit back: refused, the dispatcher's decision stands.
+    fake = FakeClaude(change(t.id, better[0]["vehicle_id"], "Faster unit"))
+
+    async def go():
+        W.sim_time += timedelta(minutes=3)
+        project_all(W)
+        await main.post_event(DelayEvent(type="delay", vehicle_id="A3", minutes=2, note="traffic"), W)
+        await settle()
+
+    with claude_on(fake):
+        asyncio.run(go())
+    assert t.vehicle_id == "A3" and fake.requests, kinds(t)
+    assert "A3 (ambulance: dispatcher override (was " in fake.requests[-1]["messages"][0]["content"]
+    assert "chosen by the dispatcher by hand: do not change it" in fake.requests[-1]["messages"][0]["content"]
+    note = last(t, "note")
+    assert note.by == "ai" and "not applied" in note.text and note.text.endswith("the dispatcher's decision stands"), note.text
+    assert W.ai_stats["claude_changes"] == 0
+    # The overriding unit drops out: replaced at once, and the engine follows the call up again.
+    assert client.post("/sim/events", json={"type": "breakdown", "vehicle_id": "A3"}).status_code == 200
+    assert t.vehicle_id not in (None, "A3") and last(t, "unit_replaced").text.startswith("A3 out of service")
+    u = unit(t, t.vehicle_id)
+    assert u["assigned_by"] == "engine" and u["reason"].startswith("replaces A3 (out of service); "), u
+    # The body as the UI sends it: replaces is checked; role must match; a call with no unit gets one.
+    r = client.post(f"/sim/trips/{t.id}/assign", json={"vehicle_id": "A2", "mode": "replace", "replaces": "A3"})
+    assert r.status_code == 409 and r.json()["detail"].startswith(f"A3 no longer serves {t.id}"), r.text
+    r = client.post(f"/sim/trips/{t.id}/assign", json={"vehicle_id": "D1", "mode": "add", "role": "ambulance"})
+    assert r.status_code == 400 and r.json()["detail"] == "D1 is the wrong role: doctor, not ambulance", r.text
+    fresh(("D1", "D2"))
+    _, lone = call112("serious", "stroke", place_id="home_moste")
+    assert lone.vehicle_id is None
+    W.vehicles["A2"].status = "idle"
+    r = client.post(f"/sim/trips/{lone.id}/assign", json={"vehicle_id": "A2", "mode": "replace", "role": "ambulance"})
+    assert r.status_code == 200 and lone.vehicle_id == "A2" and r.json()["summary"].startswith("Dispatcher assigned A2"), r.text
+    assert last(lone, "override").by == "dispatcher"
 
 
 # --- ai_stats, modes, detail -----------------------------------------------------------------------

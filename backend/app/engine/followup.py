@@ -6,7 +6,8 @@ Done by the engine at once, logged on the call's timeline by "engine":
   the dispatch rules find one (engine/dispatch.dispatch_call; a breakdown re-dispatches at once,
   engine/events.py);
 - before the unit reaches the patient: if a FREE own ambulance would get there FASTER_FREE_UNIT_MIN_GAIN_MIN
-  sooner (e.g. after a delay), it takes the call and the first unit is released;
+  sooner (e.g. after a delay), it takes the call and the first unit is released, unless the dispatcher
+  chose that unit by hand (engine/units.held): their override stands until the unit drops out;
 - a call that needs a doctor and has none (none was free, or the doctor car dropped out) gets the
   first doctor car that is free (engine/doctors.send_doctor).
 Trade-offs (overrides of other calls, swaps, reserve units, surge capacity) stay proposals for the
@@ -109,6 +110,8 @@ def _faster_free_unit(state: WorldState, trip: Trip) -> tuple[str, str] | None:
     # may be there on purpose (to keep an area's last ambulance for red calls, engine/dispatch.py).
     if v is None or v.type != "ambulance" or trip.status not in ("assigned", "en_route_pickup") or not trip.eta_pickup:
         return None
+    if units.held(trip):
+        return None  # the dispatcher chose this unit: their override stands (unless it drops out)
     if near_current_patient(state, v, trip) is not None:
         return None
     now_reach = max(trip.eta_pickup, trip.pickup_after)
