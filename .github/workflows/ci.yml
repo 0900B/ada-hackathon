@@ -126,5 +126,22 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # A lost closing brace (twice from merge conflicts) silently swallows every CSS rule after it
+      - name: CSS braces balanced
+        run: |
+          node -e '
+            const fs = require("fs");
+            for (const f of fs.readdirSync("src").filter((n) => n.endsWith(".css"))) {
+              let depth = 0, line = 1;
+              for (const ch of fs.readFileSync("src/" + f, "utf8")) {
+                if (ch === "\n") line++;
+                else if (ch === "{") depth++;
+                else if (ch === "}" && --depth < 0) { console.error(`::error file=frontend/src/${f}::stray } at line ${line}`); process.exit(1); }
+              }
+              if (depth !== 0) { console.error(`::error file=frontend/src/${f}::${depth} unclosed {`); process.exit(1); }
+            }
+            console.log("CSS braces balanced");
+          '
+
       - name: Build
         run: npm run build

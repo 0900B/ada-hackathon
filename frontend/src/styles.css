@@ -4317,6 +4317,8 @@ button.link.tl-unit {
 .target-empty {
   margin: 4px 0;
   color: var(--text-2);
+}
+
 /* Corner link to the ER dashboard (served from /er/ on the same site; opens in a new tab) */
 .header .er-link {
   display: inline-flex;
