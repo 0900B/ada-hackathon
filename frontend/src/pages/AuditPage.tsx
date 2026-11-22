@@ -9,9 +9,12 @@ import {
   Lightbulb,
   Map,
   MessageSquare,
+  PhoneIncoming,
   Power,
   RotateCcw,
   SlidersHorizontal,
+  Truck,
+  UserCheck,
   Zap,
   Dot,
   type LucideIcon,
@@ -36,13 +39,16 @@ interface AuditResponse {
 
 const KINDS = [
   "",
+  "call",
   "event",
+  "override",
   "field_message",
   "agent_run_started",
   "recommendation",
   "decision_approved",
   "decision_rejected",
   "plan_applied",
+  "surge",
   "scenario",
   "reset",
   "setting",
@@ -50,7 +56,10 @@ const KINDS = [
 ];
 
 const KIND_ICON: Record<string, LucideIcon> = {
+  call: PhoneIncoming,
   event: Zap,
+  override: UserCheck,
+  surge: Truck,
   field_message: MessageSquare,
   agent_run_started: Bot,
   recommendation: Lightbulb,
