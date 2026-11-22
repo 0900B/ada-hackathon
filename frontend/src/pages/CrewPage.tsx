@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import {
   API_URL,
@@ -7,7 +7,7 @@ import {
   type World,
   type WorldSnapshot,
 } from "../api";
-import { Mic, NotebookPen, Radio } from "lucide-react";
+import { Mic, NotebookPen, Plus, Radio } from "lucide-react";
 import { fmtTime, humanize } from "../format";
 import { Callsign } from "../icons";
 import { SeverityBadge } from "../SeverityBadge";
@@ -18,7 +18,10 @@ import { EtaPanel } from "../crew/EtaPanel";
 import { crewStage } from "../crew/crewLogic";
 import { QUICK, useDispatch } from "../crew/useDispatch";
 import { useWakeLock } from "../crew/useWakeLock";
-import { SPEECH_LANGS, speechSecureContext, usePushToTalk, useSpeechInput } from "../voice";
+import { useClinicalLog } from "../crew/useClinicalLog";
+import { useVoiceChannels } from "../crew/useVoiceChannels";
+import { Timeline } from "../crew/Timeline";
+import { SPEECH_LANGS, speechSecureContext } from "../voice";
 import "../voice.css";
 import "../crew/crew.css";
 
@@ -27,6 +30,10 @@ import "../crew/crew.css";
  * in the patient compartment (two columns from 900 px) and collapses to one column on a phone.
  * The ETA comes first; the dispatch panel sends field messages from this vehicle, which the
  * backend turns into events and an AI replan that the dispatcher sees on the dashboard.
+ *
+ * Two voice channels share one recognizer: "Hold to log" puts what was said on the clinical
+ * timeline (kept on the tablet, never sent to the dispatcher), "Hold to talk to dispatch" and the
+ * quick buttons send field messages exactly as before.
  */
 
 export function CrewPage() {
@@ -101,18 +108,44 @@ function CrewConsole({
   const stage = crewStage(vehicle, trip);
   useWakeLock();
 
-  const speech = useSpeechInput({
-    onFinal: (heard) => {
+  // Logging is on while a patient is on board (loading counts); doctor cars log too
+  const logOn = stage === "with_patient" && !!trip;
+  const log = useClinicalLog(world, trip?.kind === "patient" ? trip.id : null, vehicle.id, state.sim_time);
+  const [note, setNote] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    const t = window.setTimeout(() => setNotice(null), 4000);
+    return () => window.clearTimeout(t);
+  }, [notice]);
+
+  const { speech, channel, lastChannel, logMic, dispatchMic, toggle } = useVoiceChannels({
+    onLog: (heard) => {
+      if (!logOn) return setNotice("No patient on board: not logged");
+      const r = log.addSpoken(heard);
+      setNotice(r === "nothing_to_confirm" ? "Nothing to confirm" : r === "confirmed" ? "Confirmed" : null);
+    },
+    onDispatch: (heard) => {
       if (dispatch.isBusy()) setDraft(heard); // a message is still in flight: keep it for manual send
       else void dispatch.send(heard);
     },
   });
-  const ptt = usePushToTalk(speech);
+  const logListening = channel === "log";
+  const dispatchListening = channel === "dispatch";
 
   useHotkeys({
     ...Object.fromEntries(QUICK.map((q) => [q.key, () => void dispatch.send(q.sl, q.key)])),
-    m: () => speech.toggle(),
+    m: () => {
+      if (logOn) toggle("log");
+    },
   });
+
+  const addNote = () => {
+    const text = note.trim();
+    if (!text || !logOn) return;
+    log.add("note", {}, { source: "crew_tap", verbatim: text });
+    setNote("");
+  };
 
   return (
     <main className={`crew pt pt-stage-${stage}`}>
@@ -147,8 +180,60 @@ function CrewConsole({
         <section className="pt-log" aria-label="Clinical log">
           <h2 className="pt-section-title">
             <NotebookPen /> Log
+            {log.pending > 0 && <span className="pt-pending">{log.pending} not sent yet</span>}
           </h2>
-          <p className="pt-log-empty">Log: next task</p>
+          {!logOn ? (
+            <p className="pt-log-empty">No patient on board</p>
+          ) : (
+            <>
+              <div className="pt-log-bar">
+                {speech.supported ? (
+                  <button
+                    type="button"
+                    className={`ptt pt-logbtn${logListening ? " listening" : ""}`}
+                    disabled={dispatchListening}
+                    aria-pressed={logListening}
+                    {...logMic}
+                  >
+                    <span className="pt-logbtn-main">
+                      <NotebookPen /> {logListening ? "Logging… release to keep" : "Hold to log"}
+                    </span>
+                    <span className="ptt-sub">
+                      {logListening ? "stays on the tablet, not sent to dispatch" : "say \u201cpotrjeno\u201d to confirm the last note"} <kbd>M</kbd>
+                    </span>
+                  </button>
+                ) : (
+                  <div className="warn-box">Voice logging needs Chrome or Edge. Type a note instead.</div>
+                )}
+                <form
+                  className="pt-note-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    addNote();
+                  }}
+                >
+                  <input
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="Type a note…"
+                    enterKeyHint="done"
+                    aria-label="Typed note for the log"
+                  />
+                  <button type="submit" disabled={!note.trim()}>
+                    <Plus /> Add note
+                  </button>
+                </form>
+              </div>
+              {logListening && <div className="voice-interim big">{speech.interim || "Govorite… / Speak now…"}</div>}
+              {lastChannel === "log" && speech.error && <div className="message error">{speech.error}</div>}
+              {notice && (
+                <div className="pt-notice" role="status">
+                  {notice}
+                </div>
+              )}
+              <Timeline entries={log.entries} nowIso={state.sim_time} onConfirm={log.confirm} onDiscard={log.discard} />
+            </>
+          )}
         </section>
 
         <section className="pt-dispatch" aria-label="Dispatch">
@@ -160,16 +245,16 @@ function CrewConsole({
               <>
                 <button
                   type="button"
-                  className={`ptt${speech.listening ? " listening" : ""}`}
-                  disabled={dispatch.busy && !speech.listening}
-                  aria-pressed={speech.listening}
-                  {...ptt}
+                  className={`ptt${dispatchListening ? " listening" : ""}`}
+                  disabled={(dispatch.busy && !dispatchListening) || logListening}
+                  aria-pressed={dispatchListening}
+                  {...dispatchMic}
                 >
                   <span className="ptt-icon">
                     <Mic />
                   </span>
-                  <span>{speech.listening ? "Listening… release to send" : "Hold to talk to dispatch"}</span>
-                  <span className="ptt-sub">{speech.listening ? "or tap to stop" : "or tap once and speak"}</span>
+                  <span>{dispatchListening ? "Listening… release to send" : "Hold to talk to dispatch"}</span>
+                  <span className="ptt-sub">{dispatchListening ? "or tap to stop" : "or tap once and speak"}</span>
                 </button>
                 <div className="crew-talk-bar">
                   <span className="lang-toggle big" role="group" aria-label="Speech language">
@@ -187,8 +272,8 @@ function CrewConsole({
                   <span className="muted">Speaks: {speech.lang === "sl-SI" ? "slovenščina" : "English"}</span>
                 </div>
                 {!speechSecureContext() && <div className="warn-box">Voice input needs HTTPS (or localhost).</div>}
-                {speech.listening && <div className="voice-interim big">{speech.interim || "Govorite… / Speak now…"}</div>}
-                {speech.error && <div className="message error">{speech.error}</div>}
+                {dispatchListening && <div className="voice-interim big">{speech.interim || "Govorite… / Speak now…"}</div>}
+                {(lastChannel !== "log" || !logOn) && speech.error && <div className="message error">{speech.error}</div>}
               </>
             ) : (
               <div className="warn-box">Voice input needs Chrome or Edge. Use the buttons or type below.</div>
