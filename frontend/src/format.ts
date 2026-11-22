@@ -8,6 +8,10 @@ export const fmtTime = (iso: string | null | undefined) =>
     ? new Date(iso).toLocaleTimeString("sl-SI", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Ljubljana" })
     : "–";
 
+/** Escape text for an HTML string (Leaflet tooltips and divIcons take HTML; names and descriptions come from the backend and live feeds). */
+export const escapeHtml = (s: string) =>
+  s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
+
 export const humanize = (s: string) => s.replace(/_/g, " ");
 
 /** A vehicle status code in the UI language ("to pickup" / "na poti k pacientu"); unknown codes humanized. */

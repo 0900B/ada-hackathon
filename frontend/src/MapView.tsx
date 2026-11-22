@@ -3,7 +3,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { trafficTileUrl, type Vehicle, type VehicleDetail, type WorldSnapshot } from "./api";
 import { baseMaps, saveBase, savedBase, type BaseId } from "./basemaps";
-import { flightTarget, fmtTime, heliDown, nightText, vehicleStatusText } from "./format";
+import { escapeHtml, flightTarget, fmtTime, heliDown, nightText, vehicleStatusText } from "./format";
 import { GLYPH, vehicleGlyph } from "./glyphs";
 import { conditionText, LEVEL_LABEL, levelOf, responseOf, responseText } from "./severity";
 import { doctorOf, doctorText, ORIGIN_LABEL } from "./doctor";
@@ -58,8 +58,8 @@ function vehicleHtml(v: Vehicle, cls: string, flying: boolean, grounded: boolean
     (grounded ? `<span class="vm-tag">${v.grounded_until ? tx("ops.map.tagFog") : tx("heli.nightShort")}</span>` : flying ? `<span class="vm-tag air">${tx("ops.map.tagAir")}</span>` : "") +
     (v.origin && v.origin !== "own" ? `<span class="vm-origin">${tx(v.origin === "mutual_aid" ? "ops.map.tagAid" : "ops.map.tagPriv")}</span>` : "");
   return (
-    `<div class="vm type-${v.type} st-${v.status}${grounded ? " grounded" : ""}${held ? " held" : ""}${cls}">` +
-    `${vehicleGlyph(v.type)}<span class="vm-id">${v.id}</span>${tag}</div>`
+    `<div class="vm type-${escapeHtml(v.type)} st-${escapeHtml(v.status)}${grounded ? " grounded" : ""}${held ? " held" : ""}${cls}">` +
+    `${vehicleGlyph(v.type)}<span class="vm-id">${escapeHtml(v.id)}</span>${tag}</div>`
   );
 }
 
@@ -272,7 +272,7 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
         const s = PLACE_STYLE[p.kind] ?? PLACE_STYLE.residential;
         const cap = p.kind === "hospital" && p.capacity != null ? tx("ops.map.canAdmit", { n: p.capacity }) : "";
         L.circleMarker([p.lat, p.lon], { radius: s.r, color: s.color, fillColor: s.fill, fillOpacity: 0.9, weight: 1.5 })
-          .bindTooltip(p.name + cap)
+          .bindTooltip(escapeHtml(p.name + cap))
           .addTo(ls.places);
       }
     }
@@ -317,7 +317,9 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
         });
         L.marker([s.lat, s.lon], { icon, interactive: true })
           .bindTooltip(
-            `${i + 1}. ${tOr(`ops.stop.${s.kind}`, s.kind)} · ${s.place}${s.trip_id ? ` · ${s.trip_id}` : ""}${s.eta ? ` · ${fmtTime(s.eta)}` : ""}`,
+            escapeHtml(
+              `${i + 1}. ${tOr(`ops.stop.${s.kind}`, s.kind)} · ${s.place}${s.trip_id ? ` · ${s.trip_id}` : ""}${s.eta ? ` · ${fmtTime(s.eta)}` : ""}`,
+            ),
           )
           .addTo(ls.highlight);
       });
@@ -392,9 +394,11 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
           opacity: faded ? 0.25 : 1,
         })
           .bindTooltip(
-            target.kind === "base"
-              ? tx("ops.map.flyingHomeTo", { id: v.id, place: target.place.name })
-              : tx("ops.map.flyingKind", { id: v.id, kind: flightKind(target.kind), place: target.place.name }),
+            escapeHtml(
+              target.kind === "base"
+                ? tx("ops.map.flyingHomeTo", { id: v.id, place: target.place.name })
+                : tx("ops.map.flyingKind", { id: v.id, kind: flightKind(target.kind), place: target.place.name }),
+            ),
           )
           .addTo(ls.routes);
       } else if (!heli && !(detail && main) && !(doctor && v.status !== "to_pickup" && !inGroup.has(v.id))) {
@@ -438,9 +442,9 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       const role =
         doctor && trip ? `${tx("ops.map.doctorFor", { id: trip.id })}${trip.vehicle_id ? tx("ops.map.doctorWith", { unit: trip.vehicle_id }) : ""}` : "";
       const origin = v.origin && v.origin !== "own" ? ` · ${ORIGIN_LABEL[v.origin] ?? v.origin}` : "";
-      const tip = `${v.name}${origin} · ${vehicleStatusText(v, state.trips)}${role || (trip ? ` · ${trip.id} (${trip.label})` : "")}${
+      const tip = escapeHtml(`${v.name}${origin} · ${vehicleStatusText(v, state.trips)}${role || (trip ? ` · ${trip.id} (${trip.label})` : "")}${
         heli ? where : ""
-      }${groundedText}${tx("ops.map.fuelClick", { pct: Math.round(v.fuel_pct ?? 0) })}`;
+      }${groundedText}${tx("ops.map.fuelClick", { pct: Math.round(v.fuel_pct ?? 0) })}`);
       const z = selected ? 2000 : heli ? 1000 : 0;
 
       const existing = markers.current.get(v.id);
@@ -490,14 +494,19 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       const cond = conditionText(t);
       const pip = dr ? `<span class="call-dr ${dr.state}${dr.missed ? " missed" : ""}">${GLYPH.doctor}</span>` : "";
       const html = `<div class="call-mk ${level}${r?.missed ? " missed" : ""}">${level === "critical" ? '<span class="call-ring"></span>' : ""}${GLYPH.pulse}${pip}</div>`;
-      const tip =
-        `${LEVEL_LABEL[level]}${cond ? ` · ${cond}` : ""} · ${t.id} · ${at.name}<br>` +
-        (t.vehicle_id
+      // plain-text lines (call, unit, doctor), each escaped, joined with <br>
+      const tip = [
+        `${LEVEL_LABEL[level]}${cond ? ` · ${cond}` : ""} · ${t.id} · ${at.name}`,
+        t.vehicle_id
           ? `${t.vehicle_id} ${t.status === "onboard" ? tx("ops.map.onScene") : r ? responseText(r) : ""}`
           : r
             ? responseText(r)
-            : tx("ops.map.noUnit")) +
-        (dr ? `<br>${doctorText(dr)}${dr.state === "en_route" && t.doctor_eta ? tx("ops.map.drAtScene", { time: fmtTime(t.doctor_eta) }) : ""}` : "");
+            : tx("ops.map.noUnit"),
+        dr ? `${doctorText(dr)}${dr.state === "en_route" && t.doctor_eta ? tx("ops.map.drAtScene", { time: fmtTime(t.doctor_eta) }) : ""}` : null,
+      ]
+        .filter((line): line is string => line !== null)
+        .map(escapeHtml)
+        .join("<br>");
       const px = level === "critical" ? 30 : 22;
       const existing = callMarkers.current.get(t.id);
       if (existing && existing.key === html) {

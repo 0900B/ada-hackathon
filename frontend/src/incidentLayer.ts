@@ -10,6 +10,7 @@
  */
 import L from "leaflet";
 import type { Incident } from "./api";
+import { escapeHtml } from "./format";
 import { GLYPH } from "./glyphs";
 
 export const CLOSURE_COLOR = "#e5484d";
@@ -48,7 +49,7 @@ export function incidentMarkerHtml(look: IncidentLook, live: boolean): string {
 
 /**
  * Draw one incident into `group`: its road stretch (when known) and a small marker. tooltip: the
- * text on hover (null = not interactive, e.g. on the tablet).
+ * plain text on hover, escaped here (null = not interactive, e.g. on the tablet).
  */
 export function drawIncident(group: L.LayerGroup, inc: Incident, tooltip: string | null, scale = 1): void {
   const look = incidentLook(inc);
@@ -79,7 +80,8 @@ export function drawIncident(group: L.LayerGroup, inc: Incident, tooltip: string
     zIndexOffset: -300, // under vehicles and call markers
   }).addTo(group);
   if (tooltip !== null) {
-    marker.bindTooltip(tooltip);
-    for (const l of lines) l.bindTooltip(tooltip, { sticky: true });
+    const safe = escapeHtml(tooltip); // the description can come from a live traffic feed
+    marker.bindTooltip(safe);
+    for (const l of lines) l.bindTooltip(safe, { sticky: true });
   }
 }
