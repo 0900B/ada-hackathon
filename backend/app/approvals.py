@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from .agent.context import hhmm
 from .audit import AUDIT
-from .engine import surge, timeline
+from .engine import surge, timeline, units
 from .engine.actions import ActionError
 from .engine.plans import apply_plan, simulate_plan, stale_reasons
 from .engine.projection import DONE, project_all
@@ -43,15 +43,28 @@ def _out_of_date(state: WorldState, run: AgentRun, why: str, restart: bool) -> A
     return ApprovalError(409, why + tail)
 
 
-def approve(state: WorldState, run: AgentRun, option_index: int, by: str = "dispatcher") -> AgentRun:
-    """Apply option option_index of run. by: "dispatcher" or "autopilot". Raises ApprovalError."""
-    autopilot = by == "autopilot"
+WHO = {"autopilot": "Autopilot", "ai": "AI dispatcher (Claude)", "dispatcher": "Operator"}
+ACTOR = {"autopilot": "engine", "ai": "ai", "dispatcher": "dispatcher"}  # the timeline's `by`
+
+
+def approve(
+    state: WorldState, run: AgentRun, option_index: int, by: str = "dispatcher", detail: str | None = None
+) -> AgentRun:
+    """Apply option option_index of run. by: "dispatcher", "autopilot" (the engine approves an analysis
+    about a call) or "ai" (the AI dispatcher applies its own review, app/ai_dispatcher.py). detail: the
+    timeline's source text. Raises ApprovalError."""
+    autopilot = by in ("autopilot", "ai")
     if run.status != "done" or run.recommendation is None:
         raise ApprovalError(409, f"Run {run.id} is {run.status}; nothing to approve")
     options = run.recommendation.options
     if not 0 <= option_index < len(options):
         raise ApprovalError(400, "option_index out of range")
     option = options[option_index]
+    if autopilot:  # the dispatcher's own choice of a unit is never changed automatically
+        for s in option.steps:
+            t = state.trips.get(s.trip_id)
+            if t is not None and t.vehicle_id and t.vehicle_id != s.vehicle_id and units.held(t):
+                raise ApprovalError(409, f"the dispatcher assigned {t.vehicle_id} to {t.id} by hand: their decision stands")
     tracker = timeline.Tracker(state)
     applied_event = None
     executed: list[str] = []
@@ -62,7 +75,7 @@ def approve(state: WorldState, run: AgentRun, option_index: int, by: str = "disp
         executed.append(surge_event.summary)
         applied_event = surge_event
     if option.steps:
-        plan = Plan(steps=option.steps, rationale=f"{'Autopilot' if autopilot else 'Approved'}: {option.title}")
+        plan = Plan(steps=option.steps, rationale=f"{WHO[by] if autopilot else 'Approved'}: {option.title}")
         project_all(state)
         preview = simulate_plan(state, plan)
         checked = run.recommendation.checked_at
@@ -86,7 +99,7 @@ def approve(state: WorldState, run: AgentRun, option_index: int, by: str = "disp
         "executed": executed,  # what each step does as applied (same wording as step_details[].text)
         "by": by,
     }
-    who = "Autopilot" if autopilot else "Operator"
+    who = WHO.get(by, "Operator")
     run.log("info", f"{who} approved option {option_index + 1}: {option.title}")
     AUDIT.record(
         state.name,
@@ -95,12 +108,19 @@ def approve(state: WorldState, run: AgentRun, option_index: int, by: str = "disp
         ref=run.id,
         payload={"option": option, "decision": run.decision},
     )
-    # The call timeline: what was approved, on every trip the option touches, then what moved.
-    actor = "engine" if autopilot else "dispatcher"
+    # The call timeline: what was approved, on every trip the option touches, then what moved; and
+    # why each unit now serves its trip (trip.units).
+    actor = ACTOR.get(by, "dispatcher")
+    decided_by = "dispatcher" if by == "dispatcher" else ("ai" if run.engine == "claude" else "engine")
+    what = {"ai": "AI dispatcher (Claude)", "autopilot": "autopilot"}.get(by, "approved")
+    for s in option.steps:
+        trip = state.trips.get(s.trip_id)
+        if trip is not None and trip.vehicle_id == s.vehicle_id:
+            units.note(state, trip, s.vehicle_id, f"{what}: {option.title}", decided_by)
     for tid in dict.fromkeys(s.trip_id for s in option.steps):
         trip = state.trips.get(tid)
-        if trip is not None and trip.status not in DONE:
-            timeline.log(state, trip, "approved", actor, f"{who} approved: {option.title}", trip.vehicle_id, run.id)
-    tracker.log_changes(actor)
+        if trip is not None and trip.status not in DONE and by != "ai":  # (the AI dispatcher logs "reviewed: changed")
+            timeline.log(state, trip, "approved", actor, f"{who} approved: {option.title}", trip.vehicle_id, run.id, detail=detail)
+    tracker.log_changes(actor, detail=detail)
     state.bump()
     return run

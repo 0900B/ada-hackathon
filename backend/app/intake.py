@@ -162,8 +162,10 @@ def _apply(state: WorldState, loc: Location, result: TriageResult, call: CallRec
 
 def response(state: WorldState, record: EventRecord, result: TriageResult) -> dict[str, Any]:
     """{trip, summary} (the trip's fields are repeated at the top level for older clients)."""
+    from .engine.units import trip_view
+
     trip = state.trips[record.affected_trip_ids[0]]
-    data = trip.model_dump(mode="json")
+    data = trip_view(state, trip)  # with `units`
     note = f" Triaged by the keyword rules ({result.fallback})." if result.fallback else ""
     return {**data, "trip": data, "summary": record.summary + note, "event_id": record.id}
 

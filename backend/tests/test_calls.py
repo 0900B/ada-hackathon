@@ -40,6 +40,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app import config, intake, main  # noqa: E402
 from app.agent import runner  # noqa: E402
 from app.agent.messages import grade_text  # noqa: E402
+from app.agent.triage import triage_rules  # noqa: E402
 from app.engine import followup, surge  # noqa: E402
 from app.engine.events import apply_event, crosses  # noqa: E402
 from app.engine.projection import project_all  # noqa: E402
@@ -266,6 +267,41 @@ def test_every_caller_text_grades_to_its_condition():
     assert sum(1 for e in lib if e[0] in DOCTOR_CONDITIONS) >= 3
     assert {e[0] for e in lib} >= set(c for c in CONDITIONS if c not in ("transfer", "equipment"))
     assert checked > 100
+
+
+NATURAL = {  # how callers really say it (not the generator's templates): each must grade to its condition
+    "cardiac_arrest": ["Mož se je zgrudil in ne diha.", "Nima utripa!", "Srce mu je zastalo.", "Ne diše več, ne odziva se.",
+                       "Moja žena ne kaže znakov življenja.", "He collapsed and is not breathing."],
+    "choking": ["Otrok se je zadušil s kosom jabolka.", "Nekaj mu je obtičalo v grlu.", "Zataknilo se mu je v grlu, ne more dihati.",
+                "He is choking on food."],
+    "catastrophic_bleeding": ["Kri brizga iz rane.", "Ne moremo ustaviti krvavitve.", "Povsod je ogromno krvi.",
+                              "Hudo krvavi iz glave.", "He is bleeding a lot."],
+    "anaphylaxis": ["Po piku čebele je ves otekel in težko diha.", "Pičila ga je osa, oteka mu grlo.",
+                    "Huda alergijska reakcija, otekle ustnice.", "Ima alergični šok.", "Bee sting, his throat is swelling."],
+    "stroke": ["Mama ne more govoriti, obraz ji je povešen na eni strani.", "Oče nerazločno govori in se mu zapleta jezik.",
+               "Ne čuti leve roke in noge.", "Nenadoma je šibka na eni strani telesa.", "Zadela ga je kap.",
+               "Govori zmedeno in mu visi ustnica.", "Desna stran telesa mu je ohromela.",
+               "Her face is drooping and her speech is slurred."],
+    "stemi": ["Stiska ga v prsih.", "Huda bolečina v prsnem košu, seva v levo roko.", "Boli ga srce in je ves poten.",
+              "Pritisk na prsih.", "Crushing chest pain."],
+    "breathing_difficulty": ["Ne more dihati.", "Ne dobi zraka.", "Ima hud astmatični napad.", "Lovi sapo in je moder.",
+                             "Duši ga astma.", "She can't breathe."],
+    "major_trauma": ["Avto je zbil pešca.", "Padel je z lestve na glavo.", "Motorist je padel, leži na cesti.",
+                     "Trčenje dveh avtomobilov, voznik je ukleščen.", "Padel je s strehe.", "Hit by a car."],
+    "seizure": ["Ima krče.", "Trese ga po celem telesu.", "Ima božjast.", "She is having a fit."],
+    "sepsis": ["Ima sepso.", "Zastrupitev krvi, zdravnik je rekel."],
+    "fracture": ["Zlomil si je nogo.", "Mislim, da je roka zlomljena.", "Broken arm."],
+    "fall": ["Babica je padla doma in ne more vstati.", "Padel je po stopnicah.", "She fell in the bathroom."],
+}
+
+
+def test_natural_phrasings_grade_to_their_condition():
+    misses = [(c, t, grade_text(t)[:2]) for c, texts in NATURAL.items() for t in texts if grade_text(t)[:2] != (c, CONDITIONS[c][1])]
+    assert not misses, misses
+    for t in ("Leži na tleh in se ne odziva.", "Ni pri zavesti.", "He is unconscious."):
+        assert grade_text(t)[:2] == (None, "serious"), t  # unconscious, cause unknown: at least serious
+    tr = triage_rules("Mama ne more govoriti, obraz ji je povešen na eni strani.", W.sim_time)
+    assert (tr.severity, tr.condition) == ("serious", "stroke"), tr
 
 
 def test_generated_calls_have_words_and_the_stream_is_unchanged():

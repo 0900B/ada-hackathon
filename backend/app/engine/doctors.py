@@ -22,6 +22,7 @@ from ..models import Trip, Vehicle
 from ..routing import flies, travel_minutes, vehicle_leg_minutes
 from .service_times import turnout_min
 from .severity import BUSY_UNIT_MIN_GAIN_MIN, DOCTOR_TARGET_MIN, RED_REFERENCE_MIN
+from .units import note
 
 if TYPE_CHECKING:
     from ..state import WorldState
@@ -96,12 +97,10 @@ def send_doctor(state: WorldState, trip: Trip, unit_id: str | None = None, unit_
         why = f"no doctor car free ({', '.join(busy)} busy)" if busy else "no doctor car in service"
         return f"; {why}: consider the helicopter (doctor on board)"
     best = min(free, key=lambda v: doctor_arrival(state, v, trip))
-    at = doctor_arrival(state, best, trip)
-    turnout = turnout_min(best)
-    best.current_trip_id, best.queue, best.status, best.waiting_until = trip.id, [], "to_pickup", None
-    if turnout:
-        best.busy_until = max(best.busy_until or state.sim_time, state.sim_time) + timedelta(minutes=turnout)
-    trip.doctor_vehicle_id, trip.doctor_eta = best.id, at
+    at = dispatch_doctor_car(state, trip, best)
+    in_min = _mins(at, state.sim_time)
+    note(state, trip, best.id, f"doctor needed for {(trip.condition_label or 'this call').lower()}: "
+         f"first doctor car on scene, {in_min:.0f} min")
     if reach is None:
         rel = ""
     elif abs(_mins(at, reach)) < 1:
@@ -117,6 +116,17 @@ def send_doctor(state: WorldState, trip: Trip, unit_id: str | None = None, unit_
         heli = "" if unit is not None and flies(unit.type) else ": consider the helicopter"
         clause += f"; the doctor arrives {wait:.0f} min after the call (reference {DOCTOR_TARGET_MIN:.0f} min){heli}"
     return clause
+
+
+def dispatch_doctor_car(state: WorldState, trip: Trip, v: Vehicle) -> datetime:
+    """Send doctor car v (free) to trip now; returns when it reaches the patient."""
+    at = doctor_arrival(state, v, trip)
+    turnout = turnout_min(v)
+    v.current_trip_id, v.queue, v.status, v.waiting_until = trip.id, [], "to_pickup", None
+    if turnout:
+        v.busy_until = max(v.busy_until or state.sim_time, state.sim_time) + timedelta(minutes=turnout)
+    trip.doctor_vehicle_id, trip.doctor_eta = v.id, at
+    return at
 
 
 def _who(trip: Trip) -> str:

@@ -79,7 +79,8 @@ If a call is reported as better (e.g. the patient is breathing again), the dispa
    "cardiac arrest: about 6% survival lost per minute without defibrillation; A1 is 9 min closer".
 9. **The human stays in charge.** The engine acts on its own only for rules 1, 2 and 6 at the
    moment of dispatch, because seconds matter. Everything else is a proposal the dispatcher
-   approves.
+   approves, unless the dispatcher has switched the world to the autonomous AI dispatcher
+   (section 8); the dispatcher can still change any unit by hand.
 
 ## 4. Slovenian practice adopted
 
@@ -206,16 +207,21 @@ Every call has a **call record** (`Trip.call`) and a **timeline** (`Trip.timelin
 - **Intake** (`app/intake.py`): a call typed by the call-taker (`POST /{world}/calls`: the caller's
   words, an address, a known place or a map point) is **triaged by Claude** (a small structured-output
   request, `agent/triage.py`, through the usage guard) and, when Claude is off, limited, slow (12 s) or
-  fails, by the **keyword rules** (`agent/messages.grade_text`), so a call is never lost. As a safety
-  net the red-flag words may raise Claude's level, never lower it. The call then goes through the
+  fails, by the **keyword rules** (`agent/messages.grade_text`: Slovenian and English stems, checked
+  against the generator's texts and natural phrasings per condition, e.g. "obraz ji je povešen",
+  "ne more govoriti", "ne dobi zraka", "nima utripa"; an unconscious patient with no named cause is
+  graded serious), so a call is never lost. As a safety net the red-flag words may raise Claude's
+  level, never lower it. The call then goes through the
   normal dispatch path (`urgent_request`, section 3), with a doctor car when the triage asks for one.
 - **Generated calls** (`sim/calls.py`) carry a fictional caller, a street address and the caller's
   words in Slovenian and English (several texts per condition, each checked against the keyword rules);
   the rules triage them, Claude only with the world's **AI triage** switch on (and while the guard has
   requests to spare). Words come from a separate random stream: the calls and the benchmark are unchanged.
 - **Timeline** (`engine/timeline.py`): received, triaged, dispatched, doctor dispatched, rerouted,
-  reassigned, delayed, unit replaced, proposal, approved, on scene, doctor on scene, transporting, at
-  hospital, handover done, closed, note; each says who (caller, ai, rules, engine, dispatcher, crew).
+  reassigned, delayed, unit replaced, proposal, approved, reviewed, override, on scene, doctor on scene,
+  transporting, at hospital, handover done, closed, note; each says who (`by`: caller, ai, rules, engine,
+  dispatcher, crew) and the source in a few words (`detail`: "rules engine, 0.1 s", "keyword rules,
+  0.0 s", "Claude, 12 s, checked by the engine", "dispatcher override").
 - **Automatic follow-up of 112 calls** (`engine/followup.py`, every 30 world-seconds, logged by the
   engine): a call whose unit drops out is re-dispatched at once; a call no unit could take is
   dispatched as soon as one can; before arrival a **free** ambulance that reaches the patient **3 min
@@ -224,9 +230,55 @@ Every call has a **call record** (`Trip.call`) and a **timeline** (`Trip.timelin
   without a 112 record (scenario jobs, bookings, hospital requests) keep the old behaviour, so the
   stranded-patient and stranded-equipment decisions stay with the dispatcher. Trade-offs (overrides of
   other calls, swaps, reserve units, surge) stay **proposals**.
-- **Autopilot** (per world, off by default): the recommended feasible option of every analysis about an
-  active call is approved by the engine through the dispatcher's own approval path (re-checked,
-  applied, audited); activating contracted surge capacity always stays with the dispatcher.
+- **Autopilot** (per world, off by default; now the autonomous AI dispatcher mode, section 8): the
+  recommended feasible option of every analysis about an active call is approved by the engine through
+  the dispatcher's own approval path (re-checked, applied, audited); activating contracted surge
+  capacity always stays with the dispatcher.
+
+## 8. AI dispatcher modes
+
+The AI runs each case; the dispatcher can intervene at any time (`app/ai_dispatcher.py`,
+`app/overrides.py`). Rule 9 still holds where seconds matter: the **engine** acts at once by itself
+(dispatch when the call comes in, detours around closures, replacing a unit that drops out, a faster
+free unit, a doctor car). On top of that **Claude reviews the case** as a focused analysis (through
+the usage guard, with the engine's tools, every option re-simulated by the engine):
+
+- every new **critical or serious** 112 call, right after the engine's dispatch;
+- every **disruption touching an open 112 call**: breakdown, delay, a closure on the unit's route, a
+  priority change (at most the two most urgent calls per event).
+
+| Mode (per world, `ai_mode`) | Reviews | Claude's recommendation |
+|---|---|---|
+| **assisted** (default) | only with auto-analyse on | a proposal: the dispatcher approves or rejects it |
+| **autonomous** (`POST /{world}/admin/ai-mode {"mode": "autonomous"}`; the old autopilot switch) | always | applied at once through the dispatcher's approval path (re-checked by the engine, audited), timeline `approved` by `ai` ("Claude, 12 s, checked by the engine"); contracted surge capacity stays the dispatcher's decision |
+
+Every review ends in a `reviewed` timeline entry by `ai`: "AI dispatcher (Claude) reviewed: no change —
+keep A1 and doctor car D1 for TR-004 (...)" when Claude keeps the engine's decision (no steps), or
+"AI dispatcher (Claude) changed: A3 instead of A1 — ..." when its change was applied (autonomous); in
+assisted mode a change is a `proposal`. When the guard refuses, there is no API key,
+or Claude fails or takes longer than `AGENT_TIMEOUT_S`, **the engine's decision stands** and the
+timeline says so. One review per call at a time, and none within 2 world-minutes of the last one for
+that call (`REVIEW_GAP_MIN`).
+
+**The dispatcher intervenes** on any call: `GET /{world}/trips/{id}/alternatives?role=ambulance|doctor|helicopter`
+lists every unit of that role ranked by arrival at the patient, simulated by the engine, with what it
+costs ("free", "diverts TR-003 (urgent), which then waits 12 min longer", "helicopter, doctor on board",
+"private, needs surge capacity"); `POST /{world}/trips/{id}/assign {"vehicle_id", "mode": "replace"|"add"}`
+applies one through the plan path (a doctor car is swapped or added; a further ambulance or the
+helicopter for another patient of the same call becomes a linked trip with the same call record).
+Refused with the reason when it cannot be done (a patient on board, a doctor car busy with another
+call). Timeline `override` by `dispatcher`. **The dispatcher's choice sticks**: a unit assigned by the
+dispatcher (an override, or a plan they approved) is not changed by the engine's follow-up (a faster
+free unit), by the autonomous AI dispatcher or by the autopilot (refused, with a timeline note); only
+if that unit drops out (breakdown, fog) does the engine replace it at once, and from then on the call
+is followed up as usual.
+
+**Why each unit**: every call's `units` (snapshot) name the transporting unit, the doctor car and any
+linked unit with one line of reason written where the decision was made ("nearest free ambulance,
+4 min", "available soon: finishes at UKC Ljubljana, 12 min sooner than A2", "doctor needed for cardiac
+arrest: first doctor car on scene, 6 min", "dispatcher override (was A3): ...") and who decided
+(`engine`, `ai`, `dispatcher`). `ai_stats` counts the decisions since the reset: calls active, units
+dispatched, reroutes, reassignments, dispatcher overrides, Claude's reviews and the changes applied.
 
 ## Sources
 
