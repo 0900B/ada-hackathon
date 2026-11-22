@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { KEY_HEADER, controlFetch } from "./adminKey";
 
 export const API_URL = (
   import.meta.env.VITE_API_URL ?? "https://ada-hackathon-production.up.railway.app"
@@ -377,8 +378,11 @@ export function useWorldState(world: World) {
 
 // --- Commands ------------------------------------------------------------------
 
+// Every control request (POST/PUT/PATCH/DELETE) goes through controlFetch (adminKey.ts): it sends the
+// demo-lock key this device holds, and a 401 opens the key prompt and throws "View only: …".
+
 async function post<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await controlFetch(`${API_URL}${path}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -415,7 +419,7 @@ export const rejectRun = (world: World, runId: string) =>
   post<AgentRun>(`/${world}/agent/runs/${runId}/reject`, { reason: null });
 /** Turn automatic analysis of events on/off for one world. Older backends answer 404 (no such endpoint). */
 export async function setAgentAuto(world: World, enabled: boolean): Promise<{ world: World; auto: boolean } | "unsupported"> {
-  const res = await fetch(`${API_URL}/${world}/agent/auto`, {
+  const res = await controlFetch(`${API_URL}/${world}/agent/auto`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ enabled }),
@@ -544,7 +548,8 @@ export interface Alternatives {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, init);
+  const control = init?.method !== undefined && !["GET", "HEAD"].includes(init.method.toUpperCase());
+  const res = await (control ? controlFetch(`${API_URL}${path}`, init) : fetch(`${API_URL}${path}`, init));
   const data = await res.json().catch(() => ({}));
   const detail = (data as { detail?: unknown }).detail;
   if ((res.status === 404 && detail === "Not Found") || res.status === 405) throw new MissingEndpoint(path);
@@ -590,6 +595,34 @@ export function apiCaps(): Promise<ApiCaps | null> {
     })
     .catch(() => null);
   return capsPromise;
+}
+
+// --- Demo lock (backend/app/admin_key.py) -----------------------------------------
+
+/** Does the backend have an ADMIN_KEY (from /health)? null: unknown (unreachable, older backend). */
+export async function fetchAdminLock(): Promise<boolean | null> {
+  try {
+    const res = await fetch(`${API_URL}/health`);
+    if (!res.ok) return null;
+    const h = (await res.json()) as { admin_lock?: unknown };
+    return typeof h.admin_lock === "boolean" ? h.admin_lock : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Would this key be accepted? POST /lock/check changes nothing. "unknown": backend unreachable or without
+ * the lock (older backend answers 404/405: nothing to unlock).
+ */
+export async function checkAdminKey(key: string): Promise<"ok" | "rejected" | "unknown"> {
+  try {
+    const res = await fetch(`${API_URL}/lock/check`, { method: "POST", headers: key ? { [KEY_HEADER]: key } : {} });
+    if (res.status === 401) return "rejected";
+    return res.ok ? "ok" : "unknown";
+  } catch {
+    return "unknown";
+  }
 }
 
 export const runScenario = (name: string) =>

@@ -4,6 +4,7 @@
  * themselves for good once an endpoint answers 404 (no probing, so no console noise).
  */
 import { useState } from "react";
+import { controlFetch } from "./adminKey";
 import { API_URL, MissingEndpoint, type EventRecord, type Trip } from "./api";
 
 export { MissingEndpoint };
@@ -38,7 +39,7 @@ export function useDemoApi(enabled: boolean): [DemoApi, (kind: keyof DemoApi) =>
 }
 
 async function post(path: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const res = await fetch(`${API_URL}${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const res = await controlFetch(`${API_URL}${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   const data = await res.json().catch(() => ({}));
   if (res.status === 404 && (data as { detail?: unknown }).detail === "Not Found") throw new MissingEndpoint(path);
   if (!res.ok) {

@@ -49,6 +49,7 @@ import { ResponseLine, SeverityBadge } from "../SeverityBadge";
 import { doctorJobLine } from "../doctor";
 import { DoctorTag, OriginTag } from "../DoctorTag";
 import { bilingualLines } from "../ErrorText";
+import { AdminLock } from "../AdminLock";
 import { SPEECH_LANGS, speechSecureContext, usePushToTalk, useSpeechInput } from "../voice";
 import "../voice.css";
 import "../tablet.css";
@@ -740,6 +741,7 @@ function TabletConsole({
           <i className="dot" /> {connected ? "Online" : "Reconnecting"}
         </span>
         <span className="mdt-clock">{fmtTime(state.sim_time)}</span>
+        <AdminLock variant="tablet" />
         <button className="mdt-btn icon" onClick={toggleTheme} aria-label={night ? "Day mode" : "Night mode"} title={night ? "Day mode" : "Night mode"}>
           {night ? <Sun /> : <Moon />}
         </button>

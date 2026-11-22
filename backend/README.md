@@ -228,3 +228,22 @@ keeps its place in the queue, also with the patient on board):
 3. Keep **1 replica**: the state lives in memory.
 4. Settings -> Networking -> Generate Domain.
 5. Optional variables: see `.env.example`.
+
+## Demo lock (admin key)
+
+During a live pitch the URL is on a screen. Set `ADMIN_KEY` (Railway -> Variables; a long random string)
+and nobody who only has the URL can reset the simulation, inject failures, approve plans or spend AI
+tokens: every POST/PUT/PATCH/DELETE must carry the header `X-Plan-B-Key: <key>`, else it gets
+`401 {"detail": "Control actions need the admin key (Plan B demo lock)."}`. Reading stays open
+(GET/HEAD/OPTIONS: the dashboard, the SSE stream, `/health`, CORS preflight). There are no exemptions:
+crew phones and tablets are our devices and carry the key too.
+
+- `ADMIN_KEY` unset or empty: no lock, everything open (local dev, tests, CI).
+- `/health` has `admin_lock: true|false` (whether a key is configured, never the key). The key is never
+  logged or returned. `POST /lock/check` answers `{"ok": true, "lock": bool}` if the request would be
+  allowed (401 otherwise) and changes nothing: the frontend uses it to verify a typed key.
+- Frontend: open each device once with `?key=<key>` (for example `https://<frontend>/sim?key=...`); the
+  page stores it in localStorage (`planb.adminKey`), removes it from the address bar and sends the header
+  from then on. The header shows "Control unlocked" / "View only"; click it to enter or clear the key.
+- Code: `app/admin_key.py` (pure ASGI middleware, registered inside CORS so the 401 stays readable
+  cross-origin). Tests: `tests/test_admin_key.py`.

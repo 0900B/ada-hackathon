@@ -34,6 +34,7 @@ import { ResponseLine, SeverityBadge } from "../SeverityBadge";
 import { doctorJobLine } from "../doctor";
 import { DoctorTag } from "../DoctorTag";
 import { ErrorText } from "../ErrorText";
+import { AdminLock } from "../AdminLock";
 import { useHotkeys } from "../hotkeys";
 import { SPEECH_LANGS, speechSecureContext, usePushToTalk, useSpeechInput } from "../voice";
 import "../voice.css";
@@ -243,7 +244,10 @@ function CrewConsole({
           <h1 className="crew-title">
             <Callsign v={vehicle} /> {vehicle.name}
           </h1>
-          <span className={`crew-world ${world}`}>{world === "sim" ? "SIM" : "LIVE"}</span>
+          <div className="crew-head-right">
+            <AdminLock variant="crew" />
+            <span className={`crew-world ${world}`}>{world === "sim" ? "SIM" : "LIVE"}</span>
+          </div>
         </div>
         <div className="crew-chips">
           <span className={`chip st-${vehicle.status}`}>{vehicleStatusText(vehicle, state.trips)}</span>

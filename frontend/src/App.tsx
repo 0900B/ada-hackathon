@@ -15,6 +15,7 @@ import {
   type World,
   type WorldSnapshot,
 } from "./api";
+import { AdminLock } from "./AdminLock";
 import type { AgentKeys } from "./AgentPanel";
 import { BookingForm } from "./BookingForm";
 import {
@@ -122,6 +123,7 @@ export default function App() {
         <span className="header-help muted">
           Press <kbd>?</kbd> for shortcuts
         </span>
+        <AdminLock />
       </header>
       <Routes>
         <Route path="/" element={<Navigate to="/live" replace />} />

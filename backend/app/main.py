@@ -19,6 +19,7 @@ from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from . import ai_dispatcher, approvals, config, demo, intake, overrides
+from .admin_key import AdminKeyLock, lock_enabled
 from .agent import runner as agent
 from .agent.messages import FieldMessage, MessageError, parse_message, to_operator_events
 from .guard import GUARD, message_limit_detail
@@ -212,6 +213,7 @@ class LegacyPathsToSim:
 
 
 app = FastAPI(title="Emergency transport assistant - backend", lifespan=lifespan)
+app.add_middleware(AdminKeyLock)  # demo lock (app/admin_key.py); added first = inside CORS, so its 401 carries CORS headers
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.add_middleware(LegacyPathsToSim)
 
@@ -225,6 +227,7 @@ def root() -> dict:
 def health() -> dict:
     return {
         "ok": True,
+        "admin_lock": lock_enabled(),  # a demo lock is configured (ADMIN_KEY); never the key itself
         "worlds": {name: {"sim_time": w.sim_time.isoformat(), "speedup": w.speedup} for name, w in WORLDS.items()},
         "sources": {k: s.model_dump(mode="json") for k, s in feed.sources.items()},
         "tomtom_requests_today": tomtom.usage() if tomtom.tomtom_key() else None,
