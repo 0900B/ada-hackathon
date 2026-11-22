@@ -560,16 +560,26 @@ async def post_call(req: intake.CallRequest, state: WorldState = World) -> dict:
 
 class RandomCallRequest(BaseModel):
     severity: Literal["critical", "serious", "urgent"] | None = None
+    # E + a click on the map: a library call of this condition, placed at lat/lon, with picked modifiers
+    condition: str | None = None
+    lat: float | None = Field(default=None, ge=45.0, le=47.5)
+    lon: float | None = Field(default=None, ge=13.0, le=16.7)
+    modifiers: list[Literal["child", "deteriorating", "multiple_patients"]] = Field(default_factory=list)
 
 
 @router.post("/admin/random-call")
 async def random_call(req: RandomCallRequest | None = None, state: WorldState = World) -> dict:
     """Demo: one 112 call from the library (sim/calls.py: caller, street address, Slovenian words),
-    through the same intake path (Claude triages only with ai_triage on). Simulation only."""
+    through the same intake path (Claude triages only with ai_triage on). Simulation only. With a
+    condition and lat/lon (E + a click on the map) the call is that condition, at that point."""
     if not state.hypothetical:
         raise HTTPException(status_code=400, detail="Demo calls run in the simulation, not in live mode")
+    req = req or RandomCallRequest()
+    if req.condition is not None and req.condition not in intake.CONDITIONS:
+        raise HTTPException(status_code=422, detail=f"Unknown condition: {req.condition}")
+    at = (req.lat, req.lon) if req.lat is not None and req.lon is not None else None
     try:
-        record, result = await intake.random_call(state, req.severity if req else None)
+        record, result = await intake.random_call(state, req.severity, req.condition, at, list(req.modifiers))
     except EventError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     call_problem(state, record)

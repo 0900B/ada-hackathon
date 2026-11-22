@@ -106,7 +106,8 @@ class WorldState:
         self.scheduled_day = config.SCHEDULED_DAY
         from .sim.calls import CallGenerator  # no engine imports in that class
 
-        self.calls = CallGenerator()  # live-calls stream (reset by seed_world)
+        # live-calls stream (reset by seed_world); the Simulation world starts with it off (config)
+        self.calls = CallGenerator(enabled=config.SIM_CALLS_ENABLED if name == "sim" else config.CALLS_ENABLED)
         self._ids = itertools.count(1)
         self.reset_simulation()
 

@@ -252,6 +252,20 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
       setTimeout(() => setDemoBusy(false), 600);
     }
   };
+  // E + a click on the map + a condition: in the Simulation a real 112 call from the call library at that
+  // point (caller, Slovenian words, triage, case card); in Live, or with an older backend, the plain event.
+  const sendPicked = async (event: Record<string, unknown>) => {
+    const { lat, lon, condition, modifiers } = event as { lat: number; lon: number; condition: string; modifiers?: string[] };
+    if (!sim || !demo.call) return void send(event);
+    try {
+      const { trip, summary } = await randomCall(undefined, { condition, lat, lon, modifiers });
+      notify("ok", summary);
+      if (trip) openCall(trip.id);
+    } catch (e) {
+      if (e instanceof MissingEndpoint) void send(event);
+      else notify("error", bilingualLines(errorText(e)));
+    }
+  };
   const injectIncident = async (kind?: string) => {
     if (!demo.incident || demoBusy) return;
     setDemoBusy(true);
@@ -481,7 +495,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
             onCancel={() => setPendingCall(null)}
             onSend={(event) => {
               setPendingCall(null);
-              void send(event);
+              void sendPicked(event);
             }}
           />
         )}

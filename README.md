@@ -263,7 +263,7 @@ Everything runs without any key: without `ANTHROPIC_API_KEY` the engine's own pl
 | `DATABASE_URL` | PostgreSQL for the audit log (on Railway a reference to the Postgres service; read by `app/audit.py`; without it the log is memory-only) |
 | `AGENT_MODEL`, `AGENT_EFFORT`, `AGENT_AUTO`, `AGENT_MAX_TURNS`, `AGENT_TIMEOUT_S` | Model, reasoning effort, auto-analyse default, tool turns per analysis, analysis deadline |
 | `CLAUDE_MAX_PER_5MIN`, `CLAUDE_WINDOW_S`, `CLAUDE_MAX_PER_DAY` | Usage guard limits |
-| `SIM_SPEEDUP`, `LIVE_SPEEDUP`, `CALLS_PER_HOUR`, `CALLS_ENABLED`, `SCHEDULED_DAY`, `RANDOM_SEED` | Simulation clock, call stream and start mode |
+| `SIM_SPEEDUP`, `LIVE_SPEEDUP`, `CALLS_PER_HOUR`, `CALLS_ENABLED` (Live), `SIM_CALLS_ENABLED` (Simulation, off by default), `SCHEDULED_DAY`, `RANDOM_SEED` | Simulation clock, call stream and start mode |
 | `ROAD_ROUTING`, `OSRM_URL` | Turn road routing off, or point at your own OSRM server |
 | `TOMTOM_*_CAP`, `*_INTERVAL_S`, `AUDIT_TABLE`, `HTTP_USER_AGENT`, `PORT` | Daily API caps, fetch intervals and a few deployment details |
 

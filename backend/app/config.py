@@ -33,7 +33,11 @@ RANDOM_SEED = int(os.getenv("RANDOM_SEED", "42"))
 # dispatched at once. 1 = scheduled day: the vans start with a pre-planned list of booked trips.
 SCHEDULED_DAY = os.getenv("SCHEDULED_DAY", "0") == "1"
 # Live-calls mode: the call generator (emergencies, urgent transports, urgent equipment runs).
+# CALLS_ENABLED: the Live world (on by default: its closed calls fill the Reports page).
+# SIM_CALLS_ENABLED: the Simulation world, the demo world (off by default: calls come from "New 112 call"
+# and "Random call"). The Operations switch in the Scenarios tab turns either on or off at run time.
 CALLS_ENABLED = os.getenv("CALLS_ENABLED", "1") == "1"
+SIM_CALLS_ENABLED = os.getenv("SIM_CALLS_ENABLED", "0") == "1"
 # In world (sim) time: one call every 12 min. With the researched service times (docs/SERVICE_TIMES.md)
 # this keeps the three ambulances about 50-65 % busy (measured over 8 world-hours); 8/h overloads them.
 CALLS_PER_HOUR = _float("CALLS_PER_HOUR", 5.0)

@@ -60,6 +60,7 @@ export const CONDITIONS: Condition[] = [
   condition("seizure", "serious", 4),
   condition("sepsis", "serious", 4),
   condition("fall", "urgent", 2),
+  condition("fracture", "urgent", 2),
 ];
 
 export interface Modifier {

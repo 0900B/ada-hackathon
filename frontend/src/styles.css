@@ -3009,17 +3009,20 @@ button.sm.on {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
 }
 .cases-empty {
   padding: 8px 2px;
 }
+/* Each case is a raised card: lighter than the panel, a visible edge and a shadow, so one call clearly
+   ends where the next begins. The left bar keeps the severity colour. */
 .case {
   position: relative;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-left: 4px solid var(--prio-sc-bd);
   border-radius: var(--radius-sm);
-  background: var(--surface);
+  background: var(--surface-2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.28);
 }
 .case.lvl-critical {
   border-left-color: var(--sev-crit-bd);
@@ -3031,16 +3034,19 @@ button.sm.on {
   border-left-color: var(--prio-ur-bd);
 }
 .case.waiting {
-  background: rgba(242, 85, 90, 0.07);
+  background: linear-gradient(rgba(242, 85, 90, 0.08), rgba(242, 85, 90, 0.08)), var(--surface-2);
 }
 .case.open {
-  border-top-color: var(--border-strong);
-  border-right-color: var(--border-strong);
-  border-bottom-color: var(--border-strong);
-  background: var(--surface-2);
+  border-top-color: #4a5a70;
+  border-right-color: #4a5a70;
+  border-bottom-color: #4a5a70;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 6px 18px rgba(0, 0, 0, 0.38);
+}
+.case.open > .case-head {
+  border-bottom: 1px solid var(--border-strong);
 }
 .case.selected {
-  box-shadow: 0 0 0 1px var(--accent);
+  box-shadow: 0 0 0 2px var(--accent), 0 4px 12px rgba(0, 0, 0, 0.28);
 }
 .case.done .case-head {
   opacity: 0.8;
