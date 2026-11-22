@@ -64,8 +64,8 @@ class CallRequest(BaseModel):
     text: str = Field(min_length=2, max_length=1000)  # the caller's words
     address: str | None = Field(default=None, max_length=200)
     place_id: str | None = None
-    lat: float | None = None
-    lon: float | None = None
+    lat: float | None = Field(default=None, ge=45.0, le=47.5)  # Slovenia and around, as RandomCallRequest
+    lon: float | None = Field(default=None, ge=13.0, le=16.7)
     caller_name: str | None = Field(default=None, max_length=80)
     dropoff_id: str | None = None
 

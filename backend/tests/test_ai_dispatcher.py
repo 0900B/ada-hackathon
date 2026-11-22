@@ -132,7 +132,7 @@ class FakeClaude:
 
     async def create(self, **kw):
         if "tools" not in kw:
-            words = kw["messages"][0]["content"].split("\n\nAddress")[0].removeprefix("Caller's words:\n")
+            words = kw["messages"][0]["content"].split("\n</caller_words>")[0].removeprefix("<caller_words>\n")
             tr = triage_rules(words, W.sim_time)
             data = {"severity": tr.severity, "condition": tr.condition or "other", "modifiers": tr.modifiers,
                     "needs_doctor": tr.needs_doctor, "reason_en": tr.reason_en, "reason_sl": tr.reason_sl,
