@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import type { WorldSnapshot } from "../api";
-import { fmtTime, humanize, vehicleStatusText, vehicleTypeLabel } from "../format";
+import { fmtTime, humanize, nightText, vehicleStatusText, vehicleTypeLabel } from "../format";
 import { Callsign } from "../icons";
 import { ResponseLine, SeverityBadge } from "../SeverityBadge";
 import { doctorJobLine } from "../doctor";
@@ -41,7 +41,7 @@ export function FleetPage({ state }: { state: WorldSnapshot }) {
               <p className="muted">
                 {vehicleTypeLabel(v.type)} · {vehicleStatusText(v, state.trips)} · {t("fleet.base", { place: place.get(v.base_id) ?? v.base_id })}
                 {v.busy_until ? t("fleet.busyUntil", { time: fmtTime(v.busy_until) }) : ""}
-                {v.grounded_until ? t("fleet.groundedUntil", { time: fmtTime(v.grounded_until) }) : ""}
+                {v.grounded_until ? t("fleet.groundedUntil", { time: fmtTime(v.grounded_until) }) : nightText(v) ? ` · ${nightText(v)}` : ""}
               </p>
               {route.length === 0 ? (
                 <p className="muted">{t("fleet.noTrips")}</p>

@@ -14,8 +14,9 @@ import {
   Wrench,
   X,
   CloudFog,
+  Moon,
 } from "lucide-react";
-import { flightTarget, fmtTime, vehicleStatusText } from "./format";
+import { flightTarget, fmtTime, heliDown, nightText, vehicleStatusText } from "./format";
 import { Callsign } from "./icons";
 import { levelOf } from "./severity";
 import { ResponseLine, SeverityBadge } from "./SeverityBadge";
@@ -82,12 +83,16 @@ export function VehicleCard({
       <UnitReason v={state.vehicles.find((x) => x.id === v.id) ?? v} state={state} onOverride={onOverride} />
 
       {heli && (
-        <div className={`vc-flight${v.grounded_until ? " grounded" : ""}`}>
-          {v.grounded_until ? <CloudFog /> : <Plane />}
+        <div className={`vc-flight${heliDown(v) ? " grounded" : ""}`}>
+          {v.grounded_until ? <CloudFog /> : v.off_duty_until ? <Moon /> : <Plane />}
           {v.grounded_until
             ? `${tt("ops.heliGrounded", { time: fmtTime(v.grounded_until) })}${
                 flight ? tt("ops.heliFinishing", { kind: flightKind(flight.kind), place: flight.place.name }) : ""
               }`
+            : v.off_duty_until
+              ? `${nightText(v)}${v.hours ? tt("heli.hours", { hours: v.hours }) : ""}${
+                  flight ? tt("ops.heliFinishing", { kind: flightKind(flight.kind), place: flight.place.name }) : ""
+                }`
             : flight
               ? tt(v.busy_until ? "ops.heliGroundNext" : "ops.heliFlying", { kind: flightKind(flight.kind), place: flight.place.name })
               : tt("ops.heliParked")}

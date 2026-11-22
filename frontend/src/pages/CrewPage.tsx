@@ -27,7 +27,7 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react";
-import { fmtTime, vehicleStatusLabel, vehicleStatusText } from "../format";
+import { fmtTime, nightText, vehicleStatusLabel, vehicleStatusText } from "../format";
 import { t as tx, tOr, useLang, useT } from "../i18n";
 import { LangToggle } from "../LangToggle";
 import { Callsign } from "../icons";
@@ -265,6 +265,7 @@ function CrewConsole({
             <i className="dot" /> {connected ? t("tab.online") : t("tab.reconnecting")}
           </span>
           {vehicle.grounded_until && <span className="chip warn">{t("tab.grounded", { time: fmtTime(vehicle.grounded_until) })}</span>}
+          {nightText(vehicle) && <span className="chip warn">{nightText(vehicle)}</span>}
           {/* the UI language switch sits at the end of the chip row: the title row is full on a phone */}
           <LangToggle className="crew-uilang crew-uilang-end" />
         </div>

@@ -41,7 +41,7 @@ import {
   CornerUpRight,
   type LucideIcon,
 } from "lucide-react";
-import { fmtTime, tripStatusLabel, vehicleStatusLabel, vehicleStatusText } from "../format";
+import { fmtTime, nightText, tripStatusLabel, vehicleStatusLabel, vehicleStatusText } from "../format";
 import { fmtNum, t as tx, tOr, useLang, useT, type Lang } from "../i18n";
 import { LangToggle } from "../LangToggle";
 import { VehicleTypeIcon } from "../icons";
@@ -785,6 +785,7 @@ function TabletConsole({
         <OriginTag v={vehicle} />
         <span className={`mdt-chip st-${vehicle.status}`}>{vehicleStatusText(vehicle, state.trips)}</span>
         {vehicle.grounded_until && <span className="mdt-chip warn">{t("tab.grounded", { time: fmtTime(vehicle.grounded_until) })}</span>}
+        {nightText(vehicle) && <span className="mdt-chip warn">{nightText(vehicle)}</span>}
         <span className="mdt-spacer" />
         <span className={`mdt-chip ${world}`}>{world === "sim" ? t("tab.chipSim") : t("tab.chipLive")}</span>
         <span className={`mdt-chip ${connected ? "ok" : "bad"}`}>

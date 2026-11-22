@@ -1,6 +1,6 @@
 /** Shared formatting helpers. */
 import { DOCTOR_STATUS } from "./doctor";
-import { tOr } from "./i18n";
+import { t, tOr } from "./i18n";
 import type { Place, Trip, Vehicle } from "./api";
 
 export const fmtTime = (iso: string | null | undefined) =>
@@ -18,6 +18,13 @@ export const tripStatusLabel = (status: string) => tOr(`tstatus.${status}`, huma
 
 /** A vehicle type in the UI language ("ambulance" / "reševalno vozilo"). */
 export const vehicleTypeLabel = (type: string) => tOr(`vtype.${type}`, humanize(type));
+
+/** A helicopter off duty at night (backend `off_duty_until`, not while fog grounds it): "Unavailable at night until 08:00". */
+export const nightText = (v: Pick<Vehicle, "off_duty_until" | "grounded_until">): string | null =>
+  v.off_duty_until && !v.grounded_until ? t("heli.night", { time: fmtTime(v.off_duty_until) }) : null;
+
+/** No new flights now: fog or night (the greyed "grounded" look). */
+export const heliDown = (v: Pick<Vehicle, "off_duty_until" | "grounded_until">): boolean => Boolean(v.grounded_until || v.off_duty_until);
 
 /** A vehicle's status for display: one loaded with equipment is "with equipment", not "with patient". */
 export function vehicleStatusText(v: Vehicle, trips: Trip[]): string {

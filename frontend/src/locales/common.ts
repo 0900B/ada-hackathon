@@ -122,6 +122,11 @@ export const en = {
   "dr.jobOnScene": "On scene with {unit} at {place}",
   "dr.jobEscorting": "Escorting {unit} to {place}",
 
+  // Helicopter at night (HNMP flies by day only)
+  "heli.night": "Unavailable at night until {time}",
+  "heli.nightShort": "night",
+  "heli.hours": " · flies {hours}",
+
   // Generic words
   "common.min": "min",
   "common.close": "Close",
@@ -235,6 +240,10 @@ export const sl: Translation<typeof en> = {
   "dr.jobJoining": "Pridružuje se enoti {unit}: {place}",
   "dr.jobOnScene": "Na kraju z enoto {unit}: {place}",
   "dr.jobEscorting": "Spremlja enoto {unit} → {place}",
+
+  "heli.night": "Ne leti ponoči, na voljo ob {time}",
+  "heli.nightShort": "noč",
+  "heli.hours": " · leti {hours}",
 
   "common.min": "min",
   "common.close": "Zapri",

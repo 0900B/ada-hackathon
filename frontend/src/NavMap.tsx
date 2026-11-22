@@ -322,7 +322,7 @@ export function NavMap({ vehicle, detail, nav, incidents }: Props) {
     if (!ls || !map) return;
     const down = vehicle.status === "out_of_service";
     const html = heli
-      ? `<div class="nav-veh heli${vehicle.grounded_until ? " grounded" : ""}">${GLYPH.helicopter}</div>`
+      ? `<div class="nav-veh heli${vehicle.grounded_until || vehicle.off_duty_until ? " grounded" : ""}">${GLYPH.helicopter}</div>`
       : `<div class="nav-veh${down ? " down" : ""}"><svg viewBox="0 0 40 40"><path d="M20 3 L34 35 L20 27 L6 35 Z"/></svg></div>`;
     if (!ls.marker) {
       ls.marker = L.marker([vehicle.lat, vehicle.lon], {
@@ -337,7 +337,7 @@ export function NavMap({ vehicle, detail, nav, incidents }: Props) {
       if (node) node.innerHTML = html;
       ls.markerKey = html;
     }
-  }, [vehicle.status, vehicle.grounded_until, heli, vehicle.lat, vehicle.lon]);
+  }, [vehicle.status, vehicle.grounded_until, vehicle.off_duty_until, heli, vehicle.lat, vehicle.lon]);
 
   // --- animation loop: glide, ease heading and bearing, follow ---------------------------------
   useEffect(() => {

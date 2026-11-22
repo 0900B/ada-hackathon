@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Place, Trip, Vehicle, WorldSnapshot } from "./api";
 import { Crosshair, ExternalLink, IdCard, Smartphone, Tablet, Timer, TriangleAlert, Wrench, X } from "lucide-react";
-import { fmtTime, vehicleStatusText } from "./format";
+import { fmtTime, nightText, vehicleStatusText } from "./format";
 import { VehicleTypeIcon } from "./icons";
 import { conditionText, LEVEL_LABEL, levelOf } from "./severity";
 import { ResponseLine, SeverityBadge } from "./SeverityBadge";
@@ -125,8 +125,11 @@ function summarize(v: Vehicle, state: WorldSnapshot, places: Map<string, Place>,
       warnings,
     };
   }
+  const night = nightText(v); // the helicopter flies by day only
   if (groundedUntil) {
     s = { ...s, tone: "grounded", status: tx("ops.st.fog"), text: `${tx("ops.groundedUntil", { time: groundedUntil })}${s.tone === "idle" ? "" : ` · ${s.text}`}` };
+  } else if (night && s.tone === "idle") {
+    s = { ...s, tone: "grounded", status: tx("heli.nightShort"), text: night };
   } else if (held) {
     s = { ...s, tone: "held", status: tx("ops.st.held"), text: tx("ops.heldUntil", { time: held, text: s.text }) };
   }
@@ -307,7 +310,7 @@ function VehiclePopover({
       <UnitReason v={v} state={state} onOverride={onOverride} />
       <div className={`vpop-status tone-${s.tone}`}>
         {vehicleStatusText(v, state.trips)}
-        {v.grounded_until ? t("ops.popGrounded", { time: fmtTime(v.grounded_until) }) : ""}
+        {v.grounded_until ? t("ops.popGrounded", { time: fmtTime(v.grounded_until) }) : nightText(v) ? ` · ${nightText(v)}` : ""}
         {v.busy_until && v.status !== "loading" ? t("ops.popHeld", { time: fmtTime(v.busy_until) }) : ""}
         {t("ops.popFuel", { pct: Math.round(v.fuel_pct) })}
         {v.crew.length ? t("ops.popCrew", { n: v.crew.length }) : ""}

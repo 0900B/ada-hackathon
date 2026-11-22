@@ -3,7 +3,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { trafficTileUrl, type Vehicle, type VehicleDetail, type WorldSnapshot } from "./api";
 import { baseMaps, saveBase, savedBase, type BaseId } from "./basemaps";
-import { flightTarget, fmtTime, vehicleStatusText } from "./format";
+import { flightTarget, fmtTime, heliDown, nightText, vehicleStatusText } from "./format";
 import { GLYPH, vehicleGlyph } from "./glyphs";
 import { conditionText, LEVEL_LABEL, levelOf, responseOf, responseText } from "./severity";
 import { doctorOf, doctorText, ORIGIN_LABEL } from "./doctor";
@@ -54,7 +54,7 @@ interface Props {
 /** Map marker: a dark plate with the type glyph and the callsign; the border colour is the status. */
 function vehicleHtml(v: Vehicle, cls: string, flying: boolean, grounded: boolean, held: boolean): string {
   const tag =
-    (grounded ? `<span class="vm-tag">${tx("ops.map.tagFog")}</span>` : flying ? `<span class="vm-tag air">${tx("ops.map.tagAir")}</span>` : "") +
+    (grounded ? `<span class="vm-tag">${v.grounded_until ? tx("ops.map.tagFog") : tx("heli.nightShort")}</span>` : flying ? `<span class="vm-tag air">${tx("ops.map.tagAir")}</span>` : "") +
     (v.origin && v.origin !== "own" ? `<span class="vm-origin">${tx(v.origin === "mutual_aid" ? "ops.map.tagAid" : "ops.map.tagPriv")}</span>` : "");
   return (
     `<div class="vm type-${v.type} st-${v.status}${grounded ? " grounded" : ""}${held ? " held" : ""}${cls}">` +
@@ -357,7 +357,7 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       const heli = v.type === "helicopter";
       const doctor = v.type === "doctor";
       const color = doctor ? DOCTOR : v.status === "to_pickup" ? EN_ROUTE : LOADED;
-      const grounded = v.grounded_until != null; // the backend clears it when the fog lifts
+      const grounded = heliDown(v); // fog or night: the backend clears it when the fog lifts or the day starts
       const main = v.id === selectedId; // its whole route comes from the detail (highlighted legs)
       const selected = main || inGroup.has(v.id);
       const faded = dim && !selected;
@@ -430,7 +430,8 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
           ? tx("ops.map.whereHome", { place: target.place.name })
           : tx("ops.map.whereTo", { kind: flightKind(target.kind), place: target.place.name })
         : "";
-      const groundedText = grounded ? tx("ops.popGrounded", { time: fmtTime(v.grounded_until) }) : "";
+      const night = nightText(v);
+      const groundedText = v.grounded_until ? tx("ops.popGrounded", { time: fmtTime(v.grounded_until) }) : night ? ` · ${night}` : "";
       const role =
         doctor && trip ? `${tx("ops.map.doctorFor", { id: trip.id })}${trip.vehicle_id ? tx("ops.map.doctorWith", { unit: trip.vehicle_id }) : ""}` : "";
       const origin = v.origin && v.origin !== "own" ? ` · ${ORIGIN_LABEL[v.origin] ?? v.origin}` : "";
