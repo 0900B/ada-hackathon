@@ -30,7 +30,10 @@ import { VitalsPad } from "../crew/VitalsPad";
 import { EventPad } from "../crew/EventPad";
 import { observedAt } from "../crew/padLogic";
 import { TimersPanel } from "../crew/TimersPanel";
+import { HandoverScreen } from "../crew/HandoverScreen";
+import { useHandover } from "../crew/useHandover";
 import { crewStage, erEcho } from "../crew/crewLogic";
+import { handoverLines } from "../crew/clinicalLog";
 import { SPEECH_LANGS, speechSecureContext } from "../voice";
 import "../voice.css";
 import "../crew/crew.css";
@@ -131,7 +134,12 @@ function CrewConsole({
 
   // Logging is on while a patient is on board (loading counts); doctor cars log too
   const logOn = stage === "with_patient" && !!trip;
-  const log = useClinicalLog(world, trip?.kind === "patient" ? trip.id : null, vehicle.id, state.sim_time);
+  // After the trip ends the idle screen gives way to the handover screen, which reads the log of
+  // the case just finished, so the log hook follows that case until "Handover done"
+  const tripCase = trip?.kind === "patient" ? trip.id : null;
+  const handover = useHandover(world, vehicle.id, logOn ? tripCase : null, tripCase, state.sim_time);
+  const showHandover = handover.pending && stage === "no_patient";
+  const log = useClinicalLog(world, showHandover ? handover.caseId : tripCase, vehicle.id, state.sim_time);
   const [note, setNote] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   // The open tap pad. Closed when logging stops (the trip ended or changed), so a pad never
@@ -221,6 +229,18 @@ function CrewConsole({
       <div className="pt-grid">
         <EtaPanel state={state} vehicle={vehicle} trip={trip} stage={stage} />
 
+        {showHandover ? (
+          <HandoverScreen
+            lines={handoverLines(log.entries)}
+            sinceIso={handover.since}
+            nowIso={state.sim_time}
+            onDone={() => {
+              log.add("handover", {}, { source: "crew_tap" });
+              // let the entry reach storage under this case's key before the screen moves on
+              window.setTimeout(handover.done, 50);
+            }}
+          />
+        ) : (
         <section className="pt-log" aria-label={t("pt.logAria")}>
           <h2 className="pt-section-title">
             <NotebookPen /> {t("pt.log")}
@@ -279,6 +299,7 @@ function CrewConsole({
             </>
           )}
         </section>
+        )}
 
         {logOn && trip && (
           <section className="pt-rec" aria-label={t("pt.vp.title")}>

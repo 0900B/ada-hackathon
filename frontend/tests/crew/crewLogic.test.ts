@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { crewStage, erEcho, erEta, minutesUntil } from "../../src/crew/crewLogic.ts";
+import { crewStage, erEcho, erEta, handoverPending, handoverRemainingSec, minutesUntil } from "../../src/crew/crewLogic.ts";
 
 const patientTrip = { kind: "patient" } as const;
 const equipmentTrip = { kind: "equipment" } as const;
@@ -126,4 +126,24 @@ test("erEcho: no clinical section, an error note, another case or malformed data
 test("erEcho: a team or bay that is not text is ignored, not shown", () => {
   const clinical = board([{ case_id: "TR-002", acknowledged: true, bay: 7, teams_activated: ["stroke", 3, null] }]);
   assert.deepEqual(erEcho(clinical, "TR-002"), [{ kind: "ack" }, { kind: "team", value: "stroke" }]);
+});
+
+test("handoverPending: a case was logged and the vehicle has moved on, and it was not handed over", () => {
+  assert.equal(handoverPending("TR-002", null, false), true);
+  assert.equal(handoverPending("TR-002", "TR-009", false), true);
+  assert.equal(handoverPending("TR-002", "TR-002", false), false);
+  assert.equal(handoverPending("TR-002", null, true), false);
+  assert.equal(handoverPending(null, null, false), false);
+  assert.equal(handoverPending(null, "TR-002", false), false);
+});
+
+test("handoverRemainingSec: 15 minutes from the start, counting down, negative once over", () => {
+  const since = "2026-11-21T12:00:00.000Z";
+  assert.equal(handoverRemainingSec(since, "2026-11-21T12:00:00.000Z"), 900);
+  assert.equal(handoverRemainingSec(since, "2026-11-21T12:12:30.000Z"), 150);
+  assert.equal(handoverRemainingSec(since, "2026-11-21T12:15:00.000Z"), 0);
+  assert.equal(handoverRemainingSec(since, "2026-11-21T12:16:00.000Z"), -60);
+  assert.equal(handoverRemainingSec(since, "2026-11-21T11:59:00.000Z"), 900); // clock behind: never above 15:00
+  assert.equal(handoverRemainingSec("garbage", since), null);
+  assert.equal(handoverRemainingSec(since, "garbage"), null);
 });

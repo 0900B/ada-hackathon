@@ -383,6 +383,24 @@ export function vitalsStatus(
   return { ageMin, overdue: ageMin >= due };
 }
 
+/**
+ * What the crew reads out at handover: every visible entry (confirmed or still only heard), oldest
+ * first, as "HH:MM label" on the crew's own clock. An entry that needs a check ends with " (check)".
+ * The handover marker itself is not a line. An unreadable time shows "--:--", never NaN.
+ */
+export function handoverLines(log: readonly ClinicalEntry[]): string[] {
+  const clock = (iso: string): string => {
+    const ms = parseMs(iso);
+    if (ms === null) return "--:--";
+    const d = new Date(ms);
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  };
+  return visibleEntries(log)
+    .filter((e) => e.type !== "handover")
+    .reverse() // visibleEntries is newest first
+    .map((e) => `${clock(e.t)} ${entryLabel(e)}${e.needs_check ? " (check)" : ""}`);
+}
+
 /** The words on a timeline row. Values are shown exactly as entered. */
 export function entryLabel(e: ClinicalEntry): string {
   const c = e.content && typeof e.content === "object" ? e.content : {};

@@ -891,3 +891,64 @@
   color: var(--accent-text);
   font-weight: 600;
 }
+
+/* --- Handover screen ---------------------------------------------------------------------- */
+.pt-ho-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pt-ho-timer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  color: var(--text);
+}
+.pt-ho-clock {
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.pt-ho-sub {
+  font-size: 15px;
+  color: var(--muted);
+}
+.pt-ho-timer.urgent .pt-ho-clock {
+  color: var(--crit);
+}
+.pt-ho-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 20px;
+}
+.pt-ho-lines li {
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
+}
+.pt-ho-lines li.check {
+  border-left: 4px solid var(--warn);
+}
+.pt .pt-ho-done {
+  min-height: 64px;
+  font-size: 22px;
+  font-weight: 700;
+}
+.pt-ho-clock {
+  white-space: nowrap;
+}
+@media (max-width: 600px) {
+  .pt-ho-clock {
+    font-size: 32px;
+  }
+}

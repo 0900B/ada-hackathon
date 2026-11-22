@@ -82,3 +82,25 @@ export function erEcho(clinical: unknown, caseId: string): EchoItem[] {
   }
   return out;
 }
+
+/** How long the crew has to hand the patient over. */
+export const HANDOVER_SEC = 15 * 60;
+
+/**
+ * True when a case was being logged (`lastCase`), the vehicle's trip is no longer that case
+ * (`currentCase` is null or another one), and it was not handed over yet.
+ */
+export function handoverPending(lastCase: string | null, currentCase: string | null, handedOver: boolean): boolean {
+  return !!lastCase && lastCase !== currentCase && !handedOver;
+}
+
+/**
+ * Seconds left of the 15:00 handover that began at `sinceIso`; negative once over. A clock that
+ * is behind `sinceIso` still shows 15:00, never more. Null if either time is unreadable.
+ */
+export function handoverRemainingSec(sinceIso: string, nowIso: string): number | null {
+  const since = Date.parse(sinceIso);
+  const now = Date.parse(nowIso);
+  if (!Number.isFinite(since) || !Number.isFinite(now)) return null;
+  return Math.min(HANDOVER_SEC, HANDOVER_SEC - Math.floor((now - since) / 1000));
+}

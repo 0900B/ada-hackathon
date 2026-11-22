@@ -114,6 +114,14 @@ export const en = {
   "pt.team.heart": "heart",
   "pt.team.trauma": "trauma",
   "pt.team.resuscitation_room": "resuscitation room",
+
+  // Handover
+  "pt.ho.title": "Handover",
+  "pt.ho.timer": "Handover time left",
+  "pt.ho.over": "{time} over",
+  "pt.ho.empty": "Nothing was logged on this trip.",
+  "pt.ho.check": "(check)",
+  "pt.ho.done": "Handover done",
 };
 
 export const sl: Translation<typeof en> = {
@@ -217,4 +225,10 @@ export const sl: Translation<typeof en> = {
   "pt.team.heart": "srce",
   "pt.team.trauma": "travma",
   "pt.team.resuscitation_room": "reanimacija",
+  "pt.ho.title": "Predaja",
+  "pt.ho.timer": "Preostali čas za predajo",
+  "pt.ho.over": "{time} čez",
+  "pt.ho.empty": "Na tej vožnji ni bilo nič zabeleženo.",
+  "pt.ho.check": "(preveri)",
+  "pt.ho.done": "Predaja opravljena",
 };

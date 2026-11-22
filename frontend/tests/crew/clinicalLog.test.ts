@@ -21,6 +21,7 @@ import {
   parseLog,
   syncPending,
   timers,
+  handoverLines,
   type ClinicalEntry,
   type SyncState,
 } from "../../src/crew/clinicalLog.ts";
@@ -693,4 +694,45 @@ test("timers: a discarded entry does not count, and an unreadable time gives nul
   const log = discardEntry([d], d.client_entry_id, { id: "x", recordedAt: at(1) });
   assert.equal(timers(log, at(0)).lastDrugMin, null);
   assert.equal(timers([drugAt(at(-120))], "garbage").lastDrugMin, null);
+});
+
+// --- handover: what the crew reads out at the hospital, oldest first -----------------------------
+
+/** The `HH:MM` the handover shows for an ISO time (the crew's own clock). */
+const hm = (iso: string): string => {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+
+test("handoverLines: oldest first, one 'HH:MM label' per entry", () => {
+  const late = mk({ type: "note", t: at(600), verbatim: "pain easing" });
+  const early = mk({ type: "drug_administered", t: at(60), content: { drug: "Morphine", dose: 5, unit: "mg", route: "i.v." } });
+  assert.deepEqual(handoverLines([late, early]), [`${hm(at(60))} Morphine 5 mg i.v.`, `${hm(at(600))} pain easing`]);
+});
+
+test("handoverLines: an entry that needs a check ends with ' (check)'", () => {
+  const e = mk({ type: "vitals", t: at(0), content: { hr: 920 } });
+  assert.equal(e.needs_check, true);
+  assert.deepEqual(handoverLines([e]), [`${hm(at(0))} ${entryLabel(e)} (check)`]);
+  assert.ok(entryLabel(e).includes("920"));
+});
+
+test("handoverLines: heard entries are included, discarded and superseded ones and the handover marker are not", () => {
+  const heard = mk({ source: "crew_voice", type: "note", t: at(60), verbatim: "heard words" });
+  const gone = mk({ type: "note", t: at(120), verbatim: "gone" });
+  const old = mk({ type: "note", t: at(180), verbatim: "old text" });
+  const marker = mk({ type: "handover", t: at(900), verbatim: "" });
+  let log = [heard, gone, old, marker];
+  log = discardEntry(log, gone.client_entry_id, { id: "d1", recordedAt: at(121) });
+  log = confirmEntry(log, old.client_entry_id, { id: "c1", recordedAt: at(181) });
+  const lines = handoverLines(log);
+  assert.equal(lines.length, 2);
+  assert.ok(lines[0].endsWith("heard words"), lines[0]);
+  assert.ok(lines[1].endsWith("old text"), lines[1]);
+});
+
+test("handoverLines: an empty log, or an unreadable time, never gives NaN", () => {
+  assert.deepEqual(handoverLines([]), []);
+  const e = mk({ type: "note", t: "garbage", verbatim: "no time" });
+  assert.deepEqual(handoverLines([e]), ["--:-- no time"]);
 });
