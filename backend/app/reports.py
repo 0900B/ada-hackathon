@@ -31,6 +31,7 @@ Definitions (kept in the response under "method" so the page can state them):
 from __future__ import annotations
 
 import logging
+import math
 import re
 import weakref
 from collections import OrderedDict, deque
@@ -320,7 +321,8 @@ def _ai(recs: list[TripRecord]) -> dict[str, Any]:
 
 
 def build_report(state: WorldState, hours: float = 3.0) -> dict[str, Any]:
-    hours = min(max(float(hours), 0.25), MAX_HOURS)
+    hours = float(hours)
+    hours = min(max(hours, 0.25), MAX_HOURS) if math.isfinite(hours) else 3.0  # ?hours=nan would 500
     entry = _log(state)
     now = state.sim_time
     since = now - timedelta(hours=hours)
