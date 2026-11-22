@@ -28,9 +28,13 @@ const EXAMPLES = [
 export function FieldMessage({
   state,
   micToggleRef,
+  bare = false,
+  onListening,
 }: {
   state: WorldSnapshot;
   micToggleRef?: { current: (() => void) | null };
+  bare?: boolean; // inside another section (the AI dispatcher tab): no panel frame or title of its own
+  onListening?: (listening: boolean) => void;
 }) {
   const [text, setText] = useState("");
   const [sender, setSender] = useState("");
@@ -71,10 +75,18 @@ export function FieldMessage({
     };
   }, [micToggleRef, speech.toggle]);
 
+  useEffect(() => {
+    onListening?.(speech.listening);
+  }, [speech.listening]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
-    <section className="panel panel-field">
+    <section className={bare ? "panel-field bare" : "panel panel-field"}>
       <div className="panel-head">
-        <h2 className="panel-title">Message from the field</h2>
+        {bare ? (
+          <span className="muted small fm-hint">A crew or dispatcher message, spoken or typed (SL/EN): the AI turns it into events and replans</span>
+        ) : (
+          <h2 className="panel-title">Message to the AI dispatcher</h2>
+        )}
         <select className="sender" value={sender} onChange={(e) => setSender(e.target.value)} title="Who is sending the message" aria-label="Sender">
           <option value="">From: dispatcher</option>
           {state.vehicles.map((v) => (

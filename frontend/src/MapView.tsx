@@ -46,6 +46,8 @@ interface Props {
   detail: VehicleDetail | null; // route of the selected vehicle, highlighted
   centerOn: { lat: number; lon: number; n: number } | null; // bump n to re-center
   pin?: { lat: number; lon: number } | null; // where a new emergency call is being placed
+  group?: string[]; // all units of the selected case: kept bright, with their routes
+  flash?: { tripId: string; n: number } | null; // "On map": centre on the call and blink its marker (bump n)
 }
 
 /** Map marker: a dark plate with the type glyph and the callsign; the border colour is the status. */
@@ -61,7 +63,8 @@ function vehicleHtml(v: Vehicle, cls: string, flying: boolean, grounded: boolean
 
 const INCIDENT_LABEL: Record<string, string> = { road_closure: "Road closure", accident: "Accident", congestion: "Congestion" };
 
-export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail, centerOn, pin }: Props) {
+export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail, centerOn, pin, group, flash = null }: Props) {
+  const groupKey = (group ?? []).join(","); // a stable dependency for the redraw
   const el = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layers = useRef<Layers | null>(null);
@@ -193,6 +196,45 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
     if (centerOn && mapRef.current) mapRef.current.setView([centerOn.lat, centerOn.lon], Math.max(mapRef.current.getZoom(), 14));
   }, [centerOn]);
 
+  // "On map" from a case card: centre on the patient and blink the call's marker (a temporary one
+  // for calls without a marker: urgent calls, or once the unit is on scene)
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  });
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!flash || !map) return;
+    const s = stateRef.current;
+    const trip = s.trips.find((t) => t.id === flash.tripId);
+    const at = trip ? s.places.find((p) => p.id === trip.pickup_id) : undefined;
+    if (!trip || !at) return;
+    map.setView([at.lat, at.lon], Math.max(map.getZoom(), 15));
+    const existing = callMarkers.current.get(trip.id)?.marker.getElement()?.querySelector(".call-mk");
+    let temp: L.Marker | null = null;
+    if (existing) {
+      existing.classList.remove("flash");
+      void (existing as HTMLElement).offsetWidth; // restart the animation
+      existing.classList.add("flash");
+    } else {
+      temp = L.marker([at.lat, at.lon], {
+        icon: L.divIcon({ className: "", html: `<div class="call-mk ${levelOf(trip)} flash">${GLYPH.pulse}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] }),
+        interactive: false,
+        keyboard: false,
+        zIndexOffset: 2500,
+      }).addTo(map);
+    }
+    const timer = setTimeout(() => {
+      existing?.classList.remove("flash");
+      temp?.remove();
+    }, 3600);
+    return () => {
+      clearTimeout(timer);
+      existing?.classList.remove("flash");
+      temp?.remove();
+    };
+  }, [flash]);
+
   // Redraw on every snapshot (a few dozen objects, so this is cheap).
   useEffect(() => {
     const ls = layers.current;
@@ -200,7 +242,8 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
 
     const placeById = new Map(state.places.map((p) => [p.id, p]));
     const tripById = new Map(state.trips.map((t) => [t.id, t]));
-    const dim = selectedId !== null; // something is selected: fade everyone else's route
+    const inGroup = new Set(groupKey ? groupKey.split(",") : []); // the selected case's units
+    const dim = selectedId !== null || inGroup.size > 0; // something is selected: fade everyone else's route
 
     // Places and incidents change rarely: redraw them only when they do (keeps their tooltips usable)
     const placesKey = state.places.map((p) => `${p.id}:${p.capacity}`).join(",");
@@ -296,13 +339,14 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       const doctor = v.type === "doctor";
       const color = doctor ? DOCTOR : v.status === "to_pickup" ? EN_ROUTE : LOADED;
       const grounded = v.grounded_until != null; // the backend clears it when the fog lifts
-      const selected = v.id === selectedId;
+      const main = v.id === selectedId; // its whole route comes from the detail (highlighted legs)
+      const selected = main || inGroup.has(v.id);
       const faded = dim && !selected;
       const opacity = faded ? 0.2 : 0.85;
       const target = heli ? flightTarget(v, trip, placeById, v.queue[0] ? tripById.get(v.queue[0]) : undefined) : null;
       const flying = target !== null && !v.busy_until;
 
-      if (heli && target && !(detail && selected)) {
+      if (heli && target && !(detail && main)) {
         // Helicopters fly straight (no road path): a dashed line to the pickup, drop-off or base,
         // plus a ring on the landing spot
         const lineColor = grounded ? GROUNDED : v.status === "to_pickup" ? EN_ROUTE : LOADED;
@@ -329,7 +373,7 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
         })
           .bindTooltip(`${v.id} ${target.kind === "base" ? "flying home to" : `${target.kind}:`} ${target.place.name}`)
           .addTo(ls.routes);
-      } else if (!heli && !(detail && selected) && !(doctor && v.status !== "to_pickup")) {
+      } else if (!heli && !(detail && main) && !(doctor && v.status !== "to_pickup" && !inGroup.has(v.id))) {
         // (a doctor car escorting the ambulance follows it: the ambulance's line is enough)
         const dash = doctor ? "8 5" : v.status === "to_pickup" ? "6 6" : undefined;
         if (v.path && v.path.length > 1) {
@@ -442,7 +486,7 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
         callMarkers.current.delete(id);
       }
     }
-  }, [state, selectedId, detail, zoomTick]);
+  }, [state, selectedId, detail, zoomTick, groupKey]);
 
   return <div ref={el} className="map" />; // constant on purpose, see the classList effect above
 }

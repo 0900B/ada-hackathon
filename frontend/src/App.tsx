@@ -15,7 +15,7 @@ import {
   type World,
   type WorldSnapshot,
 } from "./api";
-import { AgentPanel, type AgentKeys } from "./AgentPanel";
+import type { AgentKeys } from "./AgentPanel";
 import { BookingForm } from "./BookingForm";
 import {
   Car,
@@ -34,13 +34,12 @@ import {
 } from "lucide-react";
 import { BRAND } from "./brand";
 import { EventsPanel } from "./EventsPanel";
-import { FieldMessage } from "./FieldMessage";
 import { useHotkeys } from "./hotkeys";
 import { ShortcutsHelp } from "./ShortcutsHelp";
 import { CrewPage } from "./pages/CrewPage";
 import { ScenariosPanel } from "./ScenariosPanel";
 import { EmergencyPicker } from "./EmergencyPicker";
-import { CallsPanel } from "./CallsPanel";
+import { AiDispatcherPanel, type CaseFocus } from "./AiDispatcherPanel";
 import { DemoButtons } from "./DemoButtons";
 import { MissingEndpoint, randomCall, randomIncident, useDemoApi } from "./demoInject";
 import { bilingualLines } from "./ErrorText";
@@ -62,7 +61,7 @@ const TabletPage = lazy(() => import("./pages/TabletPage").then((m) => ({ defaul
 type Send = (event: Record<string, unknown>) => Promise<void>;
 type Toast = { kind: "ok" | "error"; text: string; sticky: boolean; n: number };
 type Notify = (kind: "ok" | "error", text: string, sticky?: boolean) => void;
-type Tab = "calls" | "dispatch" | "scenarios" | "events" | "book" | "alerts";
+type Tab = "ai" | "scenarios" | "events" | "book" | "alerts";
 
 const unassignedTotal = (k: Kpis) => k.unassigned.emergency + k.unassigned.urgent + k.unassigned.scheduled;
 
@@ -186,13 +185,36 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
   const [centerOn, setCenterOn] = useState<{ lat: number; lon: number; n: number } | null>(null);
   const [picked, setPicked] = useState(""); // vehicle chosen in the Events tab dropdown
   const [help, setHelp] = useState(false);
-  const [tab, setTab] = useState<Tab>("calls"); // the panel starts from the calls
-  const [callFocus, setCallFocus] = useState<{ tripId: string; n: number } | null>(null); // open this call's card
+  const [tab, setTab] = useState<Tab>("ai"); // the panel starts from the AI dispatcher and its cases
+  const [callFocus, setCallFocus] = useState<CaseFocus | null>(null); // open this case's card
   const [callPoint, setCallPoint] = useState<{ lat: number; lon: number; n: number } | null>(null); // new call: map point
+  const [caseSel, setCaseSel] = useState<string | null>(null); // the case whose units are highlighted on the map
+  const [flashCall, setFlashCall] = useState<{ tripId: string; n: number } | null>(null); // "On map": centre + blink
+  const [reviewOpen, setReviewOpen] = useState(false); // "Situation review" (the general analysis)
+  const [messageOpen, setMessageOpen] = useState(false); // "Message to the AI dispatcher"
   const openCall = (tripId: string) => {
-    setTab("calls");
+    setTab("ai");
     setCallFocus({ tripId, n: Date.now() });
   };
+  const overrideUnit = (tripId: string, vehicleId: string) => {
+    setTab("ai");
+    setCallFocus({ tripId, n: Date.now(), overrideVehicle: vehicleId });
+  };
+  // The units of a case: the ambulance (or van, helicopter), the doctor and any added unit
+  const unitsOf = (tripId: string | null): string[] => {
+    const t = tripId ? state.trips.find((x) => x.id === tripId) : undefined;
+    if (!t) return [];
+    const ids = [t.vehicle_id, t.doctor_vehicle_id, ...(t.units ?? []).map((u) => u.vehicle_id)].filter((x): x is string => Boolean(x));
+    return [...new Set(ids)];
+  };
+  // Selecting a case selects all its units: the first one's whole route, the others' current legs
+  const selectCase = (tripId: string | null) => {
+    setCaseSel(tripId);
+    const first = unitsOf(tripId)[0] ?? null;
+    setSelectedId(first);
+    setCardOpen(false);
+  };
+  const caseUnits = unitsOf(caseSel);
   // Demo injections (Simulation only; hidden until the backend has the endpoints)
   const [demo, demoMissing] = useDemoApi(sim);
   const [demoBusy, setDemoBusy] = useState(false);
@@ -202,10 +224,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
     try {
       const { trip, summary } = await randomCall(severity);
       notify("ok", summary);
-      if (trip) {
-        openCall(trip.id);
-        if (trip.vehicle_id) select(trip.vehicle_id, false);
-      }
+      if (trip) openCall(trip.id); // the case card opens and selects its units
     } catch (e) {
       if (e instanceof MissingEndpoint) {
         demoMissing("call");
@@ -223,12 +242,8 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
       notify("ok", summary);
       const tripId = event?.affected_trip_ids?.[0];
       const vehicleId = (event as { payload?: { vehicle_id?: string } } | null)?.payload?.vehicle_id;
-      if (tripId) openCall(tripId);
-      if (vehicleId) select(vehicleId, false);
-      else if (tripId) {
-        const v = state.trips.find((t) => t.id === tripId)?.vehicle_id;
-        if (v) select(v, false);
-      }
+      if (tripId) openCall(tripId); // the case card opens and selects its units
+      else if (vehicleId) select(vehicleId, false);
     } catch (e) {
       if (e instanceof MissingEndpoint) {
         demoMissing("incident");
@@ -243,10 +258,12 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
   const micToggle = useRef<(() => void) | null>(null);
   const agentKeys = useRef<AgentKeys | null>(null);
 
-  // One selection for markers, trip rows and the vehicle strip; markers and rows open the full card
+  // One selection for markers, trip rows and the vehicle strip; markers and rows open the full card.
+  // Selecting a single vehicle ends the case selection (its other units fade again).
   const select = (id: string | null, card = true) => {
     setSelectedId(id);
     setCardOpen(id !== null && card);
+    if (id === null || !caseUnits.includes(id)) setCaseSel(null);
   };
   const centerVehicle = (id: string) => {
     const v = state.vehicles.find((x) => x.id === id);
@@ -262,19 +279,35 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  // A new AI analysis (scenario, field message, event, hotkey): bring the AI dispatcher into view,
-  // except while booking, where switching would hide the booking result (a dot marks the tab instead)
+  // A new AI analysis (scenario, field message, event, hotkey): bring the AI dispatcher into view with
+  // its situation review open, except while booking, where switching would hide the booking result (a
+  // badge marks the tab instead). In Autonomous mode the review stays folded: its one-line summary says
+  // what the AI is doing, and the autopilot applies the plan.
   const latestRun = state.agent.runs[0];
   const lastRunId = useRef(latestRun?.id);
+  const autonomous = (state.ai_mode ?? (state.autopilot ? "autonomous" : "assisted")) === "autonomous";
   useEffect(() => {
     if (!latestRun || latestRun.id === lastRunId.current) return;
     lastRunId.current = latestRun.id;
-    if (tab === "book" || tab === "calls") setUnseenRun(true); // don't pull the dispatcher away from a form or a call
-    else setTab("dispatch");
-  }, [latestRun, tab]);
+    if (tab === "book") {
+      setUnseenRun(true);
+      return;
+    }
+    setTab("ai");
+    if (!autonomous) setReviewOpen(true);
+  }, [latestRun, tab, autonomous]);
   useEffect(() => {
-    if (tab === "dispatch") setUnseenRun(false);
+    if (tab === "ai") setUnseenRun(false);
   }, [tab]);
+
+  // The selected case got another unit (reassigned, overridden): follow it on the map
+  const caseUnitsKey = caseUnits.join(",");
+  useEffect(() => {
+    if (caseSel && caseUnits.length && (!selectedId || !caseUnits.includes(selectedId))) {
+      setSelectedId(caseUnits[0]);
+      setCardOpen(false);
+    }
+  }, [caseSel, caseUnitsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Selected vehicle: refresh its card and highlighted route every 3 s
   useEffect(() => {
@@ -314,21 +347,27 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
     else fn(selectedVehicle.id);
   };
 
+  // A/Y/N act on the situation review, M on the message box: both live in the AI dispatcher tab
+  const showReview = () => {
+    setTab("ai");
+    setReviewOpen(true);
+  };
   useHotkeys({
     m: () => {
-      setTab("dispatch");
+      setTab("ai");
+      setMessageOpen(true);
       micToggle.current?.();
     },
     a: () => {
-      setTab("dispatch");
+      showReview();
       agentKeys.current?.analyse();
     },
     y: () => {
-      setTab("dispatch");
+      showReview();
       agentKeys.current?.approveRecommended();
     },
     n: () => {
-      setTab("dispatch");
+      showReview();
       agentKeys.current?.reject();
     },
     b: () => onSelected("report a breakdown", (id) => void send({ type: "breakdown", vehicle_id: id, note: "reported by the operator, hotkey" })),
@@ -353,8 +392,8 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
     } else if (mode === "emergency") {
       setPendingCall({ lat, lon }); // what kind of emergency: the picker sends it
     } else if (mode === "call") {
-      setCallPoint({ lat, lon, n: Date.now() }); // the new 112 call's location (the form in the Calls tab)
-      setTab("calls");
+      setCallPoint({ lat, lon, n: Date.now() }); // the new 112 call's location (the form in the AI dispatcher tab)
+      setTab("ai");
     }
     setMode(null);
   };
@@ -365,9 +404,14 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
   const critical = misses.length > 0 || drMisses.length > 0 || state.alerts.some((a) => a.severity === "critical");
   const activeCalls = state.trips.filter((t) => t.status !== "completed" && t.status !== "cancelled").length;
   const waitingCalls = state.trips.filter((t) => t.status === "unassigned" && (t.severity === "critical" || t.severity === "serious")).length;
-  const tabs: { id: Tab; label: string; badge?: string; hot?: boolean }[] = [
-    { id: "calls", label: "Calls", badge: activeCalls ? String(activeCalls) : undefined, hot: waitingCalls > 0 },
-    { id: "dispatch", label: "Dispatch", badge: unseenRun ? "New" : undefined, hot: unseenRun },
+  const tabs: { id: Tab; label: string; badge?: string; hot?: boolean; title?: string }[] = [
+    {
+      id: "ai",
+      label: "AI dispatcher",
+      badge: unseenRun ? "New" : activeCalls ? String(activeCalls) : undefined,
+      hot: unseenRun || waitingCalls > 0,
+      title: `${activeCalls} active case${activeCalls === 1 ? "" : "s"}${waitingCalls ? `, ${waitingCalls} red without a unit` : ""}${unseenRun ? " · a new analysis" : ""}`,
+    },
     ...(sim ? [{ id: "scenarios" as Tab, label: "Scenarios" }] : []),
     { id: "events", label: sim ? "Events" : "Report" },
     { id: "book", label: "Book" },
@@ -385,6 +429,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
           onCenter={centerVehicle}
           onOpenCard={(id) => select(id, true)}
           onOpenCall={openCall}
+          onOverride={overrideUnit}
           send={send}
           busy={busy}
         />
@@ -417,6 +462,8 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
           onSelect={(id) => select(id)}
           detail={detail}
           centerOn={centerOn}
+          group={caseUnits}
+          flash={flashCall}
         />
         <MapLegend />
         {detail && selectedId && cardOpen && (
@@ -427,6 +474,7 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
             send={send}
             onClose={() => select(null)}
             onOpenCall={openCall}
+            onOverride={overrideUnit}
             onCenter={() => setCenterOn({ lat: detail.vehicle.lat, lon: detail.vehicle.lon, n: Date.now() })}
           />
         )}
@@ -449,8 +497,9 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
               key={t.id}
               role="tab"
               aria-selected={tab === t.id}
-              className={`side-tab${tab === t.id ? " on" : ""}`}
+              className={`side-tab${tab === t.id ? " on" : ""}${t.id === "ai" ? " side-tab-ai" : ""}`}
               onClick={() => setTab(t.id)}
+              title={t.title}
             >
               {t.label}
               {t.badge && <span className={`tab-badge${t.hot ? " hot" : ""}`}>{t.badge}</span>}
@@ -458,20 +507,26 @@ function Dashboard({ state }: { state: WorldSnapshot }) {
           ))}
         </div>
         {/* Every tab stays mounted (hidden), so forms, results and the mic hotkey survive switching */}
-        <div className="side-body" hidden={tab !== "calls"}>
-          <CallsPanel
+        <div className="side-body side-body-ai" hidden={tab !== "ai"}>
+          <AiDispatcherPanel
             state={state}
             focus={callFocus}
             picked={callPoint}
             onPickOnMap={() => setMode("call")}
+            selectedCase={caseSel}
+            onSelectCase={selectCase}
             onSelectVehicle={(id, card) => select(id, card)}
+            onCentreVehicle={centerVehicle}
+            onShowCall={(tripId) => setFlashCall({ tripId, n: Date.now() })}
             notify={notify}
             demo={demoButtons}
+            reviewOpen={reviewOpen}
+            setReviewOpen={setReviewOpen}
+            messageOpen={messageOpen}
+            setMessageOpen={setMessageOpen}
+            micToggleRef={micToggle}
+            agentKeys={agentKeys}
           />
-        </div>
-        <div className="side-body" hidden={tab !== "dispatch"}>
-          <FieldMessage state={state} micToggleRef={micToggle} />
-          <AgentPanel state={state} notify={notify} keysRef={agentKeys} />
         </div>
         {sim && (
           <div className="side-body" hidden={tab !== "scenarios"}>

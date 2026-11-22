@@ -366,10 +366,12 @@ export function AgentPanel({
   state,
   notify,
   keysRef,
+  bare = false,
 }: {
   state: WorldSnapshot;
   notify: Notify;
   keysRef?: RefObject<AgentKeys | null>;
+  bare?: boolean; // inside the AI dispatcher tab's "Situation review": no panel frame or title of its own
 }) {
   const [busy, setBusy] = useState(false);
   const [staleRuns, setStaleRuns] = useState<ReadonlySet<string>>(() => new Set());
@@ -506,9 +508,13 @@ export function AgentPanel({
   const approvedOption = run?.status === "approved" && rec ? rec.options[run.decision?.option_index ?? -1] : undefined;
 
   return (
-    <section className="panel panel-ai">
+    <section className={bare ? "panel-ai bare" : "panel panel-ai"}>
       <div className="panel-head">
-        <h2 className="panel-title">AI dispatcher</h2>
+        {bare ? (
+          <span className="muted small review-hint">The whole fleet at once: what is at risk and 2–3 simulated plans to approve</span>
+        ) : (
+          <h2 className="panel-title">Situation review</h2>
+        )}
         <button className={`analyze${showCta ? " primary" : ""}`} disabled={busy} onClick={() => void analyse()} title="Hotkey A">
           <Sparkles /> Analyse <kbd>A</kbd>
         </button>

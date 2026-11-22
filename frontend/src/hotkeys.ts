@@ -21,11 +21,11 @@ export interface HotkeyInfo {
 
 /** Shown in the help overlay (`?`). The dashboard (App.tsx) binds the handlers with `useHotkeys`. */
 export const HOTKEYS: HotkeyInfo[] = [
-  { key: "a", label: "Analyse now", group: "AI dispatcher" },
+  { key: "a", label: "Situation review: analyse now", group: "AI dispatcher" },
   { key: "y", label: "Approve the recommended option", group: "AI dispatcher" },
   { key: "n", label: "Reject the recommendation", group: "AI dispatcher" },
-  { key: "m", label: "Voice input on / off", group: "Message from the field" },
-  { key: "Ctrl+Enter", label: "Send the message (in the message box)", group: "Message from the field" },
+  { key: "m", label: "Voice input on / off", group: "Message to the AI dispatcher" },
+  { key: "Ctrl+Enter", label: "Send the message (in the message box)", group: "Message to the AI dispatcher" },
   { key: "b", label: "Breakdown of the selected vehicle (click its marker, chip or trip row first)", group: "Events" },
   { key: "d", label: "Delay the selected vehicle 10 min", group: "Events" },
   { key: "f", label: "Fog: ground helicopters 1 h", group: "Events" },

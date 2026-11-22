@@ -8,6 +8,7 @@ import { ResponseLine, SeverityBadge } from "./SeverityBadge";
 import { doctorJob } from "./doctor";
 import { DoctorTag, OriginTag } from "./DoctorTag";
 import { RespondingTo } from "./RespondingTo";
+import { UnitReason } from "./UnitReason";
 
 type Send = (event: Record<string, unknown>) => Promise<void>;
 
@@ -130,6 +131,7 @@ export function VehicleStrip({
   onCenter,
   onOpenCard,
   onOpenCall,
+  onOverride,
   send,
   busy,
 }: {
@@ -139,6 +141,7 @@ export function VehicleStrip({
   onCenter: (id: string) => void;
   onOpenCard: (id: string) => void;
   onOpenCall?: (tripId: string) => void;
+  onOverride?: (tripId: string, vehicleId: string) => void;
   send: Send;
   busy: boolean;
 }) {
@@ -229,6 +232,13 @@ export function VehicleStrip({
               onOpenCall(tripId);
             })
           }
+          onOverride={
+            onOverride &&
+            ((tripId: string, vehicleId: string) => {
+              setOpen(null);
+              onOverride(tripId, vehicleId);
+            })
+          }
         />
       )}
     </>
@@ -248,6 +258,7 @@ function VehiclePopover({
   onCenter,
   onOpenCard,
   onOpenCall,
+  onOverride,
 }: {
   v: Vehicle;
   s: Summary;
@@ -261,6 +272,7 @@ function VehiclePopover({
   onCenter: () => void;
   onOpenCard: () => void;
   onOpenCall?: (tripId: string) => void;
+  onOverride?: (tripId: string, vehicleId: string) => void;
 }) {
   const trip = v.current_trip_id ? trips.get(v.current_trip_id) : undefined;
   const next = v.queue.map((id) => trips.get(id)).filter((t): t is Trip => Boolean(t));
@@ -281,6 +293,7 @@ function VehiclePopover({
         </button>
       </div>
       <RespondingTo v={v} state={state} onOpenCall={onOpenCall} />
+      <UnitReason v={v} state={state} onOverride={onOverride} />
       <div className={`vpop-status tone-${s.tone}`}>
         {humanize(v.status)}
         {v.grounded_until ? ` · grounded by fog until ${fmtTime(v.grounded_until)}` : ""}
