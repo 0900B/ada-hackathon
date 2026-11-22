@@ -688,9 +688,14 @@ def test_targeted_failure():
     fresh()
     t = trip_of(post_call("Prometna nesreča, voznik je ukleščen.", address="Ižanska cesta 80, Rudnik"))
     unit = W.vehicles[t.vehicle_id]
-    assert run(3, until=lambda: unit.status == "to_pickup" and unit.busy_until is None and unit.path_to is not None)
+    # Just dispatched (still in turnout, no road route yet): a failure on its route waits, with the reason
+    n = len(W.events)
+    r = client.post("/sim/admin/random-incident", json={"kind": "crash", "vehicle_id": unit.id})
+    assert r.status_code == 409 and "turning out" in r.json()["detail"] and len(W.events) == n, r.text
     doctor = t.doctor_vehicle_id
     assert doctor
+    dcar = W.vehicles[doctor]  # (its turnout is 5 min: no route to put a jam on before it drives off)
+    assert run(8, until=lambda: all(x.status == "to_pickup" and x.busy_until is None and x.path_to is not None for x in (unit, dcar)))
     # A jam ahead on the doctor car's route (not the ambulance's, which the plain button would pick)
     r = client.post("/sim/admin/random-incident", json={"kind": "jam", "vehicle_id": doctor})
     assert r.status_code == 200, r.text

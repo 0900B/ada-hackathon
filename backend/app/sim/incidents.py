@@ -274,6 +274,9 @@ def pick_for_unit(state: WorldState, rng: random.Random, vehicle_id: str, kind: 
         return None, f"A {kind} is not about one unit: use Random failure"
     if v.status == "out_of_service":
         return None, f"{v.id} is out of service"
+    if kind in ("crash", "closure", "jam") and (v.busy_reason == "turnout" or (v.current_trip_id is None and v.queue)):
+        # Just dispatched: it has not driven off, so there is no road route to put the failure on yet
+        return None, f"{v.id} is still turning out and has no route yet: try again in a few seconds"
     for k in [kind] if kind else list(TARGETED_KINDS):
         if (t := UNIT_FINDERS[k](state, rng, v.id)) is not None:
             return t, ""
