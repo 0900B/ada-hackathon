@@ -4,7 +4,9 @@
  * themselves for good once an endpoint answers 404 (no probing, so no console noise).
  */
 import { useState } from "react";
-import { API_URL, type EventRecord, type Trip } from "./api";
+import { API_URL, MissingEndpoint, type EventRecord, type Trip } from "./api";
+
+export { MissingEndpoint };
 
 export const CALL_LEVELS = [
   { value: "", label: "Any" },
@@ -28,9 +30,6 @@ export interface DemoApi {
   call: boolean; // POST /sim/admin/random-call exists
   incident: boolean; // POST /sim/admin/random-incident exists
 }
-
-/** Thrown when the backend has no such endpoint (HTTP 404): the caller hides that button. */
-export class MissingEndpoint extends Error {}
 
 export function useDemoApi(enabled: boolean): [DemoApi, (kind: keyof DemoApi) => void] {
   const [api, setApi] = useState<DemoApi>({ call: true, incident: true });

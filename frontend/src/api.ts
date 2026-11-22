@@ -82,6 +82,21 @@ export interface Trip {
   // The 112 call (or hospital request) behind the trip and its history; missing on older backends
   call?: CallInfo | null;
   timeline?: TimelineEntry[];
+  // Every unit on the call with the AI's reason for it (AI dispatcher backend); missing on older
+  // backends: calls.ts builds the same from vehicle_id, doctor_vehicle_id and the timeline
+  units?: TripUnit[];
+}
+
+/** One unit on a call, as the AI dispatcher sees it. */
+export interface TripUnit {
+  vehicle_id: string;
+  role?: string | null; // "ambulance" | "doctor" | "helicopter" | "transport" | "unit"
+  status_text?: string | null; // the unit's current step, e.g. "En route to the patient"
+  eta_scene?: string | null;
+  eta_hospital?: string | null;
+  reason?: string | null; // why this unit: "Nearest free ambulance"
+  assigned_by?: string | null; // "engine" (rules engine) | "claude" / "ai" | "dispatcher"
+  assigned_at?: string | null;
 }
 
 export interface CallTriage {
@@ -109,15 +124,17 @@ export interface CallInfo {
 
 export type TimelineKind =
   | "received" | "triaged" | "dispatched" | "doctor_dispatched" | "rerouted" | "reassigned" | "delayed" | "unit_replaced"
-  | "proposal" | "approved" | "on_scene" | "doctor_on_scene" | "transporting" | "at_hospital" | "handover_done" | "closed" | "note";
+  | "proposal" | "approved" | "reviewed" | "override" | "on_scene" | "doctor_on_scene" | "transporting" | "at_hospital"
+  | "handover_done" | "closed" | "note";
 
 export interface TimelineEntry {
   at: string;
   kind: TimelineKind | string;
-  by: "caller" | "ai" | "rules" | "engine" | "dispatcher" | "crew" | string;
+  by: "caller" | "ai" | "claude" | "rules" | "engine" | "dispatcher" | "crew" | string;
   text: string;
   vehicle_id?: string | null;
   run_id?: string | null; // proposals and approvals: the AI run
+  detail?: string | null; // who exactly and how long it took: "rules engine, 0.1 s", "Claude, 12 s"
 }
 
 export interface Incident {
@@ -319,6 +336,22 @@ export interface WorldSnapshot {
   agent: { enabled: boolean; model: string; auto: boolean; runs: AgentRun[] };
   ai_triage?: boolean; // 112 calls classified by the AI (else by rules); missing on older backends
   autopilot?: boolean; // the engine applies the AI's recommended plans by itself
+  ai_mode?: AiMode; // autonomous: the AI dispatcher handles each case; assisted: it proposes, you approve
+  ai_stats?: Partial<AiStats>;
+}
+
+export type AiMode = "autonomous" | "assisted";
+
+/** What the AI dispatcher has done (counts over the calls in the snapshot). */
+export interface AiStats {
+  cases_active: number;
+  dispatched: number;
+  reroutes: number;
+  reassignments: number;
+  overrides: number; // the dispatcher overrode the AI
+  claude_reviews: number;
+  claude_changes: number; // reviews where Claude changed the rules engine's decision
+  last_decision_at: string | null;
 }
 
 // --- Live state over server-sent events --------------------------------------
@@ -483,6 +516,79 @@ export const postCall = (
 ) => post<Trip>(`/${world}/calls`, body);
 export const setAiTriage = (world: World, enabled: boolean) => post<{ ai_triage: boolean }>(`/${world}/admin/ai-triage`, { enabled });
 export const setAutopilot = (world: World, enabled: boolean) => post<{ autopilot: boolean }>(`/${world}/admin/autopilot`, { enabled });
+/** Autonomous (the AI dispatcher handles each case) or Assisted (it proposes, the dispatcher approves). */
+export const setAiMode = (world: World, mode: AiMode) => post<{ ai_mode: AiMode }>(`/${world}/admin/ai-mode`, { mode });
+
+// --- Dispatcher override of the AI: alternatives for a unit, and the assignment ---------------
+
+/** Thrown when the backend has no such endpoint (HTTP 404 "Not Found"): the caller hides that action. */
+export class MissingEndpoint extends Error {}
+
+/** One unit that could take the role instead (or in addition), ranked by the engine. */
+export interface Alternative {
+  vehicle_id: string;
+  name?: string | null;
+  vehicle_type?: Vehicle["type"] | string | null;
+  eta_scene?: string | null; // when it would reach the patient
+  eta?: string | null; // (same, older spelling)
+  delta_min?: number | null; // vs the current unit: + later, - sooner
+  cost_text?: string | null; // what it costs elsewhere: "takes the last free ambulance"
+  feasible?: boolean | null;
+}
+
+export interface Alternatives {
+  current: { vehicle_id: string | null; eta_scene?: string | null } | null;
+  alternatives: Alternative[];
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, init);
+  const data = await res.json().catch(() => ({}));
+  const detail = (data as { detail?: unknown }).detail;
+  if ((res.status === 404 && detail === "Not Found") || res.status === 405) throw new MissingEndpoint(path);
+  if (!res.ok) throw new Error(typeof detail === "string" ? detail : `HTTP ${res.status}`);
+  return data as T;
+}
+
+/** GET /{world}/trips/{id}/alternatives?role=…: the units that could take this role, best first. */
+export async function fetchAlternatives(world: World, tripId: string, role: string): Promise<Alternatives> {
+  const data = await request<Alternatives | Alternative[]>(
+    `/${world}/trips/${encodeURIComponent(tripId)}/alternatives?role=${encodeURIComponent(role)}`,
+  );
+  return Array.isArray(data) ? { current: null, alternatives: data } : { current: data.current ?? null, alternatives: data.alternatives ?? [] };
+}
+
+/** POST /{world}/trips/{id}/assign: the dispatcher replaces a unit or adds one. Returns the engine's summary. */
+export const assignUnit = (world: World, tripId: string, body: { vehicle_id: string; mode: "replace" | "add"; role?: string; replaces?: string }) =>
+  request<{ summary?: string; trip?: Trip }>(`/${world}/trips/${encodeURIComponent(tripId)}/assign`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+/** Which optional endpoints this backend has, from its OpenAPI schema (fetched once; null = unknown). */
+export interface ApiCaps {
+  alternatives: boolean;
+  assign: boolean;
+  aiMode: boolean;
+}
+let capsPromise: Promise<ApiCaps | null> | null = null;
+export function apiCaps(): Promise<ApiCaps | null> {
+  capsPromise ??= fetch(`${API_URL}/openapi.json`)
+    .then((r) => (r.ok ? r.json() : null))
+    .then((spec: { paths?: Record<string, unknown> } | null) => {
+      const paths = Object.keys(spec?.paths ?? {});
+      if (!paths.length) return null;
+      const has = (re: RegExp) => paths.some((p) => re.test(p));
+      return {
+        alternatives: has(/\/trips\/\{[^}]+\}\/alternatives$/),
+        assign: has(/\/trips\/\{[^}]+\}\/assign$/),
+        aiMode: has(/\/admin\/ai-mode$/),
+      };
+    })
+    .catch(() => null);
+  return capsPromise;
+}
 
 export const runScenario = (name: string) =>
   post<{ scenario: string; title: string; run_id: string | null; note?: string; vehicle_id?: string | null }>(

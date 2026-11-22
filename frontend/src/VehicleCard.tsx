@@ -22,6 +22,7 @@ import { ResponseLine, SeverityBadge } from "./SeverityBadge";
 import { doctorJobLine } from "./doctor";
 import { DoctorTag, OriginTag } from "./DoctorTag";
 import { CrewRoles, RespondingTo } from "./RespondingTo";
+import { UnitReason } from "./UnitReason";
 
 type Send = (event: Record<string, unknown>) => Promise<void>;
 
@@ -34,6 +35,7 @@ export function VehicleCard({
   onClose,
   onCenter,
   onOpenCall,
+  onOverride,
   send,
   busy,
 }: {
@@ -41,7 +43,8 @@ export function VehicleCard({
   state: WorldSnapshot;
   onClose: () => void;
   onCenter: () => void;
-  onOpenCall?: (tripId: string) => void; // open the call it responds to (Calls tab)
+  onOpenCall?: (tripId: string) => void; // open the case it responds to (AI dispatcher tab)
+  onOverride?: (tripId: string, vehicleId: string) => void; // open the case with this unit's override list
   send: Send;
   busy: boolean;
 }) {
@@ -73,6 +76,7 @@ export function VehicleCard({
         </button>
       </div>
       <RespondingTo v={state.vehicles.find((x) => x.id === v.id) ?? v} state={state} detail={detail} onOpenCall={onOpenCall} />
+      <UnitReason v={state.vehicles.find((x) => x.id === v.id) ?? v} state={state} onOverride={onOverride} />
 
       {heli && (
         <div className={`vc-flight${v.grounded_until ? " grounded" : ""}`}>
