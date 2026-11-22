@@ -131,6 +131,9 @@ export function AdminLock({ variant = "header" }: { variant?: Variant }) {
     ok: t("dash.lock.titleOk"),
   }[state];
 
+  // No lock on the backend (ADMIN_KEY not set): everything is open, so there is nothing to show
+  if (noLock) return null;
+
   return (
     <div className="adminlock" data-variant={variant}>
       <button
