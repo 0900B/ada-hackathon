@@ -1,0 +1,12 @@
+/* Still ads (1080x1080): the promo's tokens, fonts and building blocks plus a fixed square stage. */
+@import url("../promo/player.css");
+
+#stage { width: 1080px; height: 1080px; }
+.foot {
+  position: absolute; left: 64px; right: 64px; bottom: 52px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.foot .wordmark { font-size: 52px; }
+.foot .event { font-size: 22px; color: var(--muted); text-align: right; line-height: 1.4; }
+.foot .event b { color: var(--text); font-weight: 600; }
+.top-tag { position: absolute; left: 64px; top: 56px; }

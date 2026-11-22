@@ -8,3 +8,7 @@ dist/
 .playwright-mcp/
 .vercel/
 .claude/
+
+# Rendered media and the media toolchain's packages
+media/out/
+media/tools/node_modules/

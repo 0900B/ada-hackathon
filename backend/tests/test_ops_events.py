@@ -10,8 +10,9 @@ import os
 import sys
 import time
 import traceback
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 os.environ["ROAD_ROUTING"] = "0"
 os.environ["AGENT_AUTO"] = "0"
@@ -40,8 +41,11 @@ client = TestClient(main.app)  # no `with`: no lifespan, so no background loops;
 W = main.sim
 
 
+DAY = datetime(2026, 11, 23, 9, 0, tzinfo=ZoneInfo("Europe/Ljubljana"))  # fixed clock, by day: the helicopter flies 08:00-16:30
+
+
 def fresh() -> None:
-    seed_world(W, config.RANDOM_SEED, scheduled_day=True)  # these tests plan around a pre-planned day
+    seed_world(W, config.RANDOM_SEED, scheduled_day=True, start=DAY)  # these tests plan around a pre-planned day
 
 
 def post_event(ev: dict, status: int = 200) -> dict:

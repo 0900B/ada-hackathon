@@ -18,7 +18,9 @@ Rules applied automatically (rules 1, 2, 6):
    alternative, the displaced patient must still be reached within their own response target,
    and no call is displaced twice (rule 3).
 6. Helicopter: the absolute closest unit for a critical call (even in the city), 10 min faster for
-   a serious one, 15 min and remote for an urgent one.
+   a serious one, 15 min and remote for an urgent one. Its times are the real service's (app/hems.py):
+   based at Brnik, 13 min from the call to take-off, day only (08:00-16:30), so in practice it wins
+   remote calls, and a city call only when no ambulance is free.
 Same-level swaps (rule 4) are only proposed: swap_options().
 """
 from __future__ import annotations
@@ -28,6 +30,7 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
+from .. import hems
 from ..geo import haversine_km
 from ..models import Plan, PlanStep, Trip
 from ..routing import flies, travel_minutes
@@ -178,8 +181,10 @@ def decide(state: WorldState, trip: Trip) -> Decision:
             return False
         if lvl in ("critical", "serious") or not road:
             return True
-        base = state.places[state.vehicles[c["vehicle_id"]].base_id]
-        return haversine_km(base.lat, base.lon, pickup.lat, pickup.lon) >= HELICOPTER_REMOTE_KM
+        # An urgent call flies only when remote: far from the hospital the patient goes to (the city),
+        # not from the helicopter's base (Brnik is itself 19 km from UKC).
+        dest = state.places[trip.dropoff_id]
+        return haversine_km(dest.lat, dest.lon, pickup.lat, pickup.lon) >= HELICOPTER_REMOTE_KM
 
     options: list[Option] = []
     seen: set[str] = set()
@@ -310,7 +315,8 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
     if d.chosen is None:
         if trip.priority == "emergency":
             doctor = send_doctor(state, trip)  # the doctor car still goes: first on scene
-            return "; no ambulance or helicopter can take it: request one from a neighbouring station" + doctor + reason
+            return ("; no ambulance or helicopter can take it: request one from a neighbouring station"
+                    + _helicopter_unavailable(state) + doctor + reason)
         pool = [c for c in find_candidates(state, trip.id, limit=100) if not c["step"]["interrupt_current"]]
         if not pool:
             return "; no vehicle can take it yet: left for the dispatcher to plan"
@@ -324,6 +330,7 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
         )
 
     o = d.chosen
+    takeoff = hems.takeoff_in_min(state.vehicles[o.vehicle_id], state.sim_time)  # activation at Brnik (None: airborne)
     errors, _ = _apply_steps(state, Plan(steps=o.steps))
     if errors:  # cannot happen (just simulated): keep the call served by the plain option
         _apply_steps(state, Plan(steps=[PlanStep(**o.cand["step"])]))
@@ -352,8 +359,9 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
             why = f"helicopter, {gain:.0f} min sooner{at_ukc} than {road.vehicle_id} by road"
         if o.kind == "override" and o.displaced is not None:
             why += f"; diverted from {o.displaced.id} ({o.displaced.severity})"
-        clause = f"; dispatched {v.id} ({why}): {when}"
-        unit_reason = f"{why}, {in_min}"
+        up = f"take-off in {takeoff:.0f} min" if takeoff is not None else ""  # activation at its base (app/hems.py)
+        clause = f"; dispatched {v.id} ({why}{'; ' + up if up else ''}): {when}"
+        unit_reason = f"{why}, {in_min}{'; ' + up if up else ''}"
     elif o.kind == "free":
         clause = f"; dispatched {v.id} (nearest free ambulance): {when}"
         unit_reason = f"nearest free ambulance, {in_min}"
@@ -410,8 +418,25 @@ def dispatch_call(state: WorldState, trip: Trip) -> str:
         # The helicopter is evaluated for every red call: say what it would have done.
         air = next((x for x in d.options if flies(x.cand["vehicle_type"])), None)
         if air is not None:
-            clause += f"; H1 checked: at {who} {_hhmm(air.reach)}" + (f" ({air.why_not})" if air.why_not else "")
+            up = hems.takeoff_in_min(state.vehicles[air.vehicle_id], state.sim_time)  # 13 min from rest at Brnik
+            notes = [n for n in (f"take-off in {up:.0f} min" if up is not None else "", air.why_not or "") if n]
+            clause += f"; {air.vehicle_id} checked: at {who} {_hhmm(air.reach)}" + (f" ({'; '.join(notes)})" if notes else "")
+        else:
+            clause += _helicopter_unavailable(state)
     return clause + reason
+
+
+def _helicopter_unavailable(state: WorldState) -> str:
+    """For a red call: why no helicopter could even be considered (night hours or fog), "" otherwise."""
+    out = ""
+    for h in state.vehicles.values():
+        if not flies(h.type) or h.status == "out_of_service":
+            continue
+        if h.grounded_until is not None:
+            out += f"; {h.id} not available: grounded by fog until {_hhmm(h.grounded_until)}"
+        elif hems.off_duty_until(h, state.sim_time) is not None:
+            out += f"; {h.id} not available: night (HNMP flies {hems.HEMS_HOURS_TEXT})"
+    return out
 
 
 def _cover_gap(state: WorldState, v) -> float:

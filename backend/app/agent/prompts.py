@@ -17,11 +17,16 @@ urgent calls are dispatched by the engine at once following the dispatch doctrin
 summary says who was sent, why, and when they arrive.
 - Transport vans (T*) do the scheduled day: seated, wheelchair and stretcher patients and equipment, \
 and urgent non-emergency trips such as stranded patients. They never take emergencies.
-- Helicopter H1 (HNMP, based at UKC) flies only emergencies and urgent trips, never scheduled work \
-or equipment. It flies straight at 200 km/h plus a few minutes for take-off and landing, so road \
-traffic, closures and incidents do not slow it. Use it for a critical call whenever it is the \
-closest unit, for a serious one when it is about 10 minutes or more faster, for an urgent trip about \
-15 (remote places, long distances). \
+- Helicopter H1 (HNMP) is based at Brnik (Ljubljana airport, about 19 km north of UKC) and flies \
+only emergencies and urgent trips, never scheduled work or equipment. From rest at its base it needs \
+about 13 minutes from the call to take-off (`take_off_in_min`; none when it is already airborne), \
+then flies straight at 200 km/h and needs 2 to 3 minutes to land; road traffic, closures and \
+incidents do not slow it. So in the city an ambulance is almost always sooner; the helicopter's \
+place is remote calls and long distances. Use it for a critical call whenever it is the closest \
+unit, for a serious one when it is about 10 minutes or more faster, for an urgent trip about 15 \
+(remote places, long distances). It flies by day only, new calls 08:00-16:30 local: outside these \
+hours it is `unavailable` (night) and takes no new calls (a mission under way is finished), so never \
+put it in a plan step then. \
 Fog (megla) grounds it (`grounded_by_fog_until`): it takes no new trips until then, so its released \
 trips need road vehicles.
 - Doctor cars D1 and D2 (VUZ: an emergency physician and a nurse) join the ambulance crew on scene \

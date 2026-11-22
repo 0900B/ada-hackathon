@@ -6,39 +6,43 @@
 
 | Metric | Baseline (nearest free) | Plan B (engine rules) | Difference |
 |---|---:|---:|---:|
-| Critical calls reached within target (8 min city / 15 outside) | 35.5% | 74% | +38.5 pp (better) |
-| Critical: median time to the patient | 10.9 min | 4.8 min | -6.1 min (better) |
-| Critical: 90th percentile time to the patient | 45.2 min | 19.6 min | -25.6 min (better) |
-| Serious calls reached within 18 min | 44.2% | 81.5% | +37.3 pp (better) |
-| Serious: median time to the patient | 22.5 min | 8.2 min | -14.3 min (better) |
-| Serious: 90th percentile time to the patient | 66.8 min | 28.5 min | -38.3 min (better) |
-| Urgent calls reached within 60 min | 97.8% | 98.6% | +0.8 pp (better) |
-| Doctor on scene within 15 min (calls that need one) | 47.6% | 73.9% | +26.3 pp (better) |
-| Late transports (≥ 5 min after due) | 20.5% | 5.3% | -15.2 pp (better) |
-| Calls never reached | 29 | 0 | -29 (better) |
-| Ambulance utilisation (busy share of the call window) | 76.6% | 59.7% | -16.9 pp |
+| Critical calls reached within target (8 min city / 15 outside) | 34.3% | 53.8% | +19.5 pp (better) |
+| Critical: median time to the patient | 12.4 min | 8 min | -4.4 min (better) |
+| Critical: 90th percentile time to the patient | 45.2 min | 22.4 min | -22.8 min (better) |
+| Serious calls reached within 18 min | 43.1% | 64.4% | +21.3 pp (better) |
+| Serious: median time to the patient | 22.8 min | 11.8 min | -11 min (better) |
+| Serious: 90th percentile time to the patient | 67.6 min | 35 min | -32.6 min (better) |
+| Urgent calls reached within 60 min | 97.8% | 98.5% | +0.7 pp (better) |
+| Doctor on scene within 15 min (calls that need one) | 46.4% | 52% | +5.6 pp (better) |
+| Late transports (≥ 5 min after due) | 20.5% | 7.5% | -13 pp (better) |
+| Calls never reached | 30 | 0 | -30 (better) |
+| Ambulance utilisation (busy share of the call window) | 76.6% | 66.4% | -10.2 pp |
+| Critical calls served by the helicopter | 1.8% | 17.2% | +15.4 pp |
+| Serious calls served by the helicopter | 1.6% | 16.8% | +15.2 pp |
 | Calls (critical / serious / urgent) | 4568 (169 / 1737 / 2662) | 4568 (169 / 1737 / 2662) | |
-| Seeds where Plan B is better / same / worse (serious within 18 min) | | | 100 / 0 / 0 |
-| Seeds where Plan B is better / same / worse (critical within target) | | | 53 / 31 / 1 |
+| Seeds where Plan B is better / same / worse (serious within 18 min) | | | 83 / 16 / 1 |
+| Seeds where Plan B is better / same / worse (critical within target) | | | 30 / 54 / 1 |
 
 ### High load (8.75 calls per hour, 1.75× normal)
 
 | Metric | Baseline (nearest free) | Plan B (engine rules) | Difference |
 |---|---:|---:|---:|
-| Critical calls reached within target (8 min city / 15 outside) | 13.7% | 52.9% | +39.2 pp (better) |
-| Critical: median time to the patient | 24.5 min | 8 min | -16.5 min (better) |
-| Critical: 90th percentile time to the patient | 57.4 min | 27.3 min | -30.1 min (better) |
-| Serious calls reached within 18 min | 22.2% | 53.7% | +31.5 pp (better) |
-| Serious: median time to the patient | 47 min | 15.4 min | -31.6 min (better) |
-| Serious: 90th percentile time to the patient | 94.6 min | 72.6 min | -22 min (better) |
-| Urgent calls reached within 60 min | 95.1% | 96.6% | +1.5 pp (better) |
-| Doctor on scene within 15 min (calls that need one) | 37.8% | 58.2% | +20.4 pp (better) |
-| Late transports (≥ 5 min after due) | 30.9% | 15.9% | -15 pp (better) |
-| Calls never reached | 256 | 46 | -210 (better) |
-| Ambulance utilisation (busy share of the call window) | 91.8% | 81.7% | -10.1 pp |
+| Critical calls reached within target (8 min city / 15 outside) | 8.4% | 37.3% | +28.9 pp (better) |
+| Critical: median time to the patient | 24.4 min | 10.2 min | -14.2 min (better) |
+| Critical: 90th percentile time to the patient | 58.1 min | 26.5 min | -31.6 min (better) |
+| Serious calls reached within 18 min | 18.3% | 42.8% | +24.5 pp (better) |
+| Serious: median time to the patient | 47.8 min | 20.5 min | -27.3 min (better) |
+| Serious: 90th percentile time to the patient | 94.8 min | 77.1 min | -17.7 min (better) |
+| Urgent calls reached within 60 min | 95.1% | 96.3% | +1.2 pp (better) |
+| Doctor on scene within 15 min (calls that need one) | 33.7% | 48.5% | +14.8 pp (better) |
+| Late transports (≥ 5 min after due) | 31% | 17.1% | -13.9 pp (better) |
+| Calls never reached | 265 | 59 | -206 (better) |
+| Ambulance utilisation (busy share of the call window) | 91.8% | 84.8% | -7 pp |
+| Critical calls served by the helicopter | 7.2% | 25.5% | +18.3 pp |
+| Serious calls served by the helicopter | 8.8% | 22.4% | +13.6 pp |
 | Calls (critical / serious / urgent) | 6988 (263 / 2669 / 4056) | 6988 (263 / 2669 / 4056) | |
-| Seeds where Plan B is better / same / worse (serious within 18 min) | | | 99 / 0 / 1 |
-| Seeds where Plan B is better / same / worse (critical within target) | | | 59 / 32 / 3 |
+| Seeds where Plan B is better / same / worse (serious within 18 min) | | | 96 / 4 / 0 |
+| Seeds where Plan B is better / same / worse (critical within target) | | | 53 / 38 / 3 |
 
 ### Normal load, ground units only (no helicopter for either policy, 5 calls per hour)
 
@@ -55,6 +59,8 @@
 | Late transports (≥ 5 min after due) | 20.3% | 18.5% | -1.8 pp (better) |
 | Calls never reached | 60 | 36 | -24 (better) |
 | Ambulance utilisation (busy share of the call window) | 76.6% | 76.5% | -0.1 pp |
+| Critical calls served by the helicopter | 0% | 0% | +0 pp |
+| Serious calls served by the helicopter | 0% | 0% | +0 pp |
 | Calls (critical / serious / urgent) | 4568 (169 / 1737 / 2662) | 4568 (169 / 1737 / 2662) | |
 | Seeds where Plan B is better / same / worse (serious within 18 min) | | | 43 / 47 / 10 |
 | Seeds where Plan B is better / same / worse (critical within target) | | | 16 / 67 / 2 |

@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
+from ..hems import any_flying
 from ..models import Trip, Vehicle
 from ..routing import flies, travel_minutes, vehicle_leg_minutes
 from .service_times import turnout_min
@@ -83,8 +84,14 @@ def send_doctor(state: WorldState, trip: Trip, unit_id: str | None = None, unit_
         # car that gets there sooner goes too (first doctor on scene).
         heli_wait = _mins(max(reach, trip.pickup_after), trip.pickup_after) if reach else 0.0
         faster = [v for v in free if reach and doctor_arrival(state, v, trip) < reach]
-        if current is not None and current.type == "doctor" and current.current_trip_id == trip.id and heli_wait > DOCTOR_TARGET_MIN:
-            return ""  # keeps its doctor car
+        if (
+            current is not None
+            and current.type == "doctor"
+            and current.current_trip_id == trip.id
+            and heli_wait > DOCTOR_TARGET_MIN
+            and (reach is None or current.status != "to_pickup" or doctor_arrival(state, current, trip) < reach)
+        ):
+            return ""  # keeps its doctor car: it is there before the helicopter (or already on scene)
         if heli_wait <= DOCTOR_TARGET_MIN or not faster:
             released = release(state, trip)
             trip.doctor_vehicle_id, trip.doctor_eta = unit.id, reach
@@ -95,6 +102,8 @@ def send_doctor(state: WorldState, trip: Trip, unit_id: str | None = None, unit_
         trip.doctor_vehicle_id, trip.doctor_eta = None, None
         busy = [v.id for v in doctor_cars(state) if v.status != "out_of_service"]
         why = f"no doctor car free ({', '.join(busy)} busy)" if busy else "no doctor car in service"
+        if not any_flying(state):  # night or fog: no helicopter to suggest
+            return f"; {why}"
         return f"; {why}: consider the helicopter (doctor on board)"
     best = min(free, key=lambda v: doctor_arrival(state, v, trip))
     at = dispatch_doctor_car(state, trip, best)
@@ -113,7 +122,7 @@ def send_doctor(state: WorldState, trip: Trip, unit_id: str | None = None, unit_
     clause = f" + doctor {best.id} ({nearest_place_name(state, best.lat, best.lon)}, at {_who(trip)} {_hhmm(at)}{rel})"
     wait = _mins(max(at, trip.pickup_after), trip.pickup_after)
     if wait > (trip.doctor_target_min or DOCTOR_TARGET_MIN):
-        heli = "" if unit is not None and flies(unit.type) else ": consider the helicopter"
+        heli = "" if (unit is not None and flies(unit.type)) or not any_flying(state) else ": consider the helicopter"
         clause += f"; the doctor arrives {wait:.0f} min after the call (reference {DOCTOR_TARGET_MIN:.0f} min){heli}"
     return clause
 

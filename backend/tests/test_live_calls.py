@@ -12,8 +12,9 @@ import re
 import sys
 import time
 import traceback
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 os.environ["ROAD_ROUTING"] = "0"
 os.environ["AGENT_AUTO"] = "0"
@@ -44,8 +45,12 @@ def _record_start(state, trigger, focus=None, question=None):  # stands in for a
     return None
 
 
+# Fixed clock, a day shift: these runs last up to 8 world-hours, inside the helicopter's 08:00-16:30.
+DAY = datetime(2026, 11, 23, 8, 0, tzinfo=ZoneInfo("Europe/Ljubljana"))
+
+
 def live() -> None:
-    seed_world(W, config.RANDOM_SEED, scheduled_day=False)
+    seed_world(W, config.RANDOM_SEED, scheduled_day=False, start=DAY)
     W.auto_analyze = False
     W.calls.enabled, W.calls.per_hour = True, config.CALLS_PER_HOUR
 

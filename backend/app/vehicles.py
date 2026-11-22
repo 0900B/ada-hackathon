@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from .engine.projection import project_route
+from .hems import availability
 from .roads import key
 from .routing import flies, is_detour, leg_route, resolve_route
 from .sim.fleet_details import LOW_FUEL_PCT, fuel_rate
@@ -29,6 +30,8 @@ CAPABILITIES = {
     "helicopter": [
         "Emergencies and urgent trips where it is clearly faster",
         "Remote places and long distances",
+        "Based at Brnik (Ljubljana airport): about 13 min from the call to take-off",
+        "Day only: new calls 08:00-16:30",
         "No scheduled trips or equipment",
         "Grounded by fog",
         "Emergency physician on board",
@@ -135,7 +138,7 @@ def vehicle_detail(state: WorldState, v: Vehicle) -> dict[str, Any]:
     current = state.trips.get(v.current_trip_id) if v.current_trip_id else None
     range_km = v.fuel_pct / fuel_rate(v.type) if fuel_rate(v.type) else None
     return {
-        "vehicle": {**v.model_dump(mode="json"), "path": state.vehicle_path(v)},
+        "vehicle": {**v.model_dump(mode="json"), "path": state.vehicle_path(v), **availability(v, state.sim_time)},
         "responding_to": responding_to(state, v),
         "base": places[v.base_id].name if v.base_id in places else v.base_id,
         "capabilities": CAPABILITIES.get(v.type, []),
