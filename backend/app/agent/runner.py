@@ -19,11 +19,13 @@ from .. import config
 from ..audit import AUDIT
 from ..engine.candidates import HELICOPTER_MIN_GAIN_MIN, find_candidates, greedy_plan, is_free
 from ..engine.dispatch import swap_options
+from ..engine import surge
 from ..engine.doctors import reserve_options
 from ..engine.projection import red_wait_min
 from ..engine.severity import RED_REFERENCE_MIN, clinical_reason
 from ..engine.plans import simulate_plan
 from ..engine.projection import kpis, project_all
+from ..guard import GUARD, LIMIT_NOTE, LIMIT_REASON, SLOW_NOTE, SLOW_REASON
 from ..models import AgentRun, EventRecord, Plan, PlanStep, Recommendation, RecommendationOption, utcnow
 from .context import build_user_message, describe_call, describe_result, execute_tool
 from .prompts import OUTPUT_SCHEMA, SYSTEM_PROMPT, TOOLS
@@ -56,14 +58,38 @@ def _task_key(state: WorldState, run_id: str) -> str:
     return f"{state.name}:{run_id}"  # run ids are per world, so key tasks by world too
 
 
-def start_run(state: WorldState, trigger: str, focus: EventRecord | None = None, question: str | None = None) -> AgentRun:
-    """Start an analysis in the background. A newer run supersedes any run still in progress."""
-    for run in state.agent_runs:
-        if run.status == "running" and (task := _tasks.get(_task_key(state, run.id))):
-            task.cancel()
-            run.status = "superseded"
-            run.finished_at = utcnow()
-            run.log("info", "Superseded by a newer analysis")
+def start_run(
+    state: WorldState, trigger: str, focus: EventRecord | None = None, question: str | None = None
+) -> AgentRun | None:
+    """Start an analysis in the background. A newer run supersedes any analysis still in progress
+    (not the AI dispatcher's reviews of single cases, see start_review).
+
+    Only the operator's own request ("operator") always runs; an automatic one (event, call, message,
+    scenario, stale plan) is skipped (returns None) while the Claude usage limit is reached."""
+    if trigger != "operator" and config.agent_enabled() and not GUARD.available():
+        GUARD.skipped_auto()
+        log.warning("automatic analysis (%s) skipped: Claude usage limit reached", trigger)
+        AUDIT.record(state.name, "agent_run_skipped", f"Automatic AI analysis skipped ({trigger}): {LIMIT_REASON}")
+        return None
+    return _start(state, trigger, focus, question, review_of=None)
+
+
+def start_review(state: WorldState, trip_id: str, focus: EventRecord | None, question: str) -> AgentRun:
+    """The AI dispatcher's review of one case (app/ai_dispatcher.py, which checks the guard and the
+    rate limit first). Runs next to other analyses: it neither supersedes them nor is superseded."""
+    return _start(state, f"review:{trip_id}", focus, question, review_of=trip_id)
+
+
+def _start(
+    state: WorldState, trigger: str, focus: EventRecord | None, question: str | None, review_of: str | None
+) -> AgentRun:
+    if review_of is None:
+        for run in state.agent_runs:
+            if run.status == "running" and run.review_of is None and (task := _tasks.get(_task_key(state, run.id))):
+                task.cancel()
+                run.status = "superseded"
+                run.finished_at = utcnow()
+                run.log("info", "Superseded by a newer analysis")
     run = AgentRun(
         id=state.new_id("RUN"),
         trigger=trigger,
@@ -71,16 +97,18 @@ def start_run(state: WorldState, trigger: str, focus: EventRecord | None = None,
         question=question,
         started_at=utcnow(),
         model=config.AGENT_MODEL if config.agent_enabled() else None,
+        review_of=review_of,
     )
     state.agent_runs.append(run)
     del state.agent_runs[:-20]  # keep the history bounded
-    state.analysed_events = len(state.events)  # everything reported so far has now been looked at
+    if review_of is None:
+        state.analysed_events = len(state.events)  # everything reported so far has now been looked at
     AUDIT.record(
         state.name,
         "agent_run_started",
         f"AI analysis started ({trigger})",
         ref=run.id,
-        payload={"trigger": trigger, "event_id": run.event_id, "question": question, "model": run.model},
+        payload={"trigger": trigger, "event_id": run.event_id, "question": question, "model": run.model, "review_of": review_of},
     )
     task_key = _task_key(state, run.id)
     task = asyncio.create_task(_run(state, run, focus, question), name=task_key)
@@ -104,9 +132,15 @@ async def _run(state: WorldState, run: AgentRun, focus: EventRecord | None, ques
     try:
         if not config.agent_enabled():
             raise AgentFailure("ANTHROPIC_API_KEY is not set")
+        if not GUARD.try_acquire("analysis"):
+            raise AgentFailure(LIMIT_REASON)
         run.log("info", f"Analysing with {config.AGENT_MODEL}")
         state.bump()
-        rec = await _claude_loop(state, run, focus, question)
+        try:  # one deadline for the whole analysis (all turns and retries), not per request
+            rec = await asyncio.wait_for(_claude_loop(state, run, focus, question), timeout=config.AGENT_TIMEOUT_S)
+        except (asyncio.TimeoutError, TimeoutError):  # wait_for has cancelled the Claude call
+            log.warning("agent run %s: Claude took longer than %.0f s, using the engine's plan", run.id, config.AGENT_TIMEOUT_S)
+            raise AgentFailure(SLOW_REASON) from None
         _finish(state, run, rec, engine="claude")
     except asyncio.CancelledError:
         raise
@@ -114,7 +148,7 @@ async def _run(state: WorldState, run: AgentRun, focus: EventRecord | None, ques
         reason = str(e) if isinstance(e, AgentFailure) else f"{type(e).__name__}: {e}"
         log.warning("agent run %s fell back to engine: %s", run.id, reason)
         run.error = reason[:300]
-        run.log("error", f"Claude unavailable ({reason[:200]}). Using the engine's best plan.")
+        run.log("error", _why(reason) + ".")
         _finish(state, run, _engine_recommendation(state, focus, reason, question), engine="engine_fallback")
 
 
@@ -275,6 +309,32 @@ def _faster_unit_option(state: WorldState, t, gain: float, c: dict) -> list[Reco
     ]
 
 
+def _surge_option(state: WorldState) -> RecommendationOption | None:
+    """The demand trigger is on: offer the contracted surge capacity, with its effect simulated on a copy."""
+    d = surge.demand(state)
+    # Offered when the high-demand alert is raised (sustained and affecting patients), not at every busy moment.
+    if not d["high"] or not surge.alert_on(state) or surge.active(state) or not any(surge.available(state).values()):
+        return None
+    sim = state.clone_for_simulation()
+    record = surge.activate(sim)
+    after = surge.demand(sim)
+    moved = record.summary.split("; moved: ", 1)[1] if "; moved: " in record.summary else None
+    until = sim.surge_until.astimezone(surge.LJ).strftime("%H:%M") if sim.surge_until else "?"
+    return RecommendationOption(
+        title=surge.offer_text(state),
+        summary=("Contracted units join now and the engine uses them by the rules: "
+                 + (moved if moved else "new calls go to them when our own units are too far")) + ".",
+        steps=[],
+        pros=[
+            f"Red calls over 15 min: {len(d['red_over_15_min'])} → {len(after['red_over_15_min'])}",
+            f"Calls past their response target: {len(d['past_target'])} → {len(after['past_target'])}",
+            "No patient is displaced; private vans take the non-urgent transports",
+        ],
+        cons=[f"Contracted units cost money; they finish their current job and leave at {until}"],
+        activate_surge=True,
+    )
+
+
 def _engine_recommendation(
     state: WorldState, focus: EventRecord | None, reason: str, question: str | None = None
 ) -> Recommendation:
@@ -327,6 +387,8 @@ def _engine_recommendation(
                       f"{t.vehicle_id} is released for the next call"],
             )
         )
+    if surge_opt := _surge_option(state):  # high demand: surge capacity first, rather than displacing patients
+        options.insert(0, surge_opt)
     escalation = (
         f"No suitable vehicle for {', '.join(unresolved)}: request help from a neighbouring station."
         if unresolved
@@ -362,11 +424,18 @@ def _engine_recommendation(
         situation=situation,
         options=options,
         recommended_index=0 if options else -1,
-        reasoning=f"Claude was unavailable ({reason[:120]}), so this is the engine's own best plan.{sent}{late}"
-        if options
-        else f"Claude was unavailable ({reason[:120]}). No trip needs a vehicle.{sent}{late}",
+        reasoning=f"{_why(reason)}.{sent}{late}" if options else f"{_why(reason)}. No trip needs a vehicle.{sent}{late}",
         escalation=escalation,
     )
+
+
+def _why(reason: str) -> str:
+    """Why the engine's plan is shown, in one sentence (the usage limit and the deadline say so plainly)."""
+    if reason == LIMIT_REASON:
+        return LIMIT_NOTE
+    if reason == SLOW_REASON:
+        return SLOW_NOTE
+    return f"Claude was unavailable ({reason[:120]}), so this is the engine's own best plan"
 
 
 def _finish(state: WorldState, run: AgentRun, rec: Recommendation, engine: str) -> None:
@@ -416,4 +485,62 @@ def _finish(state: WorldState, run: AgentRun, rec: Recommendation, engine: str) 
             "trace": run.steps,
         },
     )
+    if run.review_of is not None:  # the AI dispatcher's review of one case: keep, apply or propose
+        from ..ai_dispatcher import finish_review  # local import: that module starts runs here
+
+        finish_review(state, run, rec, engine)
+    else:
+        _log_proposal(state, run, rec, engine)
+        if state.autopilot:
+            _autopilot(state, run, rec)
     state.bump()
+
+
+def _run_trips(state: WorldState, run: AgentRun, rec: Recommendation) -> list:
+    """The open trips a run is about: those its options move, and its focus event's own trips."""
+    from ..engine.projection import DONE
+
+    ids = [s.trip_id for o in rec.options for s in o.steps]
+    if run.event_id:
+        ev = next((e for e in reversed(state.events) if e.id == run.event_id), None)
+        if ev is not None:
+            ids += ev.affected_trip_ids[:3]
+    return [state.trips[t] for t in dict.fromkeys(ids) if t in state.trips and state.trips[t].status not in DONE]
+
+
+def _log_proposal(state: WorldState, run: AgentRun, rec: Recommendation, engine: str) -> None:
+    """A "proposal" entry (with the run id) on the timeline of every trip the options move."""
+    from ..engine import timeline
+
+    if rec.recommended_index < 0 or not rec.options:
+        return
+    best = rec.options[rec.recommended_index]
+    moved = {s.trip_id for o in rec.options for s in o.steps}
+    who = "AI" if engine == "claude" else "Engine"
+    for trip in _run_trips(state, run, rec):
+        if trip.id in moved:
+            timeline.log(state, trip, "proposal", "ai" if engine == "claude" else "engine",
+                         f"{who} proposal ({len(rec.options)} option(s)), recommended: {best.title}", trip.vehicle_id, run.id)
+
+
+def _autopilot(state: WorldState, run: AgentRun, rec: Recommendation) -> None:
+    """Autopilot on: approve the recommended feasible option of a run about an active call, by the same
+    path as the dispatcher (approvals.approve: re-checked, applied, audited). Contracted surge capacity
+    stays the dispatcher's decision."""
+    from ..approvals import ApprovalError, approve
+
+    if rec.recommended_index < 0 or not rec.options:
+        return
+    if not any(t.call is not None for t in _run_trips(state, run, rec)):
+        run.log("info", "Autopilot: not about an active call, left for the dispatcher")
+        return
+    option = rec.options[rec.recommended_index]
+    if option.activate_surge:
+        run.log("info", "Autopilot: activating contracted surge capacity is left to the dispatcher")
+        return
+    if option.feasible is False or not option.steps:
+        return
+    try:
+        approve(state, run, rec.recommended_index, by="autopilot")
+    except ApprovalError as e:
+        run.log("info", f"Autopilot could not approve: {e.detail}"[:600])

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import {
   analyzeNow,
   approveOption,
+  generalRun,
   idSeq,
   rejectRun,
   SCENARIOS,
@@ -40,6 +41,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { fmtTime } from "./format";
+import { tOr, useLang, useT } from "./i18n";
 import { SeverityBadge } from "./SeverityBadge";
 
 type Notify = (kind: "ok" | "error", text: string) => void;
@@ -102,12 +104,13 @@ function Delta({ label, before, after, unit = "" }: { label: string; before: num
 
 /** The recommendation's situation summary: long texts start clamped to three lines, click to expand. */
 function Situation({ text }: { text: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const long = text.length > 220;
   return (
     <p
       className={`situation${long && !open ? " clamp-3" : ""}${long ? " expandable" : ""}`}
-      title={long && !open ? "Click to show the full text" : undefined}
+      title={long && !open ? t("ai.rev.fullText") : undefined}
       onClick={long ? () => setOpen((o) => !o) : undefined}
     >
       {text}
@@ -117,6 +120,7 @@ function Situation({ text }: { text: string }) {
 
 /** What started this analysis, in one line: a field message, a scenario, an event or the operator. */
 function RunContext({ run, state }: { run: AgentRun; state: WorldSnapshot }) {
+  const t = useT();
   if (run.trigger === "message" && run.question) {
     const m = /^Field message: "([\s\S]*)"\. Understood as: ([\s\S]*)$/.exec(run.question);
     return (
@@ -124,7 +128,7 @@ function RunContext({ run, state }: { run: AgentRun; state: WorldSnapshot }) {
         <MessageSquare />
         <div>
           <q>{m ? m[1] : run.question}</q>
-          {m && <div className="muted">Understood: {m[2]}</div>}
+          {m && <div className="muted">{t("ai.rev.understood", { text: m[2] })}</div>}
         </div>
       </div>
     );
@@ -133,7 +137,8 @@ function RunContext({ run, state }: { run: AgentRun; state: WorldSnapshot }) {
     const name = run.trigger.slice("scenario:".length);
     return (
       <div className="run-context">
-        <Clapperboard /> <span>Scenario: {SCENARIOS.find((s) => s.name === name)?.title ?? name}</span>
+        <Clapperboard />{" "}
+        <span>{t("ai.rev.scenario", { title: tOr(`dash.scn.${name}.title`, SCENARIOS.find((s) => s.name === name)?.title ?? name) })}</span>
       </div>
     );
   }
@@ -149,18 +154,19 @@ function RunContext({ run, state }: { run: AgentRun; state: WorldSnapshot }) {
   if (scenario)
     return (
       <div className="run-context" title={run.question ?? undefined}>
-        <Clapperboard /> <span>Scenario: {scenario[1]}</span>
+        <Clapperboard /> <span>{t("ai.rev.scenario", { title: scenario[1] })}</span>
       </div>
     );
   return (
     <div className="run-context" title={run.question ?? undefined}>
-      <User /> <span className="clamp-2">Operator review{run.question ? `: ${run.question}` : ""}</span>
+      <User /> <span className="clamp-2">{run.question ? t("ai.rev.operatorQ", { q: run.question }) : t("ai.rev.operator")}</span>
     </div>
   );
 }
 
 function StepLine({ step, state, detail }: { step: PlanStep; state: WorldSnapshot; detail?: StepDetail }) {
-  const trip = state.trips.find((t) => t.id === step.trip_id);
+  const t = useT();
+  const trip = state.trips.find((x) => x.id === step.trip_id);
   const place = (id: string) => state.places.find((p) => p.id === id)?.name ?? id;
   if (detail) {
     // The engine's own sentence for what this step does once the whole option is applied
@@ -175,46 +181,54 @@ function StepLine({ step, state, detail }: { step: PlanStep; state: WorldSnapsho
         )}
         {detail.text}
         {step.dropoff_id && !detail.text.includes(place(step.dropoff_id)) && (
-          <span className="step-redirect"> · to {place(step.dropoff_id)}</span>
+          <span className="step-redirect">{t("ai.rev.to", { place: place(step.dropoff_id) })}</span>
         )}
       </li>
     );
   }
   const where = step.interrupt_current
-    ? "divert now"
+    ? t("ai.rev.divert")
     : step.position === null
-      ? "end of its queue"
+      ? t("ai.rev.endQueue")
       : step.position === 0
-        ? "next"
-        : `#${step.position + 1} in queue`;
+        ? t("ai.rev.next")
+        : t("ai.rev.queuePos", { n: step.position + 1 });
   return (
     <li>
       <span className="step-trip">{step.trip_id}</span> {trip && <SeverityBadge trip={trip} weight={false} modifiers={false} />}
       {trip && <span className="muted"> {trip.label}</span>} → <span className="step-veh">{step.vehicle_id}</span>{" "}
       <span className="muted">({where})</span>
-      {step.dropoff_id && <span className="step-redirect"> · to {place(step.dropoff_id)}</span>}
+      {step.dropoff_id && <span className="step-redirect">{t("ai.rev.to", { place: place(step.dropoff_id) })}</span>}
     </li>
   );
 }
 
 function Notifications({ rec, open }: { rec: Recommendation; open?: boolean }) {
+  const t = useT();
+  const lang = useLang();
   if (rec.notifications.length === 0) return null;
   return (
     <details className="more" open={open}>
-      <summary>Messages to crews and hospitals ({rec.notifications.length})</summary>
-      {rec.notifications.map((n, i) => (
-        <div key={i} className="notification">
-          <strong>{n.recipient}</strong>
-          <div>
-            <span className="lang-tag">SL</span>
-            {n.message_sl}
+      <summary>{t("ai.rev.messages", { n: rec.notifications.length })}</summary>
+      {rec.notifications.map((n, i) => {
+        // Both languages, the UI language first
+        const lines = [
+          { lang: "sl", text: n.message_sl },
+          { lang: "en", text: n.message_en },
+        ].filter((x) => x.text);
+        if (lang === "en") lines.reverse();
+        return (
+          <div key={i} className="notification">
+            <strong>{n.recipient}</strong>
+            {lines.map((x, j) => (
+              <div key={x.lang} className={j > 0 ? "muted" : undefined}>
+                <span className="lang-tag">{x.lang.toUpperCase()}</span>
+                {x.text}
+              </div>
+            ))}
           </div>
-          <div className="muted">
-            <span className="lang-tag">EN</span>
-            {n.message_en}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </details>
   );
 }
@@ -238,6 +252,7 @@ function OptionCard({
   onApprove: (i: number) => void;
   busy: boolean;
 }) {
+  const t = useT();
   const rec = run.recommendation!;
   const recommended = index === rec.recommended_index;
   const approved = run.status === "approved" && run.decision?.option_index === index;
@@ -247,21 +262,21 @@ function OptionCard({
       <div className="option-head">
         <span className="option-num">{index + 1}</span>
         <strong className="option-title">{option.title}</strong>
-        {recommended && <span className="badge">Recommended</span>}
+        {recommended && <span className="badge">{t("ai.rev.recommended")}</span>}
         {approved && (
           <span className="badge ok">
-            <Check /> Approved
+            <Check /> {t("ai.rev.approved")}
           </span>
         )}
       </div>
       {option.summary && <p className="option-summary">{option.summary}</p>}
       {before && after && (
         <div className="deltas">
-          <Delta label="Late" before={before.late_trips} after={after.late_trips} />
-          <Delta label="Delay" before={before.total_delay_min} after={after.total_delay_min} unit=" min" />
-          <Delta label="Unassigned" before={unassigned(before)} after={unassigned(after)} />
+          <Delta label={t("ai.rev.dLate")} before={before.late_trips} after={after.late_trips} />
+          <Delta label={t("ai.rev.dDelay")} before={before.total_delay_min} after={after.total_delay_min} unit=" min" />
+          <Delta label={t("ai.rev.dUnassigned")} before={unassigned(before)} after={unassigned(after)} />
           {(before.over_capacity > 0 || after.over_capacity > 0) && (
-            <Delta label="Over capacity" before={before.over_capacity} after={after.over_capacity} />
+            <Delta label={t("ai.rev.dOverCapacity")} before={before.over_capacity} after={after.over_capacity} />
           )}
         </div>
       )}
@@ -277,7 +292,7 @@ function OptionCard({
           ))}
         </ul>
       )}
-      {option.feasible === false && <div className="warn-box">Not feasible now: {option.errors.join("; ")}</div>}
+      {option.feasible === false && <div className="warn-box">{t("ai.rev.notFeasible", { errors: option.errors.join("; ") })}</div>}
       {(option.pros.length > 0 || option.cons.length > 0) && (
         <div className="proscons">
           {option.pros.map((p, i) => (
@@ -294,7 +309,7 @@ function OptionCard({
       )}
       {canApprove && option.feasible !== false && (
         <button className={`approve${recommended ? " primary" : ""}`} disabled={busy} onClick={() => onApprove(index)}>
-          <Check /> Approve option {index + 1}
+          <Check /> {t("ai.rev.approveOption", { n: index + 1 })}
           {recommended && <kbd>Y</kbd>}
         </button>
       )}
@@ -316,12 +331,13 @@ function RecommendationView({
   canApprove: boolean;
   onApprove: (i: number) => void;
 }) {
+  const t = useT();
   const rec = run.recommendation!;
   return (
     <div className="rec">
       {run.engine === "engine_fallback" && (
         <div className="warn-box">
-          <TriangleAlert /> <span>{run.error ?? "Claude unavailable"}: showing the engine's own plan.</span>
+          <TriangleAlert /> <span>{t("ai.rev.fallback", { error: run.error ?? t("ai.rev.claudeUnavailable") })}</span>
         </div>
       )}
       <Situation text={rec.situation} />
@@ -330,7 +346,7 @@ function RecommendationView({
           <Siren /> <span>{rec.escalation}</span>
         </div>
       )}
-      {rec.options.length === 0 && <p className="muted">No action needed.</p>}
+      {rec.options.length === 0 && <p className="muted">{t("ai.rev.noActionDot")}</p>}
       {rec.options.map((o, i) => (
         <OptionCard
           key={i}
@@ -351,7 +367,7 @@ function RecommendationView({
       )}
       <Notifications rec={rec} />
       <details className="more">
-        <summary>How the agent got here ({run.steps.length} steps)</summary>
+        <summary>{t("ai.rev.trace", { count: run.steps.length })}</summary>
         <ul className="trace">
           {run.steps.map((s, i) => (
             <TraceLine key={i} step={s} />
@@ -366,11 +382,14 @@ export function AgentPanel({
   state,
   notify,
   keysRef,
+  bare = false,
 }: {
   state: WorldSnapshot;
   notify: Notify;
   keysRef?: RefObject<AgentKeys | null>;
+  bare?: boolean; // inside the AI dispatcher tab's "Situation review": no panel frame or title of its own
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [staleRuns, setStaleRuns] = useState<ReadonlySet<string>>(() => new Set());
   const [showLast, setShowLast] = useState(false);
@@ -381,7 +400,7 @@ export function AgentPanel({
   const seen = useRef(new Map<string, { sawRunning?: boolean; sawUndecided?: boolean; doneSim?: number; decidedAt?: number }>());
 
   const { enabled, model, runs } = state.agent;
-  const run = runs[0];
+  const run = generalRun(runs); // case reviews (review_of set) stay on their case cards
   const rec = run?.recommendation ?? null;
   const simNow = Date.parse(state.sim_time);
   const now = Date.now();
@@ -447,12 +466,27 @@ export function AgentPanel({
       setBusy(false);
     }
   };
-  const analyse = () => act(() => analyzeNow(state.world), "Analysis started");
+  const analyse = () => act(() => analyzeNow(state.world), t("ai.rev.started"));
+  // A second Y (or click) before the snapshot shows the run as approved would get "Run … is approved;
+  // nothing to approve" and replace the success toast with an error: approve each run once (keyed by id +
+  // start time: run ids restart when the backend restarts)
+  const approving = useRef(new Set<string>());
   const approve = (i: number) => {
     if (!run || !rec) return;
-    void act(() => approveOption(state.world, run.id, i), `Option ${i + 1} approved and applied: ${rec.options[i].title}`, run.id);
+    const id = run.id;
+    const key = `${id}@${run.started_at}`;
+    if (approving.current.has(key)) return;
+    approving.current.add(key);
+    void act(
+      () => approveOption(state.world, id, i).catch((e) => {
+        approving.current.delete(key); // refused (e.g. out of date): it may be tried again
+        throw e;
+      }),
+      t("ai.rev.optionApplied", { n: i + 1, title: rec.options[i].title }),
+      id,
+    );
   };
-  const reject = () => run && act(() => rejectRun(state.world, run.id), "Recommendation rejected");
+  const reject = () => run && act(() => rejectRun(state.world, run.id), t("ai.rev.rejectedToast"));
 
   const toggleAuto = async () => {
     const want = !auto;
@@ -462,10 +496,10 @@ export function AgentPanel({
       if (r === "unsupported") {
         setAutoSupported(false);
         setAutoPending(null);
-        notify("ok", "This backend has no auto-analyse switch yet; analyses follow its default.");
+        notify("ok", t("ai.rev.noAutoSwitch"));
       } else {
         setAutoPending(r.auto);
-        notify("ok", r.auto ? "Auto-analyse on: every disruptive event starts an analysis" : "Auto-analyse off: press A to analyse");
+        notify("ok", t(r.auto ? "ai.rev.autoOnToast" : "ai.rev.autoOffToast"));
       }
     } catch (e) {
       setAutoPending(null);
@@ -479,15 +513,15 @@ export function AgentPanel({
     keysRef.current = {
       analyse: () => void analyse(),
       approveRecommended: () => {
-        if (!run || run.status === "running") return notify("error", run ? "The AI is still analysing." : "Nothing to approve yet.");
-        if (!undecided || !rec) return notify("error", "No recommendation waiting for approval.");
-        if (stale) return notify("error", "This plan is outdated: press A to re-analyse.");
+        if (!run || run.status === "running") return notify("error", t(run ? "ai.rev.stillAnalysing" : "ai.rev.nothingYet"));
+        if (!undecided || !rec) return notify("error", t("ai.rev.noRecApproval"));
+        if (stale) return notify("error", t("ai.rev.outdated"));
         const i = rec.recommended_index;
-        if (!rec.options[i] || rec.options[i].feasible === false) return notify("error", "The recommended option is not feasible.");
+        if (!rec.options[i] || rec.options[i].feasible === false) return notify("error", t("ai.rev.notFeasibleRec"));
         approve(i);
       },
       reject: () => {
-        if (!undecided) return notify("error", "No recommendation waiting for a decision.");
+        if (!undecided) return notify("error", t("ai.rev.noRecDecision"));
         void reject();
       },
     };
@@ -496,9 +530,9 @@ export function AgentPanel({
   const inService = state.vehicles.filter((v) => v.status !== "out_of_service").length;
   const k = state.kpis;
   const issues = [
-    unassigned(k) > 0 && `${unassigned(k)} unassigned`,
-    k.late_trips > 0 && `${k.late_trips} late`,
-    k.over_capacity > 0 && `${k.over_capacity} over hospital capacity`,
+    unassigned(k) > 0 && t("ai.rev.unassigned", { n: unassigned(k) }),
+    k.late_trips > 0 && t("ai.rev.late", { n: k.late_trips }),
+    k.over_capacity > 0 && t("ai.rev.overCapacity", { n: k.over_capacity }),
   ].filter(Boolean) as string[];
   // When it was decided, on the world's clock (the applied plan's event), else the wall clock
   const decisionEvent = run?.decision?.event_id ? state.events.find((e) => e.id === run.decision?.event_id) : undefined;
@@ -506,22 +540,26 @@ export function AgentPanel({
   const approvedOption = run?.status === "approved" && rec ? rec.options[run.decision?.option_index ?? -1] : undefined;
 
   return (
-    <section className="panel panel-ai">
+    <section className={bare ? "panel-ai bare" : "panel panel-ai"}>
       <div className="panel-head">
-        <h2 className="panel-title">AI dispatcher</h2>
-        <button className={`analyze${showCta ? " primary" : ""}`} disabled={busy} onClick={() => void analyse()} title="Hotkey A">
-          <Sparkles /> Analyse <kbd>A</kbd>
+        {bare ? (
+          <span className="muted small review-hint">{t("ai.rev.hint")}</span>
+        ) : (
+          <h2 className="panel-title">{t("ai.review")}</h2>
+        )}
+        <button className={`analyze${showCta ? " primary" : ""}`} disabled={busy} onClick={() => void analyse()} title={t("ai.rev.hotkeyA")}>
+          <Sparkles /> {t("ai.rev.analyse")} <kbd>A</kbd>
         </button>
       </div>
       <div className="agent-meta">
-        <span className={`chip ${enabled ? "ok" : "warn"}`} title={enabled ? model : "No ANTHROPIC_API_KEY: the engine's own plan is shown"}>
-          {enabled ? `Claude · ${model}` : "Engine only"}
+        <span className={`chip ${enabled ? "ok" : "warn"}`} title={enabled ? model : t("ai.rev.noKey")}>
+          {enabled ? `Claude · ${model}` : t("ai.rev.engineOnly")}
         </span>
         {autoSupported && (
-          <label className="switch" title="Start an AI analysis automatically after every disruptive event">
+          <label className="switch" title={t("ai.rev.autoTitle")}>
             <input type="checkbox" role="switch" checked={auto} onChange={() => void toggleAuto()} />
             <span className="switch-track" aria-hidden />
-            Auto-analyse {auto ? "on" : "off"}
+            {t(auto ? "ai.rev.autoOn" : "ai.rev.autoOff")}
           </label>
         )}
       </div>
@@ -529,7 +567,7 @@ export function AgentPanel({
       {showCta && (
         <button className="cta" onClick={() => void analyse()} disabled={busy}>
           <span className="cta-title">
-            <Zap /> {newEvents.length === 1 ? "New event" : `${newEvents.length} new events`} · Analyse <kbd>A</kbd>
+            <Zap /> {t("ai.rev.newEvents", { count: newEvents.length })} · {t("ai.rev.analyse")} <kbd>A</kbd>
           </span>
           <span className="cta-text">{newEvents[newEvents.length - 1].summary}</span>
         </button>
@@ -538,20 +576,24 @@ export function AgentPanel({
       {(!run || collapsed) && (
         <div className="agent-idle">
           <div className="idle-line">
-            <Eye /> Watching {inService} vehicles · {issues.length ? `${issues.join(" · ")} · press A to analyse` : "no open issues"}
+            <Eye /> {t("ai.rev.watching", { count: inService })} ·{" "}
+            {issues.length ? `${issues.join(" · ")}${t("ai.rev.pressA")}` : t("ai.rev.noIssues")}
           </div>
           {run && (
             <button className="link last-run" onClick={() => setShowLast((s) => !s)} aria-expanded={showLast}>
               {showLast ? <ChevronDown /> : <ChevronRight />}
               {run.status === "approved"
-                ? `Approved ${decisionTime}: ${run.decision?.title ?? "plan"}`
+                ? t("ai.rev.lastApproved", { time: decisionTime, title: run.decision?.title ?? t("ai.sum.plan") })
                 : run.status === "rejected"
-                  ? `Rejected ${decisionTime}`
-                  : `Last analysis ${run.id}: ${rec?.options.length ? `${run.status}` : "no action needed"}`}
+                  ? t("ai.rev.lastRejected", { time: decisionTime })
+                  : t("ai.rev.lastAnalysis", {
+                      id: run.id,
+                      status: rec?.options.length ? tOr(`ai.run.${run.status}`, run.status) : t("ai.rev.noActionLower"),
+                    })}
             </button>
           )}
           {run && showLast && rec && <RecommendationView run={run} state={state} busy={busy} canApprove={false} onApprove={approve} />}
-          {!run && <p className="muted">Report an event or send a field message; the AI's options appear here.</p>}
+          {!run && <p className="muted">{t("ai.rev.empty")}</p>}
         </div>
       )}
 
@@ -563,7 +605,7 @@ export function AgentPanel({
             <>
               <div className="run-status st-running">
                 <span className="spinner" />
-                <strong>Analysing…</strong> {Math.max(0, Math.round((now - Date.parse(run.started_at)) / 1000))} s
+                <strong>{t("ai.sum.analysing")}</strong> {Math.max(0, Math.round((now - Date.parse(run.started_at)) / 1000))} s
                 <span className="muted run-meta">{run.id}</span>
               </div>
               <ul className="trace">
@@ -577,29 +619,28 @@ export function AgentPanel({
           {undecided && rec && (
             <>
               <div className="run-status st-done">
-                <strong>Waiting for your decision</strong>
+                <strong>{t("ai.rev.waiting")}</strong>
                 <span className="muted">
-                  {" "}
-                  · proposed {ageMin < 1 ? "just now" : `${Math.round(ageMin)} min ago`}
-                  {state.hypothetical && ageMin >= 1 ? " (sim time)" : ""}
+                  {ageMin < 1 ? t("ai.rev.proposedNow") : t("ai.rev.proposedAgo", { n: Math.round(ageMin) })}
+                  {state.hypothetical && ageMin >= 1 ? t("ai.rev.simTime") : ""}
                 </span>
                 <span className="muted run-meta">
                   {run.id}
-                  {run.engine === "engine_fallback" ? " · engine" : " · Claude"}
+                  {run.engine === "engine_fallback" ? t("ai.rev.byEngine") : " · Claude"}
                 </span>
               </div>
               {stale && (
                 <div className="stale-box">
-                  <Clock /> {staleRuns.has(run.id) ? "The fleet has moved on and this plan no longer fits." : `This plan is ${Math.round(ageMin)} min old; the fleet has moved on.`}{" "}
-                  Re-analyse for a fresh plan.
+                  <Clock /> {staleRuns.has(run.id) ? t("ai.rev.staleGone") : t("ai.rev.staleOld", { n: Math.round(ageMin) })}{" "}
+                  {t("ai.rev.reanalyseHint")}
                   <button className="primary" disabled={busy} onClick={() => void analyse()}>
-                    <RefreshCw /> Re-analyse <kbd>A</kbd>
+                    <RefreshCw /> {t("ai.rev.reanalyse")} <kbd>A</kbd>
                   </button>
                 </div>
               )}
               <RecommendationView run={run} state={state} busy={busy} canApprove={!stale} onApprove={approve} />
               <button className="ghost reject" disabled={busy} onClick={() => void reject()}>
-                <X /> {stale ? "Dismiss" : "Reject all"} <kbd>N</kbd>
+                <X /> {t(stale ? "ai.rev.dismiss" : "ai.rev.rejectAll")} <kbd>N</kbd>
               </button>
             </>
           )}
@@ -609,19 +650,19 @@ export function AgentPanel({
               <div className="decision-head">
                 {run.status === "approved" ? (
                   <>
-                    <Check /> Approved: option {(run.decision?.option_index ?? 0) + 1} · {run.decision?.title}
+                    <Check /> {t("ai.rev.approvedOption", { n: (run.decision?.option_index ?? 0) + 1, title: run.decision?.title ?? "" })}
                   </>
                 ) : run.status === "rejected" ? (
                   <>
-                    <Ban /> Rejected: the plan stays as it was
+                    <Ban /> {t("ai.sum.rejected")}
                   </>
                 ) : run.status === "error" ? (
                   <>
-                    <CircleAlert /> The analysis failed: {run.error}
+                    <CircleAlert /> {t("ai.rev.failed", { error: run.error ?? "" })}
                   </>
                 ) : (
                   <>
-                    <Check /> No action needed
+                    <Check /> {t("ai.rev.noAction")}
                   </>
                 )}
               </div>
@@ -654,7 +695,7 @@ export function AgentPanel({
               )}
               {run.status === "approved" && rec && <Notifications rec={rec} open />}
               <div className="muted small">
-                Moves to the history in {Math.max(0, Math.ceil((COLLAPSE_AFTER_MS - shownFor) / 1000))} s ·{" "}
+                {t("ai.rev.history", { n: Math.max(0, Math.ceil((COLLAPSE_AFTER_MS - shownFor) / 1000)) })}{" "}
                 <button
                   className="link"
                   onClick={() => {
@@ -662,7 +703,7 @@ export function AgentPanel({
                     rerender((n) => n + 1);
                   }}
                 >
-                  hide now
+                  {t("ai.rev.hideNow")}
                 </button>
               </div>
             </div>

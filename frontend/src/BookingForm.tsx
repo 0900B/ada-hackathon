@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { postEvent, type EventRecord, type WorldSnapshot } from "./api";
+import { useT } from "./i18n";
+import { LEVEL_LABEL } from "./severity";
 
 /** Part 1 of the brief: book a transport order; the engine places it into the live plan. */
 export function BookingForm({ state }: { state: WorldSnapshot }) {
+  const t = useT();
   const places = state.places.filter((p) => p.kind !== "incident_site" && p.kind !== "call_location");
   const hospitals = places.filter((p) => p.kind === "hospital" || p.kind === "health_centre");
   const [kind, setKind] = useState<"patient" | "equipment">("patient");
@@ -45,61 +48,61 @@ export function BookingForm({ state }: { state: WorldSnapshot }) {
     <div className="booking">
       <div className="row">
         <select value={kind} onChange={(e) => setKind(e.target.value as "patient" | "equipment")}>
-          <option value="patient">Patient</option>
-          <option value="equipment">Equipment</option>
+          <option value="patient">{t("ops.bk.patient")}</option>
+          <option value="equipment">{t("ops.bk.equipment")}</option>
         </select>
         {kind === "patient" ? (
           <select value={needs} onChange={(e) => setNeeds(e.target.value as typeof needs)}>
-            <option value="seated">seated</option>
-            <option value="wheelchair">wheelchair</option>
-            <option value="stretcher">stretcher</option>
+            <option value="seated">{t("ops.needs.seated")}</option>
+            <option value="wheelchair">{t("ops.needs.wheelchair")}</option>
+            <option value="stretcher">{t("ops.needs.stretcher")}</option>
           </select>
         ) : (
-          <input placeholder="cargo, e.g. ventilator" value={label} onChange={(e) => setLabel(e.target.value)} />
+          <input placeholder={t("ops.bk.cargoPlaceholder")} value={label} onChange={(e) => setLabel(e.target.value)} />
         )}
         <select
-          aria-label="Severity"
+          aria-label={t("ops.bk.severity")}
           value={severity}
           onChange={(e) => setSeverity(e.target.value as typeof severity)}
-          title="Routine: planned transport by appointment. Urgent: possibly dangerous, reach the patient within 60 min."
+          title={t("ops.bk.severityTitle")}
         >
-          <option value="routine">Routine</option>
-          <option value="urgent">Urgent</option>
+          <option value="routine">{LEVEL_LABEL.routine}</option>
+          <option value="urgent">{LEVEL_LABEL.urgent}</option>
         </select>
       </div>
       <div className="row">
-        <select value={pickup} onChange={(e) => setPickup(e.target.value)} title="From">
+        <select value={pickup} onChange={(e) => setPickup(e.target.value)} title={t("ops.bk.from")}>
           {places.map((p) => (
             <option key={p.id} value={p.id}>
-              From: {p.name}
+              {t("ops.bk.fromPlace", { name: p.name })}
             </option>
           ))}
         </select>
       </div>
       <div className="row">
-        <select value={dropoff} onChange={(e) => setDropoff(e.target.value)} title="To">
+        <select value={dropoff} onChange={(e) => setDropoff(e.target.value)} title={t("ops.bk.to")}>
           {places.map((p) => (
             <option key={p.id} value={p.id}>
-              To: {p.name}
+              {t("ops.bk.toPlace", { name: p.name })}
             </option>
           ))}
         </select>
       </div>
       <div className="row booking-times">
         <label>
-          ready in
+          {t("ops.bk.readyIn")}
           <input type="number" min={0} max={1440} value={readyIn} onChange={(e) => setReadyIn(Number(e.target.value))} /> min
         </label>
         <label>
-          due within
-          <input type="number" min={1} max={2880} placeholder="auto" value={deadline} onChange={(e) => setDeadline(e.target.value)} /> min
+          {t("ops.bk.dueWithin")}
+          <input type="number" min={1} max={2880} placeholder={t("ops.bk.auto")} value={deadline} onChange={(e) => setDeadline(e.target.value)} /> min
         </label>
       </div>
       {kind === "patient" && (
-        <input placeholder="patient label (optional, pseudonymous)" value={label} onChange={(e) => setLabel(e.target.value)} />
+        <input placeholder={t("ops.bk.labelPlaceholder")} value={label} onChange={(e) => setLabel(e.target.value)} />
       )}
       <button className="primary" disabled={busy || !pickup || !dropoff || pickup === dropoff} onClick={book}>
-        {busy ? "Placing…" : "Book & place in plan"}
+        {busy ? t("ops.bk.placing") : t("ops.bk.book")}
       </button>
       {result && <div className={`message ${result.ok ? "ok" : "error"}`}>{result.text}</div>}
     </div>

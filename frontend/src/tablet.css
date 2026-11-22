@@ -204,6 +204,22 @@
 .mdt-spacer {
   flex: 1;
 }
+/* UI language switch "SL | EN" (top bar and vehicle picker): touch-sized, follows the day/night theme */
+.mdt .ui-lang.mdt-uilang {
+  color: var(--m-text);
+  font-size: 15px;
+}
+.mdt .ui-lang.mdt-uilang button {
+  min-height: 40px;
+  min-width: 40px;
+  padding: 6px 7px;
+  border-radius: 6px;
+  touch-action: manipulation;
+}
+.mdt .ui-lang.mdt-uilang button.on {
+  color: var(--m-accent-text);
+  border-color: var(--m-accent-text);
+}
 .mdt-clock {
   font-size: 24px;
   font-weight: 700;
@@ -406,6 +422,7 @@
   color: #fff;
 }
 .mdt-toast {
+  white-space: pre-line;
   position: absolute;
   z-index: 1000;
   left: 50%;
@@ -923,6 +940,9 @@
   overflow-y: auto;
   padding: 24px;
 }
+.mdt-picker-lang {
+  float: right;
+}
 .mdt-picker h1 {
   margin: 0 0 6px;
 }
@@ -958,4 +978,23 @@
 .mdt-pick-name {
   flex: 1;
   font-weight: 700;
+}
+
+/* The call behind the job: id, address and what the caller said */
+.mdt-call {
+  margin: 4px 0;
+}
+.mdt-call-id {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 15px;
+}
+.mdt-call-id span {
+  font-weight: 500;
+}
+.mdt-words {
+  margin: 4px 0 0;
+  padding: 4px 10px;
+  border-left: 3px solid var(--m-border);
+  font-size: 16px;
 }

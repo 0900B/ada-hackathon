@@ -53,6 +53,10 @@ class Vehicle(BaseModel):
     # scene, loading = on scene with the crew, with_patient = escorting the ambulance to hospital).
     type: VehicleType
     origin: VehicleOrigin = "own"
+    # Contracted surge capacity (engine/surge.py): in the fleet until this time; then it finishes its
+    # current job, returns and leaves (contract_ended: takes no new jobs meanwhile).
+    contract_until: datetime | None = None
+    contract_ended: bool = False
     base_id: str
     lat: float
     lon: float
@@ -60,6 +64,10 @@ class Vehicle(BaseModel):
     current_trip_id: str | None = None
     queue: list[str] = Field(default_factory=list)  # upcoming trip ids, in order
     busy_until: datetime | None = None  # loading/unloading, or stuck after an injected delay
+    # Why busy_until is set (the UI shows a normal turnout neutrally, a delay as held): turnout (crew to
+    # the vehicle, or the helicopter's activation), on_scene, handover (handover and cleaning), delay.
+    # None when unknown (older states) or not busy.
+    busy_reason: Literal["turnout", "on_scene", "handover", "delay"] | None = None
     # Set by the simulator while the vehicle stands at its next pickup before the patient (or cargo)
     # is ready: it waits there until this time. None when it is not waiting.
     waiting_until: datetime | None = None
@@ -81,11 +89,72 @@ class Vehicle(BaseModel):
     fuel_pct: float = 100.0
     km_today: float = 0.0
     shift_end: datetime | None = None
+    # Set by the simulator on arrival at the drop-off: the handover of this trip ends at this time
+    # (then cleaning). Only for the call timeline ("handover_done", "closed").
+    handover_trip_id: str | None = Field(default=None, exclude=True)
+    handover_until: datetime | None = Field(default=None, exclude=True)
 
 
 class CrewMember(BaseModel):
     name: str  # fictional
-    role: str  # e.g. "Driver / paramedic", "Emergency physician", "Pilot"
+    role: str  # e.g. "Medical rescuer (driver)", "Emergency physician", "Pilot"
+
+
+# --- The call record and the call timeline (app/intake.py, engine/timeline.py) ---------------
+
+CallKind = Literal["112", "hospital_request"]
+TriageBy = Literal["ai", "rules", "dispatcher"]
+TimelineKind = Literal[
+    "received", "triaged", "dispatched", "doctor_dispatched", "rerouted", "reassigned", "delayed",
+    "unit_replaced", "proposal", "approved", "on_scene", "doctor_on_scene", "transporting", "at_hospital",
+    "handover_done", "closed", "note",
+    "reviewed",  # the AI dispatcher (Claude) reviewed the case and kept the decision (app/ai_dispatcher.py)
+    "override",  # the dispatcher changed a unit by hand (app/overrides.py)
+]
+TimelineBy = Literal["caller", "ai", "rules", "engine", "dispatcher", "crew"]
+AiMode = Literal["assisted", "autonomous"]  # per world (app/ai_dispatcher.py)
+UnitRole = Literal["ambulance", "doctor", "helicopter", "van"]
+AssignedBy = Literal["engine", "ai", "dispatcher"]
+
+
+class CallTriage(BaseModel):
+    """How the call was graded: by Claude (ai), by the keyword rules (rules), or by the dispatcher."""
+
+    by: TriageBy
+    at: datetime
+    severity: CallSeverity
+    condition: str | None = None
+    condition_label: str | None = None
+    modifiers: list[str] = Field(default_factory=list)
+    needs_doctor: bool = False
+    reason_en: str = ""  # one clinical sentence
+    reason_sl: str = ""
+    took_s: float | None = None  # how long the triage took (real seconds), for the timeline's detail
+
+
+class CallRecord(BaseModel):
+    """The request behind a trip: a 112 call (caller's words, address) or a hospital's request."""
+
+    call_id: str  # "112-0042" (per-world counter); hospital requests "REQ-0007"
+    kind: CallKind = "112"
+    received_at: datetime
+    caller_name: str | None = None  # fictional
+    address: str | None = None  # e.g. "Zaloška cesta 45, Moste"
+    text_sl: str = ""  # the caller's words
+    text_en: str = ""
+    triage: CallTriage | None = None
+
+
+class TimelineEntry(BaseModel):
+    at: datetime
+    kind: TimelineKind
+    by: TimelineBy
+    text: str
+    vehicle_id: str | None = None
+    run_id: str | None = None
+    # Who exactly, in a few words: "rules engine, 0.1 s", "Claude, 12 s, checked by the engine",
+    # "dispatcher override", "keyword rules" (engine/timeline.py fills a default from `by`).
+    detail: str | None = None
 
 
 class Trip(BaseModel):
@@ -119,6 +188,17 @@ class Trip(BaseModel):
     doctor_vehicle_id: str | None = None  # the doctor car supporting this call, or "H1" when the helicopter serves it
     doctor_eta: datetime | None = None  # when the doctor reaches (or reached) the patient
     doctor_target_min: float | None = None  # minutes from the call: the 15-min red reference
+    # The 112 call or hospital request behind this trip (None: a plain booking or a scenario job), and
+    # everything that happened to it, oldest first (bounded, see engine/timeline.py). Shared, not copied,
+    # by what-if copies of the world (WorldState.clone_for_simulation); written only in the real world.
+    call: CallRecord | None = None
+    timeline: list[TimelineEntry] = Field(default_factory=list)
+    # A further unit the dispatcher added to the same call (several patients): the trip it belongs to.
+    linked_to: str | None = None
+    # Why each unit serves this trip, written where the decision is made (engine/units.py):
+    # {vehicle_id: {"reason", "assigned_by", "assigned_at"}}. Shown as `units` in the snapshot; shared
+    # (not copied) by what-if copies and written only in the real world, like the timeline.
+    unit_notes: dict[str, dict[str, Any]] = Field(default_factory=dict, exclude=True)
 
     @model_validator(mode="after")
     def _equipment_consistent(self) -> Trip:
@@ -232,6 +312,7 @@ class Alert(BaseModel):
         "low_fuel",
         "red_response_over_15_min",  # a critical/serious call predicted to be reached after 15 min (Slovenian reference)
         "doctor_response_over_15_min",  # a call that needs a doctor: none on scene within its doctor_target_min
+        "high_demand",  # the demand trigger (engine/surge.py): offer contracted surge capacity
     ]
     severity: Severity
     message: str
@@ -335,6 +416,9 @@ class UrgentRequestEvent(BaseModel):
     severity: Literal["critical", "serious", "urgent"] | None = None
     condition: str | None = None  # e.g. "cardiac_arrest", "stroke", "stemi", "fracture"
     modifiers: list[str] = Field(default_factory=list)  # child, multiple_patients, deteriorating, ...
+    # The call-taker (or the AI triage) asks for a doctor on scene even if the condition alone would not
+    # (critical/serious calls only); the conditions in engine.severity.DOCTOR_CONDITIONS always get one.
+    needs_doctor: bool = False
 
     @model_validator(mode="after")
     def _severity_sets_priority(self) -> UrgentRequestEvent:
@@ -465,6 +549,8 @@ class RecommendationOption(BaseModel):
     steps: list[PlanStep]
     pros: list[str]
     cons: list[str]
+    # Approving this option activates the contracted surge capacity (engine/surge.py) before its steps.
+    activate_surge: bool = False
     # Filled in by the engine after the run, never by the model:
     feasible: bool | None = None
     errors: list[str] = Field(default_factory=list)
@@ -501,6 +587,8 @@ class AgentRun(BaseModel):
     error: str | None = None
     decision: dict[str, Any] | None = None
     usage: dict[str, int] = Field(default_factory=dict)
+    # Set for an AI-dispatcher review of one case (app/ai_dispatcher.py): the trip reviewed.
+    review_of: str | None = None
 
     def log(self, kind: str, text: str) -> None:
         self.steps.append(AgentStep(at=utcnow(), kind=kind, text=text[:600]))  # type: ignore[arg-type]

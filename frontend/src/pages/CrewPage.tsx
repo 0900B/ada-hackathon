@@ -8,7 +8,10 @@ import {
   type WorldSnapshot,
 } from "../api";
 import { Mic, NotebookPen, Plus, Radio } from "lucide-react";
-import { fmtTime, humanize } from "../format";
+import { fmtTime, nightText, vehicleStatusLabel } from "../format";
+import { tOr, useT } from "../i18n";
+import { LangToggle } from "../LangToggle";
+import { AdminLock } from "../AdminLock";
 import { Callsign } from "../icons";
 import { SeverityBadge } from "../SeverityBadge";
 import { DoctorTag } from "../DoctorTag";
@@ -34,6 +37,10 @@ import "../crew/crew.css";
  * Two voice channels share one recognizer: "Hold to log" puts what was said on the clinical
  * timeline (kept on the tablet, never sent to the dispatcher), "Hold to talk to dispatch" and the
  * quick buttons send field messages exactly as before.
+ *
+ * Text comes from the i18n dictionaries (the field surface defaults to Slovenian): the keys of the
+ * older phone view are "tab." and "crew." (locales/field.ts), the tablet's own are "pt."
+ * (locales/crewtablet.ts).
  */
 
 export function CrewPage() {
@@ -41,11 +48,12 @@ export function CrewPage() {
   const [params] = useSearchParams();
   const world: World = params.get("world") === "live" ? "live" : "sim";
   const { state, connected } = useWorldState(world);
+  const t = useT();
 
   if (!state) {
     return (
       <main className="crew">
-        <p className="crew-loading">Connecting to {API_URL} …</p>
+        <p className="crew-loading">{t("common.connecting", { url: API_URL })}</p>
       </main>
     );
   }
@@ -55,16 +63,20 @@ export function CrewPage() {
 }
 
 function VehiclePicker({ state, world, missing }: { state: WorldSnapshot; world: World; missing: string }) {
+  const t = useT();
   const here = missing ? `/crew/${encodeURIComponent(missing)}` : "/crew";
   return (
     <main className="crew">
       <section className="crew-card">
-        {missing ? (
-          <h1 className="crew-title">Vehicle “{missing}” not found</h1>
-        ) : (
-          <h1 className="crew-title">Crew view</h1>
-        )}
-        <p className="muted">Choose your vehicle ({world === "sim" ? "simulation" : "live"}):</p>
+        <div className="crew-head-top">
+          {missing ? (
+            <h1 className="crew-title">{t("tab.notFound", { id: missing })}</h1>
+          ) : (
+            <h1 className="crew-title">{t("crew.title")}</h1>
+          )}
+          <LangToggle className="crew-uilang" />
+        </div>
+        <p className="muted">{t("crew.choose", { world: t(world === "sim" ? "tab.worldSim" : "tab.worldLive") })}</p>
       </section>
       <ul className="crew-pick">
         {state.vehicles.map((v) => (
@@ -72,19 +84,19 @@ function VehiclePicker({ state, world, missing }: { state: WorldSnapshot; world:
             <Link to={`/crew/${encodeURIComponent(v.id)}?world=${world}`}>
               <Callsign v={v} />
               <span className="crew-pick-name">{v.name}</span>
-              <span className="muted">{humanize(v.status)}</span>
+              <span className="muted">{vehicleStatusLabel(v.status)}</span>
             </Link>
           </li>
         ))}
       </ul>
       <p className="crew-foot muted">
-        World:{" "}
+        {t("tab.worldLabel")}{" "}
         <Link to={`${here}?world=sim`} className={world === "sim" ? "on" : ""}>
-          simulation
+          {t("tab.worldSim")}
         </Link>{" "}
         ·{" "}
         <Link to={`${here}?world=live`} className={world === "live" ? "on" : ""}>
-          live
+          {t("tab.worldLive")}
         </Link>
       </p>
     </main>
@@ -102,10 +114,12 @@ function CrewConsole({
   world: World;
   connected: boolean;
 }) {
+  const t = useT();
   const [draft, setDraft] = useState("");
   const dispatch = useDispatch(state, vehicle, world);
-  const trip = vehicle.current_trip_id ? state.trips.find((t) => t.id === vehicle.current_trip_id) : undefined;
+  const trip = vehicle.current_trip_id ? state.trips.find((x) => x.id === vehicle.current_trip_id) : undefined;
   const stage = crewStage(vehicle, trip);
+  const needsText = (needs: string) => tOr(`tab.needs.${needs}`, needs);
   useWakeLock();
 
   // Logging is on while a patient is on board (loading counts); doctor cars log too
@@ -115,15 +129,15 @@ function CrewConsole({
   const [notice, setNotice] = useState<string | null>(null);
   useEffect(() => {
     if (!notice) return;
-    const t = window.setTimeout(() => setNotice(null), 4000);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => setNotice(null), 4000);
+    return () => window.clearTimeout(timer);
   }, [notice]);
 
   const { speech, channel, lastChannel, logMic, dispatchMic, toggle } = useVoiceChannels({
     onLog: (heard) => {
-      if (!logOn) return setNotice("No patient on board: not logged");
+      if (!logOn) return setNotice(t("pt.notLogged"));
       const r = log.addSpoken(heard);
-      setNotice(r === "nothing_to_confirm" ? "Nothing to confirm" : r === "confirmed" ? "Confirmed" : null);
+      setNotice(r === "nothing_to_confirm" ? t("pt.nothingToConfirm") : r === "confirmed" ? t("pt.confirmedNote") : null);
     },
     onDispatch: (heard) => {
       if (dispatch.isBusy()) setDraft(heard); // a message is still in flight: keep it for manual send
@@ -147,6 +161,8 @@ function CrewConsole({
     setNote("");
   };
 
+  const night = nightText(vehicle);
+
   return (
     <main className={`crew pt pt-stage-${stage}`}>
       <header className="pt-head">
@@ -155,9 +171,9 @@ function CrewConsole({
         </h1>
         {trip && (
           <div className="pt-who">
-            <strong>{trip.kind === "equipment" ? (trip.cargo ?? "equipment") : trip.patient}</strong>{" "}
+            <strong>{trip.kind === "equipment" ? (trip.cargo ?? t("tab.equipment")) : trip.patient}</strong>{" "}
             <span className="muted">
-              {trip.kind === "equipment" ? "equipment" : trip.needs} · {trip.id}
+              {trip.kind === "equipment" ? t("tab.equipment") : needsText(trip.needs)} · {trip.id}
             </span>
           </div>
         )}
@@ -166,24 +182,35 @@ function CrewConsole({
             <SeverityBadge trip={trip} size="md" /> <DoctorTag trip={trip} vehicles={state.vehicles} now={state.sim_time} size="md" />
           </div>
         )}
+        {trip?.call && (
+          <div className="crew-call pt-call">
+            <strong>{trip.call.call_id}</strong>
+            {trip.call.address && <> · {trip.call.address}</>}
+            {trip.call.text_sl && <div className="crew-words">»{trip.call.text_sl}«</div>}
+            {trip.call.text_en && trip.call.text_en !== trip.call.text_sl && <div className="muted small">{trip.call.text_en}</div>}
+          </div>
+        )}
         <div className="pt-head-chips">
-          {vehicle.grounded_until && <span className="chip warn">Grounded by fog until {fmtTime(vehicle.grounded_until)}</span>}
+          {vehicle.grounded_until && <span className="chip warn">{t("tab.grounded", { time: fmtTime(vehicle.grounded_until) })}</span>}
+          {night && <span className="chip warn">{night}</span>}
           <span className={`chip ${connected ? "ok" : "bad"}`}>
-            <i className="dot" /> {connected ? "Online" : "Reconnecting"}
+            <i className="dot" /> {connected ? t("tab.online") : t("tab.reconnecting")}
           </span>
+          <AdminLock variant="crew" />
+          <LangToggle className="crew-uilang crew-uilang-end" />
         </div>
       </header>
 
       <div className="pt-grid">
         <EtaPanel state={state} vehicle={vehicle} trip={trip} stage={stage} />
 
-        <section className="pt-log" aria-label="Clinical log">
+        <section className="pt-log" aria-label={t("pt.logAria")}>
           <h2 className="pt-section-title">
-            <NotebookPen /> Log
-            {log.pending > 0 && <span className="pt-pending">{log.pending} not sent yet</span>}
+            <NotebookPen /> {t("pt.log")}
+            {log.pending > 0 && <span className="pt-pending">{t("pt.notSent", { count: log.pending })}</span>}
           </h2>
           {!logOn ? (
-            <p className="pt-log-empty">No patient on board</p>
+            <p className="pt-log-empty">{t("pt.noPatientBoard")}</p>
           ) : (
             <>
               <div className="pt-log-bar">
@@ -196,14 +223,14 @@ function CrewConsole({
                     {...logMic}
                   >
                     <span className="pt-logbtn-main">
-                      <NotebookPen /> {logListening ? "Logging… release to keep" : "Hold to log"}
+                      <NotebookPen /> {logListening ? t("pt.logListening") : t("pt.logHold")}
                     </span>
                     <span className="ptt-sub">
-                      {logListening ? "stays on the tablet, not sent to dispatch" : "say \u201cpotrjeno\u201d to confirm the last note"} <kbd>M</kbd>
+                      {logListening ? t("pt.logSubListening") : t("pt.logSubIdle")} <kbd>M</kbd>
                     </span>
                   </button>
                 ) : (
-                  <div className="warn-box">Voice logging needs Chrome or Edge. Type a note instead.</div>
+                  <div className="warn-box">{t("pt.logNeedsChrome")}</div>
                 )}
                 <form
                   className="pt-note-form"
@@ -215,12 +242,12 @@ function CrewConsole({
                   <input
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
-                    placeholder="Type a note…"
+                    placeholder={t("pt.notePlaceholder")}
                     enterKeyHint="done"
-                    aria-label="Typed note for the log"
+                    aria-label={t("pt.noteAria")}
                   />
                   <button type="submit" disabled={!note.trim()}>
-                    <Plus /> Add note
+                    <Plus /> {t("pt.addNote")}
                   </button>
                 </form>
               </div>
@@ -236,9 +263,9 @@ function CrewConsole({
           )}
         </section>
 
-        <section className="pt-dispatch" aria-label="Dispatch">
+        <section className="pt-dispatch" aria-label={t("pt.dispatch")}>
           <h2 className="pt-section-title">
-            <Radio /> Dispatch
+            <Radio /> {t("pt.dispatch")}
           </h2>
           <div className="crew-talk">
             {speech.supported ? (
@@ -253,11 +280,11 @@ function CrewConsole({
                   <span className="ptt-icon">
                     <Mic />
                   </span>
-                  <span>{dispatchListening ? "Listening… release to send" : "Hold to talk to dispatch"}</span>
-                  <span className="ptt-sub">{dispatchListening ? "or tap to stop" : "or tap once and speak"}</span>
+                  <span>{dispatchListening ? t("crew.pttListening") : t("pt.holdDispatch")}</span>
+                  <span className="ptt-sub">{dispatchListening ? t("crew.pttTapStop") : t("crew.pttTapOnce")}</span>
                 </button>
                 <div className="crew-talk-bar">
-                  <span className="lang-toggle big" role="group" aria-label="Speech language">
+                  <span className="lang-toggle big" role="group" aria-label={t("tab.speechLang")}>
                     {SPEECH_LANGS.map((l) => (
                       <button
                         key={l.code}
@@ -269,14 +296,16 @@ function CrewConsole({
                       </button>
                     ))}
                   </span>
-                  <span className="muted">Speaks: {speech.lang === "sl-SI" ? "slovenščina" : "English"}</span>
+                  <span className="muted">
+                    {t("crew.speaks", { lang: t(speech.lang === "sl-SI" ? "crew.speaksSl" : "crew.speaksEn") })}
+                  </span>
                 </div>
-                {!speechSecureContext() && <div className="warn-box">Voice input needs HTTPS (or localhost).</div>}
+                {!speechSecureContext() && <div className="warn-box">{t("crew.needsHttps")}</div>}
                 {dispatchListening && <div className="voice-interim big">{speech.interim || "Govorite… / Speak now…"}</div>}
                 {(lastChannel !== "log" || !logOn) && speech.error && <div className="message error">{speech.error}</div>}
               </>
             ) : (
-              <div className="warn-box">Voice input needs Chrome or Edge. Use the buttons or type below.</div>
+              <div className="warn-box">{t("crew.needsChrome")}</div>
             )}
           </div>
 
@@ -285,9 +314,9 @@ function CrewConsole({
       </div>
 
       <footer className="pt-foot">
-        <Link to={`/crew?world=${world}`}>Switch vehicle</Link>
-        <Link to={`/${world}`}>Dispatcher dashboard</Link>
-        <span className={`crew-world ${world}`}>{world === "sim" ? "SIM" : "LIVE"}</span>
+        <Link to={`/crew?world=${world}`}>{t("tab.switchVehicle")}</Link>
+        <Link to={`/${world}`}>{t("crew.dashboard")}</Link>
+        <span className={`crew-world ${world}`}>{world === "sim" ? t("tab.chipSim") : t("tab.chipLive")}</span>
       </footer>
     </main>
   );

@@ -46,8 +46,10 @@ Two worlds read them:
   calls go through `dispatch_call` (nearest suitable free unit); transports and equipment are booked onto
   a van (`task_request` with `if_late: "soonest"`: if nothing fits on time, the vehicle that delivers it
   least late). Typical load at 8/h: ambulances and vans 45–65 % busy, queues at most current job + 1.
-  A generated call never starts an AI analysis; a genuine problem (no unit, or late) may, only with
-  auto-analyse on and at most once per 15 world-minutes. Demo scenarios pause new calls for 30 world-minutes.
+  A generated call never starts a general AI analysis; a genuine problem (no unit, or late) may, only with
+  auto-analyse on and at most once per 15 world-minutes. A critical or serious one is reviewed by the AI
+  dispatcher when reviews are on (autonomous mode, or auto-analyse on; see below). Demo scenarios pause
+  new calls for 30 world-minutes.
 - **Scheduled day** (`SCHEDULED_DAY=1`, or `POST /{world}/admin/reset {"scheduled_day": true}`): the
   vans start with a pre-planned day of booked trips (the brief's "initial plan"); no random calls.
 - The snapshot says which: `mode` (`live_calls` / `scheduled_day`) and `calls` (generator status).
@@ -63,11 +65,18 @@ Two worlds read them:
 | GET | `/{world}/state` | Full snapshot: vehicles (with road path), trips, places, incidents, weather, alerts, events |
 | GET | `/{world}/stream` | Server-sent events (SSE): a snapshot on every change, for the frontend |
 | GET | `/{world}/alerts`, `/{world}/kpis` | Current alerts, headline numbers |
+| GET | `/{world}/reports?hours=3` | Operational statistics for the Reports page: response times against the targets, doctor on time, late transports, unit utilisation, who decided (`app/reports.py`) |
 | POST | `/{world}/events` | Report/inject an event (see below) |
 | POST | `/{world}/plans/simulate` | What-if: before/after KPIs and per-trip changes |
 | POST | `/{world}/plans/apply` | Operator approved: apply the plan |
 | POST | `/{world}/admin/reset` | Re-seed that world; optional `{"scheduled_day": true\|false}` switches the mode |
 | POST | `/{world}/admin/calls` | Live-calls generator: `{"enabled": bool, "per_hour": number}` (both optional) |
+| POST | `/{world}/calls` | A 112 call: `{"text", "address"?, "place_id"?, "lat"?, "lon"?, "caller_name"?, "dropoff_id"?}` → Claude triage (rules when unavailable) → dispatch; returns `{trip, summary}` (422: location not found) |
+| POST | `/{world}/admin/ai-triage`, `/{world}/admin/autopilot` | Switches `{"enabled": bool}` (snapshot: `ai_triage`, `autopilot`; both off by default; autopilot on = `ai_mode` autonomous) |
+| POST | `/{world}/admin/ai-mode` | AI dispatcher `{"mode": "assisted" \| "autonomous"}` (snapshot `ai_mode`, default assisted; see below) |
+| GET | `/{world}/trips/{id}/alternatives?role=ambulance\|doctor\|helicopter` | Every unit of that role, ranked by arrival at the patient (engine-simulated), a bare list: `[{vehicle_id, name, type, vehicle_type, role, eta_scene, eta_minutes, delta_min, free, cost_text, feasible, note, current}]` |
+| POST | `/{world}/trips/{id}/assign` | The dispatcher intervenes: `{"vehicle_id", "mode": "replace" \| "add", "role"?, "replaces"?}` → `{trip, summary}` (+ `linked_trip`); `role` must match the vehicle (400), `replaces` must still serve the call (409; may name a linked trip's unit); "replace" on a call with no unit assigns one; 400 with the reason if it cannot be done |
+| POST | `/sim/admin/random-call`, `/sim/admin/random-incident` | Demo: a random call (`{"severity"?}`) or a disruption hitting current operations (`{"kind"?}`: crash, closure, fog, breakdown, delay, capacity, equipment); 400 in live, 409 when nothing fits |
 | GET/POST | `/sim/admin/scenarios`, `/sim/admin/scenario/{name}` | Demo scenarios (simulation only) |
 | POST | `/{world}/agent/analyze` | Ask the Claude agent to review the situation (`{"question": "..."}` optional) |
 | GET | `/{world}/agent/runs` | Agent runs, newest first (also in `/state` and `/stream` under `agent`) |
@@ -77,7 +86,9 @@ Two worlds read them:
 ## The Claude agent (`app/agent/`)
 
 With auto-analyse on (a per-world switch, off by default to save tokens), disruptive events (breakdown,
-delay, closure, urgent request, snow) start an analysis automatically; routine live calls never do.
+delay, closure, urgent request, snow) start an analysis automatically (a disruption of an open 112 call
+starts the AI dispatcher's review of that call instead); routine live calls never start one, but a
+critical or serious call is reviewed (see "The AI dispatcher" below).
 Otherwise the operator presses Analyse (the first one after a demo scenario gets its description).
 Claude (`claude-sonnet-5-5` by default; set `AGENT_MODEL=claude-opus-5-5` for Opus) gets the situation, then uses three tools backed by the engine:
 `find_candidates` (vehicles ranked by simulated outcome), `simulate_plan` (what-if for a whole option)
@@ -90,6 +101,32 @@ operator sees it, so all figures in the UI come from the engine, not the model. 
 
 Settings: `ANTHROPIC_API_KEY` (required for Claude), `AGENT_MODEL`, `AGENT_EFFORT` (default `medium`),
 `AGENT_AUTO` (`1`/`0`), `AGENT_MAX_TURNS`, `AGENT_TIMEOUT_S`.
+
+### The AI dispatcher (`app/ai_dispatcher.py`, `app/overrides.py`, `engine/units.py`)
+
+The engine still acts at once (dispatch, detours, replacing a unit that drops out). Claude then reviews
+each case as a focused analysis (`AgentRun.review_of` = the trip): every new critical/serious 112 call,
+and every breakdown, delay, closure on the unit's route or priority change touching an open 112 call.
+- `ai_mode: "autonomous"`: Claude's recommended feasible option is applied through the approval path
+  (re-checked by the engine, audited); the timeline says `reviewed` by `ai`: "AI dispatcher (Claude)
+  changed: A3 instead of A1 — ..." or, when Claude keeps the decision (no steps), "AI dispatcher (Claude)
+  reviewed: no change — keep A1 ...". Surge capacity stays the dispatcher's decision.
+- A unit the dispatcher assigned (override or approved plan; `assigned_by: "dispatcher"`) sticks: the
+  follow-up's faster-free-unit rule, the AI dispatcher and the autopilot leave it alone, and the engine
+  never diverts it to a higher-level call (when it would have, the new call's summary and its unit's
+  reason say "A1 not diverted: assigned by the dispatcher to TR-003 (Override to divert)"); only a
+  drop-out replaces it.
+- `ai_mode: "assisted"` (default): the same reviews only with auto-analyse on; they stay proposals.
+- Guard refused, no key, Claude failed or too slow: the engine's decision stands (timeline note).
+  One review per case at a time, none within 2 world-minutes of the last one.
+
+Snapshot additions: `ai_mode`, `ai_stats` (`cases_active, dispatched, reroutes, reassignments,
+overrides, claude_reviews, claude_changes, last_decision_at`), every timeline entry's `detail` (e.g.
+"rules engine, 0.1 s", "Claude, 12 s, checked by the engine", "dispatcher override"; kinds `reviewed`
+and `override` are new), and for trips with a call record `units`:
+`[{vehicle_id, role (ambulance|doctor|helicopter|van), trip_id, status_text, eta_scene, eta_hospital,
+reason, assigned_by (engine|ai|dispatcher), assigned_at}]` (the transporting unit, the doctor car, and the
+units of trips linked to it with `linked_to`). Details: `docs/DISPATCH_PRIORITIES.md` section 8.
 
 Example events:
 
@@ -133,6 +170,15 @@ Severity and dispatch doctrine (`engine/severity.py`, `engine/dispatch.py`, rule
   serious, remote 15 min for urgent; stroke/STEMI judged by arrival at UKC. Same-level swaps are only
   proposed (`swap_options`: engine-fallback options and `proposed_swaps` in the agent's situation).
   The event summary says who, why, when, the helicopter check and the clinical reason.
+- **Helicopter H1** (`app/hems.py`, docs/SERVICE_TIMES.md): based at `brnik` (Ljubljana airport), 13 min
+  from the call to take-off when it starts from rest there (none when airborne), 200 km/h, 3 min to land
+  at the scene and 2 on a helipad; new calls only 08:00-16:30 local (world clock), a mission under way
+  is finished. Snapshot and vehicle card add, for helicopters only: `off_duty_until` (ISO, at night),
+  `unavailable` (`"night"` | `"fog"` | null), `unavailable_text` ("Unavailable (night): flies 08:00-16:30,
+  available 08:00"), `hours`. Summaries: "take-off in 13 min", "H1 checked: at the patient 13:22
+  (take-off in 13 min; not the closest)", "H1 not available: night (HNMP flies 08:00-16:30)"; the unit's
+  `status_text` while the crew gets ready: "crew to the aircraft, take-off 13:24"; navigation (flight
+  mode) adds `takeoff_at` then. Demo scenarios run at a daytime world clock (`demo.scenario_start`).
 - Slovenian practice: a red call predicted over 15 min raises `red_response_over_15_min`; the last free
   ambulance of an area is kept for red calls (a van takes the non-urgent call).
 - **Doctor cars** D1 (base `zd_center`) and D2 (`zd_siska`), `type: "doctor"` (VUZ: physician + nurse;
@@ -143,7 +189,8 @@ Severity and dispatch doctrine (`engine/severity.py`, `engine/dispatch.py`, rule
   `doctor_vehicle_id` and `doctor_eta` (projected while driving, the actual arrival once there); the
   summary says `+ doctor D1 (Rudnik, at the patient 22:45, 5 min after the ambulance)`. The helicopter
   has a doctor on board (`doctor_vehicle_id: "H1"`), unless it is over 15 min and a doctor car is
-  sooner (that car stands down when H1 lifts off). Doctor-car statuses: `to_pickup` = to the scene,
+  sooner (that car stands down when H1 lifts off). With its 13-min activation it is over 15 min from
+  rest, so in the city the doctor car usually stays; on a remote call its doctor is first. Doctor-car statuses: `to_pickup` = to the scene,
   `loading` = on scene with the crew, `with_patient` = escorting to hospital, then `returning`;
   `current_trip_id` = the supported trip; `trip.vehicle_id` stays the ambulance. A doctor car never
   transports and is never a plan step. No doctor within the target: alert `doctor_response_over_15_min`.
@@ -152,6 +199,12 @@ Severity and dispatch doctrine (`engine/severity.py`, `engine/dispatch.py`, rule
   red call within 15 min, the summary says so, `find_candidates` (agent tool) and the engine fallback
   offer them ("Request mutual aid: M1 from Domžale, at the patient HH:MM", "Private ambulance P1
   (Brezovica), ..."); approving such a plan step activates the unit, and it leaves again once home.
+- **Surge capacity** (`engine/surge.py`, `docs/DISPATCH_PRIORITIES.md` section 6): the demand trigger
+  (no own ambulance free, a red call over 15 min, or two calls past target) raises alert `high_demand`;
+  the dispatcher activates contracted units with `POST /{world}/admin/surge {"ambulances": 2, "vans": 3,
+  "hours": 2}` (stand down: `{"stand_down": true}` or `POST /{world}/admin/surge/stand-down`), or approves
+  an option with `activate_surge: true`. Units P1, P2 (ambulances), PV1-PV3 (vans) get `origin: "private"`
+  and `contract_until`; snapshot `surge: {active, until, units, available, offer, default}`.
 - **Service times** (`engine/service_times.py`, values and sources in `docs/SERVICE_TIMES.md`): turnout
   from rest (ambulance 1 min, doctor car 5), on scene by severity (critical 20, cardiac arrest 25,
   serious 15, stroke 12, urgent 12; van pickup 8; equipment 5), handover 15 (van 5, equipment 5),
@@ -188,3 +241,22 @@ keeps its place in the queue, also with the patient on board):
 3. Keep **1 replica**: the state lives in memory.
 4. Settings -> Networking -> Generate Domain.
 5. Optional variables: see `.env.example`.
+
+## Demo lock (admin key)
+
+During a live pitch the URL is on a screen. Set `ADMIN_KEY` (Railway -> Variables; a long random string)
+and nobody who only has the URL can reset the simulation, inject failures, approve plans or spend AI
+tokens: every POST/PUT/PATCH/DELETE must carry the header `X-Plan-B-Key: <key>`, else it gets
+`401 {"detail": "Control actions need the admin key (Plan B demo lock)."}`. Reading stays open
+(GET/HEAD/OPTIONS: the dashboard, the SSE stream, `/health`, CORS preflight). There are no exemptions:
+crew phones and tablets are our devices and carry the key too.
+
+- `ADMIN_KEY` unset or empty: no lock, everything open (local dev, tests, CI).
+- `/health` has `admin_lock: true|false` (whether a key is configured, never the key). The key is never
+  logged or returned. `POST /lock/check` answers `{"ok": true, "lock": bool}` if the request would be
+  allowed (401 otherwise) and changes nothing: the frontend uses it to verify a typed key.
+- Frontend: open each device once with `?key=<key>` (for example `https://<frontend>/sim?key=...`); the
+  page stores it in localStorage (`planb.adminKey`), removes it from the address bar and sends the header
+  from then on. The header shows "Control unlocked" / "View only"; click it to enter or clear the key.
+- Code: `app/admin_key.py` (pure ASGI middleware, registered inside CORS so the 401 stays readable
+  cross-origin). Tests: `tests/test_admin_key.py`.

@@ -18,8 +18,9 @@ import os
 import sys
 import time
 import traceback
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 os.environ["ROAD_ROUTING"] = "0"
 os.environ["AGENT_AUTO"] = "0"
@@ -31,6 +32,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app import config, demo, main  # noqa: E402
 from app.agent import runner  # noqa: E402
 from app.agent.messages import ParsedMessage, grade_text, to_operator_events  # noqa: E402
+from app.engine import units  # noqa: E402
 from app.engine.actions import ActionError, assign_trip  # noqa: E402
 from app.engine.dispatch import decide, swap_options  # noqa: E402
 from app.engine.events import apply_event  # noqa: E402
@@ -46,8 +48,11 @@ client = TestClient(main.app)
 W = main.sim
 
 
+DAY = datetime(2026, 11, 23, 9, 0, tzinfo=ZoneInfo("Europe/Ljubljana"))  # fixed clock, by day: the helicopter flies 08:00-16:30
+
+
 def fresh(in_service=("A1", "A2", "A3", "H1", "T1", "T2", "T3", "T4", "T5")) -> None:
-    seed_world(W, config.RANDOM_SEED, scheduled_day=False)
+    seed_world(W, config.RANDOM_SEED, scheduled_day=False, start=DAY)
     W.auto_analyze = False
     W.calls.enabled = False
     for v in W.vehicles.values():
@@ -331,20 +336,28 @@ def test_severity_order_in_a_queue():
 
 
 def test_helicopter_rules_per_level():
-    # Same place, same fleet: the only free ambulance is at the west base (about 9 min), H1 at UKC
-    # (about 4 min): closer, but not 10 min faster.
-    for severity, condition, expect_air in (("critical", "cardiac_arrest", True), ("serious", "stemi", False)):
+    # The helicopter is the real service's (app/hems.py): at Brnik, 13 min from the call to take-off.
+    # A city call (Moste) with the only free ambulance at the west base (about 9 min): H1 needs about
+    # 22 min, so it goes for neither a critical nor a serious call. (At UKC with 3 min overhead it used
+    # to be the closest unit here.)
+    for severity, condition, why in (("critical", "cardiac_arrest", "not the closest"), ("serious", "stemi", "not 10 min faster")):
         fresh(("A3", "H1"))
         rec, t = call(*near("home_moste", 0.002, 0.003), severity, condition)
-        assert (t.vehicle_id == "H1") is expect_air, (severity, rec.summary)
-        if expect_air:
-            assert "the closest unit for a critical call" in rec.summary
-        else:
-            assert "H1 checked" in rec.summary and "not 10 min faster" in rec.summary, rec.summary
+        assert t.vehicle_id == "A3", (severity, rec.summary)
+        assert "H1 checked" in rec.summary and "take-off in 13 min" in rec.summary and why in rec.summary, rec.summary
+    # The only free ambulance far away (driving back from Vrhnika, about 33 min): the helicopter is the
+    # closest unit for a critical call ...
     fresh(("A1", "H1"))
-    park("A1", "home_vrhnika")  # far away: H1 is far more than 10 min faster
+    park("A1", "home_vrhnika")
+    rec, t = call(*near("home_moste", 0.002, 0.003), "critical", "cardiac_arrest")
+    assert t.vehicle_id == "H1" and "the closest unit for a critical call" in rec.summary, rec.summary
+    assert "take-off in 13 min" in rec.summary and t.eta_pickup is not None
+    assert 20 <= (t.eta_pickup - W.sim_time).total_seconds() / 60 <= 25, "13 min activation + flight + landing"
+    # ... and for a heart attack 10 min sooner at UKC (compared at the hospital).
+    fresh(("A1", "H1"))
+    park("A1", "home_vrhnika")
     rec, t = call(*near("home_moste", 0.002, 0.003), "serious", "stemi")
-    assert t.vehicle_id == "H1" and "min sooner at UKC than A1 by road" in rec.summary  # heart attack: compared at UKC, rec.summary
+    assert t.vehicle_id == "H1" and "min sooner at UKC than A1 by road" in rec.summary, rec.summary
     fresh(("A1", "H1"))
     park("A1", "home_vrhnika")
     rec, t = call(*near("home_moste", 0.002, 0.003), "urgent", "fall")  # urgent in the city: never flies
@@ -416,8 +429,10 @@ def test_parser_raises_severity_when_the_patient_gets_worse():
 
 def test_frontend_contract_codes_summary_and_severity_change():
     fresh(("A3", "H1"))
+    park("A3", "home_vrhnika")  # driving back from Vrhnika: about 28 min to Šiška, the helicopter about 21
     # Codes the UI sends, old aliases still accepted; the summary uses the condition label and modifiers.
-    rec = client.post("/sim/events", json={"type": "urgent_request", "lat": 46.0582, "lon": 14.5450, "priority": "emergency",
+    lat, lon = near("home_siska")
+    rec = client.post("/sim/events", json={"type": "urgent_request", "lat": lat, "lon": lon, "priority": "emergency",
                                            "severity": "serious", "condition": "stemi", "modifiers": ["late_stroke_window", "child"],
                                            "note": "crushing chest pain"}).json()
     t = W.trips[rec["affected_trip_ids"][0]]
@@ -434,6 +449,22 @@ def test_frontend_contract_codes_summary_and_severity_change():
     # The backend's own missed-target alert carries trip_id and a "response" kind.
     demo.prepare(W, "surge")
     assert all(a.trip_id and "response" in a.kind for a in W.alerts if a.kind == "red_response_over_15_min")
+
+
+def test_raising_a_call_keeps_the_unit_the_dispatcher_chose():
+    """The same re-evaluation, but the dispatcher put A3 on the call by hand: it stays with A3 (their
+    decision is never changed automatically; Override changes it)."""
+    fresh(("A3", "H1"))
+    park("A3", "home_vrhnika")
+    lat, lon = near("home_siska")
+    rec = client.post("/sim/events", json={"type": "urgent_request", "lat": lat, "lon": lon, "priority": "emergency",
+                                           "severity": "serious", "condition": "stemi"}).json()
+    t = W.trips[rec["affected_trip_ids"][0]]
+    assert t.vehicle_id == "A3"
+    units.note(W, t, "A3", "dispatcher override: free", "dispatcher")  # as app/overrides.assign writes it
+    r = client.post("/sim/events", json={"type": "priority_change", "trip_id": t.id, "severity": "critical", "condition": "cardiac_arrest"})
+    assert r.status_code == 200 and t.severity == "critical", r.text
+    assert t.vehicle_id == "A3" and "re-evaluated" not in r.json()["summary"], r.json()["summary"]
 
 
 if __name__ == "__main__":

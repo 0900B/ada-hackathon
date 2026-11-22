@@ -8,13 +8,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ..hems import HEMS_ACTIVATION_MIN
+
 if TYPE_CHECKING:
     from ..models import Trip, Vehicle
 
 # Activation (turnout): from rest at its base (status idle) until the unit drives off. 0 when it is
-# already driving (e.g. returning from a job). Vans and the helicopter: none (the helicopter's
-# take-off and landing are in routing.HELICOPTER_OVERHEAD_MIN).
-TURNOUT_MIN: dict[str, float] = {"ambulance": 1.0, "doctor": 5.0}
+# already driving (e.g. returning from a job). Vans: none. The helicopter: the call-to-take-off time
+# from its base at Brnik (app/hems.py, 13 min); airborne (flying home after a job) it is re-tasked
+# without it. Its landings are in each flight leg (routing.flight_minutes).
+TURNOUT_MIN: dict[str, float] = {"ambulance": 1.0, "doctor": 5.0, "helicopter": HEMS_ACTIVATION_MIN}
 
 # On scene: from arrival at the patient until the unit drives off with them (assessment, treatment,
 # loading). Ambulance and helicopter crews, by severity; a few conditions differ.

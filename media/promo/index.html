@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan B promo</title>
+<link rel="stylesheet" href="player.css">
+<!--
+  Plan B: promo and ads (scene player). Open through a local server, e.g. `node media/promo/render.mjs serve`,
+  then http://127.0.0.1:5290/promo/index.html?cut=promo (or bumper, vertical, poster-promo, ...).
+  Render to MP4: node media/promo/render.mjs promo | bumper | vertical | posters | all
+  Honesty: a prototype for a fictional operator with a simulated fleet and calls. Screens marked
+  "Real UI" are real recordings of the prototype (media/promo/capture-assets.mjs); the rest is motion graphics.
+-->
+</head>
+<body>
+<div id="stage"></div>
+
+<!-- =========================================================================================== -->
+<!-- PROMO · 16:9 · about 60 s                                                                    -->
+<!-- =========================================================================================== -->
+<template id="cut-promo">
+  <div class="global" data-from="0" data-to="53.6">
+    <div class="proto" style="left:48px; bottom:40px"><span class="dot"></span>Prototype · simulated fleet and calls · fictional operator</div>
+  </div>
+  <div class="global" data-from="10.7" data-to="53.6">
+    <div class="mini-mark wordmark" style="left:56px; top:40px">Plan B</div>
+  </div>
+
+  <!-- 1 · The problem -->
+  <section class="scene" data-dur="7">
+    <svg class="bgmap" viewBox="0 0 1920 1080" preserveAspectRatio="none">
+      <path class="major" d="M-20 610 C 300 560, 520 640, 820 560 S 1400 420, 1940 470"/>
+      <path class="major" d="M760 -20 C 800 240, 700 420, 820 560 S 900 900, 860 1100"/>
+      <path d="M-20 300 C 400 340, 600 240, 980 300 S 1500 360, 1940 250"/>
+      <path d="M200 1100 C 320 820, 520 760, 820 560"/>
+      <path d="M1200 -20 C 1180 200, 1260 330, 1240 450 S 1300 820, 1500 1100"/>
+      <path d="M-20 860 C 400 880, 900 780, 1240 820 S 1700 900, 1940 860"/>
+      <path class="route" d="M330 760 C 520 700, 640 640, 820 560 S 1100 470, 1240 450"/>
+      <circle class="closure" cx="1080" cy="492" r="64"/>
+    </svg>
+    <div class="a-dim" style="--o:3.4; position:absolute; inset:0">
+      <div class="incident card a-left" style="--d:0.2; left:130px; top:150px">
+        <span data-icon="wrench"></span>
+        <div><div class="t1">T1 · Engine failure</div><div class="t2">Blood products still on board</div></div>
+        <span class="tag">VEHICLE</span>
+      </div>
+      <div class="incident card a-right" style="--d:0.9; left:1090px; top:230px; --c:var(--detour)">
+        <span data-icon="closure"></span>
+        <div><div class="t1">Zaloška cesta closed</div><div class="t2">Road works at Kodeljevo</div></div>
+        <span class="tag">ROAD</span>
+      </div>
+      <div class="incident card a-left" style="--d:1.6; left:250px; top:560px; --c:var(--warn)">
+        <span data-icon="fog"></span>
+        <div><div class="t1">Fog · H1 grounded</div><div class="t2">No flights for one hour</div></div>
+        <span class="tag">WEATHER</span>
+      </div>
+      <div class="incident card a-right" style="--d:2.3; left:1020px; top:650px">
+        <span data-icon="phone"></span>
+        <div><div class="t1">112 · Cardiac arrest</div><div class="t2">Bežigrad · reach within 8 min</div></div>
+        <span class="tag">CALL</span>
+      </div>
+    </div>
+    <div class="center" style="gap:34px">
+      <h1 class="h-xl a-zoom" style="--d:3.6">Kaos na terenu.</h1>
+      <p class="lead a-up" style="--d:4.3; max-width:1300px"><strong>Chaos in the field.</strong> Who is affected, who takes over,<br>and what does it do to everyone else?</p>
+    </div>
+  </section>
+
+  <!-- 2 · Plan B -->
+  <section class="scene" data-dur="4.5">
+    <div class="center" style="gap:30px">
+      <div class="wordmark a-zoom" style="--d:0.1; font-size:210px">Plan B</div>
+      <p class="lead a-up" style="--d:0.6">AI dispatch co-pilot for emergency medical transport</p>
+      <p class="h-s" style="margin-top:34px" data-words="1.4" data-step="0.18">It listens. It understands. It re-plans.</p>
+      <p class="h-s accent a-up" style="--d:2.7">The dispatcher decides.</p>
+    </div>
+  </section>
+
+  <!-- 3 · Plan B listens: the crew -->
+  <section class="scene" data-dur="5.5">
+    <div class="kicker abs a-fade" style="--d:0.1; left:120px; top:130px"><span class="num">01</span> Plan B listens</div>
+    <div class="bubble a-left" style="--d:0.3; left:120px; top:250px; width:1120px">
+      <div class="who"><span data-icon="mic"></span> Crew of T1 · speaks Slovenian <span class="wave" data-bars="16" style="margin-left:12px"></span></div>
+      <div class="sl" data-words="0.9" data-step="0.24">»Vozilo je obstalo. Oprema je še v njem.«</div>
+      <div class="en a-fade" style="--d:2.8">“The vehicle has stopped. The equipment is still inside.”</div>
+    </div>
+    <p class="small a-fade abs" style="--d:3.3; left:124px; top:760px; width:1080px; font-size:30px">Voice in the browser, Slovenian or English. Typed text and quick-status buttons work too.</p>
+    <div class="phone a-right" style="--d:0.2; left:1350px; top:70px; width:440px; height:920px">
+      <div class="screen"><img src="assets/crew-phone.jpg" alt=""></div>
+    </div>
+    <div class="label a-fade" style="--d:0.8; left:1410px; top:1000px"><span class="dot"></span>Real UI · crew view</div>
+  </section>
+
+  <!-- 4 · A 112 call comes in -->
+  <section class="scene" data-dur="7">
+    <div class="kicker abs a-fade" style="--d:0.1; left:120px; top:118px"><span class="num">02</span> A 112 call comes in</div>
+    <div class="frame a-up" style="--d:0.1; left:120px; top:180px; width:1120px; height:630px">
+      <video data-src="assets/clip-112.webm" data-rate="1.75" style="--d:0.3"></video>
+      <div class="label" style="left:18px; top:18px"><span class="dot"></span>Real UI · simulation</div>
+    </div>
+    <div class="abs col" style="left:1310px; top:200px; width:520px; gap:26px">
+      <h2 class="h-s a-up" style="--d:0.4">The call-taker types the caller’s words.</h2>
+      <p class="lead a-up" style="--d:1.0; font-size:32px">»Moj mož se je zgrudil in ne diha!«<br><span style="font-size:26px">“My husband collapsed and isn’t breathing!”</span></p>
+      <div class="col a-up" style="--d:4.6; gap:16px; margin-top:10px">
+        <div class="row" style="gap:12px; flex-wrap:wrap"><span class="pill crit">Critical</span><span class="pill ser" style="background:transparent">Cardiac arrest</span><span class="pill doc">Doctor needed</span></div>
+        <div class="lead" style="font-size:30px"><strong>Triaged and dispatched at once.</strong></div>
+      </div>
+    </div>
+    <p class="small abs a-fade" style="--d:5.2; left:120px; top:830px; font-size:24px">Recorded locally without an AI key: the keyword rules triaged this call (the backup path).</p>
+  </section>
+
+  <!-- 5 · The AI understands and classifies -->
+  <section class="scene" data-dur="6.5">
+    <div class="kicker abs a-fade" style="--d:0.1; left:120px; top:118px"><span class="num">03</span> The AI understands and classifies</div>
+    <h2 class="h-m abs a-up" style="--d:0.2; left:120px; top:170px">From words to a structured event.</h2>
+    <div class="parse" style="left:120px; top:320px; width:1680px">
+      <div class="in card a-left" style="--d:0.5"><div class="src"><span data-icon="mic"></span> Crew · T1</div>»Vozilo je obstalo. Oprema je še v njem.«</div>
+      <div class="arrow a-fade" style="--d:1.0"><span data-icon="arrow"></span></div>
+      <div class="outp card a-right" style="--d:1.2">
+        <div class="field"><span class="k">Event</span><span class="v">Vehicle breakdown</span></div>
+        <div class="field"><span class="k">Vehicle</span><span class="v">T1 <span class="muted" style="font-weight:450">(the sender: none named)</span></span></div>
+        <div class="field"><span class="k">On board</span><span class="v">Blood products</span></div>
+        <div class="field"><span class="k">Rule</span><span class="v accent">Collect the equipment first</span></div>
+      </div>
+    </div>
+    <div class="parse" style="left:120px; top:630px; width:1680px">
+      <div class="in card a-left" style="--d:2.3"><div class="src"><span data-icon="phone"></span> 112 caller · Bežigrad</div>»Moj mož se je zgrudil in ne diha!«</div>
+      <div class="arrow a-fade" style="--d:2.8"><span data-icon="arrow"></span></div>
+      <div class="outp card a-right" style="--d:3.0">
+        <div class="field"><span class="k">Level</span><span class="v"><span class="pill crit">Critical</span></span></div>
+        <div class="field"><span class="k">Condition</span><span class="v">Cardiac arrest</span></div>
+        <div class="field"><span class="k">Doctor</span><span class="v" style="color:#c9a8ff">Needed</span></div>
+        <div class="field"><span class="k">Target</span><span class="v">Reach within 8 min</span></div>
+      </div>
+    </div>
+    <p class="small abs a-fade" style="--d:3.9; left:120px; top:938px; font-size:26px">Claude reads Slovenian and English and states its assumptions. If the AI is unavailable, keyword rules triage the call.</p>
+  </section>
+
+  <!-- 6 · The engine dispatches and re-plans -->
+  <section class="scene" data-dur="8">
+    <div class="kicker abs a-fade" style="--d:0.1; left:120px; top:118px"><span class="num">04</span> The engine dispatches and re-plans</div>
+    <h2 class="h-m abs a-up" style="--d:0.2; left:120px; top:180px; width:600px">A new plan in seconds.</h2>
+    <div class="points abs" style="left:120px; top:440px; width:620px">
+      <div class="point a-left" style="--d:0.9"><span data-icon="route"></span>Nearest unit, by real ETA</div>
+      <div class="point a-left" style="--d:1.5"><span data-icon="stethoscope" class="doc"></span>Doctor car to critical calls</div>
+      <div class="point a-left" style="--d:2.1"><span data-icon="closure" class="det"></span>Detours around closures</div>
+      <div class="point a-left" style="--d:2.7"><span data-icon="shield" class="ok"></span>Cover kept for red calls</div>
+    </div>
+    <div class="frame a-zoom" style="--d:0.1; left:780px; top:170px; width:1040px; height:585px">
+      <video data-src="assets/clip-surge.webm" data-rate="0.64" style="--d:0.2"></video>
+      <div class="label" style="left:18px; top:18px"><span class="dot"></span>Real UI · call surge · time-lapse</div>
+    </div>
+    <p class="small abs a-fade" style="--d:3.4; left:780px; top:785px; width:1040px; font-size:30px; color:var(--text)">Every number comes from the deterministic engine, <span class="muted">not from the language model.</span></p>
+  </section>
+
+  <!-- 7 · Higher level first -->
+  <section class="scene" data-dur="5.5">
+    <div class="kicker abs a-fade" style="--d:0.1; left:120px; top:118px"><span class="num">05</span> Higher level first</div>
+    <div class="abs col" style="left:120px; top:190px; width:820px; gap:30px">
+      <h2 class="h-s a-up" style="--d:0.2; font-size:62px">A cardiac arrest goes first.</h2>
+      <p class="lead a-up" style="--d:0.8; font-size:34px">An ambulance driving to a less urgent call is <strong>diverted when it saves clear minutes</strong>, and a doctor car is sent too.</p>
+      <p class="lead a-up" style="--d:1.6; font-size:34px">The displaced call is re-dispatched and <strong>must still be reached within its own target.</strong></p>
+      <p class="small a-fade" style="--d:2.6; font-size:27px">Every line says why, in clinical terms. Same-level trade-offs are only proposed, never applied on their own.</p>
+    </div>
+    <div class="frame a-right" style="--d:0.2; left:1040px; top:130px; width:760px; height:820px">
+      <div class="clip-box"><img data-layout="panel-override.jpg" data-align="card:70" src="assets/panel-override.jpg" alt="" style="position:absolute; left:0; top:0; width:760px; height:auto"></div>
+      <div class="hl a-draw" data-box="dispatched" data-pad="10" style="--d:1.2"></div>
+      <div class="label" style="left:18px; top:18px"><span class="dot"></span>Real UI · call timeline</div>
+    </div>
+  </section>
+
+  <!-- 8 · The dispatcher decides -->
+  <section class="scene" data-dur="7">
+    <div class="kicker abs a-fade" style="--d:0.1; left:120px; top:118px"><span class="num">06</span> The dispatcher stays in control</div>
+    <div class="frame a-left" style="--d:0.1; left:120px; top:170px; width:700px; height:820px">
+      <div class="clip-box"><img data-layout="panel-options.jpg" data-align="option:18" src="assets/panel-options.jpg" alt="" style="position:absolute; left:0; top:0; width:700px; height:auto"></div>
+      <div class="hl green a-draw" data-box="approve" data-pad="8" style="--d:3.0"></div>
+      <div class="label" style="left:18px; bottom:18px"><span class="dot"></span>Real UI · engine plan · no AI key</div>
+    </div>
+    <div class="abs col" style="left:920px; top:190px; width:900px; gap:30px">
+      <h2 class="h-m a-up" style="--d:0.2">The dispatcher decides.</h2>
+      <p class="lead a-up" style="--d:0.8; font-size:36px"><strong>Claude proposes</strong> options. <strong>The engine re-simulates</strong> every one: who goes now, who goes next, when they arrive. <strong>Nothing changes</strong> until the dispatcher approves.</p>
+    </div>
+    <div class="abs row" style="left:920px; top:640px; gap:40px">
+      <span class="key a-press" style="--d:2.7">Y</span>
+      <div class="col" style="gap:14px">
+        <div class="lead a-fade" style="--d:2.2; font-size:34px">One key to approve.</div>
+        <div class="stamp a-stamp" style="--d:3.2"><span data-icon="check"></span>Approved</div>
+      </div>
+    </div>
+    <p class="small abs a-fade" style="--d:4.2; left:920px; top:880px; width:880px; font-size:27px">If the situation changed meanwhile, approval is refused with the reason. No surprises.</p>
+  </section>
+
+  <!-- 9 · Reliability -->
+  <section class="scene" data-dur="6">
+    <div class="kicker abs a-fade" style="--d:0.1; left:120px; top:118px"><span class="num">07</span> Built to keep working</div>
+    <h2 class="h-m abs a-up" style="--d:0.2; left:120px; top:170px">Every data source has a backup.</h2>
+    <div class="tiles" style="left:120px; top:320px; width:1680px">
+      <div class="tile card a-up" style="--d:0.6"><div class="head"><span data-icon="sun"></span>Weather</div><div class="steps"><div><span class="lvl">Primary</span>Open-Meteo</div><div><span class="lvl">Backup</span>MET Norway</div><div><span class="lvl">Fallback</span>Last known value</div></div></div>
+      <div class="tile card a-up" style="--d:0.85"><div class="head"><span data-icon="car"></span>Traffic</div><div class="steps"><div><span class="lvl">Primary</span>TomTom live</div><div><span class="lvl">Backup</span>promet.si</div><div><span class="lvl">Fallback</span>Time-of-day model</div></div></div>
+      <div class="tile card a-up" style="--d:1.1"><div class="head"><span data-icon="route"></span>Routing</div><div class="steps"><div><span class="lvl">Primary</span>OSRM</div><div><span class="lvl">Backup</span>TomTom</div><div><span class="lvl">Fallback</span>Straight-line estimate</div></div></div>
+      <div class="tile card a-up" style="--d:1.35"><div class="head"><span data-icon="sparkles"></span>AI</div><div class="steps"><div><span class="lvl">Primary</span>Claude</div><div><span class="lvl">Fallback</span>The engine’s own plan</div></div><div class="note" style="font-size:24px">in under a second</div></div>
+      <div class="tile card a-up" style="--d:1.6"><div class="head"><span data-icon="user"></span>Human in the loop</div><div class="note">The AI only proposes. The dispatcher approves every change.</div></div>
+      <div class="tile card a-up" style="--d:1.85"><div class="head"><span data-icon="log"></span>Audit log</div><div class="note">Every message, recommendation and decision, with a timestamp.</div></div>
+    </div>
+    <p class="small abs a-fade" style="--d:3.0; left:120px; top:905px; font-size:27px">Planned for production: private servers in two data centres, login, encryption. Today it is a prototype.</p>
+  </section>
+
+  <!-- 10 · Close -->
+  <section class="scene" data-dur="6.6">
+    <div class="center" style="gap:26px">
+      <div class="wordmark a-zoom" style="--d:0.1; font-size:200px">Plan B.</div>
+      <p class="h-s" style="font-size:64px" data-words="0.7" data-step="0.12">When things go wrong, a new plan in seconds.</p>
+      <div class="a-bar" style="--d:1.9; width:520px; height:2px; background:var(--border-strong); margin:26px 0 8px"></div>
+      <p class="lead a-up" style="--d:2.1; color:var(--text); font-size:38px; font-weight:600">AdaHack 2026 · Epilog Challenge 3</p>
+      <p class="lead a-up" style="--d:2.4; font-size:30px; font-style:italic">»Kaos na terenu. Vaša rešitev ponudi nov plan.«</p>
+      <p class="small a-fade" style="--d:3.0; font-size:22px; margin-top:30px">Prototype for a fictional EMS operator (Ljubljana Demo EMS) · simulated fleet and calls</p>
+    </div>
+  </section>
+</template>
+
+<!-- =========================================================================================== -->
+<!-- BUMPER · 16:9 · 15 s · one idea: chaos in, a new plan out                                     -->
+<!-- =========================================================================================== -->
+<template id="cut-bumper">
+  <div class="global" data-from="0" data-to="10.4">
+    <div class="proto" style="left:48px; bottom:40px"><span class="dot"></span>Prototype · simulated fleet and calls · fictional operator</div>
+  </div>
+  <section class="scene" data-dur="4.2">
+    <div class="a-dim" style="--o:1.5; position:absolute; inset:0">
+      <div class="incident card a-left" style="--d:0; left:150px; top:170px">
+        <span data-icon="wrench"></span>
+        <div><div class="t1">T1 · Engine failure</div><div class="t2">Blood products still on board</div></div>
+      </div>
+      <div class="incident card a-right" style="--d:0.3; left:1080px; top:330px; --c:var(--detour)">
+        <span data-icon="closure"></span>
+        <div><div class="t1">Road closed</div><div class="t2">Zaloška cesta, Kodeljevo</div></div>
+      </div>
+      <div class="incident card a-left" style="--d:0.6; left:330px; top:640px; --c:var(--warn)">
+        <span data-icon="fog"></span>
+        <div><div class="t1">Fog · helicopter grounded</div><div class="t2">No flights for one hour</div></div>
+      </div>
+    </div>
+    <div class="center" style="gap:30px">
+      <h1 class="h-xl a-zoom" style="--d:1.6">Kaos na terenu?</h1>
+      <p class="lead a-up" style="--d:2.2"><strong>Chaos in the field.</strong></p>
+    </div>
+  </section>
+  <section class="scene" data-dur="6.6">
+    <div class="frame a-up" style="--d:0; left:90px; top:150px; width:1140px; height:641px">
+      <video data-src="assets/clip-approve.webm" data-rate="1.25" style="--d:0.2"></video>
+      <div class="label" style="left:18px; top:18px"><span class="dot"></span>Real UI · simulation</div>
+    </div>
+    <div class="abs col" style="left:1300px; top:170px; width:540px; gap:28px">
+      <div class="wordmark a-fade" style="--d:0.1; font-size:56px">Plan B</div>
+      <h2 class="h-m a-up" style="--d:0.2; font-size:70px">A new plan in seconds.</h2>
+      <p class="lead a-up" style="--d:0.8; font-size:32px">Who collects the equipment, who takes the next job, when each one arrives: <strong>computed by the engine.</strong></p>
+      <div class="row a-fade" style="--d:1.0; gap:28px; margin-top:6px">
+        <span class="key a-press" style="--d:1.3; width:120px; height:120px; font-size:66px">Y</span>
+        <div class="lead" style="font-size:32px"><strong>The dispatcher approves.</strong></div>
+      </div>
+    </div>
+  </section>
+  <section class="scene" data-dur="5">
+    <div class="center" style="gap:26px">
+      <div class="wordmark a-zoom" style="--d:0.1; font-size:190px">Plan B.</div>
+      <p class="h-s" style="font-size:62px" data-words="0.5" data-step="0.1">When things go wrong, a new plan in seconds.</p>
+      <p class="lead a-up" style="--d:1.7; color:var(--text); font-size:36px; font-weight:600; margin-top:30px">AdaHack 2026 · Epilog Challenge 3</p>
+      <p class="small a-fade" style="--d:2.1; font-size:22px; margin-top:16px">Prototype for a fictional EMS operator · simulated fleet and calls</p>
+    </div>
+  </section>
+</template>
+
+<!-- =========================================================================================== -->
+<!-- VERTICAL · 9:16 · 20 s · one idea: the crew speaks, Plan B re-plans                           -->
+<!-- =========================================================================================== -->
+<template id="cut-vertical">
+  <div class="global" data-from="0" data-to="17.4">
+    <div class="proto" style="left:50%; transform:translateX(-50%); top:56px; white-space:nowrap"><span class="dot"></span>Prototype · simulated data</div>
+  </div>
+  <section class="scene" data-dur="3.8">
+    <div class="incident card a-up" style="--d:0.1; left:80px; top:430px; width:920px">
+      <span data-icon="wrench"></span>
+      <div><div class="t1">T1 · Engine failure</div><div class="t2">Blood products still on board</div></div>
+    </div>
+    <div class="abs col" style="left:80px; top:780px; width:920px; gap:34px">
+      <h1 class="h-xl a-zoom" style="--d:0.9; font-size:176px">Kaos na terenu.</h1>
+      <p class="lead a-up" style="--d:1.6; font-size:46px"><strong>Chaos in the field.</strong> A van breaks down with blood products on board.</p>
+    </div>
+  </section>
+  <section class="scene" data-dur="5.6">
+    <div class="kicker abs a-fade" style="--d:0.1; left:80px; top:150px; font-size:30px">The crew just says it</div>
+    <div class="bubble a-up" style="--d:0.2; left:80px; top:220px; width:920px; padding:36px 44px">
+      <div class="who"><span data-icon="mic"></span> Crew of T1 · Slovenian <span class="wave" data-bars="12" style="margin-left:10px"></span></div>
+      <div class="sl" style="font-size:58px" data-words="0.6" data-step="0.24">»Vozilo je obstalo. Oprema je še v njem.«</div>
+      <div class="en a-fade" style="--d:2.5; font-size:30px">“The vehicle has stopped. The equipment is still inside.”</div>
+    </div>
+    <div class="phone a-up" style="--d:0.5; left:210px; top:700px; width:660px; height:1110px; border-radius:80px; padding:22px">
+      <div class="screen" style="border-radius:60px"><img src="assets/crew-phone.jpg" alt=""></div>
+    </div>
+    <div class="label a-fade" style="--d:1.0; left:50%; transform:translateX(-50%); top:1840px"><span class="dot"></span>Real UI · crew view</div>
+  </section>
+  <section class="scene" data-dur="6">
+    <div class="kicker abs a-fade" style="--d:0.1; left:80px; top:150px; font-size:30px">Plan B re-plans</div>
+    <h2 class="h-m abs a-up" style="--d:0.2; left:80px; top:200px; width:920px; font-size:60px">A free van collects the blood products. Another takes the next job.</h2>
+    <div class="frame a-up" style="--d:0.3; left:90px; top:470px; width:900px; height:1200px">
+      <div class="clip-box"><img class="a-pan" data-layout="panel-options.jpg" data-pan="waiting:260,approve:1040" src="assets/panel-options.jpg" alt="" style="position:absolute; left:0; top:0; width:900px; height:auto; --d:0.6; --kd:4.6"></div>
+      <div class="label" style="left:18px; bottom:18px"><span class="dot"></span>Real UI · engine plan · no AI key</div>
+    </div>
+    <p class="small abs a-fade" style="--d:1.6; left:80px; top:1705px; width:920px; font-size:34px; color:var(--text)">Every number comes from the engine, <span class="muted">not from the language model.</span></p>
+  </section>
+  <section class="scene" data-dur="3.4">
+    <div class="center" style="gap:50px">
+      <span class="key a-press" style="--d:0.7; width:240px; height:240px; font-size:140px; border-radius:40px">Y</span>
+      <h2 class="h-m a-up" style="--d:0.2; font-size:84px">The dispatcher<br>approves.</h2>
+      <div class="stamp a-stamp" style="--d:1.3; font-size:60px"><span data-icon="check"></span>Approved</div>
+    </div>
+  </section>
+  <section class="scene" data-dur="3.4">
+    <div class="center" style="gap:34px; padding:0 70px">
+      <div class="wordmark a-zoom" style="--d:0.05; font-size:200px">Plan B.</div>
+      <p class="h-s" style="font-size:70px" data-words="0.3" data-step="0.09">When things go wrong, a new plan in seconds.</p>
+      <p class="lead a-up" style="--d:1.2; color:var(--text); font-size:40px; font-weight:600; margin-top:30px">AdaHack 2026 · Epilog Challenge 3</p>
+      <p class="small a-fade" style="--d:1.5; font-size:26px">Prototype · fictional EMS operator · simulated fleet and calls</p>
+    </div>
+  </section>
+</template>
+
+<!-- =========================================================================================== -->
+<!-- POSTERS (thumbnails)                                                                         -->
+<!-- =========================================================================================== -->
+<template id="cut-poster-promo">
+  <section class="scene" data-dur="2">
+    <div class="frame" style="left:880px; top:170px; width:960px; height:540px; transform:rotate(-2deg)"><img src="assets/dash-surge.jpg" alt=""></div>
+    <div class="phone" style="left:1440px; top:420px; width:330px; height:640px; padding:14px; border-radius:48px; transform:rotate(3deg)">
+      <div class="screen" style="border-radius:36px"><img src="assets/crew-phone.jpg" alt=""></div>
+    </div>
+    <div class="abs col" style="left:110px; top:210px; width:760px; gap:34px">
+      <div class="kicker">AI dispatch co-pilot · promo</div>
+      <div class="wordmark" style="font-size:190px">Plan B</div>
+      <p class="h-s" style="font-size:60px">When things go wrong, a new plan in seconds.</p>
+      <p class="lead" style="font-size:32px">AdaHack 2026 · Epilog Challenge 3</p>
+    </div>
+    <div class="proto" style="left:48px; bottom:40px"><span class="dot"></span>Prototype · simulated fleet and calls · fictional operator</div>
+    <div class="label" style="right:48px; bottom:40px; color:var(--text)">Promo · 60 s</div>
+  </section>
+</template>
+
+<template id="cut-poster-bumper">
+  <section class="scene" data-dur="2">
+    <div class="frame" style="left:930px; top:200px; width:900px; height:506px"><img src="assets/dash-approved.jpg" alt=""></div>
+    <div class="incident card" style="left:860px; top:110px; min-width:0; padding:20px 30px 20px 24px">
+      <span data-icon="wrench" style="font-size:44px"></span>
+      <div><div class="t1" style="font-size:30px">T1 · Engine failure</div><div class="t2" style="font-size:22px">Blood products on board</div></div>
+    </div>
+    <div class="stamp" style="position:absolute; left:1480px; top:740px; transform:rotate(-6deg); font-size:44px"><span data-icon="check"></span>Approved</div>
+    <div class="abs col" style="left:110px; top:250px; width:740px; gap:30px">
+      <h1 class="h-l" style="font-size:120px">Kaos na terenu?</h1>
+      <p class="h-s accent" style="font-size:64px">A new plan in seconds.</p>
+      <div class="wordmark" style="font-size:72px; margin-top:20px">Plan B</div>
+    </div>
+    <div class="proto" style="left:48px; bottom:40px"><span class="dot"></span>Prototype · simulated data</div>
+    <div class="label" style="right:48px; bottom:40px; color:var(--text)">Ad · 15 s</div>
+  </section>
+</template>
+
+<template id="cut-poster-vertical">
+  <section class="scene" data-dur="2">
+    <div class="abs col" style="left:80px; top:150px; width:920px; gap:30px">
+      <div class="wordmark" style="font-size:96px">Plan B</div>
+      <h1 class="h-l" style="font-size:104px">The crew speaks. Plan B re-plans.</h1>
+    </div>
+    <div class="bubble" style="left:80px; top:640px; width:920px; padding:30px 40px">
+      <div class="who"><span data-icon="mic"></span> Crew of T1 · Slovenian</div>
+      <div class="sl" style="font-size:52px">»Vozilo je obstalo.<br>Oprema je še v njem.«</div>
+    </div>
+    <div class="phone" style="left:230px; top:960px; width:620px; height:1000px; border-radius:72px; padding:20px">
+      <div class="screen" style="border-radius:54px"><img src="assets/crew-sent.jpg" alt=""></div>
+    </div>
+    <div class="proto" style="left:50%; transform:translateX(-50%); top:56px; white-space:nowrap"><span class="dot"></span>Prototype · simulated data</div>
+  </section>
+</template>
+
+<script src="player.js"></script>
+</body>
+</html>

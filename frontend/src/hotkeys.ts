@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { t, type TKey } from "./i18n";
 
 /**
  * Global keyboard shortcuts.
@@ -19,20 +20,33 @@ export interface HotkeyInfo {
   group: string;
 }
 
+/** A shortcut whose label and group follow the UI language. */
+const hotkey = (key: string, label: TKey, group: TKey): HotkeyInfo => ({
+  key,
+  get label() {
+    return t(label);
+  },
+  get group() {
+    return t(group);
+  },
+});
+
 /** Shown in the help overlay (`?`). The dashboard (App.tsx) binds the handlers with `useHotkeys`. */
 export const HOTKEYS: HotkeyInfo[] = [
-  { key: "a", label: "Analyse now", group: "AI dispatcher" },
-  { key: "y", label: "Approve the recommended option", group: "AI dispatcher" },
-  { key: "n", label: "Reject the recommendation", group: "AI dispatcher" },
-  { key: "m", label: "Voice input on / off", group: "Message from the field" },
-  { key: "Ctrl+Enter", label: "Send the message (in the message box)", group: "Message from the field" },
-  { key: "b", label: "Breakdown of the selected vehicle (click its marker, chip or trip row first)", group: "Events" },
-  { key: "d", label: "Delay the selected vehicle 10 min", group: "Events" },
-  { key: "f", label: "Fog: ground helicopters 1 h", group: "Events" },
-  { key: "e", label: "Emergency call: click the map, then pick what it is (1 sends Critical · Cardiac arrest; C / S / U level, 1-6 condition, K / W / P case)", group: "Events" },
-  { key: "c", label: "Road closure (then click the map)", group: "Events" },
-  { key: "Escape", label: "Cancel / deselect / close", group: "General" },
-  { key: "?", label: "Show / hide this help", group: "General" },
+  hotkey("a", "dash.keys.a", "dash.keys.groupAi"),
+  hotkey("y", "dash.keys.y", "dash.keys.groupAi"),
+  hotkey("n", "dash.keys.n", "dash.keys.groupAi"),
+  hotkey("m", "dash.keys.m", "dash.keys.groupMessage"),
+  hotkey("Ctrl+Enter", "dash.keys.ctrlEnter", "dash.keys.groupMessage"),
+  hotkey("b", "dash.keys.b", "dash.keys.groupEvents"),
+  hotkey("d", "dash.keys.d", "dash.keys.groupEvents"),
+  hotkey("f", "dash.keys.f", "dash.keys.groupEvents"),
+  hotkey("e", "dash.keys.e", "dash.keys.groupEvents"),
+  hotkey("c", "dash.keys.c", "dash.keys.groupEvents"),
+  hotkey("r", "dash.keys.r", "dash.keys.groupDemo"),
+  hotkey("x", "dash.keys.x", "dash.keys.groupDemo"),
+  hotkey("Escape", "dash.keys.escape", "dash.keys.groupGeneral"),
+  hotkey("?", "dash.keys.help", "dash.keys.groupGeneral"),
 ];
 
 export function isTypingTarget(target: EventTarget | null): boolean {

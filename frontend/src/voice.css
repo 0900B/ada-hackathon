@@ -199,6 +199,23 @@ kbd {
   align-items: flex-start;
   gap: 8px;
 }
+/* UI language switch "SL | EN" on the crew phone */
+.crew .ui-lang.crew-uilang {
+  color: var(--text-2);
+  font-size: 13px;
+}
+.crew .ui-lang.crew-uilang button {
+  min-height: 32px;
+  min-width: 34px;
+  padding: 4px 5px;
+}
+.crew .ui-lang.crew-uilang button.on {
+  color: var(--accent-text);
+  border-color: var(--accent-text);
+}
+.crew .ui-lang.crew-uilang-end {
+  margin-left: auto;
+}
 .crew-world {
   font-size: 11px;
   font-weight: 700;
@@ -478,4 +495,12 @@ kbd {
   font-weight: 700;
   text-decoration: none;
   color: var(--text);
+}
+
+.crew-call {
+  font-size: 14px;
+}
+.crew-words {
+  margin-top: 2px;
+  font-style: italic;
 }

@@ -1,6 +1,7 @@
 import type { Trip, Vehicle, WorldSnapshot } from "../api";
 import { ArrowRight, Hospital, MapPin } from "lucide-react";
 import { fmtTime, vehicleStatusText } from "../format";
+import { t as tx, useT } from "../i18n";
 import { ResponseLine, SeverityBadge } from "../SeverityBadge";
 import { doctorJobLine } from "../doctor";
 import { erEta, minutesUntil, type CrewStage } from "./crewLogic";
@@ -21,12 +22,13 @@ export function EtaPanel({
   trip: Trip | undefined;
   stage: CrewStage;
 }) {
+  const t = useT();
   const place = (id: string) => state.places.find((p) => p.id === id);
   const placeName = (id: string) => place(id)?.name ?? id;
 
   if (vehicle.type === "doctor" && trip) {
     return (
-      <section className="pt-eta pt-eta-doctor" aria-label="Doctor car">
+      <section className="pt-eta pt-eta-doctor" aria-label={t("pt.region.doctor")}>
         <div className="crew-doctor">{doctorJobLine(vehicle, trip, placeName)}</div>
         <div className="crew-route">
           {placeName(trip.pickup_id)} → {placeName(trip.dropoff_id)}
@@ -34,12 +36,13 @@ export function EtaPanel({
         <div className="crew-eta">
           {vehicle.status === "to_pickup" ? (
             <>
-              At the scene <strong>{fmtTime(trip.doctor_eta ?? null)}</strong> · {trip.vehicle_id ?? "no ambulance yet"}
-              {trip.vehicle_id && trip.status !== "onboard" && <> at {fmtTime(trip.eta_pickup)}</>}
+              {t("crew.atScene")} <strong>{fmtTime(trip.doctor_eta ?? null)}</strong> · {trip.vehicle_id ?? t("tab.noAmbulanceYet")}
+              {trip.vehicle_id && trip.status !== "onboard" && t("crew.atTime", { time: fmtTime(trip.eta_pickup) })}
             </>
           ) : (
             <>
-              Hospital <strong>{fmtTime(trip.eta_dropoff)}</strong> · with {trip.vehicle_id ?? "the ambulance"}
+              {t("crew.hospital")} <strong>{fmtTime(trip.eta_dropoff)}</strong> ·{" "}
+              {trip.vehicle_id ? t("crew.withUnit", { unit: trip.vehicle_id }) : t("crew.withAmbulance")}
             </>
           )}
         </div>
@@ -51,19 +54,19 @@ export function EtaPanel({
     const eta = erEta(trip, state.sim_time);
     const dropoff = place(trip.dropoff_id);
     const toEr = dropoff?.kind === "hospital";
-    const dest = `${toEr ? "ER " : ""}${placeName(trip.dropoff_id)}`;
-    const late = eta.late && <span className="pt-late">+{eta.lateMin} min late</span>;
+    const dest = `${toEr ? `${t("pt.er")} ` : ""}${placeName(trip.dropoff_id)}`;
+    const late = eta.late && <span className="pt-late">{t("pt.late", { min: eta.lateMin })}</span>;
 
     if (stage === "with_patient") {
       return (
-        <section className={`pt-eta pt-eta-er${eta.late ? " late" : ""}`} aria-label="Arrival at the hospital">
+        <section className={`pt-eta pt-eta-er${eta.late ? " late" : ""}`} aria-label={t("pt.region.er")}>
           <div className="pt-eta-label">
-            <Hospital /> {toEr ? "ER" : "Drop-off"}
+            <Hospital /> {toEr ? t("pt.er") : t("pt.dropoff")}
           </div>
           <div className="pt-eta-place">{placeName(trip.dropoff_id)}</div>
           <BigMinutes minutes={eta.minutes} />
           <div className="pt-eta-sub">
-            Arrive <strong>{fmtTime(eta.arriveAt)}</strong> {late}
+            {t("pt.arrive")} <strong>{fmtTime(eta.arriveAt)}</strong> {late}
           </div>
         </section>
       );
@@ -71,40 +74,40 @@ export function EtaPanel({
 
     const toPatient = minutesUntil(trip.eta_pickup, state.sim_time);
     return (
-      <section className={`pt-eta pt-eta-pickup${eta.late ? " late" : ""}`} aria-label="Arrival at the patient">
+      <section className={`pt-eta pt-eta-pickup${eta.late ? " late" : ""}`} aria-label={t("pt.region.patient")}>
         <div className="pt-eta-label">
-          <MapPin /> Patient in
+          <MapPin /> {t("pt.patientIn")}
         </div>
         <div className="pt-eta-place">{placeName(trip.pickup_id)}</div>
         <BigMinutes minutes={toPatient} />
         <div className="pt-eta-sub">
-          Arrive <strong>{fmtTime(trip.eta_pickup)}</strong> <ResponseLine trip={trip} now={state.sim_time} />
+          {t("pt.arrive")} <strong>{fmtTime(trip.eta_pickup)}</strong> <ResponseLine trip={trip} now={state.sim_time} />
         </div>
         <div className="pt-eta-then">
-          <ArrowRight /> then {dest}
+          <ArrowRight /> {t("pt.then", { dest })}
           {eta.arriveAt && <> · {fmtTime(eta.arriveAt)}</>} {late}
         </div>
       </section>
     );
   }
 
-  const queued = vehicle.queue[0] ? state.trips.find((t) => t.id === vehicle.queue[0]) : undefined;
+  const queued = vehicle.queue[0] ? state.trips.find((x) => x.id === vehicle.queue[0]) : undefined;
   const stop = nextStop(vehicle, trip, queued, placeName);
   return (
-    <section className="pt-eta pt-eta-idle" aria-label="Vehicle status">
-      <div className="pt-eta-label">No patient</div>
+    <section className="pt-eta pt-eta-idle" aria-label={t("pt.region.status")}>
+      <div className="pt-eta-label">{t("pt.noPatient")}</div>
       <div className={`pt-status st-${vehicle.status}`}>{vehicleStatusText(vehicle, state.trips)}</div>
       {trip?.kind === "equipment" && (
         <div className="pt-eta-cargo">
-          Equipment: <strong>{trip.cargo ?? "equipment"}</strong> <span className="muted">· {trip.id}</span>
+          {t("pt.equipmentLabel")} <strong>{trip.cargo ?? t("tab.equipment")}</strong> <span className="muted">· {trip.id}</span>
         </div>
       )}
       {stop ? (
         <div className="crew-next">
-          <ArrowRight /> Next stop: <strong>{stop.label}</strong>
+          <ArrowRight /> {t("crew.nextStop")} <strong>{stop.label}</strong>
           {stop.eta && <> · {fmtTime(stop.eta)}</>}
           {vehicle.queue.length > (trip ? 0 : 1) && (
-            <span className="muted"> · {vehicle.queue.length - (trip ? 0 : 1)} more queued</span>
+            <span className="muted">{t("crew.moreQueued", { count: vehicle.queue.length - (trip ? 0 : 1) })}</span>
           )}
           {!trip && queued && (
             <div className="crew-sev">
@@ -113,17 +116,18 @@ export function EtaPanel({
           )}
         </div>
       ) : (
-        !trip && <div className="pt-eta-none muted">No current trip.</div>
+        !trip && <div className="pt-eta-none muted">{t("crew.noTrip")}</div>
       )}
     </section>
   );
 }
 
 function BigMinutes({ minutes }: { minutes: number | null }) {
+  const t = useT();
   return (
     <div className="pt-eta-big">
       <span className="pt-eta-min">{minutes ?? "–"}</span>
-      {minutes !== null && <span className="pt-eta-unit">min</span>}
+      {minutes !== null && <span className="pt-eta-unit">{t("pt.min")}</span>}
     </div>
   );
 }
@@ -132,10 +136,10 @@ function BigMinutes({ minutes }: { minutes: number | null }) {
 function nextStop(v: Vehicle, trip: Trip | undefined, queued: Trip | undefined, place: (id: string) => string) {
   if (trip) {
     return trip.status === "onboard"
-      ? { label: `Drop-off: ${place(trip.dropoff_id)}`, eta: trip.eta_dropoff }
-      : { label: `Pickup: ${place(trip.pickup_id)}`, eta: trip.eta_pickup };
+      ? { label: tx("crew.dropoffAt", { place: place(trip.dropoff_id) }), eta: trip.eta_dropoff }
+      : { label: tx("crew.pickupAt", { place: place(trip.pickup_id) }), eta: trip.eta_pickup };
   }
-  if (queued) return { label: `Next trip ${queued.id}: pickup at ${place(queued.pickup_id)}`, eta: queued.eta_pickup };
-  if (v.status === "returning") return { label: `Back to base: ${place(v.base_id)}`, eta: v.busy_until };
+  if (queued) return { label: tx("crew.nextTrip", { id: queued.id, place: place(queued.pickup_id) }), eta: queued.eta_pickup };
+  if (v.status === "returning") return { label: tx("crew.backToBase", { place: place(v.base_id) }), eta: v.busy_until };
   return null;
 }

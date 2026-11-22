@@ -33,6 +33,19 @@ from .models import (
 SNAPSHOT_DONE_HOURS = 3  # finished trips stay in the snapshot this long (world time)
 
 
+def new_ai_stats() -> dict[str, Any]:
+    """Decision counters of one world since its reset (snapshot `ai_stats`; cases_active is computed)."""
+    return {
+        "dispatched": 0,  # units dispatched to a trip (timeline "dispatched")
+        "reroutes": 0,  # detours and redirects (timeline "rerouted")
+        "reassignments": 0,  # a trip moved to another unit (timeline "reassigned", "unit_replaced")
+        "overrides": 0,  # the dispatcher changed a unit by hand (POST /trips/{id}/assign)
+        "claude_reviews": 0,  # AI-dispatcher reviews Claude completed
+        "claude_changes": 0,  # ... whose change was applied (autonomous mode)
+        "last_decision_at": None,  # world time of the last decision on any timeline
+    }
+
+
 class FeedState:
     """Real-world data shared by every world."""
 
@@ -80,6 +93,14 @@ class WorldState:
         from . import config  # config only reads environment variables
 
         self.auto_analyze = config.AGENT_AUTO
+        # 112 calls (app/intake.py): triage generated and demo calls with Claude (guarded; else the
+        # keyword rules). Off by default; survives a reset like auto_analyze.
+        self.ai_triage = False
+        # The AI dispatcher (app/ai_dispatcher.py): "assisted" (default: the AI proposes, the dispatcher
+        # approves) or "autonomous" (Claude reviews every red call and every disruption of a case and its
+        # recommendation is applied; the old autopilot switch is this mode). Survives a reset.
+        self.ai_mode: str = "assisted"
+        self.epoch = 0  # +1 on every reset: async work started before a reset is dropped
         # Operating mode: live calls (False, default) or a pre-planned scheduled day for the vans.
         # Set on (re)seeding: seed_world(..., scheduled_day=...), POST /{world}/admin/reset.
         self.scheduled_day = config.SCHEDULED_DAY
@@ -96,6 +117,20 @@ class WorldState:
         # Reserve units (a neighbouring station's ambulance, a private one): not part of the world (or
         # the snapshot) until a dispatcher's approved plan requests one; back here when it is home.
         self.reserve_vehicles: dict[str, Vehicle] = {}
+        self.surge_until: datetime | None = None  # contracted surge capacity active until (engine/surge.py)
+        self.demand_was_high = False  # the high-demand alert's last state seen by the loop (an analysis may start when it turns on)
+        # High-demand alert with hysteresis (engine/surge.update_demand_alert): raw trigger on since /
+        # off since (world time), and whether the alert is raised.
+        self.demand_high_since: datetime | None = None
+        self.demand_low_since: datetime | None = None
+        self.demand_alert = False
+        self.call_seq: dict[str, int] = {}  # per-world call id counters ("112", "REQ")
+        self.followup_at: datetime | None = None  # next automatic follow-up check (engine/followup.py)
+        # AI dispatcher (app/ai_dispatcher.py): the last review per case {trip_id: {run_id, at}}, and the
+        # decision counters since the reset (engine/timeline.py counts the timeline's decisions).
+        self.reviews: dict[str, dict[str, Any]] = {}
+        self.ai_stats: dict[str, Any] = new_ai_stats()
+        self.epoch = getattr(self, "epoch", 0) + 1
         self.trips: dict[str, Trip] = {}
         self.incidents: dict[str, Incident] = {}  # this world's operator-reported/injected incidents
         self.weather_override: WeatherNow | None = None
@@ -108,6 +143,24 @@ class WorldState:
         self.bump()
 
     # --- helpers -------------------------------------------------------------
+
+    @property
+    def autopilot(self) -> bool:
+        """The old autopilot switch: the same as the autonomous AI dispatcher mode."""
+        return self.ai_mode == "autonomous"
+
+    @autopilot.setter
+    def autopilot(self, on: bool) -> None:
+        self.ai_mode = "autonomous" if on else "assisted"
+
+    def ai_stats_view(self) -> dict[str, Any]:
+        """ai_stats for the snapshot: the counters plus the open 112 cases."""
+        cases = sum(
+            1 for t in self.trips.values()
+            if t.call is not None and t.call.kind == "112" and t.status not in ("completed", "cancelled")
+        )
+        last = self.ai_stats.get("last_decision_at")
+        return {**self.ai_stats, "cases_active": cases, "last_decision_at": last.isoformat() if last else None}
 
     def bump(self) -> None:
         """Mark the state as changed so SSE clients get a fresh snapshot."""
@@ -143,11 +196,14 @@ class WorldState:
         return [[round(lat, 5), round(lon, 5)] for lat, lon in thinned]
 
     def clone_for_simulation(self) -> WorldState:
-        """A what-if copy: vehicles and trips are deep-copied, everything else is shared read-only."""
+        """A what-if copy: vehicles and trips are copied, everything else is shared read-only.
+
+        A trip's call record and timeline are shared, not copied (they are only ever written in the
+        real world, see engine/timeline.py); its other fields are scalars, except the modifiers list."""
         clone = copy.copy(self)
         clone.vehicles = {k: v.model_copy(deep=True) for k, v in self.vehicles.items()}
         clone.reserve_vehicles = {k: v.model_copy(deep=True) for k, v in self.reserve_vehicles.items()}
-        clone.trips = {k: t.model_copy(deep=True) for k, t in self.trips.items()}
+        clone.trips = {k: t.model_copy(update={"modifiers": list(t.modifiers)}) for k, t in self.trips.items()}
         clone.places = dict(self.places)
         clone.incidents = dict(self.incidents)
         clone.alerts = []
@@ -159,8 +215,10 @@ class WorldState:
     # --- serialisation -------------------------------------------------------
 
     def snapshot(self) -> dict[str, Any]:
-        from . import config  # local imports: these modules depend on this one's types
+        from . import config, hems  # local imports: these modules depend on this one's types
+        from .engine import surge
         from .engine.projection import kpis
+        from .engine.units import trip_view
         from .roads import ROADS
 
         def dump(items):
@@ -182,13 +240,24 @@ class WorldState:
             "hypothetical": self.hypothetical,
             "speedup": self.speedup,
             "version": self.version,
+            "epoch": self.epoch,  # +1 on every reset (a scenario, Reset): clients drop selections of the old world
             "sim_time": self.sim_time.isoformat(),
             "real_time": utcnow().isoformat(),
             "mode": "scheduled_day" if self.scheduled_day else "live_calls",
             "calls": self.calls.status(self),
+            "ai_triage": self.ai_triage,  # generated/demo calls triaged by Claude (guarded), else by the rules
+            "ai_mode": self.ai_mode,  # assisted | autonomous (app/ai_dispatcher.py)
+            "autopilot": self.autopilot,  # = ai_mode autonomous (the old switch)
+            "ai_stats": self.ai_stats_view(),
+            # Contracted surge capacity: active, until, units, what an activation would add (engine/surge.py)
+            "surge": surge.status(self),
             "places": dump(places),
-            "vehicles": [{**v.model_dump(mode="json"), "path": self.vehicle_path(v)} for v in self.vehicles.values()],
-            "trips": dump(trips),
+            # helicopters also: off_duty_until, unavailable ("night" | "fog" | None), unavailable_text, hours
+            "vehicles": [
+                {**v.model_dump(mode="json"), "path": self.vehicle_path(v), **hems.availability(v, self.sim_time)}
+                for v in self.vehicles.values()
+            ],
+            "trips": [trip_view(self, t) for t in trips],  # with `units` (engine/units.py)
             "incidents": dump(i for i in self.all_incidents() if i.active),
             "weather": {
                 "now": weather.model_dump(mode="json") if weather else None,
@@ -205,6 +274,15 @@ class WorldState:
                 "enabled": config.agent_enabled(),
                 "model": config.AGENT_MODEL,
                 "auto": self.auto_analyze,
-                "runs": dump(reversed(self.agent_runs[-5:])),  # newest first
+                "runs": dump(reversed(self.shown_runs())),  # newest first
             },
         }
+
+    def shown_runs(self) -> list:
+        """The last 5 analyses, plus the newest general one (review_of None) when the AI dispatcher's case
+        reviews have pushed it out: the dashboard's "Situation review" shows that one, never a review."""
+        recent = self.agent_runs[-5:]
+        main = next((r for r in reversed(self.agent_runs) if r.review_of is None), None)
+        if main is not None and all(r is not main for r in recent):
+            recent = [main, *recent]
+        return recent

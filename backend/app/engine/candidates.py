@@ -8,10 +8,11 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
+from ..hems import off_duty_until
 from ..models import Plan, PlanStep, Trip, Vehicle, VehicleType
 from ..routing import flies, haversine_km
 from .actions import ActionError, assign_trip, can_serve, check_redirect, level
-from .doctors import origin_label
+from .doctors import origin_label, per_call_reserve
 from .severity import HELICOPTER_GAIN_MIN
 from .plans import simulate_steps, step_details
 from .projection import DONE, PRIORITY_ORDER, kpis, over_capacity, project_all, route_trip_ids
@@ -44,13 +45,15 @@ def spends_helicopter(state: WorldState, vehicle_type: VehicleType, trip: Trip) 
 
 
 def is_free(state: WorldState, v: Vehicle) -> bool:
-    """Available right now: in service, not grounded, no job and nothing queued (idle or driving home),
-    and not still handing over, cleaning or held up (busy_until)."""
+    """Available right now: in service, not grounded, within its hours (the helicopter flies by day
+    only), no job and nothing queued (idle or driving home), and not still handing over, cleaning or
+    held up (busy_until)."""
     return (
         v.status in ("idle", "returning")
         and v.current_trip_id is None
         and not v.queue
         and v.grounded_until is None
+        and off_duty_until(v, state.sim_time) is None
         and not (v.busy_until and v.busy_until > state.sim_time)
     )
 
@@ -91,12 +94,12 @@ def find_candidates(
     free_ambulances = sum(1 for v in state.vehicles.values() if v.type == "ambulance" and is_free(state, v))
     soon = state.sim_time + timedelta(minutes=AMBULANCE_ROUTINE_HORIZON_MIN)
     results = []
-    reserve = list(state.reserve_vehicles.values()) if include_reserve and trip.priority == "emergency" and not redirect else []
+    reserve = per_call_reserve(state) if include_reserve and trip.priority == "emergency" and not redirect else []
     for v in [*state.vehicles.values(), *reserve]:
         own = trip.vehicle_id == v.id
         if trip.status == "onboard" and not own:
             continue  # a patient on board can only be redirected, not moved to another vehicle
-        ok, _ = can_serve(v, trip)
+        ok, _ = can_serve(v, trip, state.sim_time)
         if not ok and trip.status != "onboard":
             continue
         if v.type == "ambulance" and not urgent and not own and trip.pickup_after > soon:

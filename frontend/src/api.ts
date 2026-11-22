@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { KEY_HEADER, controlFetch } from "./adminKey";
 
 export const API_URL = (
   import.meta.env.VITE_API_URL ?? "https://ada-hackathon-production.up.railway.app"
@@ -27,6 +28,8 @@ export interface Vehicle {
   name: string;
   type: "ambulance" | "transport" | "helicopter" | "doctor"; // doctor: a doctor car (VUZ), never carries patients
   origin?: "own" | "mutual_aid" | "private"; // mutual aid from a neighbouring station, or a private ambulance
+  contract_until?: string | null; // contracted surge capacity: in the fleet until then (then finishes its job and leaves)
+  contract_ended?: boolean;
   base_id: string;
   lat: number;
   lon: number;
@@ -34,7 +37,15 @@ export interface Vehicle {
   current_trip_id: string | null;
   queue: string[];
   busy_until: string | null;
+  // Why busy_until is set: turnout (crew to the vehicle: normal, shown neutrally), on_scene, handover
+  // (handover and cleaning), delay (held up: shown as held). Absent on older backends.
+  busy_reason?: "turnout" | "on_scene" | "handover" | "delay" | null;
   grounded_until?: string | null; // helicopters: grounded by fog until then (no new flights)
+  // Helicopter (HNMP, daytime only; backend app/hems.py): off duty at night until then (no new calls)
+  off_duty_until?: string | null;
+  unavailable?: "night" | "fog" | null;
+  unavailable_text?: string | null; // English, e.g. "Unavailable (night): flies 08:00-16:30, available 08:00"
+  hours?: string | null; // flying hours, "08:00-16:30"
   waiting_until?: string | null; // standing at a pickup until the patient is ready
   on_road: boolean;
   path_progress: number;
@@ -77,6 +88,62 @@ export interface Trip {
   doctor_vehicle_id?: string | null; // D1, D2, or H1 (the helicopter has a doctor on board)
   doctor_eta?: string | null; // the doctor's arrival at the scene
   doctor_target_min?: number | null; // minutes from the call (15)
+  // The 112 call (or hospital request) behind the trip and its history; missing on older backends
+  call?: CallInfo | null;
+  timeline?: TimelineEntry[];
+  // Every unit on the call with the AI's reason for it (AI dispatcher backend); missing on older
+  // backends: calls.ts builds the same from vehicle_id, doctor_vehicle_id and the timeline
+  units?: TripUnit[];
+}
+
+/** One unit on a call, as the AI dispatcher sees it. */
+export interface TripUnit {
+  vehicle_id: string;
+  role?: string | null; // "ambulance" | "doctor" | "helicopter" | "transport" | "unit"
+  status_text?: string | null; // the unit's current step, e.g. "En route to the patient"
+  eta_scene?: string | null;
+  eta_hospital?: string | null;
+  reason?: string | null; // why this unit: "Nearest free ambulance"
+  assigned_by?: string | null; // "engine" (rules engine) | "claude" / "ai" | "dispatcher"
+  assigned_at?: string | null;
+}
+
+export interface CallTriage {
+  by: "ai" | "rules" | "dispatcher";
+  at: string;
+  severity: Trip["severity"];
+  condition: string | null;
+  condition_label: string | null;
+  modifiers: string[];
+  needs_doctor: boolean;
+  reason_en: string | null;
+  reason_sl: string | null;
+}
+
+export interface CallInfo {
+  call_id: string; // "112-0042"
+  kind: "112" | "hospital_request";
+  received_at: string;
+  caller_name: string | null;
+  address: string | null;
+  text_sl: string | null; // the caller's words
+  text_en: string | null;
+  triage: CallTriage | null;
+}
+
+export type TimelineKind =
+  | "received" | "triaged" | "dispatched" | "doctor_dispatched" | "rerouted" | "reassigned" | "delayed" | "unit_replaced"
+  | "proposal" | "approved" | "reviewed" | "override" | "on_scene" | "doctor_on_scene" | "transporting" | "at_hospital"
+  | "handover_done" | "closed" | "note";
+
+export interface TimelineEntry {
+  at: string;
+  kind: TimelineKind | string;
+  by: "caller" | "ai" | "claude" | "rules" | "engine" | "dispatcher" | "crew" | string;
+  text: string;
+  vehicle_id?: string | null;
+  run_id?: string | null; // proposals and approvals: the AI run
+  detail?: string | null; // who exactly and how long it took: "rules engine, 0.1 s", "Claude, 12 s"
 }
 
 export interface Incident {
@@ -221,7 +288,14 @@ export interface AgentRun {
     executed?: string[]; // what each step did as applied (same wording as step_details[].text)
   } | null;
   usage: Record<string, number>;
+  // Set for the AI dispatcher's review of one case (the trip reviewed): shown on that case's card,
+  // never as the "Situation review" (the general analysis has review_of null).
+  review_of?: string | null;
 }
+
+/** The general analysis shown in "Situation review" (and acted on by A/Y/N): the newest run that is
+ * not a single case's review. Case reviews live on their case cards. */
+export const generalRun = (runs: AgentRun[]): AgentRun | undefined => runs.find((r) => !r.review_of);
 
 export type World = "live" | "sim";
 
@@ -237,13 +311,25 @@ export interface CallsStatus {
   generated: number;
 }
 
+/** Contracted surge capacity (backend engine/surge.py): activated only by the dispatcher. */
+export interface SurgeStatus {
+  active: boolean;
+  until: string | null;
+  units: string[];
+  available: { ambulances: string[]; vans: string[] };
+  offer: string; // "Activate surge capacity for 2 h: contracted ambulances P1 (Brezovica), ..."
+  default: { ambulances: number; vans: number; hours: number };
+}
+
 export interface WorldSnapshot {
   world: World;
   hypothetical: boolean;
   speedup: number;
   mode?: OperationsMode;
   calls?: CallsStatus;
+  surge?: SurgeStatus;
   version: number;
+  epoch?: number; // +1 on every reset of the world (scenario, Reset); missing on older backends
   sim_time: string;
   places: Place[];
   vehicles: Vehicle[];
@@ -265,9 +351,33 @@ export interface WorldSnapshot {
   kpis: Kpis;
   events: EventRecord[];
   agent: { enabled: boolean; model: string; auto: boolean; runs: AgentRun[] };
+  ai_triage?: boolean; // 112 calls classified by the AI (else by rules); missing on older backends
+  autopilot?: boolean; // the engine applies the AI's recommended plans by itself
+  ai_mode?: AiMode; // autonomous: the AI dispatcher handles each case; assisted: it proposes, you approve
+  ai_stats?: Partial<AiStats>;
 }
 
-// --- Live state over server-sent events --------------------------------------
+export type AiMode = "autonomous" | "assisted";
+
+/** What the AI dispatcher has done (counts over the calls in the snapshot). */
+export interface AiStats {
+  cases_active: number;
+  dispatched: number;
+  reroutes: number;
+  reassignments: number;
+  overrides: number; // the dispatcher overrode the AI
+  claude_reviews: number;
+  claude_changes: number; // reviews where Claude changed the rules engine's decision
+  last_decision_at: string | null;
+}
+
+// --- Live state over server-sent events, with a polling fallback ----------------
+
+// Some networks (a proxy, an antivirus web shield, venue Wi-Fi) hold back a streaming response while plain
+// requests go through: the page would hang on "Connecting…". When the stream has delivered nothing for
+// STREAM_STALL_MS, the hook fetches /{world}/state every POLL_MS instead, and stops as soon as the stream speaks.
+const STREAM_STALL_MS = 5000;
+const POLL_MS = 1500;
 
 export function useWorldState(world: World) {
   const [state, setState] = useState<WorldSnapshot | null>(null);
@@ -275,14 +385,55 @@ export function useWorldState(world: World) {
 
   useEffect(() => {
     setState(null);
-    const es = new EventSource(`${API_URL}/${world}/stream`); // reconnects automatically
-    es.onopen = () => setConnected(true);
-    es.onerror = () => setConnected(false);
-    es.onmessage = (msg) => {
-      setState(JSON.parse(msg.data) as WorldSnapshot);
+    let closed = false;
+    let lastStreamMsg = 0; // 0: nothing yet, so the first poll comes after POLL_MS if the stream is silent
+    let shown: { epoch?: number; version?: number } | null = null;
+    let inflight = false;
+    let lastPollOk = 0;
+
+    // Never let an older snapshot replace a newer one (a poll can land after a stream message).
+    const apply = (s: WorldSnapshot) => {
+      const snap = s as WorldSnapshot & { epoch?: number; version?: number };
+      if (shown && snap.epoch === shown.epoch && (snap.version ?? 0) < (shown.version ?? 0)) return;
+      shown = { epoch: snap.epoch, version: snap.version };
+      setState(s);
       setConnected(true);
     };
-    return () => es.close();
+
+    const es = new EventSource(`${API_URL}/${world}/stream`); // reconnects automatically
+    es.onopen = () => setConnected(true);
+    es.onerror = () => {
+      if (Date.now() - lastPollOk > 2 * POLL_MS) setConnected(false); // while polling works, stay "Connected"
+    };
+    es.onmessage = (msg) => {
+      lastStreamMsg = Date.now();
+      apply(JSON.parse(msg.data) as WorldSnapshot);
+    };
+
+    const poll = async () => {
+      if (closed || inflight || Date.now() - lastStreamMsg < STREAM_STALL_MS) return;
+      inflight = true;
+      try {
+        const res = await fetch(`${API_URL}/${world}/state`, { cache: "no-store" });
+        if (closed) return;
+        if (res.ok) {
+          const s = (await res.json()) as WorldSnapshot;
+          lastPollOk = Date.now();
+          if (!closed && Date.now() - lastStreamMsg >= STREAM_STALL_MS) apply(s);
+        } else setConnected(false);
+      } catch {
+        if (!closed) setConnected(false);
+      } finally {
+        inflight = false;
+      }
+    };
+    const timer = window.setInterval(() => void poll(), POLL_MS);
+
+    return () => {
+      closed = true;
+      window.clearInterval(timer);
+      es.close();
+    };
   }, [world]);
 
   return { state, connected };
@@ -290,8 +441,11 @@ export function useWorldState(world: World) {
 
 // --- Commands ------------------------------------------------------------------
 
+// Every control request (POST/PUT/PATCH/DELETE) goes through controlFetch (adminKey.ts): it sends the
+// demo-lock key this device holds, and a 401 opens the key prompt and throws "View only: …".
+
 async function post<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await controlFetch(`${API_URL}${path}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -305,6 +459,12 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
 }
 
 export const postEvent = (world: World, event: Record<string, unknown>) => post<EventRecord>(`/${world}/events`, event);
+/** The dispatcher activates contracted surge capacity (ambulances, private vans) for some hours. */
+export const activateSurge = (world: World, body?: { ambulances?: number; vans?: number; hours?: number }) =>
+  post<{ surge: SurgeStatus; event: EventRecord | null }>(`/${world}/admin/surge`, body ?? {});
+/** End the contract now: the contracted units finish their current job, return and leave. */
+export const standDownSurge = (world: World) =>
+  post<{ surge: SurgeStatus; event: EventRecord | null }>(`/${world}/admin/surge/stand-down`);
 /** Reset (re-seed) a world; scheduledDay switches the mode, undefined keeps the current one. */
 export const resetWorld = (world: World, scheduledDay?: boolean) =>
   post<{ ok: boolean; mode: OperationsMode }>(
@@ -322,7 +482,7 @@ export const rejectRun = (world: World, runId: string) =>
   post<AgentRun>(`/${world}/agent/runs/${runId}/reject`, { reason: null });
 /** Turn automatic analysis of events on/off for one world. Older backends answer 404 (no such endpoint). */
 export async function setAgentAuto(world: World, enabled: boolean): Promise<{ world: World; auto: boolean } | "unsupported"> {
-  const res = await fetch(`${API_URL}/${world}/agent/auto`, {
+  const res = await controlFetch(`${API_URL}/${world}/agent/auto`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ enabled }),
@@ -359,6 +519,7 @@ export interface VehicleDetail {
   stops: VehicleStop[];
   legs: [number, number][][];
   detour_legs?: number[]; // indexes into legs that go around a road closure
+  responding_to?: { trip_id: string; call_id: string; severity: Trip["severity"]; condition_label: string | null; address: string | null; dropoff_name: string } | null;
 }
 
 /** In-vehicle tablet: next manoeuvres on the current leg (GET /{world}/vehicles/{id}/navigation). */
@@ -414,6 +575,118 @@ export interface MessageResult {
 }
 export const sendFieldMessage = (world: World, text: string, senderVehicleId: string | null) =>
   post<MessageResult>(`/${world}/messages`, { text, sender_vehicle_id: senderVehicleId, apply: true });
+
+/** A new 112 call: the caller's words and where. Returns the trip with its call and timeline. */
+export const postCall = (
+  world: World,
+  body: { text: string; address?: string; place_id?: string; lat?: number; lon?: number; caller_name?: string; dropoff_id?: string },
+) => post<Trip>(`/${world}/calls`, body);
+export const setAiTriage = (world: World, enabled: boolean) => post<{ ai_triage: boolean }>(`/${world}/admin/ai-triage`, { enabled });
+export const setAutopilot = (world: World, enabled: boolean) => post<{ autopilot: boolean }>(`/${world}/admin/autopilot`, { enabled });
+/** Autonomous (the AI dispatcher handles each case) or Assisted (it proposes, the dispatcher approves). */
+export const setAiMode = (world: World, mode: AiMode) => post<{ ai_mode: AiMode }>(`/${world}/admin/ai-mode`, { mode });
+
+// --- Dispatcher override of the AI: alternatives for a unit, and the assignment ---------------
+
+/** Thrown when the backend has no such endpoint (HTTP 404 "Not Found"): the caller hides that action. */
+export class MissingEndpoint extends Error {}
+
+/** One unit that could take the role instead (or in addition), ranked by the engine. */
+export interface Alternative {
+  vehicle_id: string;
+  name?: string | null;
+  vehicle_type?: Vehicle["type"] | string | null;
+  eta_scene?: string | null; // when it would reach the patient
+  eta?: string | null; // (same, older spelling)
+  delta_min?: number | null; // vs the current unit: + later, - sooner
+  delta_vs_current_min?: number | null; // (same, other spellings)
+  delta?: number | null;
+  cost_text?: string | null; // what it costs elsewhere: "takes the last free ambulance"
+  feasible?: boolean | null;
+}
+
+export interface Alternatives {
+  current: { vehicle_id: string | null; eta_scene?: string | null } | null;
+  alternatives: Alternative[];
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const control = init?.method !== undefined && !["GET", "HEAD"].includes(init.method.toUpperCase());
+  const res = await (control ? controlFetch(`${API_URL}${path}`, init) : fetch(`${API_URL}${path}`, init));
+  const data = await res.json().catch(() => ({}));
+  const detail = (data as { detail?: unknown }).detail;
+  if ((res.status === 404 && detail === "Not Found") || res.status === 405) throw new MissingEndpoint(path);
+  if (!res.ok) throw new Error(typeof detail === "string" ? detail : `HTTP ${res.status}`);
+  return data as T;
+}
+
+/** GET /{world}/trips/{id}/alternatives?role=…: the units that could take this role, best first. */
+export async function fetchAlternatives(world: World, tripId: string, role: string): Promise<Alternatives> {
+  const data = await request<Alternatives | Alternative[]>(
+    `/${world}/trips/${encodeURIComponent(tripId)}/alternatives?role=${encodeURIComponent(role)}`,
+  );
+  return Array.isArray(data) ? { current: null, alternatives: data } : { current: data.current ?? null, alternatives: data.alternatives ?? [] };
+}
+
+/** POST /{world}/trips/{id}/assign: the dispatcher replaces a unit or adds one. Returns the engine's summary. */
+export const assignUnit = (world: World, tripId: string, body: { vehicle_id: string; mode: "replace" | "add"; role?: string; replaces?: string }) =>
+  request<{ summary?: string; trip?: Trip }>(`/${world}/trips/${encodeURIComponent(tripId)}/assign`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+/** Which optional endpoints this backend has, from its OpenAPI schema (fetched once; null = unknown). */
+export interface ApiCaps {
+  alternatives: boolean;
+  assign: boolean;
+  aiMode: boolean;
+}
+let capsPromise: Promise<ApiCaps | null> | null = null;
+export function apiCaps(): Promise<ApiCaps | null> {
+  capsPromise ??= fetch(`${API_URL}/openapi.json`)
+    .then((r) => (r.ok ? r.json() : null))
+    .then((spec: { paths?: Record<string, unknown> } | null) => {
+      const paths = Object.keys(spec?.paths ?? {});
+      if (!paths.length) return null;
+      const has = (re: RegExp) => paths.some((p) => re.test(p));
+      return {
+        alternatives: has(/\/trips\/\{[^}]+\}\/alternatives$/),
+        assign: has(/\/trips\/\{[^}]+\}\/assign$/),
+        aiMode: has(/\/admin\/ai-mode$/),
+      };
+    })
+    .catch(() => null);
+  return capsPromise;
+}
+
+// --- Demo lock (backend/app/admin_key.py) -----------------------------------------
+
+/** Does the backend have an ADMIN_KEY (from /health)? null: unknown (unreachable, older backend). */
+export async function fetchAdminLock(): Promise<boolean | null> {
+  try {
+    const res = await fetch(`${API_URL}/health`);
+    if (!res.ok) return null;
+    const h = (await res.json()) as { admin_lock?: unknown };
+    return typeof h.admin_lock === "boolean" ? h.admin_lock : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Would this key be accepted? POST /lock/check changes nothing. "unknown": backend unreachable or without
+ * the lock (older backend answers 404/405: nothing to unlock).
+ */
+export async function checkAdminKey(key: string): Promise<"ok" | "rejected" | "unknown"> {
+  try {
+    const res = await fetch(`${API_URL}/lock/check`, { method: "POST", headers: key ? { [KEY_HEADER]: key } : {} });
+    if (res.status === 401) return "rejected";
+    return res.ok ? "ok" : "unknown";
+  } catch {
+    return "unknown";
+  }
+}
 
 export const runScenario = (name: string) =>
   post<{ scenario: string; title: string; run_id: string | null; note?: string; vehicle_id?: string | null }>(

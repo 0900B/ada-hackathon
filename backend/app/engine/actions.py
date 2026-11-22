@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
+from .. import hems
 from ..models import Trip, Vehicle
 from .projection import free_capacity
 from .severity import NEAR_PATIENT_MIN, SEVERITY_RANK, WEIGHT_CLEARLY_HIGHER
@@ -31,14 +33,25 @@ class ActionError(ValueError):
     """An action that cannot be applied; the message is safe to show to the operator."""
 
 
-def can_serve(v: Vehicle, trip: Trip) -> tuple[bool, str | None]:
+def can_serve(v: Vehicle, trip: Trip, now: datetime | None = None) -> tuple[bool, str | None]:
+    """Can v take trip? now (the world clock): the helicopter takes new calls only in its operating
+    hours (app/hems.py); a trip it already has (a mission under way) stays with it."""
     if v.type == "doctor":
         return False, f"{v.name} is a doctor car: it joins the ambulance crew on scene and never transports patients"
     if v.status == "out_of_service":
         return False, f"{v.name} is out of service"
+    if v.contract_ended:
+        return False, f"{v.name}'s contract has ended: it finishes its current job and leaves"
     if v.grounded_until is not None:  # cleared by the simulator when the fog lifts
         until = v.grounded_until.astimezone(LJ).strftime("%H:%M")
         return False, f"{v.name} is grounded by fog until {until} and cannot take new flights"
+    if (
+        now is not None
+        and hems.off_duty_until(v, now) is not None
+        and trip.id != v.current_trip_id
+        and trip.id not in v.queue
+    ):
+        return False, hems.night_reason(v, now)
     if trip.needs == "equipment" and v.type not in EQUIPMENT_CARRIERS:
         return False, f"{v.name} cannot carry equipment transfers"
     if v.type == "transport" and trip.priority == "emergency":
@@ -156,7 +169,11 @@ def assign_trip(
     v = state.vehicles.get(vehicle_id)
     reserve = v is None and vehicle_id in state.reserve_vehicles  # mutual aid / private: activated below
     if reserve:
+        from .doctors import PER_CALL_RESERVE
+
         v = state.reserve_vehicles[vehicle_id]
+        if vehicle_id not in PER_CALL_RESERVE:
+            raise ActionError(f"{v.name} is contracted surge capacity: activate surge capacity first")
         if trip.priority != "emergency":
             raise ActionError(f"{v.name} is a reserve unit: requested only for red (critical or serious) calls")
     if v is None:
@@ -173,7 +190,7 @@ def assign_trip(
         hint = " (to redirect it, keep its vehicle and use position null)" if redirect else ""
         raise ActionError(f"Trip {trip_id} is onboard and cannot be reassigned{hint}")
     if trip.status != "onboard":
-        ok, why = can_serve(v, trip)
+        ok, why = can_serve(v, trip, state.sim_time)
         if not ok:
             raise ActionError(why or "Vehicle cannot serve this trip")
     if redirect:

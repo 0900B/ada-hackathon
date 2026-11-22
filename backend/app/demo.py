@@ -1,6 +1,7 @@
 """Reproducible one-click demo scenarios for the pitch (live-calls mode).
 
-Each scenario re-seeds the world in live-calls mode (no pre-planned day), puts the fleet to work
+Each scenario re-seeds the world in live-calls mode (no pre-planned day) at a daytime world clock
+(the helicopter flies 08:00-16:30: scenario_start keeps the clock by day, else 11:00), puts the fleet to work
 on a few live jobs (fixed vehicles, so it is reproducible), fast-forwards to an interesting moment
 and applies its events. Every scenario leaves a real decision for the AI when the operator presses
 Analyse (with auto-analyse on, one analysis starts by itself). New random calls are paused for
@@ -8,10 +9,10 @@ SCENARIO_QUIET_MIN world-minutes so they don't disturb that decision.
 """
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, Callable
 
-from . import config
+from . import config, hems
 from .agent import runner as agent
 from .engine.actions import assign_trip
 from .engine.doctors import send_doctor
@@ -31,6 +32,7 @@ from .models import (
     UrgentRequestEvent,
     Vehicle,
     WeatherOverrideEvent,
+    utcnow,
 )
 from .routing import travel_minutes
 from .sim.calls import SCENARIO_QUIET_MIN
@@ -44,9 +46,26 @@ STEP_S = 30.0
 MAX_FAST_FORWARD_MIN = 90
 BOOKED_SLACK_MIN = 30  # live urgent transports: deadline = ready + direct + loading + this
 
-# Kamniška Bistrica (valley below the Kamnik Alps), approximate: ~30 km from UKC, ~45 min by road.
+# Kamniška Bistrica (valley below the Kamnik Alps), approximate: ~30 km from UKC, ~45 min by road,
+# ~14 km from the helicopter's base at Brnik (about 20 min with the 13-min activation).
 REMOTE_CALL = (46.3085, 14.5910)
 KRVAVEC = (46.2960, 14.5330)
+# The helicopter flies by day only (08:00-16:30, app/hems.py). remote_emergency and nothing_free need
+# it for their story; in the others it is a free unit at Brnik (13 min to take off) that the summaries
+# check. So that every scenario shows the same decisions at the demo (about 13:00) and at an evening
+# rehearsal, a scenario keeps the current world clock when the helicopter is on duty now and for the
+# next SCENARIO_MARGIN_MIN minutes, and otherwise starts at SCENARIO_DAY_HOUR:00 local today.
+HELICOPTER_SCENARIOS = ("remote_emergency", "nothing_free")
+SCENARIO_MARGIN_MIN = 120
+SCENARIO_DAY_HOUR = 11
+
+
+def scenario_start(name: str, now: datetime | None = None) -> datetime | None:
+    """The world clock a scenario starts at: None = now (seed_world's default), else a daytime clock."""
+    now = now or utcnow()
+    if hems.on_duty(now) and hems.on_duty(now + timedelta(minutes=SCENARIO_MARGIN_MIN)):
+        return None
+    return now.astimezone(hems.LJ).replace(hour=SCENARIO_DAY_HOUR, minute=0, second=0, microsecond=0)
 
 
 def _fast_forward(state: WorldState, minutes: float, until: Callable[[], Any] | None = None) -> Any:
@@ -134,11 +153,6 @@ def _park(state: WorldState, vehicle_id: str, place_id: str, status: str = "retu
     v.lat, v.lon, v.status, v.path_from, v.path_to = p.lat, p.lon, status, None, None  # type: ignore[assignment]
 
 
-def _helicopter_on_remote_job(state: WorldState) -> Trip:
-    return _job(state, "H1", (KRVAVEC[0], KRVAVEC[1], "Krvavec (ski area)"), priority="emergency", severity="serious",
-                condition="major_trauma", note="skier collision, head injury")
-
-
 def _blood_run_on_t1(state: WorldState) -> Trip:
     """The crew-demo set-up: background work, and T1 (with one more job queued) loads blood products
     at UKC for the Oncology Institute."""
@@ -207,14 +221,14 @@ def _hospital_full(state: WorldState) -> list[EventRecord]:
 def _stroke_rush_hour(state: WorldState) -> list[EventRecord]:
     """Available soon (rule 1): a stroke in Polje while Zaloška is closed. A2 has handed over a patient
     at UKC and is finishing cleaning (ready in a few minutes), the only free ambulance (A3) is driving
-    back from a transfer to Novo mesto and H1 is out on a mountain call. The engine sends A2 at once:
-    it finishes, then drives to Polje, and it compares arrival at UKC (the stroke centre). The loaded
-    leg goes around the closure."""
+    back from a transfer to Novo mesto, and the helicopter (by day) is no faster from Brnik: 13 min to
+    take off (the summary says so: "H1 checked"). The engine sends A2 at once: it finishes, then
+    drives to Polje, and it compares arrival at UKC (the stroke centre). The loaded leg goes around
+    the closure."""
     a2_job = _job(state, "A2", _near(state, "home_bezigrad", 0.001, -0.002, "Bežigrad (call)"), priority="emergency",
                   needs="stretcher", severity="serious", condition="sepsis", note="high fever, confused, low blood pressure")
     _job(state, "T5", "zd_center", needs="seated", note="referred to the UKC emergency department")
-    _fast_forward(state, 25)  # A2 is on its way to UKC with the patient when H1 and A1 get their calls
-    _helicopter_on_remote_job(state)
+    _fast_forward(state, 25)  # A2 is on its way to UKC with the patient when A1 gets its call
     _job(state, "A1", _near(state, "home_vic", 0.003, -0.004, "Vič (call)"), priority="emergency", needs="stretcher",
          severity="serious", condition="sepsis", note="high fever, confused, low blood pressure")
     a2 = state.vehicles["A2"]
@@ -245,9 +259,9 @@ def _stroke_rush_hour(state: WorldState) -> list[EventRecord]:
 def _priority_override(state: WorldState) -> list[EventRecord]:
     """Override (rule 2): A1 is on its way to an urgent fall in Polje when a cardiac arrest is reported
     next to it, with no bystander CPR. A2 has a patient on board, the only free ambulance (A3) is
-    driving home from Medvode and H1 is out. The engine diverts A1 at once and gives the fall to A3,
-    still within its 60-min target."""
-    _helicopter_on_remote_job(state)
+    driving home from Medvode and the helicopter (by day) would need 13 min just to take off at Brnik.
+    The engine diverts A1 at once and gives the fall to the unit that reaches it first (a free van,
+    T1), still within its 60-min target."""
     _job(state, "A2", _near(state, "home_bezigrad", 0.001, -0.002, "Bežigrad (call)"), priority="emergency",
          needs="stretcher", severity="serious", condition="stemi", note="crushing chest pain, sweating")
     _job(state, "A1", _near(state, "home_polje", -0.002, 0.004, "Polje (call)"), priority="urgent", needs="stretcher",
@@ -291,10 +305,12 @@ def _same_level(state: WorldState) -> list[EventRecord]:
 
 
 def _remote_emergency(state: WorldState) -> list[EventRecord]:
-    """Override with the helicopter (rules 2 and 6): H1 is flying to an urgent call (a skier with a
-    wrist fracture on Krvavec) when a hiker falls in Kamniška Bistrica (major trauma, 45 min by road).
-    The engine turns H1 around at once and gives the skier to the nearest ambulance, still within its
-    target. H1 flies, lands, loads and lands at UKC."""
+    """Override with the helicopter (rules 2 and 6): H1 was activated 2 min ago at Brnik for an urgent
+    call (a skier with a wrist fracture on Krvavec), the crew is getting it ready to take off, when a
+    hiker falls in Kamniška Bistrica (major trauma, 45 min by road, about 20 min by air with the
+    activation). The engine re-tasks H1 to the hiker at once and gives the skier to the nearest
+    ambulance, still within its target. H1 takes off, flies, lands, loads and lands at UKC. Needs the
+    helicopter's hours: runs at a daytime world clock (scenario_start)."""
     _job(state, "H1", (KRVAVEC[0], KRVAVEC[1], "Krvavec (ski area)"), priority="urgent", needs="seated",
          severity="urgent", condition="fracture", note="skier, suspected wrist fracture, cannot ski down")
     _job(state, "T3", "zd_vic", needs="wheelchair", note="referred to the UKC emergency department")
@@ -338,10 +354,18 @@ def _snow_cascade(state: WorldState) -> list[EventRecord]:
 
 def _surge(state: WorldState) -> list[EventRecord]:
     """Seven calls within about three minutes, one of them a cardiac arrest, and only three ambulances:
-    the engine sends the free ones, the closest unit (the helicopter if need be) to the arrest; the
-    next serious calls queue behind a patient, the urgent fall goes to a van. Decision: who waits
-    (by time sensitivity), the helicopter, help from a neighbouring station."""
+    the engine sends the free ones to the first serious calls and diverts one of them to the arrest
+    (rule 2; the helicopter at Brnik, 13 min to take off, is not the closest), the displaced serious
+    call goes to the helicopter; the next serious calls queue behind a patient, the urgent fall goes
+    to a van. The demand trigger
+    fires (high_demand). Decision: activate the contracted surge capacity (the engine option): P1 and
+    P2 take the waiting red calls, the private vans the transports queued behind the vans' current
+    jobs; or who waits, mutual aid."""
     _job(state, "T4", "zd_vic", needs="wheelchair", note="referred to the UKC emergency department")
+    _job(state, "T2", "zd_siska", needs="wheelchair", note="referred to the UKC emergency department")
+    _job(state, "T2", "zd_center", needs="seated", note="referred to the UKC emergency department", ready_min=5)
+    _job(state, "T3", "ukc", "home_moste", needs="seated", note="urgent discharge: bed needed", ready_min=5)
+    _job(state, "T3", "zd_center", "ukc", cargo="lab samples", note="to the central lab", ready_min=10)
     _fast_forward(state, 1)
     calls = [
         (_near(state, "home_moste", 0.002, 0.004, "Moste (call)"), "serious", "stemi", [], "crushing chest pain"),
@@ -367,6 +391,9 @@ def _surge(state: WorldState) -> list[EventRecord]:
             )
         )
         _fast_forward(state, 0.5)
+    from .engine import surge
+
+    surge.assume_sustained(state)  # the demand built up before the scenario's moment: the alert shows at once
     return records
 
 
@@ -406,7 +433,8 @@ def _nothing_free(state: WorldState) -> list[EventRecord]:
     """Everything is out (Metelko's D11): a cardiac arrest in Bežigrad while every ambulance has a
     patient on board far from the city and the helicopter is loading a hiker in the mountains. The
     engine sends the unit that is there first (still over 15 min) and the doctor car at once.
-    Decision: request mutual aid from Domžale, a private ambulance, or wait for the helicopter."""
+    Decision: request mutual aid from Domžale, a private ambulance, or wait for the helicopter.
+    Runs at a daytime world clock (scenario_start): the helicopter flies by day only."""
     hiker = _job(state, "H1", (REMOTE_CALL[0], REMOTE_CALL[1], "Kamniška Bistrica (hiking trail)"), priority="emergency",
                  needs="stretcher", severity="serious", condition="major_trauma", note="hiker fell, suspected spinal injury")
     far = [
@@ -468,7 +496,7 @@ def prepare(state: WorldState, name: str) -> list[EventRecord]:
     """Re-seed in live-calls mode and build the scenario (no AI run). Raises KeyError if unknown."""
     if name not in SCENARIOS:
         raise KeyError(name)
-    seed_world(state, config.RANDOM_SEED, scheduled_day=False)
+    seed_world(state, config.RANDOM_SEED, scheduled_day=False, start=scenario_start(name))
     records = SCENARIOS[name][1](state)
     state.calls.pause(state.sim_time + timedelta(minutes=SCENARIO_QUIET_MIN))  # let the decision be made first
     project_all(state)
@@ -504,5 +532,11 @@ def run_scenario(state: WorldState, name: str) -> dict[str, Any]:
         note = f"Scenario started: {title}. Auto-analyse is off: press Analyse (A) for the AI's recommendation."
         return {"scenario": name, "title": title, "events": records, "run_id": None, "note": note}
     run = agent.start_run(state, trigger=f"scenario:{name}", question=question)
+    if run is None:  # automatic analysis skipped: Claude usage limit reached (app/guard.py)
+        state.pending_question = question  # the operator's Analyse still gets the scenario's description
+        state.pending_scenario_events = {r.id for r in records}
+        state.bump()
+        note = f"Scenario started: {title}. The AI limit is reached: press Analyse (A) for the engine's plan."
+        return {"scenario": name, "title": title, "events": records, "run_id": None, "note": note}
     state.bump()
     return {"scenario": name, "title": title, "events": records, "run_id": run.id}

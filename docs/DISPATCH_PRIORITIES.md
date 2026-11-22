@@ -72,14 +72,19 @@ If a call is reported as better (e.g. the patient is breathing again), the dispa
    current patient.
 6. **Critical calls get the absolute closest unit**, including the helicopter when it is
    faster, even in the city (the MPDS Echo principle). For serious calls the helicopter goes
-   when it is ≥ 10 min faster; for urgent ones only for remote or long-distance cases (≥ 15 min).
+   when it is ≥ 10 min faster; for urgent ones only for remote or long-distance cases (≥ 15 min
+   faster and ≥ 15 km from the destination hospital). The helicopter's times are the real
+   service's ([SERVICE_TIMES.md](SERVICE_TIMES.md), "Helicopter"): based at Brnik, 13 min from the call
+   to take-off, 2 to 3 min to land, new calls only 08:00 to 16:30. A city call costs it about
+   22 min, so in practice it wins remote calls, and a city call only when no ambulance is free.
 7. **Time to definitive care, not only to the scene.** Stroke and STEMI patients go to UKC (stroke
    centre, catheter lab) with a pre-alert; options are compared by arrival at the hospital as well.
 8. **Explain clinically.** Every AI recommendation states its reason in one sentence, e.g.
    "cardiac arrest: about 6% survival lost per minute without defibrillation; A1 is 9 min closer".
 9. **The human stays in charge.** The engine acts on its own only for rules 1, 2 and 6 at the
    moment of dispatch, because seconds matter. Everything else is a proposal the dispatcher
-   approves.
+   approves, unless the dispatcher has switched the world to the autonomous AI dispatcher
+   (section 8); the dispatcher can still change any unit by hand.
 
 ## 4. Slovenian practice adopted
 
@@ -97,7 +102,12 @@ rules above and adds these points that Plan B now follows:
   when one can.
 - **The helicopter is evaluated for every red call.** This is a calculation, not an automatic flight:
   every dispatch summary for a red call says when H1 would arrive and why it was or was not sent
-  (rule 6).
+  (rule 6), e.g. "H1 checked: at the patient 13:22 (take-off in 13 min; not the closest)". At night or in
+  fog it says so instead: "H1 not available: night (HNMP flies 08:00-16:30)".
+- **The helicopter flies by day only and starts at Brnik.** HNMP Brnik takes off on average 13 min
+  after the call (2025; 12 to 16 min in 2021 to 2025) and flies 08:00 to sunset in winter (08:00 to
+  16:30 in 2026), with no night flying ([EMS_RESEARCH.md](EMS_RESEARCH.md) section 4). Plan B uses
+  these figures; a mission under way at 16:30 is finished, no new one starts.
 - **Handover at the hospital takes at most 15 minutes**, after which the crew reports free. Plan B
   models a 15-minute handover, then 10 minutes of cleaning ("returning, unavailable"), and a 1-minute
   turnout for ambulances (5 for doctor cars): see [SERVICE_TIMES.md](SERVICE_TIMES.md).
@@ -126,11 +136,160 @@ which matches his rule.
 | 3. Not displaced twice | `Trip.times_displaced` | |
 | 4. Same level: weight, then worst wait | `engine/actions.py: goes_before`, `engine/dispatch.py: swap_options` | `WEIGHT_CLEARLY_HIGHER` = 1.5, `SWAP_MIN_GAIN_MIN` = 5 |
 | 5. Never divert near or on scene | `engine/actions.py: near_current_patient` | `NEAR_PATIENT_MIN` = 2 |
-| 6. Helicopter per level | `engine/dispatch.py: decide` | `HELICOPTER_GAIN_MIN` = 0 / 10 / 15 |
+| 6. Helicopter per level | `engine/dispatch.py: decide` | `HELICOPTER_GAIN_MIN` = 0 / 10 / 15, `HELICOPTER_REMOTE_KM` = 15 |
+| Helicopter base, activation, landing, hours | `app/hems.py` | `HEMS_ACTIVATION_MIN` = 13, `HEMS_SCENE_LANDING_MIN` = 3, `HEMS_HELIPAD_LANDING_MIN` = 2, `HEMS_HOURS` = 08:00 to 16:30 |
 | 7. Stroke and STEMI judged at UKC | `engine/dispatch.py: decide` | `DEFINITIVE_CARE_CONDITIONS` |
 | 8. Clinical reason | `engine/severity.py: clinical_reason` | |
 | Doctor cars, mutual aid, private ambulances | `engine/doctors.py` | `DOCTOR_CONDITIONS`, `DOCTOR_TARGET_MIN` = 15 |
 | Turnout, on scene, handover, cleaning | `engine/service_times.py` | see [SERVICE_TIMES.md](SERVICE_TIMES.md) |
+| Demand trigger, surge capacity, use rules | `engine/surge.py` | see section 6 |
+
+## 6. Surge capacity: contracted units when demand rises
+
+Slovenian dispatch has an escalation ladder for more demand than the area can handle
+([AGENTIC_DISPATCH_DESIGN.md](AGENTIC_DISPATCH_DESIGN.md) 5.4,
+[SURGE_AND_MULTI_SERVICE_COORDINATION.md](SURGE_AND_MULTI_SERVICE_COORDINATION.md)). Plan B models its
+private-provider steps, proactively and always as the **dispatcher's decision**.
+
+**Demand trigger** (thresholds from the rules table in [DISPATCH_SCENARIOS.md](DISPATCH_SCENARIOS.md),
+live-calls mode only), on when any of these holds:
+
+| Condition | Constant |
+|---|---|
+| Free own ambulances are 25 % or less of those crewed (with three crewed: none free) | `DEMAND_FREE_SHARE` = 0.25 |
+| A red (critical or serious) call is predicted to wait more than 15 min | `DEMAND_RED_WAIT_MIN` = 15 |
+| At least two open calls are predicted past their response target | `DEMAND_PAST_TARGET` = 2 |
+
+It raises the alert `high_demand`, saying why and what would help, with a one-click offer. It never
+activates anything. With auto-analyse on, an analysis may start when it turns on and patients are
+affected (a red call over 15 min, or calls past target), at most once per 15 world-minutes; the AI then
+proposes the surge capacity (rule 10 of the prompt) rather than displacing patients.
+
+**Contracted surge capacity**, activated by the dispatcher (the alert's button, `POST
+/{world}/admin/surge`, or an approved option with `activate_surge`): ambulances **P1** (Brezovica) and
+**P2** (Vič) with qualified crews, private vans **PV1 to PV3** for non-urgent transports, for **2 hours**
+(`SURGE_HOURS`). At the end of the contract (or `POST /{world}/admin/surge/stand-down`) each unit takes
+no new jobs, its queued jobs are dispatched again, it finishes its current job, returns and leaves the
+fleet. M1 (mutual aid) and P1 can still be requested for a single red call as before.
+
+**Use rules while they are in the fleet** (the ladder's rules, mapped to our severities):
+
+| Calls | Rule | Constant |
+|---|---|---|
+| Transports (routine bookings, urgent transfers, equipment) | Private vans first; never a contracted ambulance | |
+| Urgent calls | A contracted ambulance when our own unit would reach the patient more than 45 min after the call, or the contracted one is 10 min sooner | `PRIVATE_URGENT_WAIT_MIN` = 45, `PRIVATE_URGENT_GAIN_MIN` = 10 |
+| Critical and serious calls | A private ambulance only if no public unit (own, helicopter, mutual aid) arrives within 15 min and it is faster | `PRIVATE_RED_GAIN_MIN` = 1 |
+
+Activating moves the waiting calls these rules give to the new units at once (never a patient on
+board, a unit on scene or within 2 min of its patient, or a transport already under way).
+
+**Slovenian context.** Non-urgent transports already go through the dispatch service to contracted
+providers (dispatch rulebook art. 15); since 2026 non-urgent public providers must answer the
+dispatcher's call in a sudden rise in demand [reported, SS]; a **2024 rule (Uradni list RS 2024-01-2739)
+requires non-urgent transport providers to reserve 20 % of their capacity for the emergency dispatch
+service**. We have not read that text ourselves (the official gazette site failed its certificate check
+for us, as it did for Metelko with the 2026 rulebook). Whether private crews may take red calls outside
+a declared large disaster is an open point in the research; Plan B keeps them as the last option.
+
+**Measured** (8 world-hours, seeds 42 and 7; "with surge": a stand-in dispatcher activates it for 2 h
+whenever the trigger is on and patients are affected):
+
+| Calls per hour | Red calls over 15 min | Worst red wait | Calls displaced | Late trips |
+|---|---|---|---|---|
+| 5 (default), without | 2 / 3 | 55 / 36 min | 0 / 0 | 2 / 1 |
+| 5, with surge capacity | 1 / 3 | 16 / 36 min | 0 / 0 | 1 / 1 |
+| 8, without | 16 / 7 | 200 / 45 min | 1 / 1 | 7 / 2 |
+| 8, with surge capacity | 5 / 5 | 50 / 47 min | 0 / 1 | 2 / 1 |
+
+With only three own ambulances the first condition ("none free") is on 22 to 53 % of the time even at
+5 calls per hour, so the alert itself has **hysteresis** (`engine/surge.update_demand_alert`): it is
+raised only when the trigger has been on for 5 world-minutes (`DEMAND_RAISE_AFTER_MIN`) **and**
+patients are affected (a red call predicted over 15 min, or two calls past their target), and cleared
+only when that has been false for 5 minutes (`DEMAND_CLEAR_AFTER_MIN`; meanwhile it shows as "easing").
+All units busy with nobody waiting too long never raises it. Measured over 5 seeds x 8 world-hours:
+at 5 calls per hour the raw trigger is on 36 % of the time, the alert 19 % (raised about 3 times per
+8 hours); at 8.75 per hour 71 % and 58 %. The engine's and the AI's surge option follow the alert.
+
+## 7. 112 calls from the first second to the end
+
+Every call has a **call record** (`Trip.call`) and a **timeline** (`Trip.timeline`):
+
+- **Intake** (`app/intake.py`): a call typed by the call-taker (`POST /{world}/calls`: the caller's
+  words, an address, a known place or a map point) is **triaged by Claude** (a small structured-output
+  request, `agent/triage.py`, through the usage guard) and, when Claude is off, limited, slow (12 s) or
+  fails, by the **keyword rules** (`agent/messages.grade_text`: Slovenian and English stems, checked
+  against the generator's texts and natural phrasings per condition, e.g. "obraz ji je povešen",
+  "ne more govoriti", "ne dobi zraka", "nima utripa"; an unconscious patient with no named cause is
+  graded serious), so a call is never lost. As a safety net the red-flag words may raise Claude's
+  level, never lower it. The call then goes through the
+  normal dispatch path (`urgent_request`, section 3), with a doctor car when the triage asks for one.
+- **Generated calls** (`sim/calls.py`) carry a fictional caller, a street address and the caller's
+  words in Slovenian and English (several texts per condition, each checked against the keyword rules);
+  the rules triage them, Claude only with the world's **AI triage** switch on (and while the guard has
+  requests to spare). Words come from a separate random stream: the calls and the benchmark are unchanged.
+- **Timeline** (`engine/timeline.py`): received, triaged, dispatched, doctor dispatched, rerouted,
+  reassigned, delayed, unit replaced, proposal, approved, reviewed, override, on scene, doctor on scene,
+  transporting, at hospital, handover done, closed, note; each says who (`by`: caller, ai, rules, engine,
+  dispatcher, crew) and the source in a few words (`detail`: "rules engine, 0.1 s", "keyword rules,
+  0.0 s", "Claude, 12 s, checked by the engine", "dispatcher override").
+- **Automatic follow-up of 112 calls** (`engine/followup.py`, every 30 world-seconds, logged by the
+  engine): a call whose unit drops out is re-dispatched at once; a call no unit could take is
+  dispatched as soon as one can; before arrival a **free** ambulance that reaches the patient **3 min
+  sooner** (`FASTER_FREE_UNIT_MIN_GAIN_MIN`, e.g. after a delay) takes over; a call that needs a doctor
+  and has none gets the first free doctor car. Detours around closures are automatic (simulator). Calls
+  without a 112 record (scenario jobs, bookings, hospital requests) keep the old behaviour, so the
+  stranded-patient and stranded-equipment decisions stay with the dispatcher. Trade-offs (overrides of
+  other calls, swaps, reserve units, surge) stay **proposals**.
+- **Autopilot** (per world, off by default; now the autonomous AI dispatcher mode, section 8): the
+  recommended feasible option of every analysis about an active call is approved by the engine through
+  the dispatcher's own approval path (re-checked, applied, audited); activating contracted surge
+  capacity always stays with the dispatcher.
+
+## 8. AI dispatcher modes
+
+The AI runs each case; the dispatcher can intervene at any time (`app/ai_dispatcher.py`,
+`app/overrides.py`). Rule 9 still holds where seconds matter: the **engine** acts at once by itself
+(dispatch when the call comes in, detours around closures, replacing a unit that drops out, a faster
+free unit, a doctor car). On top of that **Claude reviews the case** as a focused analysis (through
+the usage guard, with the engine's tools, every option re-simulated by the engine):
+
+- every new **critical or serious** 112 call, right after the engine's dispatch;
+- every **disruption touching an open 112 call**: breakdown, delay, a closure on the unit's route, a
+  priority change (at most the two most urgent calls per event).
+
+| Mode (per world, `ai_mode`) | Reviews | Claude's recommendation |
+|---|---|---|
+| **assisted** (default) | only with auto-analyse on | a proposal: the dispatcher approves or rejects it |
+| **autonomous** (`POST /{world}/admin/ai-mode {"mode": "autonomous"}`; the old autopilot switch) | always | applied at once through the dispatcher's approval path (re-checked by the engine, audited), timeline `approved` by `ai` ("Claude, 12 s, checked by the engine"); contracted surge capacity stays the dispatcher's decision |
+
+Every review ends in a `reviewed` timeline entry by `ai`: "AI dispatcher (Claude) reviewed: no change —
+keep A1 and doctor car D1 for TR-004 (...)" when Claude keeps the engine's decision (no steps), or
+"AI dispatcher (Claude) changed: A3 instead of A1 — ..." when its change was applied (autonomous); in
+assisted mode a change is a `proposal`. When the guard refuses, there is no API key,
+or Claude fails or takes longer than `AGENT_TIMEOUT_S`, **the engine's decision stands** and the
+timeline says so. One review per call at a time, and none within 2 world-minutes of the last one for
+that call (`REVIEW_GAP_MIN`).
+
+**The dispatcher intervenes** on any call: `GET /{world}/trips/{id}/alternatives?role=ambulance|doctor|helicopter`
+lists every unit of that role ranked by arrival at the patient, simulated by the engine, with what it
+costs ("free", "diverts TR-003 (urgent), which then waits 12 min longer", "helicopter, doctor on board,
+take-off in 13 min", "private, needs surge capacity"); `POST /{world}/trips/{id}/assign {"vehicle_id", "mode": "replace"|"add"}`
+applies one through the plan path (a doctor car is swapped or added; a further ambulance or the
+helicopter for another patient of the same call becomes a linked trip with the same call record).
+Refused with the reason when it cannot be done (a patient on board, a doctor car busy with another
+call). Timeline `override` by `dispatcher`. **The dispatcher's choice sticks**: a unit assigned by the
+dispatcher (an override, or a plan they approved) is not changed by the engine's follow-up (a faster
+free unit), by the autonomous AI dispatcher or by the autopilot (refused, with a timeline note); only
+if that unit drops out (breakdown, fog) does the engine replace it at once, and from then on the call
+is followed up as usual.
+
+**Why each unit**: every call's `units` (snapshot) name the transporting unit, the doctor car and any
+linked unit with one line of reason written where the decision was made ("nearest free ambulance",
+"available soon: finishes at UKC Ljubljana, 12 min sooner than A2", "doctor needed for cardiac
+arrest: first doctor car on scene", "dispatcher override (was A3): ..."; no minutes to the patient: the
+unit's live ETA is shown next to it) and who decided
+(`engine`, `ai`, `dispatcher`). `ai_stats` counts the decisions since the reset: calls active, units
+dispatched, reroutes, reassignments, dispatcher overrides, Claude's reviews and the changes applied.
 
 ## Sources
 
@@ -139,6 +298,10 @@ which matches his rule.
   helicopter 5.5, handover 5.8, statuses 5.10), [DISPATCH_SCENARIOS.md](DISPATCH_SCENARIOS.md),
   [LJUBLJANA_FLEET_AND_TEAMS.md](LJUBLJANA_FLEET_AND_TEAMS.md), [DATA_FRESHNESS.md](DATA_FRESHNESS.md).
 - Service times (turnout, on scene, handover, cleaning): [SERVICE_TIMES.md](SERVICE_TIMES.md).
+- Surge capacity (section 6): [AGENTIC_DISPATCH_DESIGN.md](AGENTIC_DISPATCH_DESIGN.md) 5.4,
+  [SURGE_AND_MULTI_SERVICE_COORDINATION.md](SURGE_AND_MULTI_SERVICE_COORDINATION.md) sections 2, 5 and 8,
+  [DISPATCH_SCENARIOS.md](DISPATCH_SCENARIOS.md) (rules table, D07 to D11); the 20 % capacity
+  reservation for non-urgent providers: Uradni list RS 2024-01-2739 (as reported to us, text not read).
 
 - Slovenia, severity levels (SloIn NMP, red and yellow priorities): [Pravilnik o službi nujne medicinske pomoči in prevozih pacientov (consolidated text, 3 June 2026)](https://www.tax-fin-lex.si/Dokument/Podrobnosti/b509dd37-3d66-492d-893f-61191c3dec52); [gov.si: Nujna medicinska pomoč](https://www.gov.si/teme/nujna-medicinska-pomoc/)
 - UK Ambulance Response Programme categories and standards: [NHS England ARP board paper](https://www.england.nhs.uk/wp-content/uploads/2019/07/02-CB-30-03-2017-ARP.pdf), [NEAS: Ambulance Response Programme](https://www.neas.nhs.uk/your-service/999/ambulance-response-programme), [GSS: summary of ambulance response time data](https://analysisfunction.civilservice.gov.uk/government-statistical-service-and-statistician-group/user-facing-pages/health-and-care-statistics/summary-of-ambulance-response-time-data-in-the-uk). The Category 1 mean (7 min) and Category 3 (120 min) figures are the published ARP standards and were not re-checked in this research.

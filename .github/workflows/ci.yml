@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# A newer push to the same branch / PR cancels the run it supersedes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend tests (Python 3.12)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      # What the tests expect (README: `ROAD_ROUTING=0 python tests/test_x.py`). No secrets in CI: the app runs
+      # without ANTHROPIC_API_KEY / TOMTOM_API_KEY / DATABASE_URL (engine fallback, time-of-day traffic profile,
+      # in-memory audit log), and the live feeds just log a warning when a request fails.
+      ROAD_ROUTING: "0"
+      PYTHONIOENCODING: utf-8
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run every backend test script
+        shell: bash
+        run: |
+          # The tests are plain scripts (no pytest): each one prints "N/N passed" and exits non-zero on failure.
+          # Run them all, then fail the job if any of them failed.
+          set +e
+          shopt -s nullglob
+          scripts=(tests/test_*.py)
+          if [ "${#scripts[@]}" -eq 0 ]; then
+            echo "::error::no tests found in backend/tests/"
+            exit 1
+          fi
+
+          passed=()
+          failed=()
+          rows=""
+          for f in "${scripts[@]}"; do
+            start=$SECONDS
+            out=$(timeout 300 python "$f" 2>&1)
+            rc=$?
+            secs=$((SECONDS - start))
+            result=$(printf '%s\n' "$out" | grep -Eo '[0-9]+/[0-9]+ passed' | tail -n 1)
+            if [ "$rc" -eq 0 ]; then
+              passed+=("$f")
+              echo "::group::PASS $f (${secs}s) ${result}"
+              printf '%s\n' "$out"
+              echo "::endgroup::"
+              rows+="| \`$f\` | passed | ${result:-} | ${secs}s |"$'\n'
+            else
+              failed+=("$f")
+              echo "::error file=backend/$f::$f failed (exit code $rc, ${secs}s)"
+              echo "===== FAIL $f (exit code $rc, ${secs}s) ====="
+              printf '%s\n' "$out"
+              echo "===== end of $f ====="
+              rows+="| \`$f\` | **FAILED** (exit $rc) | ${result:-} | ${secs}s |"$'\n'
+            fi
+          done
+
+          echo
+          echo "Summary: ${#passed[@]} of ${#scripts[@]} test scripts passed, ${#failed[@]} failed"
+          for f in "${failed[@]}"; do echo "  FAILED: $f"; done
+
+          {
+            echo "### Backend tests: ${#passed[@]}/${#scripts[@]} scripts passed"
+            echo
+            echo "| script | result | tests | time |"
+            echo "|---|---|---|---|"
+            printf '%s' "$rows"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${#failed[@]}" -ne 0 ]; then
+            exit 1
+          fi
+
+  frontend:
+    name: Frontend typecheck and build (Node 24)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      # Vite 8 needs Node 20.19+ / 22.12+; TypeScript 7 runs on anything >= 16. 24 is the current LTS.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build

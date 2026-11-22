@@ -233,25 +233,53 @@ _event_adapter = TypeAdapter(OperatorEvent)
 
 # Keyword grading of field messages (Slovenian, some English): (phrases, condition, level). First match
 # wins, so the most time-critical come first ("padec z višine" before "padec").
-GRADING_KEYWORDS: list[tuple[tuple[str, ...], str, str]] = [
-    (("ne diha", "oživlj", "brez utripa", "srčni zastoj", "zastoj srca", "not breathing", "cardiac arrest"), "cardiac_arrest", "critical"),
-    (("se duši", "zaduši", "dušenje", "choking"), "choking", "critical"),
-    (("močno krvavi", "masivna krvavitev", "huda krvavitev", "bleeding heavily", "heavy bleeding"), "catastrophic_bleeding", "critical"),
-    (("anafilak", "alergijski šok", "anaphyla"), "anaphylaxis", "critical"),
-    (("sum na kap", "možganska kap", "povešen ustni kot", "povešen kot ust", "stroke"), "stroke", "serious"),
-    (("bolečina v prsih", "bolečine v prsih", "boli v prsih", "infarkt", "srčni napad", "chest pain", "heart attack"), "stemi", "serious"),
-    (("težko diha", "težave z dihanjem", "težko dihanje", "difficulty breathing", "short of breath"), "breathing_difficulty", "serious"),
-    (("padec z višine", "prometna nesreča", "huda poškodba", "politravm", "major trauma"), "major_trauma", "serious"),
-    (("krči", "epilept", "seizure"), "seizure", "serious"),
-    (("sepsa", "sepso", "sepsis"), "sepsis", "serious"),
-    (("zlom", "fractur"), "fracture", "urgent"),
-    (("padec", "padel", "padla", "a fall"), "fall", "urgent"),
+GRADING_KEYWORDS: list[tuple[tuple[str, ...], str | None, str]] = [
+    (("ne diha", "ne diše", "oživlj", "brez utripa", "nima utripa", "ni utripa", "brez pulza", "srčni zastoj", "zastoj srca",
+      "srce mu je zastalo", "srce ji je zastalo", "znakov življenja", "not breathing", "isn't breathing", "stopped breathing",
+      "no pulse", "cardiac arrest"), "cardiac_arrest", "critical"),
+    (("se duši", "zaduši", "dušenje", "obtičal", "zataknil", "zagozdil", "choking", "choked"), "choking", "critical"),
+    (("močno krvavi", "hudo krvavi", "masivna krvavitev", "huda krvavitev", "ustaviti krvavit", "brizga",
+      "ogromno krvi", "veliko krvi", "izkrvav", "bleeding heavily", "heavy bleeding", "bleeding a lot", "bleeding badly",
+      "massive bleeding"), "catastrophic_bleeding", "critical"),
+    (("anafilak", "alergijsk", "alergičn", "pik čebele", "piku čebele", "pik ose", "piku ose", "pičil", "oteka grlo",
+      "oteka mu grlo", "oteka ji grlo", "otekel jezik", "otekle ustnice", "otekel v obraz", "anaphyla", "allergic",
+      "bee sting", "wasp sting", "throat is swelling"), "anaphylaxis", "critical"),
+    (("sum na kap", "možganska kap", "možgansko kap", "možganske kapi", "zadela kap", "ga je kap", "jo je kap", "poveš",
+      "visi ustnica", "visi ustni kot", "ne more govorit", "ne more spregovorit", "nerazločno govor", "nerazumljivo govor",
+      "zapleta jezik", "zapleta z jezikom", "jezik se mu zapleta", "jezik se ji zapleta", "težko govori", "ne čuti leve",
+      "ne čuti desne", "ne čuti roke", "ne čuti noge", "ne čuti ene", "ohromel", "ohromljen", "stroke", "drooping",
+      "slurred", "can't speak", "cannot speak", "weakness on one side"), "stroke", "serious"),
+    (("bolečina v prsih", "bolečine v prsih", "bolečino v prsih", "boli v prsih", "v prsih", "na prsih", "prsnem koš",
+      "prsni koš", "prsnega koš", "seva v levo roko", "seva v roko", "boli srce", "boli ga srce", "boli jo srce", "infarkt",
+      "srčni napad", "chest pain", "heart attack"), "stemi", "serious"),
+    (("težko diha", "težave z dihanjem", "težko dihanje", "ne more dihat", "ne more zadihat", "ne dobi zraka", "ne dobi sape",
+      "lovi sapo", "lovi zrak", "težka sapa", "težko sapo", "zadihan", "astm", "difficulty breathing", "short of breath",
+      "can't breathe", "cannot breathe", "trouble breathing"), "breathing_difficulty", "serious"),
+    (("padec z višine", "z višine", "z lestve", "s strehe", "z odra", "z drevesa", "nadstropja", "prometna nesreča",
+      "prometni nesreči", "huda poškodba", "hudo poškodb", "politravm", "zbil", "povozil", "trčenj", "trčil", "ukleščen",
+      "stisnilo", "zasulo", "motorist", "hit by a car", "car crash", "major trauma",
+      # a head injury (e.g. a fall down the stairs with the head bleeding): not a plain fall
+      "krvavi iz glave", "krvavitev iz glave", "udaril z glavo", "udarila z glavo", "udarilo z glavo", "rana na glavi",
+      "rano na glavi", "poškodba glave", "poškodbo glave", "poškodoval glavo", "poškodovala glavo", "head injury",
+      "head wound", "bleeding from the head", "bleeding from his head", "bleeding from her head"), "major_trauma", "serious"),
+    (("krč", "epilept", "božjast", "trese ga po", "trese jo po", "zvija ga", "zvija jo", "seizure", "convuls",
+      "having a fit"), "seizure", "serious"),
+    (("sepsa", "sepso", "sepsis", "septič", "septic", "zastrupitev krvi", "zastrupitve krvi"), "sepsis", "serious"),
+    # Weaker cues, after the specific conditions above: one-sided weakness (stroke), and unconsciousness
+    # without a named cause (serious, no condition: the dispatcher or Claude grades it further).
+    (("eni strani", "ene strani", "eno stran", "govori zmedeno", "one side"), "stroke", "serious"),
+    (("ni pri zavesti", "nezavest", "brez zavesti", "izgubil zavest", "izgubila zavest", "se ne odziva", "unconscious",
+      "unresponsive"), None, "serious"),
+    (("zlom", "fractur", "broken arm", "broken leg", "broken hip", "broken bone"), "fracture", "urgent"),
+    (("padec", "padel", "padla", "padlo", "a fall", "fell", "has fallen"), "fall", "urgent"),
 ]
 MODIFIER_KEYWORDS: dict[str, tuple[str, ...]] = {
     "child": ("otrok", "deček", "deklica", "dojenček", "child", "baby"),
     "multiple_patients": ("več poškodovanih", "več oseb", "dva poškodovana", "trije poškodovani", "several injured"),
     "deteriorating": ("se slabša", "slabša se", "poslabša", "poslabšuje", "getting worse"),
     "no_bystander_cpr": ("nihče ne oživlja", "brez oživljanja", "no cpr", "nobody is doing cpr"),
+    "late_stroke_window": ("pred več kot tremi urami", "pred več kot 3 urami", "več kot tri ure", "more than three hours ago",
+                           "over 3 hours ago"),
 }
 
 

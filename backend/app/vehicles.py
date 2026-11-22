@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from .engine.projection import project_route
+from .hems import availability
 from .roads import key
 from .routing import flies, is_detour, leg_route, resolve_route
 from .sim.fleet_details import LOW_FUEL_PCT, fuel_rate
@@ -29,6 +30,8 @@ CAPABILITIES = {
     "helicopter": [
         "Emergencies and urgent trips where it is clearly faster",
         "Remote places and long distances",
+        "Based at Brnik (Ljubljana airport): about 13 min from the call to take-off",
+        "Day only: new calls 08:00-16:30",
         "No scheduled trips or equipment",
         "Grounded by fog",
         "Emergency physician on board",
@@ -59,6 +62,25 @@ def _geometry(
     step = max(1, len(route.points) // 80)
     pts = route.points[::step] + [route.points[-1]]
     return [[round(lat, 5), round(lon, 5)] for lat, lon in pts], around
+
+
+def responding_to(state: WorldState, v: Vehicle) -> dict[str, Any] | None:
+    """The call the unit is on (its current trip; a doctor car: the call it supports), else its next
+    queued one; None when it has none."""
+    trip = state.trips.get(v.current_trip_id) if v.current_trip_id else None
+    if trip is None and v.queue:
+        trip = state.trips.get(v.queue[0])
+    if trip is None or trip.status in ("completed", "cancelled"):
+        return None
+    c = trip.call
+    return {
+        "trip_id": trip.id,
+        "call_id": c.call_id if c else None,
+        "severity": trip.severity,
+        "condition_label": trip.condition_label,
+        "address": (c.address if c and c.address else None) or state.places[trip.pickup_id].name,
+        "dropoff_name": state.places[trip.dropoff_id].name,
+    }
 
 
 def vehicle_detail(state: WorldState, v: Vehicle) -> dict[str, Any]:
@@ -116,7 +138,8 @@ def vehicle_detail(state: WorldState, v: Vehicle) -> dict[str, Any]:
     current = state.trips.get(v.current_trip_id) if v.current_trip_id else None
     range_km = v.fuel_pct / fuel_rate(v.type) if fuel_rate(v.type) else None
     return {
-        "vehicle": {**v.model_dump(mode="json"), "path": state.vehicle_path(v)},
+        "vehicle": {**v.model_dump(mode="json"), "path": state.vehicle_path(v), **availability(v, state.sim_time)},
+        "responding_to": responding_to(state, v),
         "base": places[v.base_id].name if v.base_id in places else v.base_id,
         "capabilities": CAPABILITIES.get(v.type, []),
         "fuel": {"pct": round(v.fuel_pct, 1), "range_km": round(range_km) if range_km is not None else None,

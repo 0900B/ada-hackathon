@@ -3,12 +3,13 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { trafficTileUrl, type Vehicle, type VehicleDetail, type WorldSnapshot } from "./api";
 import { baseMaps, saveBase, savedBase, type BaseId } from "./basemaps";
-import { flightTarget, fmtTime, vehicleStatusText } from "./format";
+import { flightTarget, fmtTime, heliDown, nightText, vehicleStatusText } from "./format";
 import { GLYPH, vehicleGlyph } from "./glyphs";
 import { conditionText, LEVEL_LABEL, levelOf, responseOf, responseText } from "./severity";
 import { doctorOf, doctorText, ORIGIN_LABEL } from "./doctor";
+import { t as tx, tOr, useLang } from "./i18n";
 
-export type ClickMode = "closure" | "emergency" | null;
+export type ClickMode = "closure" | "emergency" | "call" | null; // call: where a new 112 call is
 
 // Places: small, restrained markers; red is reserved for hospitals and emergency call locations
 const PLACE_STYLE: Record<string, { r: number; color: string; fill: string }> = {
@@ -46,25 +47,32 @@ interface Props {
   detail: VehicleDetail | null; // route of the selected vehicle, highlighted
   centerOn: { lat: number; lon: number; n: number } | null; // bump n to re-center
   pin?: { lat: number; lon: number } | null; // where a new emergency call is being placed
+  group?: string[]; // all units of the selected case: kept bright, with their routes
+  flash?: { tripId: string; n: number } | null; // "On map": centre on the call and blink its marker (bump n)
 }
 
 /** Map marker: a dark plate with the type glyph and the callsign; the border colour is the status. */
 function vehicleHtml(v: Vehicle, cls: string, flying: boolean, grounded: boolean, held: boolean): string {
   const tag =
-    (grounded ? '<span class="vm-tag">Fog</span>' : flying ? '<span class="vm-tag air">Air</span>' : "") +
-    (v.origin && v.origin !== "own" ? `<span class="vm-origin">${v.origin === "mutual_aid" ? "Aid" : "Priv"}</span>` : "");
+    (grounded ? `<span class="vm-tag">${v.grounded_until ? tx("ops.map.tagFog") : tx("heli.nightShort")}</span>` : flying ? `<span class="vm-tag air">${tx("ops.map.tagAir")}</span>` : "") +
+    (v.origin && v.origin !== "own" ? `<span class="vm-origin">${tx(v.origin === "mutual_aid" ? "ops.map.tagAid" : "ops.map.tagPriv")}</span>` : "");
   return (
     `<div class="vm type-${v.type} st-${v.status}${grounded ? " grounded" : ""}${held ? " held" : ""}${cls}">` +
     `${vehicleGlyph(v.type)}<span class="vm-id">${v.id}</span>${tag}</div>`
   );
 }
 
-const INCIDENT_LABEL: Record<string, string> = { road_closure: "Road closure", accident: "Accident", congestion: "Congestion" };
+const incidentLabel = (kind: string) => tOr(`ops.map.incident.${kind}`, tx("ops.map.incident"));
+const flightKind = (kind: string) => tOr(`ops.flight.${kind}`, kind);
 
-export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail, centerOn, pin }: Props) {
+export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail, centerOn, pin, group, flash = null }: Props) {
+  const lang = useLang(); // tooltips, marker tags and the layer switcher follow the UI language
+  const groupKey = (group ?? []).join(","); // a stable dependency for the redraw
   const el = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layers = useRef<Layers | null>(null);
+  // The layers the switcher lists (it is rebuilt on a language switch, with the same layers)
+  const switchable = useRef<{ bases: ReturnType<typeof baseMaps>; traffic: L.Layer; incidents: L.Layer } | null>(null);
   const [zoomTick, setZoomTick] = useState(0);
   // Vehicle markers live across snapshots (moved, not re-created), so a click never lands on a
   // marker that is being replaced, tooltips stay open, and CSS can animate the movement.
@@ -121,13 +129,7 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       maxNativeZoom: 18,
       className: "traffic-layer",
     });
-    L.control
-      .layers(
-        Object.fromEntries((Object.keys(bases) as BaseId[]).map((k) => [bases[k].label, bases[k].layer])),
-        { "Traffic flow (TomTom)": traffic, "Traffic incidents (TomTom)": trafficIncidents },
-        { position: "topright" },
-      )
-      .addTo(map);
+    switchable.current = { bases, traffic, incidents: trafficIncidents }; // the layer switcher: see the effect below
     layers.current = {
       places: L.layerGroup().addTo(map),
       incidents: L.layerGroup().addTo(map),
@@ -167,11 +169,29 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       map.remove();
       mapRef.current = null;
       layers.current = null;
+      switchable.current = null;
       vehicleMarkers.clear();
       callMarkersMap.clear();
       drawnLayers.places = drawnLayers.incidents = "";
     };
   }, []);
+
+  // The layer switcher (base maps and TomTom overlays), rebuilt with translated names on a language switch
+  useEffect(() => {
+    const map = mapRef.current;
+    const sw = switchable.current;
+    if (!map || !sw) return;
+    const control = L.control
+      .layers(
+        Object.fromEntries((Object.keys(sw.bases) as BaseId[]).map((k) => [sw.bases[k].label, sw.bases[k].layer])),
+        { [tx("ops.map.trafficFlow")]: sw.traffic, [tx("ops.map.trafficIncidents")]: sw.incidents },
+        { position: "topright" },
+      )
+      .addTo(map);
+    return () => {
+      if (mapRef.current === map) control.remove(); // (the map may already be gone on unmount)
+    };
+  }, [lang]);
 
   // The spot of a new emergency call while its severity is being picked
   useEffect(() => {
@@ -193,6 +213,45 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
     if (centerOn && mapRef.current) mapRef.current.setView([centerOn.lat, centerOn.lon], Math.max(mapRef.current.getZoom(), 14));
   }, [centerOn]);
 
+  // "On map" from a case card: centre on the patient and blink the call's marker (a temporary one
+  // for calls without a marker: urgent calls, or once the unit is on scene)
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  });
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!flash || !map) return;
+    const s = stateRef.current;
+    const trip = s.trips.find((t) => t.id === flash.tripId);
+    const at = trip ? s.places.find((p) => p.id === trip.pickup_id) : undefined;
+    if (!trip || !at) return;
+    map.setView([at.lat, at.lon], Math.max(map.getZoom(), 15));
+    const existing = callMarkers.current.get(trip.id)?.marker.getElement()?.querySelector(".call-mk");
+    let temp: L.Marker | null = null;
+    if (existing) {
+      existing.classList.remove("flash");
+      void (existing as HTMLElement).offsetWidth; // restart the animation
+      existing.classList.add("flash");
+    } else {
+      temp = L.marker([at.lat, at.lon], {
+        icon: L.divIcon({ className: "", html: `<div class="call-mk ${levelOf(trip)} flash">${GLYPH.pulse}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] }),
+        interactive: false,
+        keyboard: false,
+        zIndexOffset: 2500,
+      }).addTo(map);
+    }
+    const timer = setTimeout(() => {
+      existing?.classList.remove("flash");
+      temp?.remove();
+    }, 3600);
+    return () => {
+      clearTimeout(timer);
+      existing?.classList.remove("flash");
+      temp?.remove();
+    };
+  }, [flash]);
+
   // Redraw on every snapshot (a few dozen objects, so this is cheap).
   useEffect(() => {
     const ls = layers.current;
@@ -200,29 +259,30 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
 
     const placeById = new Map(state.places.map((p) => [p.id, p]));
     const tripById = new Map(state.trips.map((t) => [t.id, t]));
-    const dim = selectedId !== null; // something is selected: fade everyone else's route
+    const inGroup = new Set(groupKey ? groupKey.split(",") : []); // the selected case's units
+    const dim = selectedId !== null || inGroup.size > 0; // something is selected: fade everyone else's route
 
     // Places and incidents change rarely: redraw them only when they do (keeps their tooltips usable)
-    const placesKey = state.places.map((p) => `${p.id}:${p.capacity}`).join(",");
+    const placesKey = `${lang}|${state.places.map((p) => `${p.id}:${p.capacity}`).join(",")}`;
     if (drawn.current.places !== placesKey) {
       drawn.current.places = placesKey;
       ls.places.clearLayers();
       for (const p of state.places) {
         const s = PLACE_STYLE[p.kind] ?? PLACE_STYLE.residential;
-        const cap = p.kind === "hospital" && p.capacity != null ? ` · can admit ${p.capacity}` : "";
+        const cap = p.kind === "hospital" && p.capacity != null ? tx("ops.map.canAdmit", { n: p.capacity }) : "";
         L.circleMarker([p.lat, p.lon], { radius: s.r, color: s.color, fillColor: s.fill, fillOpacity: 0.9, weight: 1.5 })
           .bindTooltip(p.name + cap)
           .addTo(ls.places);
       }
     }
-    const incidentsKey = state.incidents.map((i) => `${i.id}:${i.active}`).join(",");
+    const incidentsKey = `${lang}|${state.incidents.map((i) => `${i.id}:${i.active}`).join(",")}`;
     if (drawn.current.incidents !== incidentsKey) {
       drawn.current.incidents = incidentsKey;
       ls.incidents.clearLayers();
       for (const inc of state.incidents) {
         const color = inc.kind === "congestion" ? "#d6a23a" : "#f2555a";
         L.circle([inc.lat, inc.lon], { radius: inc.radius_m, color, weight: 1.5, fillColor: color, fillOpacity: 0.15, dashArray: inc.source === "live" ? "4 4" : undefined })
-          .bindTooltip(`${INCIDENT_LABEL[inc.kind] ?? "Incident"}: ${inc.description}`)
+          .bindTooltip(`${incidentLabel(inc.kind)}: ${inc.description}`)
           .addTo(ls.incidents);
       }
     }
@@ -244,7 +304,7 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
             opacity: i === 0 ? 1 : 0.6,
             dashArray: i === 0 ? undefined : "6 6",
           }).addTo(ls.highlight);
-          if (detours.has(i)) line.bindTooltip("Detour around a road closure");
+          if (detours.has(i)) line.bindTooltip(tx("ops.map.detour"));
         }
       });
       detail.stops.forEach((s, i) => {
@@ -255,7 +315,9 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
           iconAnchor: [9, 9],
         });
         L.marker([s.lat, s.lon], { icon, interactive: true })
-          .bindTooltip(`${i + 1}. ${s.kind} · ${s.place}${s.trip_id ? ` · ${s.trip_id}` : ""}${s.eta ? ` · ${fmtTime(s.eta)}` : ""}`)
+          .bindTooltip(
+            `${i + 1}. ${tOr(`ops.stop.${s.kind}`, s.kind)} · ${s.place}${s.trip_id ? ` · ${s.trip_id}` : ""}${s.eta ? ` · ${fmtTime(s.eta)}` : ""}`,
+          )
           .addTo(ls.highlight);
       });
     }
@@ -295,14 +357,15 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       const heli = v.type === "helicopter";
       const doctor = v.type === "doctor";
       const color = doctor ? DOCTOR : v.status === "to_pickup" ? EN_ROUTE : LOADED;
-      const grounded = v.grounded_until != null; // the backend clears it when the fog lifts
-      const selected = v.id === selectedId;
+      const grounded = heliDown(v); // fog or night: the backend clears it when the fog lifts or the day starts
+      const main = v.id === selectedId; // its whole route comes from the detail (highlighted legs)
+      const selected = main || inGroup.has(v.id);
       const faded = dim && !selected;
       const opacity = faded ? 0.2 : 0.85;
       const target = heli ? flightTarget(v, trip, placeById, v.queue[0] ? tripById.get(v.queue[0]) : undefined) : null;
       const flying = target !== null && !v.busy_until;
 
-      if (heli && target && !(detail && selected)) {
+      if (heli && target && !(detail && main)) {
         // Helicopters fly straight (no road path): a dashed line to the pickup, drop-off or base,
         // plus a ring on the landing spot
         const lineColor = grounded ? GROUNDED : v.status === "to_pickup" ? EN_ROUTE : LOADED;
@@ -327,9 +390,13 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
           fill: false,
           opacity: faded ? 0.25 : 1,
         })
-          .bindTooltip(`${v.id} ${target.kind === "base" ? "flying home to" : `${target.kind}:`} ${target.place.name}`)
+          .bindTooltip(
+            target.kind === "base"
+              ? tx("ops.map.flyingHomeTo", { id: v.id, place: target.place.name })
+              : tx("ops.map.flyingKind", { id: v.id, kind: flightKind(target.kind), place: target.place.name }),
+          )
           .addTo(ls.routes);
-      } else if (!heli && !(detail && selected) && !(doctor && v.status !== "to_pickup")) {
+      } else if (!heli && !(detail && main) && !(doctor && v.status !== "to_pickup" && !inGroup.has(v.id))) {
         // (a doctor car escorting the ambulance follows it: the ambulance's line is enough)
         const dash = doctor ? "8 5" : v.status === "to_pickup" ? "6 6" : undefined;
         if (v.path && v.path.length > 1) {
@@ -351,20 +418,28 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       }
 
       const cls = `${selected ? " selected" : ""}${faded ? " faded" : ""}`;
-      const held = Boolean(v.busy_until) && v.status !== "loading" && !(v.status === "returning" && !v.current_trip_id);
+      // amber ring: held up (a delay); a normal turnout (crew to the vehicle) is not
+      const held =
+        Boolean(v.busy_until) && v.busy_reason !== "turnout" && v.status !== "loading" && !(v.status === "returning" && !v.current_trip_id);
       const html = vehicleHtml(v, cls, heli && flying && !grounded, grounded, held);
       const size: [number, number] = [(heli ? 72 : 60) + (v.origin && v.origin !== "own" ? 28 : 0), 24];
       const anchor: [number, number] = [size[0] / 2, size[1] / 2]; // constant: the element is never re-created
       // The fan-out is a pixel offset of the marker's position, so changes glide like normal movement
       const pos = fanned.get(v.id) ?? L.latLng(v.lat, v.lon);
       const key = html;
-      const where = target ? ` · ${target.kind === "base" ? "flying home" : `flying to ${target.kind}`}: ${target.place.name}` : "";
-      const groundedText = grounded ? ` · grounded by fog until ${fmtTime(v.grounded_until)}` : "";
-      const role = doctor && trip ? ` · doctor for ${trip.id}${trip.vehicle_id ? ` with ${trip.vehicle_id}` : ""}` : "";
+      const where = target
+        ? target.kind === "base"
+          ? tx("ops.map.whereHome", { place: target.place.name })
+          : tx("ops.map.whereTo", { kind: flightKind(target.kind), place: target.place.name })
+        : "";
+      const night = nightText(v);
+      const groundedText = v.grounded_until ? tx("ops.popGrounded", { time: fmtTime(v.grounded_until) }) : night ? ` · ${night}` : "";
+      const role =
+        doctor && trip ? `${tx("ops.map.doctorFor", { id: trip.id })}${trip.vehicle_id ? tx("ops.map.doctorWith", { unit: trip.vehicle_id }) : ""}` : "";
       const origin = v.origin && v.origin !== "own" ? ` · ${ORIGIN_LABEL[v.origin] ?? v.origin}` : "";
       const tip = `${v.name}${origin} · ${vehicleStatusText(v, state.trips)}${role || (trip ? ` · ${trip.id} (${trip.label})` : "")}${
         heli ? where : ""
-      }${groundedText} · fuel ${Math.round(v.fuel_pct ?? 0)}% · click for details`;
+      }${groundedText}${tx("ops.map.fuelClick", { pct: Math.round(v.fuel_pct ?? 0) })}`;
       const z = selected ? 2000 : heli ? 1000 : 0;
 
       const existing = markers.current.get(v.id);
@@ -416,8 +491,12 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
       const html = `<div class="call-mk ${level}${r?.missed ? " missed" : ""}">${level === "critical" ? '<span class="call-ring"></span>' : ""}${GLYPH.pulse}${pip}</div>`;
       const tip =
         `${LEVEL_LABEL[level]}${cond ? ` · ${cond}` : ""} · ${t.id} · ${at.name}<br>` +
-        (t.vehicle_id ? `${t.vehicle_id} ${t.status === "onboard" ? "on scene" : r ? responseText(r) : ""}` : r ? responseText(r) : "no unit yet") +
-        (dr ? `<br>${doctorText(dr)}${dr.state === "en_route" && t.doctor_eta ? ` · at the scene ${fmtTime(t.doctor_eta)}` : ""}` : "");
+        (t.vehicle_id
+          ? `${t.vehicle_id} ${t.status === "onboard" ? tx("ops.map.onScene") : r ? responseText(r) : ""}`
+          : r
+            ? responseText(r)
+            : tx("ops.map.noUnit")) +
+        (dr ? `<br>${doctorText(dr)}${dr.state === "en_route" && t.doctor_eta ? tx("ops.map.drAtScene", { time: fmtTime(t.doctor_eta) }) : ""}` : "");
       const px = level === "critical" ? 30 : 22;
       const existing = callMarkers.current.get(t.id);
       if (existing && existing.key === html) {
@@ -442,7 +521,7 @@ export function MapView({ state, mode, onMapClick, selectedId, onSelect, detail,
         callMarkers.current.delete(id);
       }
     }
-  }, [state, selectedId, detail, zoomTick]);
+  }, [state, selectedId, detail, zoomTick, groupKey, lang]);
 
   return <div ref={el} className="map" />; // constant on purpose, see the classList effect above
 }

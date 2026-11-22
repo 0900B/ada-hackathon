@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { HOTKEYS, keyLabel, type HotkeyInfo } from "./hotkeys";
+import { useT } from "./i18n";
 import "./voice.css";
 
 /**
@@ -9,6 +10,7 @@ import "./voice.css";
  * bindings don't fire a second time.
  */
 export function ShortcutsHelp({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const t = useT();
   const closeRef = useRef(onClose);
   useEffect(() => {
     closeRef.current = onClose;
@@ -41,13 +43,13 @@ export function ShortcutsHelp({ open, onClose }: { open: boolean; onClose: () =>
         className="kbd-panel"
         role="dialog"
         aria-modal="true"
-        aria-label="Keyboard shortcuts"
+        aria-label={t("dash.keys.title")}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="kbd-head">
-          <h2>Keyboard shortcuts</h2>
-          <button className="link" onClick={onClose} aria-label="Close">
+          <h2>{t("dash.keys.title")}</h2>
+          <button className="link" onClick={onClose} aria-label={t("common.close")}>
             <X />
           </button>
         </div>
@@ -70,7 +72,7 @@ export function ShortcutsHelp({ open, onClose }: { open: boolean; onClose: () =>
             </section>
           ))}
         </div>
-        <p className="muted">Letter keys are ignored while typing in a field; press Esc to leave the field.</p>
+        <p className="muted">{t("dash.keys.footer")}</p>
       </div>
     </div>
   );

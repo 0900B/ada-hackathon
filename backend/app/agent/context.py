@@ -8,9 +8,12 @@ from zoneinfo import ZoneInfo
 
 from ..engine.candidates import find_candidates, is_free, nearest_place_name
 from ..engine.dispatch import swap_options
+from ..engine.doctors import per_call_reserve
+from ..engine.surge import active as surge_active, alert_on as surge_alert_on, available as surge_available, demand as surge_demand, offer_text as surge_offer
 from ..engine.severity import clinical_reason
 from ..engine.plans import simulate_plan
 from ..engine.projection import DONE, incoming_patients, kpis, over_capacity, project_route
+from ..hems import HEMS_HOURS_TEXT, off_duty_until, takeoff_in_min
 from ..models import EventRecord, Plan, PlanStep, Trip, Vehicle
 from ..routing import weather_factor
 
@@ -42,6 +45,19 @@ def to_json(obj: Any) -> str:
 def _load(t: Trip) -> dict[str, Any]:
     """Who or what a trip carries: never call equipment a patient."""
     return {"patient": t.patient} if t.kind == "patient" else {"equipment": t.cargo}
+
+
+def _helicopter_fields(state: WorldState, v: Vehicle) -> dict[str, Any]:
+    """The helicopter's base, activation and hours (app/hems.py), and whether it takes new calls now."""
+    if v.type != "helicopter":
+        return {}
+    out: dict[str, Any] = {"base": state.places[v.base_id].name if v.base_id in state.places else v.base_id}
+    takeoff = takeoff_in_min(v, state.sim_time)
+    if takeoff is not None:
+        out["take_off_in_min"] = round(takeoff)  # from rest at its base: call to take-off (or what is left of it)
+    if (until := off_duty_until(v, state.sim_time)) is not None:
+        out["unavailable"] = f"night: flies {HEMS_HOURS_TEXT} only, no new calls until {hhmm(until)}"
+    return out
 
 
 def _vehicle_status(state: WorldState, v: Vehicle) -> str:
@@ -109,7 +125,9 @@ def build_situation(state: WorldState) -> dict[str, Any]:
                 **({"waiting_at_pickup_until": hhmm(v.waiting_until)} if v.waiting_until else {}),
                 "fuel_pct": round(v.fuel_pct),
                 **({"grounded_by_fog_until": hhmm(v.grounded_until)} if v.grounded_until else {}),
+                **_helicopter_fields(state, v),
                 **({"origin": v.origin} if v.origin != "own" else {}),
+                **({"contract_until": hhmm(v.contract_until)} if v.contract_until else {}),
             }
             for v in state.vehicles.values()
         ],
@@ -118,10 +136,26 @@ def build_situation(state: WorldState) -> dict[str, Any]:
             {
                 "reserve_units": [
                     {"id": r.id, "type": r.type, "origin": r.origin, "base": places[r.base_id].name}
-                    for r in state.reserve_vehicles.values()
+                    for r in per_call_reserve(state)
                 ]
             }
-            if state.reserve_vehicles
+            if per_call_reserve(state)
+            else {}
+        ),
+        # The demand trigger and contracted surge capacity (activated only by an approved option with
+        # activate_surge true, or by the dispatcher directly).
+        **(
+            {
+                "demand": {
+                    # the alert (sustained and affecting patients, engine/surge.py), not every busy moment
+                    "high_demand": surge_alert_on(state),
+                    "reasons": d["reasons"],
+                    "surge_capacity": {"active_until": hhmm(state.surge_until)}
+                    if surge_active(state)
+                    else {"offer": surge_offer(state), "available": surge_available(state)},
+                }
+            }
+            if (d := surge_demand(state))["high"] or surge_active(state)
             else {}
         ),
         "hospitals": build_hospitals(state),
@@ -232,6 +266,7 @@ def tool_vehicle_schedule(state: WorldState, vehicle_id: str) -> dict[str, Any]:
         "status": v.status,
         "near": nearest_place_name(state, v.lat, v.lon),
         **({"grounded_by_fog_until": hhmm(v.grounded_until)} if v.grounded_until else {}),
+        **_helicopter_fields(state, v),
         "schedule": [
             {
                 "trip": leg.trip_id,

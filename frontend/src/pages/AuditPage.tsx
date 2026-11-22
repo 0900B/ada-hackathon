@@ -9,14 +9,18 @@ import {
   Lightbulb,
   Map,
   MessageSquare,
+  PhoneIncoming,
   Power,
   RotateCcw,
   SlidersHorizontal,
+  Truck,
+  UserCheck,
   Zap,
   Dot,
   type LucideIcon,
 } from "lucide-react";
 import { fmtTime } from "../format";
+import { tOr, useT } from "../i18n";
 
 interface AuditEntry {
   id: string;
@@ -35,13 +39,16 @@ interface AuditResponse {
 
 const KINDS = [
   "",
+  "call",
   "event",
+  "override",
   "field_message",
   "agent_run_started",
   "recommendation",
   "decision_approved",
   "decision_rejected",
   "plan_applied",
+  "surge",
   "scenario",
   "reset",
   "setting",
@@ -49,7 +56,10 @@ const KINDS = [
 ];
 
 const KIND_ICON: Record<string, LucideIcon> = {
+  call: PhoneIncoming,
   event: Zap,
+  override: UserCheck,
+  surge: Truck,
   field_message: MessageSquare,
   agent_run_started: Bot,
   recommendation: Lightbulb,
@@ -67,8 +77,15 @@ function KindIcon({ kind }: { kind: string }) {
   return <Icon aria-hidden />;
 }
 
-/** Every event, AI recommendation and operator decision, newest first (auto-refreshes). */
+/** An entry type in the UI language ("decision approved" / "odločitev potrjena"); unknown types humanized. */
+const kindLabel = (kind: string) => tOr(`audit.kind.${kind}`, kind.replace(/_/g, " "));
+
+/**
+ * Every event, AI recommendation and operator decision, newest first (auto-refreshes). The entries'
+ * summaries come from the backend and stay as it writes them (English).
+ */
 export function AuditPage() {
+  const t = useT();
   const [world, setWorld] = useState("");
   const [kind, setKind] = useState("");
   const [data, setData] = useState<AuditResponse | null>(null);
@@ -99,38 +116,38 @@ export function AuditPage() {
 
   return (
     <main className="page">
-      <h2>Audit log</h2>
+      <h2>{t("audit.title")}</h2>
       <div className="audit-bar">
         <select value={world} onChange={(e) => setWorld(e.target.value)}>
-          <option value="">All worlds</option>
-          <option value="live">Live</option>
-          <option value="sim">Simulation</option>
+          <option value="">{t("audit.allWorlds")}</option>
+          <option value="live">{t("rep.worldLive")}</option>
+          <option value="sim">{t("rep.worldSim")}</option>
         </select>
         <select value={kind} onChange={(e) => setKind(e.target.value)}>
           {KINDS.map((k) => (
             <option key={k} value={k}>
-              {k ? k.replace(/_/g, " ") : "All entry types"}
+              {k ? kindLabel(k) : t("audit.allKinds")}
             </option>
           ))}
         </select>
         <a className="button-link" href={`${API_URL}/audit/export${world ? `?world=${world}` : ""}`}>
-          <Download /> Export (JSON lines)
+          <Download /> {t("audit.export")}
         </a>
         {data && (
           <span className="muted">
-            Storage: {data.status.status} · {data.status.written_to_db} written to database · {data.status.pending} pending
+            {t("audit.storage", { status: data.status.status, written: data.status.written_to_db, pending: data.status.pending })}
           </span>
         )}
       </div>
-      {error && <div className="message error">Could not load the audit log: {error}</div>}
+      {error && <div className="message error">{t("audit.loadError", { error })}</div>}
       <table className="audit">
         <thead>
           <tr>
-            <th>Time</th>
-            <th>World</th>
-            <th>Type</th>
-            <th>Ref</th>
-            <th>What happened</th>
+            <th>{t("audit.colTime")}</th>
+            <th>{t("audit.colWorld")}</th>
+            <th>{t("audit.colType")}</th>
+            <th>{t("audit.colRef")}</th>
+            <th>{t("audit.colWhat")}</th>
           </tr>
         </thead>
         <tbody>
@@ -140,11 +157,11 @@ export function AuditPage() {
                 {new Date(e.at).toLocaleDateString("sl-SI", { timeZone: "Europe/Ljubljana" })} {fmtTime(e.at)}
               </td>
               <td>
-                <span className={`world-tag world-${e.world}`}>{e.world}</span>
+                <span className={`world-tag world-${e.world}`}>{tOr(`audit.worldTag.${e.world}`, e.world)}</span>
               </td>
               <td className="kind">
                 <KindIcon kind={e.kind} />
-                {e.kind.replace(/_/g, " ")}
+                {kindLabel(e.kind)}
               </td>
               <td className="id">{e.ref ?? ""}</td>
               <td>
@@ -161,7 +178,7 @@ export function AuditPage() {
           ))}
         </tbody>
       </table>
-      {data && data.entries.length === 0 && <p className="muted">No entries yet.</p>}
+      {data && data.entries.length === 0 && <p className="muted">{t("audit.empty")}</p>}
     </main>
   );
 }
