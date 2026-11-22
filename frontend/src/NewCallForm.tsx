@@ -45,11 +45,14 @@ export function NewCallForm({
     setError(null);
     setResult(null);
     const match = places.find((p) => p.name.toLowerCase() === address.trim().toLowerCase());
+    // A picked point with the field still showing our own "Point on the map": send no address, so the
+    // backend names it after the nearest place ("Map point near Šiška") rather than "Point on the map"
+    const typed = point && address.trim() === tx("ai.nc.mapPoint") ? "" : address.trim();
     try {
       const trip = await postCall(state.world, {
         text: text.trim(),
         ...(point ? { lat: point.lat, lon: point.lon } : match ? { place_id: match.id } : {}),
-        address: address.trim() || undefined,
+        address: typed || undefined,
         caller_name: caller.trim() || undefined,
       });
       setResult(trip);

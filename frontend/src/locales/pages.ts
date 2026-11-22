@@ -45,6 +45,9 @@ export const en = {
   "audit.kind.reset": "reset",
   "audit.kind.setting": "setting",
   "audit.kind.startup": "startup",
+  "audit.kind.call": "112 call",
+  "audit.kind.override": "dispatcher override",
+  "audit.kind.surge": "surge capacity",
 
   // Reports page: header
   "rep.title": "Reports · {world}",
@@ -228,6 +231,9 @@ export const sl: Translation<typeof en> = {
   "audit.kind.reset": "ponastavitev",
   "audit.kind.setting": "nastavitev",
   "audit.kind.startup": "zagon sistema",
+  "audit.kind.call": "klic 112",
+  "audit.kind.override": "preglasitev dispečerja",
+  "audit.kind.surge": "pogodbene enote",
 
   "rep.title": "Poročila · {world}",
   "rep.ariaWorld": "Okolje",

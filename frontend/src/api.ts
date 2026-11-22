@@ -319,6 +319,7 @@ export interface WorldSnapshot {
   calls?: CallsStatus;
   surge?: SurgeStatus;
   version: number;
+  epoch?: number; // +1 on every reset of the world (scenario, Reset); missing on older backends
   sim_time: string;
   places: Place[];
   vehicles: Vehicle[];

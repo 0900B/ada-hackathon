@@ -188,12 +188,29 @@ def test_unknown_address_is_refused_and_a_map_point_works():
     body = post_call("Babica je padla doma in ne more vstati.", lat=46.06, lon=14.52)
     t = trip_of(body)
     assert t.severity == "urgent" and t.condition == "fall" and t.call.address.startswith("Map point near"), t.call
+    assert "km from" not in t.call.address, t.call.address  # "near Polje (3.5 km)", not "near 3.5 km from Polje"
+    far = trip_of(post_call("Padel je s kolesa.", lat=46.10, lon=14.62))
+    assert re.fullmatch(r"Map point near .+ \([\d.]+ km\)", far.call.address), far.call.address
+    again = trip_of(post_call("Padel je s kolesa.", lat=46.1002, lon=14.6202))  # next to the last call's location
+    assert again.call.address == far.call.address, (again.call.address, far.call.address)  # named after a place, not "(call)"
     body = post_call("Sum na kap, povešen ustni kot.", place_id="home_vic")
     assert trip_of(body).pickup_id == "home_vic" and trip_of(body).call.address == "Vič"
     body = post_call("Krči.", address="Celovška cesta 12, Šiška")  # an area's street: near the area
     t = trip_of(body)
     p = W.places[t.pickup_id]
     assert abs(p.lat - W.places["home_siska"].lat) < 0.01 and abs(p.lon - W.places["home_siska"].lon) < 0.01
+
+
+def test_street_without_cesta_is_found():
+    """Callers say "Dunajska 100", not "Dunajska cesta 100": without Claude the address must still be found."""
+    fresh()
+    for typed, full in (("Dunajska 100", "Dunajska cesta 100"), ("celovska 150, Ljubljana", "Celovška cesta 150"),
+                        ("Šmartinska 152", "Šmartinska cesta 152"), ("Topniška 7", "Topniška ulica 7")):
+        short, long = intake.resolve_address(W, typed), intake.resolve_address(W, full)
+        assert short is not None and long is not None, typed
+        assert abs(short.lat - long.lat) < 0.01 and abs(short.lon - long.lon) < 0.01, (typed, short, long)
+    assert intake.resolve_address(W, "Ljubljana") is None  # no street, no area: still asked for
+    assert intake.resolve_address(W, "Nekje 12") is None
 
 
 # --- Intake: Claude, and the rules when Claude is limited or fails ---------------------------------

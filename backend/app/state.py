@@ -240,6 +240,7 @@ class WorldState:
             "hypothetical": self.hypothetical,
             "speedup": self.speedup,
             "version": self.version,
+            "epoch": self.epoch,  # +1 on every reset (a scenario, Reset): clients drop selections of the old world
             "sim_time": self.sim_time.isoformat(),
             "real_time": utcnow().isoformat(),
             "mode": "scheduled_day" if self.scheduled_day else "live_calls",

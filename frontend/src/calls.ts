@@ -449,7 +449,9 @@ export function aiStatsOf(state: WorldSnapshot) {
     }
   }
   return {
-    cases_active: s.cases_active ?? active.length,
+    // Every open trip is a card in the AI dispatcher tab (112 calls, hospital requests, scenario jobs), so
+    // "Handling N cases" counts the cards shown, not only the 112 calls (the backend's cases_active)
+    cases_active: active.length,
     dispatched: s.dispatched ?? dispatched,
     reroutes: s.reroutes ?? reroutes,
     reassignments: s.reassignments ?? reassignments,

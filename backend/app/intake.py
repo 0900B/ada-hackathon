@@ -30,6 +30,7 @@ from .audit import AUDIT
 from .engine.candidates import nearest_place_name
 from .engine.events import apply_event
 from .engine.severity import CONDITIONS
+from .geo import haversine_km
 from .guard import GUARD
 from .models import CallRecord, EventRecord, UrgentRequestEvent
 from .sim import calls as gen
@@ -87,6 +88,19 @@ def _jitter(text: str) -> tuple[float, float]:
     return ((h % 1000) / 999 - 0.5) * 2 * ADDRESS_JITTER[0], (((h // 1000) % 1000) / 999 - 0.5) * 2 * ADDRESS_JITTER[1]
 
 
+def _street_in(street: str, n: str) -> bool:
+    """The street is named in the normalized text n: in full, or the way callers often say it, without
+    "cesta"/"ulica" ("Dunajska 100" for Dunajska cesta 100), as a whole word."""
+    s = _norm(street)
+    if s in n:
+        return True
+    words = s.split()
+    return (
+        len(words) == 2 and words[1] in ("cesta", "ulica") and len(words[0]) >= 6
+        and re.search(rf"\b{re.escape(words[0])}\b", n) is not None
+    )
+
+
 def _area_place(state: WorldState, area: str):
     return next((p for p in state.places.values() if p.kind == "residential" and p.name == area), None)
 
@@ -102,8 +116,8 @@ def resolve_address(state: WorldState, address: str) -> Location | None:
     if exact is not None:
         return Location(exact.id, exact.lat, exact.lon, exact.name)
     area = next((a for a in gen.STREETS if re.search(rf"\b{re.escape(_norm(a))}\b", n)), None)
-    street_area = next((a for a, streets in gen.STREETS.items() for s in streets if _norm(s) in n), None)
-    central = next((s for s in CENTRAL_STREETS if _norm(s) in n), None)
+    street_area = next((a for a, streets in gen.STREETS.items() for s in streets if _street_in(s, n)), None)
+    central = next((s for s in CENTRAL_STREETS if _street_in(s, n)), None)
     dlat, dlon = _jitter(n)
     where = area or (None if central else street_area)
     if where and (p := _area_place(state, where)) is not None:
@@ -117,6 +131,17 @@ def resolve_address(state: WorldState, address: str) -> Location | None:
     return None
 
 
+def _map_point_label(state: WorldState, lat: float, lon: float) -> str:
+    """'Map point near Polje (3.5 km)': the nearest named place (not an earlier call's location), not
+    'Map point near 3.5 km from Polje (call)'."""
+    named = [p for p in state.places.values() if p.kind not in ("call_location", "incident_site")]
+    if not named:
+        return f"Map point near {nearest_place_name(state, lat, lon)}"
+    p = min(named, key=lambda p: haversine_km(lat, lon, p.lat, p.lon))
+    km = haversine_km(lat, lon, p.lat, p.lon)
+    return f"Map point near {p.name}" if km < 0.3 else f"Map point near {p.name} ({km:.1f} km)"
+
+
 def resolve(state: WorldState, address: str | None, place_id: str | None, lat: float | None, lon: float | None) -> Location | None:
     if place_id:
         p = state.places.get(place_id)
@@ -124,7 +149,7 @@ def resolve(state: WorldState, address: str | None, place_id: str | None, lat: f
             raise LocationError(f"Unknown place {place_id}")
         return Location(p.id, p.lat, p.lon, (address or "").strip() or p.name)
     if lat is not None and lon is not None:
-        return Location(None, lat, lon, (address or "").strip() or f"Map point near {nearest_place_name(state, lat, lon)}")
+        return Location(None, lat, lon, (address or "").strip() or _map_point_label(state, lat, lon))
     return resolve_address(state, address) if address else None
 
 
