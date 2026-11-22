@@ -257,7 +257,11 @@ GRADING_KEYWORDS: list[tuple[tuple[str, ...], str | None, str]] = [
       "can't breathe", "cannot breathe", "trouble breathing"), "breathing_difficulty", "serious"),
     (("padec z višine", "z višine", "z lestve", "s strehe", "z odra", "z drevesa", "nadstropja", "prometna nesreča",
       "prometni nesreči", "huda poškodba", "hudo poškodb", "politravm", "zbil", "povozil", "trčenj", "trčil", "ukleščen",
-      "stisnilo", "zasulo", "motorist", "hit by a car", "car crash", "major trauma"), "major_trauma", "serious"),
+      "stisnilo", "zasulo", "motorist", "hit by a car", "car crash", "major trauma",
+      # a head injury (e.g. a fall down the stairs with the head bleeding): not a plain fall
+      "krvavi iz glave", "krvavitev iz glave", "udaril z glavo", "udarila z glavo", "udarilo z glavo", "rana na glavi",
+      "rano na glavi", "poškodba glave", "poškodbo glave", "poškodoval glavo", "poškodovala glavo", "head injury",
+      "head wound", "bleeding from the head", "bleeding from his head", "bleeding from her head"), "major_trauma", "serious"),
     (("krč", "epilept", "božjast", "trese ga po", "trese jo po", "zvija ga", "zvija jo", "seizure", "convuls",
       "having a fit"), "seizure", "serious"),
     (("sepsa", "sepso", "sepsis", "septič", "septic", "zastrupitev krvi", "zastrupitve krvi"), "sepsis", "serious"),

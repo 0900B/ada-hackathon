@@ -308,7 +308,11 @@ NATURAL = {  # how callers really say it (not the generator's templates): each m
     "breathing_difficulty": ["Ne more dihati.", "Ne dobi zraka.", "Ima hud astmatični napad.", "Lovi sapo in je moder.",
                              "Duši ga astma.", "She can't breathe."],
     "major_trauma": ["Avto je zbil pešca.", "Padel je z lestve na glavo.", "Motorist je padel, leži na cesti.",
-                     "Trčenje dveh avtomobilov, voznik je ukleščen.", "Padel je s strehe.", "Hit by a car."],
+                     "Trčenje dveh avtomobilov, voznik je ukleščen.", "Padel je s strehe.", "Hit by a car.",
+                     # a fall with a head injury is not a plain fall
+                     "Babica je padla po stopnicah, krvavi iz glave.", "Dedek je padel in se udaril z glavo ob rob mize.",
+                     "Mama je padla v kopalnici in se udarila z glavo.", "Padel je s kolesa, ima veliko rano na glavi.",
+                     "She fell down the stairs and is bleeding from the head."],
     "seizure": ["Ima krče.", "Trese ga po celem telesu.", "Ima božjast.", "She is having a fit."],
     "sepsis": ["Ima sepso.", "Zastrupitev krvi, zdravnik je rekel."],
     "fracture": ["Zlomil si je nogo.", "Mislim, da je roka zlomljena.", "Broken arm."],
@@ -323,6 +327,11 @@ def test_natural_phrasings_grade_to_their_condition():
         assert grade_text(t)[:2] == (None, "serious"), t  # unconscious, cause unknown: at least serious
     tr = triage_rules("Mama ne more govoriti, obraz ji je povešen na eni strani.", W.sim_time)
     assert (tr.severity, tr.condition) == ("serious", "stroke"), tr
+    tr = triage_rules("Babica je padla po stopnicah, krvavi iz glave", W.sim_time)
+    assert (tr.severity, tr.condition) == ("serious", "major_trauma"), tr
+    # A bump on the head (conscious) stays a fall; heavy bleeding from the head stays critical.
+    assert grade_text("Sosed je padel na stopnicah, ima udarnino na glavi, a je pri zavesti.")[:2] == ("fall", "urgent")
+    assert grade_text("Hudo krvavi iz glave.")[:2] == ("catastrophic_bleeding", "critical")
 
 
 def test_generated_calls_have_words_and_the_stream_is_unchanged():
